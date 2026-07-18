@@ -1,0 +1,37 @@
+[workspace]
+members = [
+    "crates/confval",
+    "crates/confval-derive",
+]
+resolver = "2"
+
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/ethanhann/confval"
+
+
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3               # Maximize performance
+debug = true                # Keep debug symbols for profiling
+split-debuginfo = "packed"  # Create .dwp alongside the binary
+lto = "fat"                 # Link-time optimization
+codegen-units = 1           # More aggressive optimization by reducing parallelism
+panic = "abort"             # Reduce panic handling code
+incremental = false         # Ensure no incremental compilation
+overflow-checks = true      # Ensure safer arithmetic operations
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+
+[workspace.dependencies]
+serde = { version = "1" }
+serde_json = { version = "1" }
+owo-colors = { version = "4" }
+hcl-edit = { version = "0.9" }
+toml_edit = { version = "0.25" }
