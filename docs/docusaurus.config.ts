@@ -27,6 +27,29 @@ const config: Config = {
     locales: ['en'],
   },
 
+  plugins: [
+    [
+      '@docusaurus/plugin-content-blog',
+      {
+        id: 'releases',
+        routeBasePath: 'releases',
+        path: './releases',
+        blogTitle: 'Release',
+        blogDescription: 'Confval release notes and changelogs.',
+        blogSidebarTitle: 'All Releases',
+        blogSidebarCount: 'ALL',
+        showReadingTime: false,
+        onUntruncatedBlogPosts: 'ignore',
+        onInlineTags: 'warn',
+        onInlineAuthors: 'warn',
+        feedOptions: {
+          type: ['rss', 'atom'],
+          xslt: true,
+        },
+      },
+    ],
+  ],
+
   presets: [
     [
       'classic',
@@ -35,19 +58,6 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           editUrl:
             'https://github.com/ethanhann/confval/tree/main/docs/',
-        },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-          },
-          editUrl:
-            'https://github.com/ethanhann/confval/tree/main/docs/',
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
         },
         theme: {
           customCss: './src/css/custom.css',
@@ -70,7 +80,7 @@ const config: Config = {
           position: 'left',
           label: 'Docs',
         },
-        {to: '/blog', label: 'Blog', position: 'left'},
+        {to: '/releases', label: 'Release', position: 'left'},
         {
           href: 'https://github.com/ethanhann/confval',
           label: 'GitHub',
