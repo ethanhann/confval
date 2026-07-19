@@ -1,30 +1,132 @@
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * confval docs theme.
+ * Minimalist 1990s terminal / linux-admin flavor over Infima.
  */
 
-/* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --ifm-font-family-base: ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+    Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace;
+  --ifm-font-family-monospace: var(--ifm-font-family-base);
+  --ifm-heading-font-family: var(--ifm-font-family-base);
+  --ifm-heading-font-weight: 600;
+  --ifm-global-radius: 0px;
+  --ifm-code-font-size: 90%;
+  --ifm-line-height-base: 1.7;
+
+  /* Light: warm "fanfold printer paper", tuned to match Gruvbox code blocks. */
+  --ifm-color-primary: #427b58;
+  --ifm-color-primary-dark: #3b6f4f;
+  --ifm-color-primary-darker: #38694b;
+  --ifm-color-primary-darkest: #2e563d;
+  --ifm-color-primary-light: #498761;
+  --ifm-color-primary-lighter: #4c8d66;
+  --ifm-color-primary-lightest: #58a074;
+
+  --ifm-background-color: #f6f0d9;
+  --ifm-background-surface-color: #fbf5df;
+  --ifm-font-color-base: #3c3836;
+  --ifm-heading-color: #282828;
+  --ifm-toc-border-color: #ddceac;
+  --ifm-hr-border-color: #ddceac;
+
+  --docusaurus-highlighted-code-line-bg: rgba(60, 56, 54, 0.09);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+/* Dark: phosphor green on near-black. */
+[data-theme="dark"] {
+  --ifm-color-primary: #4fd67a;
+  --ifm-color-primary-dark: #3fce6e;
+  --ifm-color-primary-darker: #37c968;
+  --ifm-color-primary-darkest: #2ba656;
+  --ifm-color-primary-light: #63dc89;
+  --ifm-color-primary-lighter: #6fe092;
+  --ifm-color-primary-lightest: #90e8ab;
+
+  --ifm-background-color: #0b0f0c;
+  --ifm-background-surface-color: #10160f;
+  --ifm-font-color-base: #c6d3c6;
+  --ifm-heading-color: #e6f0e6;
+  --ifm-toc-border-color: #1e2a1e;
+  --ifm-hr-border-color: #1e2a1e;
+
+  --docusaurus-highlighted-code-line-bg: rgba(79, 214, 122, 0.12);
+}
+
+/* Flat surfaces: no shadows, a single hairline rule instead. */
+.navbar {
+  box-shadow: none;
+  border-bottom: 1px solid var(--ifm-toc-border-color);
+}
+
+.navbar__link,
+.button,
+.navbar__title,
+.footer__title {
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.navbar__brand .navbar__title::before {
+  content: "~$ ";
+  color: var(--ifm-color-primary);
+}
+
+/* Hero is a terminal pane, not a big colored banner. */
+.hero--primary {
+  --ifm-hero-background-color: var(--ifm-background-color);
+  --ifm-hero-text-color: var(--ifm-font-color-base);
+  border-bottom: 1px solid var(--ifm-toc-border-color);
+}
+
+.hero__title::before {
+  content: "~$ ";
+  color: var(--ifm-color-primary);
+}
+
+.hero__subtitle::after {
+  content: "\2588";
+  margin-left: 0.15em;
+  color: var(--ifm-color-primary);
+  animation: confval-blink 1.1s steps(1) infinite;
+}
+
+@keyframes confval-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__subtitle::after {
+    animation: none;
+  }
+}
+
+/* Square, outlined buttons that invert on hover. */
+.button {
+  border-radius: 0;
+  border: 1px solid var(--ifm-color-primary);
+}
+
+.hero .button--secondary {
+  background: transparent;
+  color: var(--ifm-color-primary);
+}
+
+.hero .button--secondary:hover {
+  background: var(--ifm-color-primary);
+  color: var(--ifm-background-color);
+}
+
+/* Flat, bordered code blocks. */
+pre,
+.theme-code-block {
+  border-radius: 0 !important;
+  border: 1px solid var(--ifm-toc-border-color);
+}
+
+/* Highlighted terminal-region selection. */
+::selection {
+  background: var(--ifm-color-primary);
+  color: var(--ifm-background-color);
 }

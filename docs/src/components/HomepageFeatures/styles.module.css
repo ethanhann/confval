@@ -1,11 +1,34 @@
 .features {
   display: flex;
   align-items: center;
-  padding: 2rem 0;
+  padding: 3rem 0;
   width: 100%;
 }
 
-.featureSvg {
-  height: 200px;
-  width: 200px;
+.card {
+  height: 100%;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-background-surface-color);
+  transition: border-color 0.15s ease;
+}
+
+.card:hover {
+  border-color: var(--ifm-color-primary);
+}
+
+.cardTitle {
+  margin-bottom: 0.75rem;
+  font-size: 1.05rem;
+}
+
+.cardTitle::before {
+  content: "# ";
+  color: var(--ifm-color-primary);
+}
+
+.cardText {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.7;
 }

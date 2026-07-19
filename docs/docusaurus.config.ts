@@ -63,10 +63,6 @@ const config: Config = {
     },
     navbar: {
       title: 'confval',
-      logo: {
-        alt: 'confval Logo',
-        src: 'img/logo.svg',
-      },
       items: [
         {
           type: 'docSidebar',
@@ -115,8 +111,8 @@ const config: Config = {
       copyright: `Copyright © ${new Date().getFullYear()} Ethan Hann. Built with Docusaurus.`,
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      theme: prismThemes.gruvboxMaterialLight,
+      darkTheme: prismThemes.gruvboxMaterialDark,
     },
   } satisfies Preset.ThemeConfig,
 };
