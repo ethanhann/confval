@@ -66,40 +66,11 @@
   letter-spacing: 0.02em;
 }
 
-.navbar__brand .navbar__title::before {
-  content: "~$ ";
-  color: var(--ifm-color-primary);
-}
-
-/* Hero is a terminal pane, not a big colored banner. */
+/* Hero is a flat pane, not a big colored banner. */
 .hero--primary {
   --ifm-hero-background-color: var(--ifm-background-color);
   --ifm-hero-text-color: var(--ifm-font-color-base);
   border-bottom: 1px solid var(--ifm-toc-border-color);
-}
-
-.hero__title::before {
-  content: "~$ ";
-  color: var(--ifm-color-primary);
-}
-
-.hero__subtitle::after {
-  content: "\2588";
-  margin-left: 0.15em;
-  color: var(--ifm-color-primary);
-  animation: confval-blink 1.1s steps(1) infinite;
-}
-
-@keyframes confval-blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero__subtitle::after {
-    animation: none;
-  }
 }
 
 /* Square, outlined buttons that invert on hover. */
