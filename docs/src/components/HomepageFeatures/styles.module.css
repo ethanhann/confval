@@ -1,34 +1,64 @@
 .features {
-  display: flex;
-  align-items: center;
-  padding: 3rem 0;
+  padding: 3rem 1rem;
   width: 100%;
 }
 
-.card {
-  height: 100%;
-  padding: 1.25rem 1.5rem;
+.lead {
+  max-width: 48rem;
+  margin: 0 auto 2rem;
+  text-align: center;
+  color: var(--ifm-font-color-base);
+}
+
+.diagram {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem;
   border: 1px solid var(--ifm-toc-border-color);
   background: var(--ifm-background-surface-color);
-  transition: border-color 0.15s ease;
+  overflow-x: auto;
 }
 
-.card:hover {
-  border-color: var(--ifm-color-primary);
+.diagram :global(svg) {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
 }
 
-.cardTitle {
-  margin-bottom: 0.75rem;
-  font-size: 1.05rem;
+/*
+ * On wide screens the horizontal diagram fills the pane. Mermaid stamps an
+ * inline max-width on the svg at its compact natural width, so override it and
+ * let the svg scale up to the pane instead of sitting small and centered.
+ */
+.wide {
+  width: 100%;
+  max-width: min(78rem, 92vw);
 }
 
-.cardTitle::before {
-  content: "# ";
-  color: var(--ifm-color-primary);
+.wide :global(svg) {
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
-.cardText {
-  margin: 0;
+/*
+ * On smaller screens the vertical diagram scales up to fill the pane rather
+ * than sitting at Mermaid's compact natural width, capped so it stays sensible
+ * on tablets.
+ */
+.tall {
+  width: 100%;
+  max-width: 34rem;
+}
+
+.tall :global(svg) {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.caption {
+  margin: 1.5rem auto 0;
+  text-align: center;
   font-size: 0.9rem;
-  line-height: 1.7;
 }

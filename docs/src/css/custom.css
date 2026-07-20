@@ -1,6 +1,5 @@
 /**
  * confval docs theme.
- * Minimalist 1990s terminal / linux-admin flavor over Infima.
  */
 
 :root {
@@ -100,4 +99,47 @@ pre,
 ::selection {
   background: var(--ifm-color-primary);
   color: var(--ifm-background-color);
+}
+
+/* Mermaid diagrams. */
+.docusaurus-mermaid-container .node :is(rect, polygon, path) {
+  fill: #fffbf0 !important;
+}
+
+.docusaurus-mermaid-container :is(.nodeLabel, .nodeLabel p) {
+  color: #3c3836 !important;
+}
+
+[data-theme="dark"] .docusaurus-mermaid-container .node :is(rect, polygon, path) {
+  fill: #17231a !important;
+}
+
+[data-theme="dark"] .docusaurus-mermaid-container :is(.nodeLabel, .nodeLabel p) {
+  color: #d7e4d7 !important;
+}
+
+/* Edge lines and arrowheads read as one muted neutral in both modes. */
+.docusaurus-mermaid-container .edgePaths .path {
+  stroke: #928374 !important;
+}
+
+.docusaurus-mermaid-container marker path {
+  fill: #928374 !important;
+  stroke: #928374 !important;
+}
+
+/* Square edge-label pills. Pad the inner <p> so the width is measured off-DOM. */
+.labelBkg > span > p {
+  padding: 2px 8px;
+  border-radius: 0;
+}
+
+.docusaurus-mermaid-container :is(.edgeLabel, .labelBkg, .edgeLabel p) {
+  background-color: #fbf5df !important;
+  color: #3c3836 !important;
+}
+
+[data-theme="dark"] .docusaurus-mermaid-container :is(.edgeLabel, .labelBkg, .edgeLabel p) {
+  background-color: #10160f !important;
+  color: #c6d3c6 !important;
 }

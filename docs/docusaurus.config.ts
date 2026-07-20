@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'confval',
   tagline: 'Span-first configuration parsing, validation, and lowering for Rust',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/logo.svg',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -27,6 +27,12 @@ const config: Config = {
     locales: ['en'],
   },
 
+  markdown: {
+    mermaid: true,
+  },
+
+  themes: ['@docusaurus/theme-mermaid'],
+
   plugins: [
     [
       '@docusaurus/plugin-content-blog',
@@ -34,8 +40,8 @@ const config: Config = {
         id: 'releases',
         routeBasePath: 'releases',
         path: './releases',
-        blogTitle: 'Release',
-        blogDescription: 'Confval release notes and changelogs.',
+        blogTitle: 'Releases',
+        blogDescription: 'confval release notes and changelogs.',
         blogSidebarTitle: 'All Releases',
         blogSidebarCount: 'ALL',
         showReadingTime: false,
@@ -59,6 +65,7 @@ const config: Config = {
           editUrl:
             'https://github.com/ethanhann/confval/tree/main/docs/',
         },
+        blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
@@ -71,8 +78,19 @@ const config: Config = {
     colorMode: {
       respectPrefersColorScheme: true,
     },
+    mermaid: {
+      theme: {light: 'neutral', dark: 'dark'},
+      options: {
+        fontFamily:
+          'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace',
+      },
+    },
     navbar: {
       title: 'confval',
+      logo: {
+        alt: 'confval logo',
+        src: 'img/logo.svg',
+      },
       items: [
         {
           type: 'docSidebar',
@@ -80,7 +98,7 @@ const config: Config = {
           position: 'left',
           label: 'Docs',
         },
-        {to: '/releases', label: 'Release', position: 'left'},
+        {to: '/releases', label: 'Releases', position: 'left'},
         {
           href: 'https://github.com/ethanhann/confval',
           label: 'GitHub',
@@ -104,8 +122,8 @@ const config: Config = {
           title: 'More',
           items: [
             {
-              label: 'Blog',
-              to: '/blog',
+              label: 'Releases',
+              to: '/releases',
             },
             {
               label: 'crates.io',

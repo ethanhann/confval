@@ -2,50 +2,14 @@
 sidebar_position: 4
 ---
 
-# Derive macros
+# Lowering
 
-The `derive` feature provides two macros from the `confval-derive` crate.
-The macros emit format-neutral code, so `derive` does not imply any frontend.
-Pair it with `hcl` and/or `toml`.
+Once a spec is validated, lowering converts it into a config type: the runtime form your program actually uses.
+Because lowering runs only after the [gate](./pipeline.md), the narrowing conversions inside it never see a bad value.
 
-## #[derive(confval::Spec)]
+## Defining a config
 
-Generates the `FromFields` impl for a spec struct.
-Parsing is purely structural.
-The macro never embeds semantic rules.
-
-```rust
-#[derive(confval::Spec)]
-pub struct ServerSpec {
-    pub version: Located<i64>,
-    pub threads: Option<Located<i64>>,
-
-    #[confval(nested)]
-    pub limits: Option<Located<LimitsSpec>>,
-
-    #[confval(default = 30)]
-    pub refresh_interval_seconds: Located<i64>,
-}
-```
-
-Field rules:
-
-- Leaf fields dispatch by type to the matching parser: `Located<String>`, `Located<i64>`, `Located<f64>`, `Located<bool>`, `Located<PathBuf>`, `Vec<Located<String>>`, and `Option<Located<Vec<Located<String>>>>`.
-- `Option<...>` makes a field optional.
-  A non-optional field with no default reports `missing field` when absent.
-- **`#[confval(nested)]`** delegates to the field type's own `FromFields` impl.
-  Works for single structs, optional structs, and `Vec` of structs (repeated blocks).
-- **`#[confval(default)]`** and **`#[confval(default = expr)]`** fill an absent field with a detached default instead of reporting it missing.
-  A bare `#[confval(default)]` also applies to a non-optional nested field (`Located<S>` with `#[confval(nested, default)]`), filling an omitted block with `S::default()`.
-  `default = expr` is leaf-only.
-- Unknown fields in the input are reported as errors.
-
-Tagged unions (a block whose shape depends on a discriminator field like `mode` or `type`) are hand-written `FromFields` impls.
-The derive only handles plain structs.
-
-## #[derive(confval::Config)]
-
-Generates the `Lower` impl that converts a validated spec into a runtime config:
+`#[derive(confval::Config)]` writes the `Lower` impl that converts a validated spec into a runtime config:
 
 ```rust
 #[derive(confval::Config)]

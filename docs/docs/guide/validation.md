@@ -1,11 +1,14 @@
 ---
-sidebar_position: 5
+sidebar_position: 3
 ---
 
-# Constraints and validation
+# Validation
 
-Semantic rules run after parsing, against the spans stored in `Located` fields.
-confval provides two ready-made constraint types and a `Validate` trait that ties validation into the compile-time contract.
+Parsing gets you a spec with the right shape.
+Validation is where you check what the values mean: ranges, allowed keywords, and rules that cross more than one field.
+It runs against the span each `Located` field already carries, so every message points back at the file.
+
+confval gives you two ready-made checks and a `Validate` trait.
 
 ## RangeConstraint
 
@@ -37,7 +40,7 @@ KeywordSet::new(&LOAD_BALANCING_STRATEGIES)
 ```
 
 `check_located` reports `unknown {field}: {value}` at the value's span, with a help line of `expected one of: <comma-joined options>`.
-Every keyword field reports the same way, so the operator sees a consistent message and the allowed set wherever a closed-set field is wrong.
+Every keyword field reports the same way, so a wrong value in any closed-set field produces the same message shape and lists the allowed set.
 
 ## Validate
 

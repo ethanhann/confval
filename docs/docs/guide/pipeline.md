@@ -1,10 +1,10 @@
 ---
-sidebar_position: 6
+sidebar_position: 1
 ---
 
 # The pipeline contract
 
-confval assumes a fixed phase ordering, and the derives are designed around it.
+confval assumes a fixed ordering of stages, and the derives are designed around it.
 A configuration file moves through four ordered phases: parse, validate, gate, and lower.
 
 ## The four phases
@@ -12,7 +12,7 @@ A configuration file moves through four ordered phases: parse, validate, gate, a
 1. **Parse** (structural).
    A frontend (`parse_hcl` or `parse_toml`) builds the neutral `Fields`, runs `FromFields`, and reports shape problems.
    Unknown fields, wrong types, missing required fields, and duplicate blocks are reported with spans.
-   Parsing continues across inputs: an input whose tree was built keeps flowing into validation even if some of its fields failed, so the operator sees parse and validation problems in one pass.
+   Parsing continues across inputs: an input whose tree was built keeps flowing into validation even if some of its fields failed, so parse and validation problems appear together in one pass.
    Only an input that produced no tree at all (a syntax error) stops the load.
 
 2. **Validate** (semantic).
@@ -29,15 +29,18 @@ A configuration file moves through four ordered phases: parse, validate, gate, a
 4. **Lower**.
    `Lower::lower` converts spec types to runtime config types.
    Because the gate ran, the narrowing conversions inside lowering (string to `IpNet`, `i64` to `u16`) are safe.
-   A failure here indicates a missing validation rule, not bad operator input, and it still reports through the same span pipeline so even a missing-rule bug renders with a source location.
+   A failure here indicates a missing validation rule rather than invalid input.
+   Unlike parsing and validation, lowering does not accumulate errors.
+   It reports the one error and short-circuits, since a lowering error is rare and means an earlier phase let something through.
+   The error still carries a span, so it renders with a source location like any other.
 
-## Spec types vs config types
+## Spec types vs. config types
 
 Each setting exists in two parallel structs.
 
 | Layer      | Derives                        | Purpose                                                |
 |------------|--------------------------------|--------------------------------------------------------|
-| **Spec**   | `confval::Spec` (and `Serialize`) | Populated from the source file; every field is span-tracked |
+| **Spec**   | `confval::Spec` (and `Serialize`) | Populated from the source file, with every field span-tracked |
 | **Config** | `confval::Config` (and serde)  | Resolved, executable form used at runtime              |
 
 Spec fields are wrapped in `Located<T>`:
@@ -99,11 +102,11 @@ Operators write nested structures either as blocks or as attribute-with-object, 
 
 ```hcl
 limits {
-  enable = true
+   enable = true
 }
 
 limits = {
-  enable = true
+   enable = true
 }
 ```
 
