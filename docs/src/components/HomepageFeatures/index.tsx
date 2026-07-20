@@ -56,7 +56,7 @@ export default function HomepageFeatures(): ReactNode {
         <Mermaid value={wide ? PIPELINE_WIDE : PIPELINE_TALL} />
       </div>
       <p className={styles.caption}>
-        See <Link to="/docs/guide/pipeline">The pipeline contract</Link> for the
+        See <Link to="/docs/pipeline">The pipeline contract</Link> for the
         detail on each phase, including the rare lowering error that
         short-circuits.
       </p>
