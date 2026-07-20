@@ -1,13 +1,18 @@
 #!/usr/bin/env just --justfile
 
 release:
-  cargo build --release    
+    cargo build --release    
 
 test:
-  cargo nextest run --workspace --all-features
+    cargo nextest run --workspace --all-features
 
 lint:
-  cargo clippy
+    cargo clippy
+
+# Test everything
+validate: lint test
+    cargo doc
+    cd docs && npm run build
 
 # Publish both crates to crates.io, confval-derive first (confval pins it with `=`).
 publish:
