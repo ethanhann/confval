@@ -43,8 +43,8 @@ Spans come from the `Located` fields, so validation works the same whether the s
 constructed in code.
 
 :::info
-The trait doubles as a compile-time bound on the lower stage, so a lowerable spec without a validator does not
-compile.
+The trait doubles as a compile-time bound on the [lower](./guide/lowering.md) stage, so a lowerable spec without a validator
+does not compile.
 This is important as it **guarantees** a spec has a validation implementation.
 However, it is not a guarantee that each field is validated (unless the field itself is a nested spec).
 :::
