@@ -5,7 +5,7 @@ sidebar_position: 4
 # Lowering
 
 Once a spec is validated, lowering converts it into a config type: the runtime form your program actually uses.
-Because lowering runs only after the [gate](./pipeline.md), the narrowing conversions inside it never see a bad value.
+Because lowering runs only after the [gate](../pipeline.md), the narrowing conversions inside it never see a bad value.
 
 ## Defining a config
 

@@ -1,15 +1,20 @@
 ---
-sidebar_position: 1
+sidebar_position: 2
 ---
 
-# The pipeline contract
+# The Pipeline Contract
 
-confval assumes a fixed ordering of stages, and the derives are designed around it.
-A configuration file moves through this sequence: parse, validate, gate, and lower.
+The confval pipeline approach is inspired by
+the ["Parse, don't validate"](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) blog post by Alexis
+King.
+However, it does not use newtypes to couple construction with validation.
+Instead, think of the entire process as a multipass parser that sends a configuration file through this sequence:
+**parse**, **validate**, **gate**, and **lower**.
+confval assumes a fixed ordering of these stages, and the derives are designed around them.
 
 ## The four stages
 
-### 1. **Parse** (structural).
+### 1. Parse (structural)
 
 A frontend (`parse_hcl` or `parse_toml`) builds the neutral `Fields`, runs `FromFields`, and reports shape problems.
 
@@ -18,14 +23,15 @@ Parsing continues across inputs: an input whose tree was built keeps flowing int
 fields failed, so parse and validation problems appear together in one pass.
 Only an input that produced no tree at all (a syntax error) stops the load.
 
-### 2. **Validate** (semantic).
+### 2. Validate (semantic)
 
 `Validate` impls take `&self` and `&mut Report` and check ranges, closed sets, and cross-field rules against the
 spans stored in `Located` fields.
 
 Validation never panics.
-Not panicking is *critical* for a system with hot reload.
-If validation panicked, during a reload, a long-lived service could crash on a simple misconfiguration.
+Not panicking is **absolutely critical** for a system with hot reload.
+If validation panicked during a reload, a long-lived service would crash on a simple misconfiguration.
+Instead, the validation issues are reported.
 
 Every validator appends issues to the report.
 Issues are not necessarily explicitly handled Rust errors.
@@ -43,12 +49,12 @@ This is important as it **guarantees** a spec has a validation implementation.
 However, it is not a guarantee that each field is validated (unless the field itself is a nested spec).
 :::
 
-### 3. **Gate**.
+### 3. Gate
 
 If the report contains any errors after validation, lowering must not run.
 Warnings alone may not (and probably should not) block lowering.
 
-### 4. **Lower**.
+### 4. Lower
 
 `Lower::lower` converts spec types to runtime config types.
 
@@ -152,4 +158,4 @@ messages.
 Two end-to-end examples ship in `crates/confval/examples/`: `hcl.rs` and `toml.rs`.
 They define the same `ServerSpec` and `ServerConfig` and differ only in the source text and the single `parse_hcl` vs
 `parse_toml` call, demonstrating that everything after parsing is format-neutral.
-See [Getting Started](../getting-started.md) to run them.
+See [Getting Started](getting-started.md) to run them.

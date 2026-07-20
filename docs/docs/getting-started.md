@@ -50,7 +50,7 @@ The `toml` example in the crate defines the same `ServerSpec` and `ServerConfig`
 It differs only in the source text and the one parse call, which shows that the code after parsing does not depend on the format.
 
 Read through it once for the overall shape.
-The walkthrough below takes it apart one piece at a time, following the [pipeline contract](./guide/pipeline.md) in order.
+The walkthrough below takes it apart one piece at a time, following the [pipeline contract](pipeline.md) in order.
 
 ```rust
 use confval::prelude::*;
@@ -168,7 +168,7 @@ limits {
 ## Walking through the example
 
 The code breaks into four parts: the spec types you parse into, the validation rules, the config types you lower to, and the `main` that ties them together.
-Each part lines up with a phase of the [pipeline contract](./guide/pipeline.md).
+Each part lines up with a phase of the [pipeline contract](pipeline.md).
 
 ### The spec types
 
