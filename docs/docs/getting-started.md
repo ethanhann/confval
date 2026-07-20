@@ -11,16 +11,16 @@ Add confval to your `Cargo.toml`.
 The crate has no default features.
 Enable the format frontends and extras you use.
 
-For example, for TOML format, derive macros, and console color support:
+For example, for TOML format, derive macros, JSON diagnostics, and console color support:
 
 ```shell
-cargo add confval --features "derive,toml,color"
+cargo add confval --features "toml,derive,serde,color"
 ```
 
 Or, the HCL format, derive macros, and plain output:
 
 ```shell
-cargo add confval --features "derive,hcl"
+cargo add confval --features "hcl,derive"
 ```
 
 ### Feature flags
