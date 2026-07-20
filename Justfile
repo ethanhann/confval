@@ -11,7 +11,7 @@ lint:
 
 # Test everything
 validate: lint test
-    cargo doc
+    cargo doc --all-features --no-deps
     cd docs && npm run build
 
 # Publish both crates to crates.io, confval-derive first (confval pins it with `=`).
