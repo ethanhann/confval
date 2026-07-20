@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Validation
 
-[Parsing](./parsing.md), which proceeds validation, gets ensures the spec is structurally correct.
+[Parsing](./parsing.md), which precedes validation, ensures the spec is structurally correct.
 Validation is where you exhaustively check what the values mean: ranges, allowed keywords, and rules that cross more
 than one field.
 
@@ -43,7 +43,7 @@ const LOAD_BALANCING_STRATEGIES: [&str; 5] =
     ["failover", "round_robin", "request_pressure", "sticky_hash", "random"];
 
 KeywordSet::new(&LOAD_BALANCING_STRATEGIES)
-.check_located(&spec.load_balancing_strategy, "load_balancing_strategy", report);
+    .check_located(&spec.load_balancing_strategy, "load_balancing_strategy", report);
 ```
 
 `check_located` reports `unknown {field}: {value}` at the value's span, with a help line of
