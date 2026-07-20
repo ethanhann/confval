@@ -12,6 +12,9 @@
 //!
 //! Run with: cargo run -p confval --example hcl --features derive,color,hcl
 
+// unwrap/expect are fine in a self-contained example.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use confval::prelude::*;
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
