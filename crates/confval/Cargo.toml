@@ -1,0 +1,52 @@
+[package]
+name = "confval"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Span-first configuration parsing, validation, and lowering for Rust"
+readme = "README.md"
+keywords = ["configuration", "validation", "config"]
+categories = ["config", "development-tools"]
+
+[lints]
+workspace = true
+
+[features]
+default = []
+serde = ["dep:serde", "dep:serde_json"]
+color = ["dep:owo-colors"]
+# Format frontends are independent opt-ins.
+# The derive macro emits the format-neutral `FromFields`, so `derive` needs no frontend.
+# tldr; pick `hcl` and/or `toml` for the format(s) you actually parse.
+hcl = ["dep:hcl-edit"]
+toml = ["dep:toml_edit"]
+derive = ["dep:confval-derive"]
+
+[dependencies]
+serde = { workspace = true, features = ["derive"], optional = true }
+serde_json = { workspace = true, optional = true }
+owo-colors = { workspace = true, optional = true }
+hcl-edit = { workspace = true, optional = true }
+toml_edit = { workspace = true, optional = true }
+confval-derive = { version = "=0.4.0", path = "../confval-derive", optional = true }
+
+[dev-dependencies]
+hcl-edit = "0.9"
+trybuild = "1"
+
+[[example]]
+name = "hcl"
+required-features = ["derive", "color", "hcl"]
+
+[[example]]
+name = "toml"
+required-features = ["derive", "color", "toml"]
+
+[[test]]
+name = "compile_fail"
+required-features = ["derive"]
+
+[[test]]
+name = "hcl_end_to_end"
+required-features = ["derive", "hcl"]

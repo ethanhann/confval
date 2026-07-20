@@ -1,0 +1,145 @@
+/**
+ * confval docs theme.
+ */
+
+:root {
+  --ifm-font-family-base: ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+    Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace;
+  --ifm-font-family-monospace: var(--ifm-font-family-base);
+  --ifm-heading-font-family: var(--ifm-font-family-base);
+  --ifm-heading-font-weight: 600;
+  --ifm-global-radius: 0px;
+  --ifm-code-font-size: 90%;
+  --ifm-line-height-base: 1.7;
+
+  /* Light: warm "fanfold printer paper", tuned to match Gruvbox code blocks. */
+  --ifm-color-primary: #427b58;
+  --ifm-color-primary-dark: #3b6f4f;
+  --ifm-color-primary-darker: #38694b;
+  --ifm-color-primary-darkest: #2e563d;
+  --ifm-color-primary-light: #498761;
+  --ifm-color-primary-lighter: #4c8d66;
+  --ifm-color-primary-lightest: #58a074;
+
+  --ifm-background-color: #f6f0d9;
+  --ifm-background-surface-color: #fbf5df;
+  --ifm-font-color-base: #3c3836;
+  --ifm-heading-color: #282828;
+  --ifm-toc-border-color: #ddceac;
+  --ifm-hr-border-color: #ddceac;
+
+  --docusaurus-highlighted-code-line-bg: rgba(60, 56, 54, 0.09);
+}
+
+/* Dark: phosphor green on near-black. */
+[data-theme="dark"] {
+  --ifm-color-primary: #4fd67a;
+  --ifm-color-primary-dark: #3fce6e;
+  --ifm-color-primary-darker: #37c968;
+  --ifm-color-primary-darkest: #2ba656;
+  --ifm-color-primary-light: #63dc89;
+  --ifm-color-primary-lighter: #6fe092;
+  --ifm-color-primary-lightest: #90e8ab;
+
+  --ifm-background-color: #0b0f0c;
+  --ifm-background-surface-color: #10160f;
+  --ifm-font-color-base: #c6d3c6;
+  --ifm-heading-color: #e6f0e6;
+  --ifm-toc-border-color: #1e2a1e;
+  --ifm-hr-border-color: #1e2a1e;
+
+  --docusaurus-highlighted-code-line-bg: rgba(79, 214, 122, 0.12);
+}
+
+/* Flat surfaces: no shadows, a single hairline rule instead. */
+.navbar {
+  box-shadow: none;
+  border-bottom: 1px solid var(--ifm-toc-border-color);
+}
+
+.navbar__link,
+.button,
+.navbar__title,
+.footer__title {
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+/* Hero is a flat pane, not a big colored banner. */
+.hero--primary {
+  --ifm-hero-background-color: var(--ifm-background-color);
+  --ifm-hero-text-color: var(--ifm-font-color-base);
+  border-bottom: 1px solid var(--ifm-toc-border-color);
+}
+
+/* Square, outlined buttons that invert on hover. */
+.button {
+  border-radius: 0;
+  border: 1px solid var(--ifm-color-primary);
+}
+
+.hero .button--secondary {
+  background: transparent;
+  color: var(--ifm-color-primary);
+}
+
+.hero .button--secondary:hover {
+  background: var(--ifm-color-primary);
+  color: var(--ifm-background-color);
+}
+
+/* Flat, bordered code blocks. */
+pre,
+.theme-code-block {
+  border-radius: 0 !important;
+  border: 1px solid var(--ifm-toc-border-color);
+}
+
+/* Highlighted terminal-region selection. */
+::selection {
+  background: var(--ifm-color-primary);
+  color: var(--ifm-background-color);
+}
+
+/* Mermaid diagrams. */
+.docusaurus-mermaid-container .node :is(rect, polygon, path) {
+  fill: #fffbf0 !important;
+}
+
+.docusaurus-mermaid-container :is(.nodeLabel, .nodeLabel p) {
+  color: #3c3836 !important;
+}
+
+[data-theme="dark"] .docusaurus-mermaid-container .node :is(rect, polygon, path) {
+  fill: #17231a !important;
+}
+
+[data-theme="dark"] .docusaurus-mermaid-container :is(.nodeLabel, .nodeLabel p) {
+  color: #d7e4d7 !important;
+}
+
+/* Edge lines and arrowheads read as one muted neutral in both modes. */
+.docusaurus-mermaid-container .edgePaths .path {
+  stroke: #928374 !important;
+}
+
+.docusaurus-mermaid-container marker path {
+  fill: #928374 !important;
+  stroke: #928374 !important;
+}
+
+/* Square edge-label pills. Pad the inner <p> so the width is measured off-DOM. */
+.labelBkg > span > p {
+  padding: 2px 8px;
+  border-radius: 0;
+}
+
+.docusaurus-mermaid-container :is(.edgeLabel, .labelBkg, .edgeLabel p) {
+  background-color: #fbf5df !important;
+  color: #3c3836 !important;
+}
+
+[data-theme="dark"] .docusaurus-mermaid-container :is(.edgeLabel, .labelBkg, .edgeLabel p) {
+  background-color: #10160f !important;
+  color: #c6d3c6 !important;
+}

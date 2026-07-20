@@ -1,0 +1,21 @@
+[package]
+name = "confval-derive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Derive macros for confval"
+readme = "README.md"
+keywords = ["configuration", "validation", "config", "derive", "macro"]
+categories = ["config", "development-tools::procedural-macro-helpers"]
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
