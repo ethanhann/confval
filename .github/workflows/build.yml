@@ -54,6 +54,11 @@ jobs:
       - name: Run doctests
         run: cargo test --locked --all-features --doc
 
+      - name: cargo doc
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc --locked --all-features --no-deps
+
       # trybuild (the compile_fail test) leaves a nested cargo target dir under
       # target/tests. Remove it so rust-cache's save step does not walk into it
       # and fail with ENOENT.
