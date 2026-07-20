@@ -1,6 +1,6 @@
 {
   "label": "Guide",
-  "position": 3,
+  "position": 2,
   "link": {
     "type": "generated-index",
     "description": "confval one phase at a time: the pipeline contract, then parsing, validation, lowering, and diagnostics. Read it in order to learn the library, or jump to the phase you are working on."
