@@ -9,8 +9,9 @@ test:
 lint:
   cargo clippy
 
-# Publish confval to crates.io
-publish-confval:
+# Publish both crates to crates.io, confval-derive first (confval pins it with `=`).
+publish:
+    cargo publish -p confval-derive
     cargo publish -p confval
 
 docs:
