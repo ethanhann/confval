@@ -4,6 +4,13 @@ sidebar_position: 3
 
 # Contributing
 
+## Just recipes
+
+Various just recipes are available, but these are the most useful:
+
+- `just docs`: run the docs site locally
+- `just validate`: Test everything (lint, unit tests, etc)
+
 ## Design
 
 confval is built around five design decisions.
@@ -63,3 +70,4 @@ confval assumes a fixed ordering of stages, and the derives are designed around 
 3. **Gate**: lowering must not run on a report that contains errors.
 4. **Lower**: `Lower::lower` converts specs to runtime types.
    Because the gate ran, narrowing conversions in `with` functions are safe.
+
