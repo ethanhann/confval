@@ -4,11 +4,18 @@ sidebar_position: 2
 
 # Validation
 
-Parsing gets you a spec with the right shape.
-Validation is where you check what the values mean: ranges, allowed keywords, and rules that cross more than one field.
-It runs against the span each `Located` field already carries, so every message points back at the file.
+[Parsing](./parsing.md), which proceeds validation, gets ensures the spec is structurally correct.
+Validation is where you exhaustively check what the values mean: ranges, allowed keywords, and rules that cross more
+than one field.
 
-confval gives you two ready-made checks and a `Validate` trait.
+confval provides a `Validate` trait.
+The trait doubles as a compile-time bound on the [lower](./lowering.md) stage, so a lowerable spec without a validator
+does not compile.
+This is important as it **guarantees** a spec has a validation implementation.
+However, it is not a guarantee that each field is validated (unless the field itself is a nested spec).
+
+The checks are (currently) intentionally minimal.
+confval provides only two domain-agnostic checks: `RangeConstraint` and `KeywordSet`.
 
 ## RangeConstraint
 
@@ -23,8 +30,8 @@ PORT.check_located(&spec.port, "port", report);
 ```
 
 `check_located` emits an error at the value's span when out of range.
-When **help** is provided it overrides the auto-generated suggestion.
-Otherwise confval generates one like "Set port to at least 1".
+When **help** is provided, it overrides the auto-generated suggestion.
+Otherwise, confval generates one like "Set port to at least 1".
 
 ## KeywordSet
 
@@ -36,11 +43,13 @@ const LOAD_BALANCING_STRATEGIES: [&str; 5] =
     ["failover", "round_robin", "request_pressure", "sticky_hash", "random"];
 
 KeywordSet::new(&LOAD_BALANCING_STRATEGIES)
-    .check_located(&spec.load_balancing_strategy, "load_balancing_strategy", report);
+.check_located(&spec.load_balancing_strategy, "load_balancing_strategy", report);
 ```
 
-`check_located` reports `unknown {field}: {value}` at the value's span, with a help line of `expected one of: <comma-joined options>`.
-Every keyword field reports the same way, so a wrong value in any closed-set field produces the same message shape and lists the allowed set.
+`check_located` reports `unknown {field}: {value}` at the value's span, with a help line of
+`expected one of: <comma-joined options>`.
+Every keyword field reports the same way, so a wrong value in any closed-set field produces the same message shape and
+lists the allowed set.
 
 ## Validate
 
@@ -52,8 +61,11 @@ pub trait Validate {
 }
 ```
 
-A `Validate` impl checks what a value can prove about itself from its own fields, reporting at the span each field already carries.
-It takes only `&self` and the report: no span and no origin parameter, because anything needing more context (a missing required child, a cross-field rule, a relational check across the whole config) belongs in the consumer's central validators, not here.
+A `Validate` impl checks what a value can prove about itself from its own fields, reporting at the span each field
+already carries.
+It takes only `&self` and the report: no span and no origin parameter, because anything needing more context (a missing
+required child, a cross-field rule, a relational check across the whole config) belongs in the consumer's central
+validators, not here.
 
 The trait's reason to exist is to be nameable in a bound.
 The `Config` derive, given the `validate` flag, emits it on the generated `Lower` impl:
@@ -67,9 +79,11 @@ struct ServerConfig {
 // generates: impl Lower<ServerSpec> for ServerConfig where ServerSpec: Validate { ... }
 ```
 
-A flagged config whose spec has no `Validate` impl then fails to compile, so a spec that can be lowered into a runtime config but carries no validator is unrepresentable.
+A flagged config whose spec has no `Validate` impl then fails to compile, so a spec that can be lowered into a runtime
+config but carries no validator is unrepresentable.
 The flag is opt-in: configs that do not request it lower exactly as before.
-Hand-written `Lower` impls add the same `where S: Validate` clause directly, and a flattening lowering (one that has no per-entity `Lower` impl) can put the bound on the function that performs it.
+Hand-written `Lower` impls add the same `where S: Validate` clause directly, and a flattening lowering (one that has no
+per-entity `Lower` impl) can put the bound on the function that performs it.
 
 The bound guarantees the validator exists, not that lowering calls it.
 Validation is still invoked explicitly before the gate.
