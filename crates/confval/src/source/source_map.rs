@@ -4,7 +4,7 @@ use crate::source::SourceId;
 /// environment variable.
 ///
 /// Non-file sources are ordinary sources with a conventional name, e.g.
-/// `sources.add("env:SNAKEWAY_PORT", "8080")`.
+/// `sources.add("env:SERVER_PORT", "8080")`.
 #[derive(Debug)]
 pub struct Source {
     /// Display name, typically the path relative to the config root,
