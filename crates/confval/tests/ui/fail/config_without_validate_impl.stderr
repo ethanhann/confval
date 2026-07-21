@@ -1,11 +1,11 @@
 error[E0277]: the trait bound `ServerSpec: Validate` is not satisfied
-  --> tests/ui/fail/config_validate_without_impl.rs:10:10
+  --> tests/ui/fail/config_without_validate_impl.rs:11:10
    |
-10 | #[derive(confval::Config)]
+11 | #[derive(confval::Config)]
    |          ^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
 help: the trait `Validate` is not implemented for `ServerSpec`
-  --> tests/ui/fail/config_validate_without_impl.rs:4:1
+  --> tests/ui/fail/config_without_validate_impl.rs:4:1
    |
  4 | struct ServerSpec {
    | ^^^^^^^^^^^^^^^^^

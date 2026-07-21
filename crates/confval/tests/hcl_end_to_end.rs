@@ -7,7 +7,7 @@
 #![cfg(feature = "derive")]
 
 use confval::format::hcl::parse_hcl;
-use confval::prelude::{Located, Lower, Report, SourceMap, Span};
+use confval::prelude::{Located, Lower, Report, SourceMap, Span, Validate};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -59,6 +59,26 @@ impl Default for RetrySpec {
             max_attempts: Located::detached(3),
         }
     }
+}
+
+// `Lower` is bound on `Validate`, so every spec lowered here needs an impl.
+// These fixtures exercise parsing and lowering; their semantic checks live in
+// `validate_server_spec` below, which keeps this file's coverage of the
+// free-function validation path intact.
+impl Validate for ServerSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for TlsSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for LimitsSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for RetrySpec {
+    fn validate(&self, _report: &mut Report) {}
 }
 
 fn check_range(value: &Located<i64>, min: i64, max: i64, name: &str, report: &mut Report) {

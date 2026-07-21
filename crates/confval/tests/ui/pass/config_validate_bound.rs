@@ -12,7 +12,7 @@ impl Validate for ServerSpec {
 }
 
 #[derive(confval::Config)]
-#[confval(lower_from = ServerSpec, validate)]
+#[confval(lower_from = ServerSpec)]
 struct ServerConfig {
     port: i64,
 }
