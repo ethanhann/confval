@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Span-first configuration parsing, validation, and lowering for Rust"
-readme = "README.md"
+readme.workspace = true
 keywords = ["configuration", "validation", "config"]
 categories = ["config", "development-tools"]
 
