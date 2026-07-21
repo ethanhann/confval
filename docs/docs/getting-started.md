@@ -5,10 +5,12 @@ sidebar_position: 1
 # Getting Started
 
 confval is a Rust crate for parsing, validating, and lowering configuration files.
-It records a source span for every parsed value, so a validation error can report the line and column in the file the value came from.
+It records a source span for every parsed value, so a validation error can report the line and column in the file the
+value came from.
 
 Use it to build the configuration layer of an application.
-You define the shape of the config as Rust types, parse a file into those types, run validation, and lower the result into the runtime types the rest of the program uses.
+You define the shape of the config as Rust types, parse a file into those types, run validation, and lower the result
+into the runtime types the rest of the program uses.
 
 ## Installation
 
@@ -45,7 +47,8 @@ The `derive` emits the format-neutral `FromFields`, so `derive` brings in no par
 
 ## A complete example
 
-This example parses an HCL document, validates it, checks the report for errors, and lowers the validated spec into a runtime config.
+This example parses an HCL document, validates it, checks the report for errors, and lowers the validated spec into a
+runtime config.
 
 The crate ships the same program as multiple runnable examples.
 `hcl.rs` and `toml.rs` each supply a source document and one parse call, and both pull everything after parsing from a
@@ -181,13 +184,15 @@ limits {
 
 ## Walking through the example
 
-The code breaks into four parts: the spec types you parse into, the validation rules, the config types you lower to, and the `main` that ties them together.
+The code breaks into four parts: the spec types you parse into, the validation rules, the config types you lower to, and
+the `main` that ties them together.
 Each part lines up with a phase of the [pipeline contract](pipeline.md).
 
 ### The spec types
 
 When a file is parsed, it is deserialized into a spec type.
-Every field is wrapped in a [`Located<T>`](./guide/parsing.md#located-values), which links the value back to where it came from in the configuration file.
+Every field is wrapped in a [`Located<T>`](./guide/parsing.md#located-values), which links the value back to where it
+came from in the configuration file.
 That location is called a `span`.
 
 ```rust
@@ -243,7 +248,8 @@ See [Parsing](./guide/parsing.md#optional-fields-and-defaults) for the full set 
 
 ### The validation rules
 
-After parsing, validation checks what the values mean: ranges, allowed keywords, and rules that cross more than one field.
+After parsing, validation checks what the values mean: ranges, allowed keywords, and rules that cross more than one
+field.
 Each field already carries its span, so every message it reports points back at the file.
 
 Each spec type checks its own fields in a `Validate` impl.
@@ -272,7 +278,8 @@ impl Validate for ServerSpec {
   `PORT.check_located(&self.port, "port", report)` flags `port` at its span when it falls outside the range.
 - [`KeywordSet`](./guide/validation.md#keywordset) checks a value against a fixed set of allowed strings.
   `LimitsSpec` uses it for `mode` in its own impl.
-- For anything else, go through the report builder: `.at(span)` attaches the location, `.help(text)` adds a suggestion, and `.emit()` records the issue.
+- For anything else, go through the report builder: `.at(span)` attaches the location, `.help(text)` adds a suggestion,
+  and `.emit()` records the issue.
 
 Implementing `Validate` is not optional.
 Every generated `Lower` impl is bound on it, so a spec with no validator makes its config fail to compile.
@@ -320,7 +327,8 @@ struct ServerConfig {
   Lowering drops the `Located` wrapper, so `Located<String>` becomes `String`.
 - `#[confval(lower(from = port, with = narrow::i64_to_u16))]` narrows the `i64` port down to a `u16`.
   [`narrow`](./guide/lowering.md#narrowing-helpers) refuses a value that does not fit instead of quietly truncating it.
-- `#[confval(nested, default)]` lowers `LimitsSpec::default()` when the file left the block out, so `limits` is always set at runtime.
+- `#[confval(nested, default)]` lowers `LimitsSpec::default()` when the file left the block out, so `limits` is always
+  set at runtime.
 
 A `with` function has the signature `fn(&SpecField, &mut Report) -> Option<Target>`.
 
@@ -345,14 +353,14 @@ let mut sources = SourceMap::new();
 let mut report = Report::new();
 let id = sources.add("server.hcl", input);
 
-let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mut report);
+let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl( & sources, id, & mut report);
 ```
 
 Second, validate the parsed spec.
 
 ```rust
-if let Some(spec) = &spec {
-    validate_server(spec, &mut report);
+if let Some(spec) = & spec {
+validate_server(spec, & mut report);
 }
 ```
 
@@ -361,10 +369,10 @@ If it holds any errors, render them and stop before lowering.
 
 ```rust
 if report.has_errors() {
-    let mut out = String::new();
-    report.render_pretty(&sources, &mut out).unwrap();
-    eprint!("{out}");
-    std::process::exit(1);
+let mut out = String::new();
+report.render_pretty( & sources, & mut out).unwrap();
+eprint ! ("{out}");
+std::process::exit(1);
 }
 ```
 
@@ -372,7 +380,7 @@ Fourth, lower the validated spec into the runtime config.
 
 ```rust
 let spec = spec.expect("parse returned None without reporting an error");
-let config = ServerConfig::lower(&spec, &mut report).expect("validated config lowers");
+let config = ServerConfig::lower( & spec, & mut report).expect("validated config lowers");
 ```
 
 To watch the report work, put some bad values in the input: an empty `hostname`, a `port` of `99999`, an unknown `mode`.
@@ -386,11 +394,72 @@ The crate ships two runnable examples that define the same types and differ only
 Run the HCL example:
 
 ```shell
-cargo run -p confval --example hcl --features derive,color,hcl
+cargo run -q -p confval --example hcl --features derive,color,hcl
+```
+
+Configuration file is intentionally invalid:
+
+```shell
+error: port must be at most 65535
+ --> server.hcl:2:8
+  |
+2 | port = 99999
+  |        ^^^^^
+  = help: Set port to at most 65535
+
+error: hostname must not be empty
+ --> server.hcl:1:12
+  |
+1 | hostname = ""
+  |            ^^
+  = help: Set hostname to a reachable address, e.g. "127.0.0.1".
+
+error: unknown mode: yolo
+ --> server.hcl:5:10
+  |
+5 |   mode = "yolo"
+  |          ^^^^^^
+  = help: expected one of: enforce, log, off
 ```
 
 Run the TOML example:
 
 ```shell
-cargo run -p confval --example toml --features derive,color,toml
+cargo run -q -p confval --example toml --features derive,color,toml
 ```
+
+Configuration file is validated:
+
+```shell
+listening on 127.0.0.1:8080 with 8 workers
+limits: max_body_mb=16 mode=enforce
+```
+
+Run the issue_severity example that shows a warning:
+
+```shell
+cargo run -q -p confval --example issue_severity --features derive,color,toml
+```
+
+Configuration file is validated with a warning:
+
+```shell
+warning: hostname set to listen on every available network device
+ --> server.toml:1:12
+  |
+1 | hostname = "0.0.0.0"
+  |            ^^^^^^^^^
+  = help: This might be undesired.
+
+listening on 0.0.0.0:8080 with 8 workers
+limits: max_body_mb=16 mode=enforce
+```
+
+## Additional Examples
+
+Additional examples are available for reference:
+
+- An example PR for [mini-redis](https://github.com/ethanhann/mini-redis/pull/1).
+- Snakeway reverse
+  proxy's [snakeway-conf crate](https://github.com/snakewayhq/snakeway/tree/main/crates/snakeway-conf/src)
+  (advanced usage)
