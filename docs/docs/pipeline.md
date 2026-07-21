@@ -25,8 +25,10 @@ Only an input that produced no tree at all (a syntax error) stops the load.
 
 ### 2. Validate (semantic)
 
-`Validate` impls take `&self` and `&mut Report` and check ranges, closed sets, and cross-field rules against the
-spans stored in `Located` fields.
+Validation checks ranges, closed sets, and cross-field rules against the spans stored in `Located` fields.
+Rules live in two places: a `Validate` impl on a spec type, which takes `&self` and `&mut Report`, and validator
+functions you write and call yourself.
+[Validation](./guide/validation.md#where-a-rule-lives) covers which rule goes where.
 
 Validation never panics.
 Not panicking is **absolutely critical** for a system with hot reload.
@@ -43,10 +45,12 @@ Spans come from the `Located` fields, so validation works the same whether the s
 constructed in code.
 
 :::info
-The trait doubles as a compile-time bound on the [lower](./guide/lowering.md) stage, so a lowerable spec without a validator
-does not compile.
-This is important as it **guarantees** a spec has a validation implementation.
-However, it is not a guarantee that each field is validated (unless the field itself is a nested spec).
+The trait exists to be named in a bound.
+A config that opts in with `#[confval(lower_from = ServerSpec, validate)]` gets a generated `Lower` impl carrying
+`where ServerSpec: Validate`, so that config does not compile unless its spec has a validator.
+The bound guarantees a validator exists.
+It does not guarantee that every field is checked inside that validator, and it does not guarantee that lowering calls
+it.
 :::
 
 ### 3. Gate
@@ -131,7 +135,7 @@ A serde keyword enum in the spec layer would abort parsing with a single error i
 `IpNet`, `SocketAddr`, runtime enums.
 Downstream code never re-parses a string it received from config.
 
-**Hand-written `FromFields` impls cover the shapes the derive does not.**
+**Handwritten `FromFields` impls cover the shapes the derive does not.**
 Tagged unions parse their discriminator first and dispatch.
 A free-form block can be captured as an arbitrary value rather than a struct by reading the neutral field model
 directly.
