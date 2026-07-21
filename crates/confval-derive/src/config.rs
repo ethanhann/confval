@@ -68,7 +68,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         ));
     };
 
-    let (spec_type, spec_only, validate) = parse_config_struct_options(input)?;
+    let (spec_type, spec_only) = parse_config_struct_options(input)?;
     let name = &input.ident;
 
     // `consumed` records every spec field a config field reads from, so the
@@ -164,14 +164,10 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
     let ignored = spec_only.iter().map(|ident| quote! { #ident: _, });
 
-    // The `validate` flag binds the Spec to `Validate`, so a lowerable spec
-    // without a validator fails to compile. The bound is opt-in: configs that
-    // do not request it lower exactly as before.
-    let where_clause = if validate {
-        quote! { where #spec_type: ::confval::pipeline::Validate }
-    } else {
-        quote! {}
-    };
+    // Binding the Spec to `Validate` makes a lowerable spec without a validator
+    // a compile error. An empty impl satisfies the bound, so this catches the
+    // forgotten validator rather than proving any field is checked.
+    let where_clause = quote! { where #spec_type: ::confval::pipeline::Validate };
 
     Ok(quote! {
         impl ::confval::pipeline::Lower<#spec_type> for #name #where_clause {
@@ -201,16 +197,15 @@ fn push_consumed(consumed: &mut Vec<syn::Ident>, ident: syn::Ident) {
 
 /// Reads the struct-level `#[confval(...)]` options.
 ///
-/// Returns the spec type to lower from (`lower_from`, required), the spec-only
-/// fields that have no config counterpart (`spec_only`, deliberately ignored
-/// during the destructure), and whether the `validate` bound was requested.
+/// Returns the spec type to lower from (`lower_from`, required) and the
+/// spec-only fields that have no config counterpart (`spec_only`, deliberately
+/// ignored during the destructure).
 /// A missing `lower_from` or an unknown key is a compile error.
 fn parse_config_struct_options(
     input: &DeriveInput,
-) -> syn::Result<(syn::Path, Vec<syn::Ident>, bool)> {
+) -> syn::Result<(syn::Path, Vec<syn::Ident>)> {
     let mut spec_type: Option<syn::Path> = None;
     let mut spec_only = Vec::new();
-    let mut validate = false;
     for attr in &input.attrs {
         if !attr.path().is_ident("confval") {
             continue;
@@ -228,19 +223,16 @@ fn parse_config_struct_options(
                     spec_only.push(ident.clone());
                     Ok(())
                 })
-            } else if meta.path.is_ident("validate") {
-                validate = true;
-                Ok(())
             } else {
                 Err(meta.error(
-                    "unknown confval attribute; expected `lower_from = SpecType`, \
-                     `spec_only(...)`, or `validate`",
+                    "unknown confval attribute; expected `lower_from = SpecType` \
+                     or `spec_only(...)`",
                 ))
             }
         })?;
     }
     spec_type
-        .map(|spec_type| (spec_type, spec_only, validate))
+        .map(|spec_type| (spec_type, spec_only))
         .ok_or_else(|| {
             syn::Error::new(
                 input.ident.span(),
