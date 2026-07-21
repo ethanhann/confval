@@ -9,7 +9,7 @@ sidebar_position: 4
 Various just recipes are available, but these are the most useful:
 
 - `just docs`: run the docs site locally
-- `just validate`: Test everything (lint, unit tests, etc)
+- `just validate`: Test everything (lint, unit tests, etc.)
 
 ## Design
 
@@ -37,9 +37,12 @@ These design decisions underpin the core functionality of the crate and should b
 - A frontend converts one syntax into that model.
 - HCL and TOML ship today, each behind its own feature, and a new format is another frontend over the same model.
 
-#### The core has no dependencies.
+#### The core has no required dependencies.
 
 serde, owo-colors, hcl-edit, toml_edit, and the derive macros are each behind a feature flag.
+ 
+A goal of confval is to not require dependencies in the future.
+Any new dependencies should ideally be behind a feature flag.
 
 ## Crate layout
 
