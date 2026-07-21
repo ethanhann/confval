@@ -10,8 +10,8 @@ than one field.
 
 confval provides a `Validate` trait, described under [Validate](#validate) below.
 Its main purpose is to be named in a bound on the [lower](./lowering.md) stage.
-A config that opts into that bound does not compile unless its spec has a validator.
-The bound guarantees a validator exists.
+Every spec lowered into a config must implement it, or the config does not compile.
+This means that the bound guarantees a validator exists.
 It does not guarantee that every field is checked inside that validator.
 
 The checks are (currently) intentionally minimal.
@@ -98,23 +98,25 @@ Such a function holds the surrounding `Located` wrappers.
 It can therefore report at any span it needs.
 
 Beyond holding those checks, the trait gives the lowering bound something to name.
-The `Config` derive, given the `validate` flag, emits it on the generated `Lower` impl:
+The `Config` derive puts that bound on every generated `Lower` impl:
 
 ```rust
 #[derive(confval::Config)]
-#[confval(lower_from = ServerSpec, validate)]
+#[confval(lower_from = ServerSpec)]
 struct ServerConfig {
     /* ... */
 }
 // generates: impl Lower<ServerSpec> for ServerConfig where ServerSpec: Validate { ... }
 ```
 
-A flagged config whose spec has no `Validate` impl then fails to compile, so a spec that can be lowered into a runtime
-config but carries no validator is unrepresentable.
-The flag is opt-in.
-A config that does not set it is lowered with no `Validate` bound.
-Handwritten `Lower` impls add the same `where S: Validate` clause directly, and a flattening lowering (one that has no
-per-entity `Lower` impl) can put the bound on the function that performs it.
+A config whose spec has no `Validate` impl fails to compile.
+A spec that can be lowered into a runtime config but carries no validator is therefore unrepresentable.
+
+An empty impl satisfies the bound.
+A spec type with nothing worth checking writes one, which states that validation was considered rather than forgotten.
+
+Handwritten `Lower` impls add the same `where S: Validate` clause directly.
+A flattening lowering, meaning one with no per-entity `Lower` impl, can put the bound on the function that performs it.
 
 The bound guarantees the validator exists.
 It does not guarantee that lowering calls it.

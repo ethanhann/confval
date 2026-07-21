@@ -1,8 +1,14 @@
+use confval::diagnostic::Report;
+use confval::pipeline::Validate;
 use confval::source::Located;
 
 #[derive(confval::Spec)]
 struct InnerSpec {
     name: Located<String>,
+}
+
+impl Validate for InnerSpec {
+    fn validate(&self, _report: &mut Report) {}
 }
 
 #[derive(confval::Config)]

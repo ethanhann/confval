@@ -8,11 +8,14 @@ use crate::diagnostic::Report;
 /// cross-field structure, or sibling context do not belong here; they live in
 /// the central validators that hold the surrounding `Located` wrappers.
 ///
-/// The trait exists to be named in a bound: `#[derive(Config)]` with the
-/// `validate` flag emits `impl Lower<S> ... where S: Validate`, so a spec that
-/// can be lowered into a runtime config but has no validator fails to compile.
-/// Validation is still invoked explicitly before the lowering gate; the trait
-/// guarantees the validator exists, not that lowering calls it.
+/// The trait exists so the requirement can be written as a bound.
+/// `#[derive(Config)]` emits `impl Lower<S> ... where S: Validate`
+/// to make sure the target spec of the lowering has a validator.
+///
+/// An empty impl satisfies the bound.
+/// What it catches is the forgotten validator, not an unchecked field.
+/// Validation is still invoked explicitly before the lowering gate, so the
+/// bound does not make lowering call it.
 pub trait Validate {
     fn validate(&self, report: &mut Report);
 }

@@ -22,7 +22,8 @@ use common::{ServerConfig, ServerSpec};
 use confval::prelude::*;
 
 fn main() -> Result<(), String> {
-    let input = r#"hostname = "127.0.0.1"
+    // Possibly invalid hostname will appear as a warning.
+    let input = r#"hostname = "0.0.0.0"
 port = 8080
 workers = 8
 "#;

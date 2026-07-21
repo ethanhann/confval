@@ -1,4 +1,4 @@
-use confval::prelude::{Located, Lower, Report};
+use confval::prelude::{Located, Lower, Report, Validate};
 
 #[derive(confval::Spec)]
 struct InnerSpec {
@@ -12,6 +12,14 @@ struct ServerSpec {
     workers: Located<i64>,
     #[confval(nested)]
     inner: Option<Located<InnerSpec>>,
+}
+
+impl Validate for InnerSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for ServerSpec {
+    fn validate(&self, _report: &mut Report) {}
 }
 
 #[derive(confval::Config)]

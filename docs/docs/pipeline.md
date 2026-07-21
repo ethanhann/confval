@@ -45,12 +45,13 @@ Spans come from the `Located` fields, so validation works the same whether the s
 constructed in code.
 
 :::info
-The trait exists to be named in a bound.
-A config that opts in with `#[confval(lower_from = ServerSpec, validate)]` gets a generated `Lower` impl carrying
-`where ServerSpec: Validate`, so that config does not compile unless its spec has a validator.
-The bound guarantees a validator exists.
-It does not guarantee that every field is checked inside that validator, and it does not guarantee that lowering calls
-it.
+The `Validate` trait exists so the requirement can be written as a bound.
+Every generated `Lower` impl carries `where SpecType: Validate`, so a config does not compile unless its spec has a
+validator.
+
+That catches the forgotten validator.
+An empty impl satisfies the bound, so it does not prove any field is checked.
+It also does not make lowering call the validator, which stays an explicit step before the gate.
 :::
 
 ### 3. Gate
@@ -165,7 +166,10 @@ messages.
 
 ## Runnable examples
 
-Two end-to-end examples ship in `crates/confval/examples/`: `hcl.rs` and `toml.rs`.
-They define the same `ServerSpec` and `ServerConfig` and differ only in the source text and the single `parse_hcl` vs
-`parse_toml` call, demonstrating that everything after parsing is format-neutral.
+Two end-to-end examples ship in `crates/confval/examples/`.
+`hcl.rs` and `toml.rs` each hold a source document and one parse call.
+Everything after parsing lives in `common/mod.rs`: the spec types, the validators, the config types, and the lowering
+functions.
+Both examples share that file verbatim.
+The format-neutrality of the later stages is visible in the layout, and explicitly annotated.
 See [Getting Started](getting-started.md) to run them.

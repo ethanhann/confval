@@ -5,12 +5,25 @@ release:
 
 test:
     cargo nextest run --workspace --all-features
+    cargo test --locked --all-features --doc
+
+format:
+    cargo fmt
 
 lint:
-    cargo clippy
+    cargo clippy --all-targets --all-features -- -D warnings
 
 # Test everything
-validate: lint test check-doc-snippets
+validate: format lint test validate-docs examples
+
+# Run examples
+examples:
+    echo "Running crate examples..."
+    -cargo run -q -p confval --features derive,color,hcl,serde --example hcl
+    cargo run -q -p confval --features derive,color,toml,serde --example toml
+    cargo run -q -p confval --features derive,color,toml,serde --example issue_severity
+
+validate-docs: check-doc-snippets
     cargo doc --all-features --no-deps
     cd docs && npm run build
 
