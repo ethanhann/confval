@@ -55,8 +55,15 @@ it.
 
 ### 3. Gate
 
-If the report contains any errors after validation, lowering must not run.
-Warnings alone may not (and probably should not) block lowering.
+Lowering must not run when the report contains errors.
+Nothing in confval enforces this.
+The caller performs the check.
+Call `report.has_errors()` after validation and return before lowering when it is true.
+[Getting Started](./getting-started.md#running-the-pipeline) shows the check in place.
+
+Report also has `has_warnings()` and `has_issues()` (i.e., has warnings or errors).
+This granularity gives the implementor the flexibility to decide if warnings should also prevent lowering or perhaps
+take some other implementation-specific action.
 
 ### 4. Lower
 
