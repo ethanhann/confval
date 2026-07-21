@@ -353,14 +353,14 @@ let mut sources = SourceMap::new();
 let mut report = Report::new();
 let id = sources.add("server.hcl", input);
 
-let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl( & sources, id, & mut report);
+let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mut report);
 ```
 
 Second, validate the parsed spec.
 
 ```rust
-if let Some(spec) = & spec {
-validate_server(spec, & mut report);
+if let Some(spec) = &spec {
+validate_server(spec, &mut report);
 }
 ```
 
@@ -370,7 +370,7 @@ If it holds any errors, render them and stop before lowering.
 ```rust
 if report.has_errors() {
 let mut out = String::new();
-report.render_pretty( & sources, & mut out).unwrap();
+report.render_pretty( &sources, &mut out).unwrap();
 eprint ! ("{out}");
 std::process::exit(1);
 }
@@ -380,7 +380,7 @@ Fourth, lower the validated spec into the runtime config.
 
 ```rust
 let spec = spec.expect("parse returned None without reporting an error");
-let config = ServerConfig::lower( & spec, & mut report).expect("validated config lowers");
+let config = ServerConfig::lower(&spec, &mut report).expect("validated config lowers");
 ```
 
 To watch the report work, put some bad values in the input: an empty `hostname`, a `port` of `99999`, an unknown `mode`.
