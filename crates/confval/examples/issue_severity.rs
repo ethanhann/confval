@@ -20,12 +20,12 @@
 
 mod common;
 
-use crate::common::evaluate_report;
 use common::{ServerConfig, ServerSpec, validate_server};
 use confval::prelude::*;
+use crate::common::evaluate_report;
 
 fn main() {
-    let input = r#"hostname = "127.0.0.1"
+    let input = r#"hostname = "0.0.0.0"
 port = 8080
 workers = 8
 "#;

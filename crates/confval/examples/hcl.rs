@@ -21,7 +21,7 @@
 
 mod common;
 
-use common::{ServerConfig, ServerSpec, validate_server};
+use common::{ServerConfig, ServerSpec, validate_server, evaluate_report};
 use confval::prelude::*;
 
 fn main() {
@@ -37,21 +37,22 @@ limits {
     let mut report = Report::new();
     let id = sources.add("server.hcl", input);
 
-    // The only format-specific line in the whole program.
+    // Parse (HCL)
     let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mut report);
+
+    // Validate
     if let Some(spec) = &spec {
         validate_server(spec, &mut report);
     }
 
-    if report.has_errors() {
-        let mut out = String::new();
-        report.render_pretty(&sources, &mut out).unwrap();
-        eprint!("{out}");
-        std::process::exit(1);
-    }
-
+    // Gate
+    evaluate_report(&sources, &report);
     let spec = spec.expect("parse returned None without reporting an error");
+
+    // Lower
     let config = ServerConfig::lower(&spec, &mut report).expect("validated config lowers");
+
+    // Print results
     println!(
         "listening on {}:{} with {} workers",
         config.hostname, config.port, config.workers

@@ -55,6 +55,14 @@ impl Validate for ServerSpec {
                 .help("Set hostname to a reachable address, e.g. \"127.0.0.1\".")
                 .emit();
         }
+
+        if self.hostname.value == "0.0.0.0" {
+            report
+                .warning("hostname set to listen on every available network device")
+                .at(self.hostname.span)
+                .help("This might be undesired.")
+                .emit();
+        }
     }
 }
 
