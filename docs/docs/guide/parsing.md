@@ -123,7 +123,7 @@ To parse, call the frontend for the format you enabled with the appropriate feat
 Each takes a `SourceMap`, a `SourceId`, and a `&mut Report`, and returns your spec as an `Option`.
 
 ```rust
-let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl( & sources, id, & mut report);
+let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mut report);
 ```
 
 The result is the same whichever format you read, so validation and lowering never depend on which frontend ran.
