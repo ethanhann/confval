@@ -46,11 +46,13 @@ The `derive` emits the format-neutral `FromFields`, so `derive` brings in no par
 ## A complete example
 
 This example parses an HCL document, validates it, checks the report for errors, and lowers the validated spec into a runtime config.
-The `toml` example in the crate defines the same `ServerSpec` and `ServerConfig`.
-It differs only in the source text and the one parse call, which shows that the code after parsing does not depend on the format.
+
+The crate ships the same program as multiple runnable examples.
+`hcl.rs` and `toml.rs` each supply a source document and one parse call, and both pull everything after parsing from a
+shared `common/mod.rs`.
 
 Read through it once for the overall shape.
-The walkthrough below takes it apart one piece at a time, following the [pipeline contract](pipeline.md) in order.
+The walkthrough below steps through it piece by piece, following the [pipeline contract](pipeline.md) in order.
 
 ```rust
 use confval::prelude::*;
@@ -88,21 +90,33 @@ impl Default for LimitsSpec {
     }
 }
 
+impl Validate for LimitsSpec {
+    fn validate(&self, report: &mut Report) {
+        MAX_BODY_MB.check_located(&self.max_body_mb, "max_body_mb", report);
+        KeywordSet::new(&LIMIT_MODES).check_located(&self.mode, "mode", report);
+    }
+}
+
+impl Validate for ServerSpec {
+    fn validate(&self, report: &mut Report) {
+        PORT.check_located(&self.port, "port", report);
+        WORKERS.check_located(&self.workers, "workers", report);
+
+        if self.hostname.value.is_empty() {
+            report
+                .error("hostname must not be empty")
+                .at(self.hostname.span)
+                .help("Set hostname to a reachable address, e.g. \"127.0.0.1\".")
+                .emit();
+        }
+    }
+}
+
 fn validate_server(spec: &ServerSpec, report: &mut Report) {
-    PORT.check_located(&spec.port, "port", report);
-    WORKERS.check_located(&spec.workers, "workers", report);
+    spec.validate(report);
 
     if let Some(limits) = &spec.limits {
-        MAX_BODY_MB.check_located(&limits.value.max_body_mb, "max_body_mb", report);
-        KeywordSet::new(&LIMIT_MODES).check_located(&limits.value.mode, "mode", report);
-    }
-
-    if spec.hostname.value.is_empty() {
-        report
-            .error("hostname must not be empty")
-            .at(spec.hostname.span)
-            .help("Set hostname to a reachable address, e.g. \"127.0.0.1\".")
-            .emit();
+        limits.value.validate(report);
     }
 }
 
@@ -232,32 +246,53 @@ See [Parsing](./guide/parsing.md#optional-fields-and-defaults) for the full set 
 After parsing, validation checks what the values mean: ranges, allowed keywords, and rules that cross more than one field.
 Each field already carries its span, so every message it reports points back at the file.
 
+Each spec type checks its own fields in a `Validate` impl.
+
 ```rust
 range_constraint!(PORT, i64, min: 1, max: 65535);
 
 const LIMIT_MODES: [&str; 3] = ["enforce", "log", "off"];
 
-fn validate_server(spec: &ServerSpec, report: &mut Report) {
-    PORT.check_located(&spec.port, "port", report);
+impl Validate for ServerSpec {
+    fn validate(&self, report: &mut Report) {
+        PORT.check_located(&self.port, "port", report);
 
-    if let Some(limits) = &spec.limits {
-        KeywordSet::new(&LIMIT_MODES).check_located(&limits.value.mode, "mode", report);
-    }
-
-    if spec.hostname.value.is_empty() {
-        report
-            .error("hostname must not be empty")
-            .at(spec.hostname.span)
-            .help("Set hostname to a reachable address, e.g. \"127.0.0.1\".")
-            .emit();
+        if self.hostname.value.is_empty() {
+            report
+                .error("hostname must not be empty")
+                .at(self.hostname.span)
+                .help("Set hostname to a reachable address, e.g. \"127.0.0.1\".")
+                .emit();
+        }
     }
 }
 ```
 
 - `range_constraint!` declares a numeric bound once.
-  `PORT.check_located(&spec.port, "port", report)` flags `port` at its span when it falls outside the range.
+  `PORT.check_located(&self.port, "port", report)` flags `port` at its span when it falls outside the range.
 - [`KeywordSet`](./guide/validation.md#keywordset) checks a value against a fixed set of allowed strings.
+  `LimitsSpec` uses it for `mode` in its own impl.
 - For anything else, go through the report builder: `.at(span)` attaches the location, `.help(text)` adds a suggestion, and `.emit()` records the issue.
+
+Implementing `Validate` is not optional.
+Every generated `Lower` impl is bound on it, so a spec with no validator makes its config fail to compile.
+A spec type with nothing to check writes an empty impl.
+
+A `Validate` impl only sees its own fields, so something has to walk into the nested block.
+That is what `validate_server` does.
+
+```rust
+fn validate_server(spec: &ServerSpec, report: &mut Report) {
+    spec.validate(report);
+
+    if let Some(limits) = &spec.limits {
+        limits.value.validate(report);
+    }
+}
+```
+
+[Validation](./guide/validation.md#where-a-rule-lives) covers which rules belong in an impl and which belong in a
+function like this one.
 
 Validation never stops at the first problem.
 It adds every issue it finds to the report, so one run shows you all of them.
