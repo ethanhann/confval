@@ -202,7 +202,6 @@ A `port` of `99999` parses fine here.
 Validation catches it later, and points at its span.
 
 `LimitsSpec` works the same way.
-It also carries a `Default`, which the config side falls back to when the block is missing.
 
 ```rust
 #[derive(confval::Spec)]
@@ -214,7 +213,19 @@ struct LimitsSpec {
 }
 ```
 
-See [Parsing](./guide/parsing.md#defining-a-spec) for the full set of field rules.
+The defaults are declared twice.
+
+The `#[confval(default = ...)]` attributes fill a field the file left out of a `limits` block that is present.
+The example input writes `limits { mode = "log" }`, so `max_body_mb` comes from its attribute default.
+
+The handwritten `impl Default` supplies the whole struct when the block is absent entirely.
+That is what `#[confval(nested, default)]` on `LimitsConfig` reaches for during lowering.
+
+Nothing checks that the two agree.
+Keeping `16` and `"enforce"` in step across both is manual.
+This flexibility is intentional as every use case cannot be accounted for.
+
+See [Parsing](./guide/parsing.md#optional-fields-and-defaults) for the full set of field rules.
 
 ### The validation rules
 
@@ -330,7 +341,8 @@ let config = ServerConfig::lower(&spec, &mut report).expect("validated config lo
 ```
 
 To watch the report work, put some bad values in the input: an empty `hostname`, a `port` of `99999`, an unknown `mode`.
-The gate trips, and all three come back reported, each at its own line and column.
+The `has_errors()` check stops the run before lowering, and all three come back reported, each at its own line and
+column.
 
 ## Running the crate examples
 
