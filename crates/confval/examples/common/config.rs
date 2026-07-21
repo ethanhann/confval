@@ -1,5 +1,7 @@
 use super::spec::*;
 use confval::prelude::*;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
@@ -31,4 +33,20 @@ pub struct LimitsConfig {
 fn workers_to_usize(value: &Located<i64>, _report: &mut Report) -> Option<usize> {
     // Safe: the range was validated and lowering only runs on a clean report.
     Some(value.value as usize)
+}
+
+/// This is for demo purposes, to see what the values are in the examples' output.
+impl Display for ServerConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        writeln!(
+            f,
+            "listening on {}:{} with {} workers",
+            self.hostname, self.port, self.workers
+        )?;
+        writeln!(
+            f,
+            "limits: max_body_mb={} mode={}",
+            self.limits.max_body_mb, self.limits.mode
+        )
+    }
 }

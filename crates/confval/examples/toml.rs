@@ -50,12 +50,5 @@ workers = 8
     let config = ServerConfig::lower(&spec, &mut report).expect("validated config lowers");
 
     // Print results
-    println!(
-        "listening on {}:{} with {} workers",
-        config.hostname, config.port, config.workers
-    );
-    println!(
-        "limits: max_body_mb={} mode={}",
-        config.limits.max_body_mb, config.limits.mode
-    );
+    println!("{}", config);
 }
