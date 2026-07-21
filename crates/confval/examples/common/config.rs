@@ -64,7 +64,7 @@ fn mode_to_enum(value: &Located<String>, report: &mut Report) -> Option<Mode> {
         // Validation already checked this against LIMIT_MODES, so reaching here
         // means there is a mismatch between the keyword set and the enum.
         // A keyword was added to one, but not the other.
-        Err(message) => {
+        Err(_) => {
             report
                 .error(format!("unknown mode: {}", value.value))
                 .at(value.span)
