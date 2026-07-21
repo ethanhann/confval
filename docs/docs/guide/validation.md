@@ -111,11 +111,13 @@ struct ServerConfig {
 
 A flagged config whose spec has no `Validate` impl then fails to compile, so a spec that can be lowered into a runtime
 config but carries no validator is unrepresentable.
-The flag is opt-in: configs that do not request it lower exactly as before.
+The flag is opt-in.
+A config that does not set it is lowered with no `Validate` bound.
 Handwritten `Lower` impls add the same `where S: Validate` clause directly, and a flattening lowering (one that has no
 per-entity `Lower` impl) can put the bound on the function that performs it.
 
 The bound guarantees the validator exists.
 It does not guarantee that lowering calls it.
 Validation is still invoked explicitly before the gate.
-The trait closes the "forgot to write a validator" gap, and the call site remains the consumer's responsibility.
+The trait closes the "forgot to write a validator" gap.
+Calling the validator remains the caller's responsibility.

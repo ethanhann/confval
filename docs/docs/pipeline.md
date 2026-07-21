@@ -75,10 +75,9 @@ A failure here indicates a missing validation rule rather than invalid input.
 Unlike parsing and validation, lowering does not accumulate errors.
 It reports the one error and short-circuits, since a lowering error is rare and means an earlier stage let something
 through.
-It is recommended to literally say in the lowering error message something like "This is likely a bug that should have
-been caught during validation".
-This is better operator-ergonomics as the user of the software (which may or may not be the developer) immediately knows
-it is a deeper problem than a misconfigured configuration file.
+Say so in the message.
+For example, "this is likely a bug that should have been caught during validation".
+An operator reading that knows the problem sits in the software rather than in their configuration file.
 
 Finally, the error still carries a span, so it renders with a source location like any other.
 
