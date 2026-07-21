@@ -16,9 +16,6 @@
 //!
 //! Run with: cargo run -p confval --example hcl --features derive,color,hcl
 
-// unwrap/expect are fine in a self-contained example.
-#![allow(clippy::unwrap_used, clippy::expect_used)]
-
 mod common;
 
 use common::{ServerConfig, ServerSpec, evaluate_report};

@@ -15,9 +15,6 @@
 //!
 //! Run with: cargo run -p confval --example toml --features derive,color,toml
 
-// unwrap/expect are fine in a self-contained example.
-#![allow(clippy::unwrap_used, clippy::expect_used)]
-
 mod common;
 
 use crate::common::evaluate_report;

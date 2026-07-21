@@ -5,12 +5,13 @@ release:
 
 test:
     cargo nextest run --workspace --all-features
+    cargo test --locked --all-features --doc
 
 format:
     cargo fmt
 
 lint:
-    cargo clippy
+    cargo clippy --all-targets --all-features -- -D warnings
 
 # Test everything
 validate: format lint test validate-docs examples
