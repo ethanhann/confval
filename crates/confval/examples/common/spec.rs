@@ -63,15 +63,9 @@ impl Validate for ServerSpec {
                 .help("This might be undesired.")
                 .emit();
         }
-    }
-}
 
-/// A `Validate` impl only checks its own fields, so walking into the nested
-/// block is the caller's job.
-pub fn validate_server(spec: &ServerSpec, report: &mut Report) {
-    spec.validate(report);
-
-    if let Some(limits) = &spec.limits {
-        limits.value.validate(report);
+        if let Some(limits) = &self.limits {
+            limits.value.validate(report);
+        }
     }
 }

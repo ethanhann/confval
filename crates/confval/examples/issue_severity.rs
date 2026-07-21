@@ -21,7 +21,7 @@
 mod common;
 
 use crate::common::evaluate_report;
-use common::{ServerConfig, ServerSpec, validate_server};
+use common::{ServerConfig, ServerSpec};
 use confval::prelude::*;
 
 fn main() -> Result<(), String> {
@@ -39,13 +39,11 @@ workers = 8
     let spec: Option<ServerSpec> = confval::format::toml::parse_toml(&sources, id, &mut report);
 
     // Validate
-    if let Some(spec) = &spec {
-        validate_server(spec, &mut report);
-    }
+    let spec = spec.ok_or("parse returned None without reporting an error")?;
+    spec.validate(&mut report);
 
     // Gate
     evaluate_report(&sources, &report);
-    let spec = spec.ok_or("parse returned None without reporting an error")?;
 
     // Lower
     let config = ServerConfig::lower(&spec, &mut report).ok_or("validated config lowers")?;

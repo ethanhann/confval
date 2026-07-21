@@ -21,7 +21,7 @@
 
 mod common;
 
-use common::{ServerConfig, ServerSpec, validate_server, evaluate_report};
+use common::{ServerConfig, ServerSpec, evaluate_report};
 use confval::prelude::*;
 
 fn main() -> Result<(), String> {
@@ -41,13 +41,11 @@ limits {
     let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mut report);
 
     // Validate
-    if let Some(spec) = &spec {
-        validate_server(spec, &mut report);
-    }
+    let spec = spec.ok_or("parse returned None without reporting an error")?;
+    spec.validate(&mut report);
 
     // By design, this HCL example does not make it past this gate.
     evaluate_report(&sources, &report);
-    let spec = spec.ok_or("parse returned None without reporting an error")?;
 
     // Lower never runs
     let config = ServerConfig::lower(&spec, &mut report).ok_or("validated config lowers")?;
