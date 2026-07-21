@@ -201,9 +201,7 @@ fn push_consumed(consumed: &mut Vec<syn::Ident>, ident: syn::Ident) {
 /// spec-only fields that have no config counterpart (`spec_only`, deliberately
 /// ignored during the destructure).
 /// A missing `lower_from` or an unknown key is a compile error.
-fn parse_config_struct_options(
-    input: &DeriveInput,
-) -> syn::Result<(syn::Path, Vec<syn::Ident>)> {
+fn parse_config_struct_options(input: &DeriveInput) -> syn::Result<(syn::Path, Vec<syn::Ident>)> {
     let mut spec_type: Option<syn::Path> = None;
     let mut spec_only = Vec::new();
     for attr in &input.attrs {
