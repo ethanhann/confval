@@ -20,11 +20,12 @@
 
 mod common;
 
+use crate::common::evaluate_report;
 use common::{ServerConfig, ServerSpec, validate_server};
 use confval::prelude::*;
-use crate::common::evaluate_report;
 
-fn main() {
+fn main() -> Result<(), String> {
+    // Possibly invalid hostname will appear as a warning.
     let input = r#"hostname = "0.0.0.0"
 port = 8080
 workers = 8
@@ -44,11 +45,12 @@ workers = 8
 
     // Gate
     evaluate_report(&sources, &report);
-    let spec = spec.expect("parse returned None without reporting an error");
+    let spec = spec.ok_or("parse returned None without reporting an error")?;
 
     // Lower
-    let config = ServerConfig::lower(&spec, &mut report).expect("validated config lowers");
+    let config = ServerConfig::lower(&spec, &mut report).ok_or("validated config lowers")?;
 
     // Print results
     println!("{}", config);
+    Ok(())
 }

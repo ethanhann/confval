@@ -24,7 +24,7 @@ mod common;
 use common::{ServerConfig, ServerSpec, validate_server, evaluate_report};
 use confval::prelude::*;
 
-fn main() {
+fn main() -> Result<(), String> {
     let input = r#"hostname = ""
 port = 99999
 
@@ -45,13 +45,14 @@ limits {
         validate_server(spec, &mut report);
     }
 
-    // Gate
+    // By design, this HCL example does not make it past this gate.
     evaluate_report(&sources, &report);
-    let spec = spec.expect("parse returned None without reporting an error");
+    let spec = spec.ok_or("parse returned None without reporting an error")?;
 
-    // Lower
-    let config = ServerConfig::lower(&spec, &mut report).expect("validated config lowers");
+    // Lower never runs
+    let config = ServerConfig::lower(&spec, &mut report).ok_or("validated config lowers")?;
 
     // Print results
     println!("{}", config);
+    Ok(())
 }
