@@ -77,17 +77,39 @@ These are the types you can use:
 Every field is required by default.
 Leave a required field out of the file and the parser reports a `missing field` error against the block it belongs to.
 
-Two attributes make a field optional:
+Two things make a field optional.
 
 - `Option<...>` on the type turns an absent field into `None`.
-- `#[confval(default = expr)]` fills an absent field with `expr` instead of reporting it.
-  For example, `#[confval(default = 30)]` gives the field the value `30` when the file leaves it out.
+- `#[confval(default)]` or `#[confval(default = expr)]` fills an absent field instead of reporting it.
 
-`default = expr` is for scalar fields.
-For a nested struct, use `#[confval(nested, default)]` with no expression, and an omitted block is filled with that
-struct's `Default` instead of being reported as missing.
-This form applies only to a non-optional nested field, because an optional one already turns an omitted block into
-`None`.
+A bare `#[confval(default)]` uses the field type's `Default`.
+The `default = expr` form uses `expr` instead, so `#[confval(default = 30)]` gives the field the value `30` when the
+file leaves it out.
+A filled-in value carries a detached span, because no source text stands behind it.
+
+Which form a field accepts depends on its shape.
+
+| Field shape                                    | `#[confval(default)]` | `#[confval(default = expr)]` |
+|------------------------------------------------|-----------------------|------------------------------|
+| `Located<T>`                                   | `T::default()`        | `expr`                       |
+| `Option<Located<T>>`                           | `Some(T::default())`  | `Some(expr)`                 |
+| `Vec<Located<String>>`                         | empty list            | compile error                |
+| `Located<S>` with `#[confval(nested)]`         | `S::default()`        | compile error                |
+| `Option<Located<S>>` with `#[confval(nested)]` | compile error         | compile error                |
+| `Vec<Located<S>>` with `#[confval(nested)]`    | compile error         | compile error                |
+| `Option<Located<Vec<Located<String>>>>`        | compile error         | compile error                |
+
+Three rows are worth calling out.
+
+Combining `Option` with a default means the field is never `None` for an absent value.
+The default fills it in.
+Leave the default off when you need the `Option` to report what the source omitted.
+
+An optional nested block rejects a default because an absent block already yields `None`.
+A nested list rejects one because a list of blocks is zero-or-more already.
+
+A string list accepts only the bare form, where the default is the empty list.
+There is no `default = expr` for a list.
 
 :::caution
 The spelling `#[confval(nested, default)]` also exists on the config side, where it means something different.
@@ -118,9 +140,12 @@ configuration files as LLMs tend to invent settings that do not exist.
 ### What the derive does not handle
 
 The derive only handles plain structs.
-The one common case it cannot express is an enum (e.g., `mode` or `type` fields with a discrete set of values).
+It cannot express an enum.
 
-Write those by hand, described in [Writing parsers by hand](#writing-parsers-by-hand).
+That is rarely a problem, because a field with a discrete set of values is a `Located<String>` in a spec by convention
+rather than an enum.
+[Writing parsers by hand](#writing-parsers-by-hand) covers that convention, along with the shapes that do need a
+handwritten parser.
 
 ## Parsing a file
 
@@ -151,29 +176,29 @@ A repeated block parses, and confval reports it with a related span pointing at 
 
 ## Writing parsers by hand
 
-A little background before getting into the specifics of handwritten parsers...
-
 Most specs never need this.
-The `Spec` derive covers plain structs, which is nearly everything given the confval [pipeline contract](../pipeline.md).
+The `Spec` derive covers plain structs, which is nearly everything given the
+confval [pipeline contract](../pipeline.md).
 
-The confval approach, as much as possible, reduces a spec's fields to primitive types:
+By convention, confval reduces a spec's fields to primitive types wherever it can.
+A spec holds the most broadly typed form of a field.
+Lowering narrows that value to a more specific type once validation has run.
 
-1. A spec should have the most broadly typed form of the field.
-2. After validation, the lowering process narrows the value to a more specific type.
+A discrete set of values follows the same pattern rather than becoming an enum in the spec.
+Take a `mode` field that accepts "red", "green", or "blue" as an example.
+The spec holds a `Located<String>`.
+Validation checks it against a [KeywordSet](./validation.md#keywordset).
+Lowering converts the string to an enum.
 
-For a tagged union (e.g., a discrete set of values like "red", "green", "blue") the spec would contain a string.
-The validation stage uses [KeywordSet](./validation.md#keywordset) to validate the discrete list.
-Then, when the lowering stage converts the spec to a runtime type, the string is converted to an enum. 
+Handwritten parsers cover the shapes that pattern cannot express.
+The clearest case is a block whose remaining fields depend on a discriminator, where the parser reads the discriminator
+first and dispatches on it.
+The same mechanism lets you put an enum directly in a spec.
+That compiles and parses correctly.
+It also abandons the convention above, which is why it is not the recommended shape.
 
-But what if, for some reason, you do not want to do this?
-
-This is where handwritten parsers are useful. 
-
-For example, you could write a parser for a spec struct with an enum (defying confval conventions). 
-
-This can be done by manually implementing confval's `FromFields` trait. 
-A parser is an implementation of this trait.
-It is the same the trait the derive automatically generates.
+A parser is an implementation of confval's `FromFields` trait.
+It is the same trait the derive generates.
 
 ```rust
 pub trait FromFields: Sized {
@@ -181,9 +206,13 @@ pub trait FromFields: Sized {
 }
 ```
 
-Return `None` when the value cannot be built.
-The reason is already in the report.
-Parse every field you can before returning, so one bad field does not hide the others.
+An implementation parses every field before deciding what to return.
+Parsing all of them first keeps one bad field from hiding the problems in the others.
+
+Report each problem as you find it.
+Then return `None` when a field failed and the value cannot be built.
+The `None` itself carries no reason.
+Whatever explains the failure must already be in the report.
 
 ### The field model
 
