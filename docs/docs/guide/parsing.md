@@ -84,8 +84,19 @@ Two attributes make a field optional:
   For example, `#[confval(default = 30)]` gives the field the value `30` when the file leaves it out.
 
 `default = expr` is for scalar fields.
-For a nested struct, combine `#[confval(nested, default)]` with no expression, and an omitted block is filled with that
-struct's `Default`.
+For a nested struct, use `#[confval(nested, default)]` with no expression, and an omitted block is filled with that
+struct's `Default` instead of being reported as missing.
+This form applies only to a non-optional nested field, because an optional one already turns an omitted block into
+`None`.
+
+:::caution
+The spelling `#[confval(nested, default)]` also exists on the config side, where it means something different.
+On a spec it fills the omitted block during parsing, so the spec itself holds the default.
+On a config it leaves the spec field `None` and lowers `S::default()` in its place, so the spec stays faithful to the
+source and only the runtime value is filled in.
+The two are independent, and one setting can use either, both, or neither.
+See [Lowering](./lowering.md#defining-a-config).
+:::
 
 ### Nested structs
 
