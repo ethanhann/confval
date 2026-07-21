@@ -64,6 +64,13 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           editUrl:
             'https://github.com/ethanhann/confval/tree/main/docs/',
+          lastVersion: '0.4.0',
+          versions: {
+            current: {
+              label: '0.5.x-dev',
+              banner: 'unreleased',
+            },
+          },
         },
         blog: false,
         theme: {
@@ -99,6 +106,10 @@ const config: Config = {
           label: 'Docs',
         },
         {to: '/releases', label: 'Releases', position: 'left'},
+        {
+          type: 'docsVersionDropdown',
+          position: 'right',
+        },
         {
           href: 'https://github.com/ethanhann/confval',
           label: 'GitHub',

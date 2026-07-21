@@ -88,6 +88,21 @@
   color: var(--ifm-background-color);
 }
 
+.theme-doc-version-badge {
+  display: inline-block;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.5rem;
+  border: 1px solid var(--ifm-toc-border-color);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ifm-font-color-base);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  opacity: 0.8;
+}
+
 /* Flat, bordered code blocks. */
 pre,
 .theme-code-block {
