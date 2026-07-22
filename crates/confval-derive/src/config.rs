@@ -167,7 +167,14 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     // Binding the Spec to `Validate` makes a lowerable spec without a validator
     // a compile error. An empty impl satisfies the bound, so this catches the
     // forgotten validator rather than proving any field is checked.
-    let where_clause = quote! { where #spec_type: ::confval::pipeline::Validate };
+    //
+    // `ValidateNested` is the generated traversal. The second half of the
+    // bound is what makes `validate_all` reachable on the spec. A spec with a
+    // handwritten `FromFields` has to write that impl too. How its children
+    // are validated becomes a question it must answer.
+    let where_clause = quote! {
+        where #spec_type: ::confval::pipeline::Validate + ::confval::pipeline::ValidateNested
+    };
 
     Ok(quote! {
         impl ::confval::pipeline::Lower<#spec_type> for #name #where_clause {

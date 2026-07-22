@@ -11,4 +11,4 @@ mod validate;
 
 pub use lower::{Lower, LowerAuto};
 
-pub use validate::Validate;
+pub use validate::{Validate, ValidateNested};
