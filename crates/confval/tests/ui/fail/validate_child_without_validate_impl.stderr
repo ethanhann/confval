@@ -1,0 +1,17 @@
+error[E0277]: the trait bound `LimitsSpec: Validate` is not satisfied
+  --> tests/ui/fail/validate_child_without_validate_impl.rs:5:10
+   |
+ 5 | #[derive(confval::Spec)]
+   |          ^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `Validate` is not implemented for `LimitsSpec`
+  --> tests/ui/fail/validate_child_without_validate_impl.rs:20:1
+   |
+20 | struct LimitsSpec {
+   | ^^^^^^^^^^^^^^^^^
+help: the trait `Validate` is implemented for `ServerSpec`
+  --> tests/ui/fail/validate_child_without_validate_impl.rs:11:1
+   |
+11 | impl Validate for ServerSpec {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: this error originates in the derive macro `confval::Spec` (in Nightly builds, run with -Z macro-backtrace for more info)

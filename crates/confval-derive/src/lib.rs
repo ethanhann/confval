@@ -4,7 +4,9 @@
 //! codebase puts on its config structs:
 //!
 //! - `#[derive(Spec)]` writes the code that *parses* a struct out of a config
-//!   file (an `impl confval::format::FromFields`).
+//!   file (an `impl confval::format::FromFields`), together with the code that
+//!   *walks* its nested blocks during validation (an
+//!   `impl confval::pipeline::ValidateNested`).
 //! - `#[derive(Config)]` writes the code that *converts* a parsed spec into the
 //!   runtime form the proxy actually uses (an `impl confval::pipeline::Lower`).
 //!
@@ -39,9 +41,13 @@ use syn::{DeriveInput, parse_macro_input};
 /// Entry point for `#[derive(Spec)]`.
 ///
 /// Parses the annotated struct into a syntax tree, hands it to `spec::expand`
-/// to build the parsing `impl`, and returns the result. If anything about the
-/// struct is unsupported, the error is turned into a normal compile error that
-/// points at the offending code.
+/// to build the parsing and traversal `impl`s, and returns the result. If
+/// anything about the struct is unsupported, the error is turned into a normal
+/// compile error that points at the offending code.
+///
+/// The traversal makes `Validate::validate_all` available on the spec, so one
+/// call at the root of a config reaches every `#[confval(nested)]` block
+/// beneath it.
 #[proc_macro_derive(Spec, attributes(confval))]
 pub fn derive_spec(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

@@ -1,16 +1,25 @@
 //! `#[derive(Spec)]`: generates an `impl confval::format::FromFields` that
-//! performs structural parsing only.
+//! performs structural parsing only, plus the
+//! `impl confval::pipeline::ValidateNested` that walks the struct's nested
+//! blocks during validation.
 //!
-//! It walks the `Fields` view, matches fields by name, reports unknown and
-//! missing fields, and builds the struct. It performs no validation; entity
-//! validation lives in named functions that operate on the parsed `Located`
-//! values.
+//! The parser walks the `Fields` view, matches fields by name, reports unknown
+//! and missing fields, and builds the struct. It checks no values. Semantic
+//! rules live in the `Validate` impl the author writes and in validator
+//! functions that operate on the parsed `Located` values.
+//!
+//! The traversal is generated here rather than under its own derive because it
+//! is read off the same field shapes the parser is built from. Both impls come
+//! from one classification pass, so the two can never disagree about which
+//! fields hold nested specs. See the `traversal` module.
 
 mod options;
 mod shape;
+mod traversal;
 
 use options::{FieldOptions, parse_options};
 use shape::{FieldShape, Leaf, classify};
+use traversal::{nested_visit, validate_nested_impl};
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
@@ -59,6 +68,9 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let mut match_arms = Vec::new();
     let mut missing_checks = Vec::new();
     let mut constructors = Vec::new();
+    // The fifth bucket belongs to the separate `ValidateNested` impl below,
+    // and holds one descent per nested field.
+    let mut visits = Vec::new();
 
     for field in &fields.named {
         let ident = field.ident.as_ref().ok_or_else(|| {
@@ -73,6 +85,10 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         // `slot` is the generated local variable's name, e.g. `__port`. The
         // leading underscores keep it from clashing with the user's own names.
         let slot = format_ident!("__{}", ident);
+
+        // A nested field is parsed by the fragments below and validated by the
+        // `ValidateNested` impl, so it contributes to both.
+        visits.extend(nested_visit(&shape, ident));
 
         // Emit the parsing fragments for this field, tailored to its shape.
         match shape {
@@ -197,8 +213,10 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
     }
 
-    // Splice the four buckets into the generated parser. This is the code that
-    // runs at the caller's runtime, once per parsed struct.
+    let validate_nested = validate_nested_impl(name, &visits);
+
+    // Splice the four parsing buckets into the generated parser. This is the
+    // code that runs at the caller's runtime, once per parsed struct.
     Ok(quote! {
         impl ::confval::format::FromFields for #name {
             fn from_fields(
@@ -221,6 +239,8 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 })
             }
         }
+
+        #validate_nested
     })
 }
 

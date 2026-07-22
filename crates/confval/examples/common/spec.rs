@@ -63,9 +63,5 @@ impl Validate for ServerSpec {
                 .help("This might be undesired.")
                 .emit();
         }
-
-        if let Some(limits) = &self.limits {
-            limits.value.validate(report);
-        }
     }
 }

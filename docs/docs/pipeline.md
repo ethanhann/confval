@@ -30,6 +30,18 @@ Rules live in two places: a `Validate` impl on a spec type, which takes `&self` 
 functions you write and call yourself.
 [Validation](./guide/validation.md#where-a-rule-lives) covers which rule goes where.
 
+One call runs the impls:
+
+```rust
+spec.validate_all(&mut report);
+```
+
+`validate_all` runs a spec type's own rules and then descends into every `#[confval(nested)]` field, recursively.
+The descent comes from `#[derive(Spec)]`.
+A nested block added later is therefore validated without editing a validator.
+Calling `validate` instead checks the root and stops there.
+[Validation](./guide/validation.md#validate-impl-contains-the-rules-validate_all-runs-them) covers the distinction.
+
 Validation never panics.
 Not panicking is **absolutely critical** for a system with hot reload.
 If validation panicked during a reload, a long-lived service would crash on a simple misconfiguration.
@@ -46,12 +58,12 @@ constructed in code.
 
 :::info
 The `Validate` trait exists so the requirement can be written as a bound.
-Every generated `Lower` impl carries `where SpecType: Validate`, so a config does not compile unless its spec has a
-validator.
+Every generated `Lower` impl carries `where SpecType: Validate + ValidateNested`, so a config does not compile unless
+its spec has a validator and a traversal.
 
-That catches the forgotten validator.
-An empty impl satisfies the bound, so it does not prove any field is checked.
-It also does not make lowering call the validator, which stays an explicit step before the gate.
+That catches the forgotten validator and the unreachable child block.
+An empty `Validate` impl satisfies its half of the bound, so it does not prove any field is checked.
+Neither half makes lowering call the validator, which stays an explicit step before the gate.
 :::
 
 ### 3. Gate
@@ -65,6 +77,10 @@ Call `report.has_errors()` after validation and return before lowering when it i
 Report also has `has_warnings()` and `has_issues()` (i.e., has warnings or errors).
 This granularity gives the implementor the flexibility to decide if warnings should also prevent lowering or perhaps
 take some other implementation-specific action.
+
+In practice, a sensible approach would be to gracefully exit a running program when errors are found or gracefully stop
+a hot reload request.
+If warnings are found, they may be shown, but the start/reload operation continues.
 
 ### 4. Lower
 
@@ -166,10 +182,12 @@ messages.
 
 ## Runnable examples
 
-Two end-to-end examples ship in `crates/confval/examples/`.
+End-to-end examples ship in `crates/confval/examples/`.
 `hcl.rs` and `toml.rs` each hold a source document and one parse call.
 Everything after parsing lives in `common/mod.rs`: the spec types, the validators, the config types, and the lowering
 functions.
 Both examples share that file verbatim.
 The format-neutrality of the later stages is visible in the layout, and explicitly annotated.
+`issue_severity.rs` reuses the same types to show a warning passing the gate.
+`validate_traversal.rs` stands alone to show what `validate_all` reaches and what a `descend` override prunes.
 See [Getting Started](getting-started.md) to run them.

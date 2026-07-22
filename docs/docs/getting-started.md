@@ -115,14 +115,6 @@ impl Validate for ServerSpec {
     }
 }
 
-fn validate_server(spec: &ServerSpec, report: &mut Report) {
-    spec.validate(report);
-
-    if let Some(limits) = &spec.limits {
-        limits.value.validate(report);
-    }
-}
-
 #[derive(confval::Config)]
 #[confval(lower_from = ServerSpec)]
 struct ServerConfig {
@@ -163,7 +155,7 @@ limits {
 
     let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mut report);
     if let Some(spec) = &spec {
-        validate_server(spec, &mut report);
+        spec.validate_all(&mut report);
     }
 
     if report.has_errors() {
@@ -285,21 +277,25 @@ Implementing `Validate` is not optional.
 Every generated `Lower` impl is bound on it, so a spec with no validator makes its config fail to compile.
 A spec type with nothing to check writes an empty impl.
 
-A `Validate` impl only sees its own fields, so something has to walk into the nested block.
-That is what `validate_server` does.
+A `Validate` impl only sees its own fields.
+Something has to walk into the nested `limits` block.
+That is where `validate_all` comes into play.
+It is automatically generated, however, it still needs to be called:
 
 ```rust
-fn validate_server(spec: &ServerSpec, report: &mut Report) {
-    spec.validate(report);
-
-    if let Some(limits) = &spec.limits {
-        limits.value.validate(report);
-    }
-}
+spec.validate_all(&mut report);
 ```
 
-[Validation](./guide/validation.md#where-a-rule-lives) covers which rules belong in an impl and which belong in a
-function like this one.
+`validate_all` runs `ServerSpec`'s own rules and then descends into every `#[confval(nested)]` field, recursively.
+The one call above therefore also reaches `LimitsSpec`.
+`#[derive(Spec)]` writes that descent from the struct definition.
+A nested block added next month is validated without anyone editing a validator.
+
+Implement `validate`.
+Call `validate_all`.
+[Validation](./guide/validation.md#validate-impl-contains-the-rules-validate_all-runs-them) covers the difference.
+[Where a rule lives](./guide/validation.md#where-a-rule-lives) covers which rules belong in an impl rather than in a
+validator function.
 
 Validation never stops at the first problem.
 It adds every issue it finds to the report, so one run shows you all of them.
@@ -360,7 +356,7 @@ Second, validate the parsed spec.
 
 ```rust
 if let Some(spec) = &spec {
-validate_server(spec, &mut report);
+    spec.validate_all(&mut report);
 }
 ```
 
@@ -369,10 +365,10 @@ If it holds any errors, render them and stop before lowering.
 
 ```rust
 if report.has_errors() {
-let mut out = String::new();
-report.render_pretty( &sources, &mut out).unwrap();
-eprint ! ("{out}");
-std::process::exit(1);
+  let mut out = String::new();
+  report.render_pretty( &sources, &mut out).unwrap();
+  eprint ! ("{out}");
+  std::process::exit(1);
 }
 ```
 
@@ -453,6 +449,27 @@ warning: hostname set to listen on every available network device
 
 listening on 0.0.0.0:8080 with 8 workers
 limits: max_body_mb=16 mode=enforce
+```
+
+Run the validate_traversal example that shows what `validate_all` reaches:
+
+```shell
+cargo run -q -p confval --example validate_traversal --features derive,color,toml
+```
+
+The same invalid nested block is validated twice, differing only in whether the enclosing block is enabled:
+
+```shell
+upstream enabled: the nested child is validated
+error: attempts must be at most 10
+ --> service.toml:5:12
+  |
+5 | attempts = 99
+  |            ^^
+  = help: Set attempts to at most 10
+
+upstream disabled: descend breaks, so the child is skipped
+no issues
 ```
 
 ## Additional Examples

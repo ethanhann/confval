@@ -14,8 +14,10 @@ pub use pipeline::range::RangeConstraint;
 /// reaches for: the source-location primitives ([`Located`](source::Located),
 /// [`Span`](source::Span), [`SourceMap`](source::SourceMap)), the diagnostic
 /// [`Report`](diagnostic::Report), the lowering pipeline
-/// ([`Lower`](pipeline::Lower), [`Validate`](pipeline::Validate), and the
-/// [`narrow`](pipeline::narrow) helpers), the constraint validators
+/// ([`Lower`](pipeline::Lower), [`Validate`](pipeline::Validate),
+/// [`ValidateNested`](pipeline::ValidateNested), the
+/// [`ControlFlow`](core::ops::ControlFlow) a `descend` override returns, and
+/// the [`narrow`](pipeline::narrow) helpers), the constraint validators
 /// ([`KeywordSet`], [`RangeConstraint`] and its [`range_constraint!`] macro),
 /// and, with the `derive` feature, the [`Spec`] and [`Config`] derives.
 /// `RangeConstraint` and its macro travel together so the validated-range
@@ -27,8 +29,10 @@ pub use pipeline::range::RangeConstraint;
 /// remaining source types ([`Source`](source::Source),
 /// [`SourceId`](source::SourceId)) likewise stay behind their module paths.
 pub mod prelude {
+    pub use core::ops::ControlFlow;
+
     pub use crate::diagnostic::Report;
-    pub use crate::pipeline::{Lower, Validate, narrow};
+    pub use crate::pipeline::{Lower, Validate, ValidateNested, narrow};
     pub use crate::source::{Located, SourceMap, Span};
     pub use crate::{KeywordSet, RangeConstraint, range_constraint};
 

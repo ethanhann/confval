@@ -1,4 +1,4 @@
-//! End-to-end exercise of the span-first pipeline: a hand-written Spec and
+//! End-to-end exercise of the span-first pipeline: a handwritten Spec and
 //! Config pair driven through parse, validation, the error gate, and
 //! lowering. These impls are the reference shape for generated code, so
 //! changes here should stay deliberate.
@@ -62,6 +62,7 @@ impl Default for RetrySpec {
 }
 
 // `Lower` is bound on `Validate`, so every spec lowered here needs an impl.
+// The `ValidateNested` half of that bound comes from `#[derive(Spec)]`.
 // These fixtures exercise parsing and lowering; their semantic checks live in
 // `validate_server_spec` below, which keeps this file's coverage of the
 // free-function validation path intact.

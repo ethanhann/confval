@@ -1,23 +1,19 @@
-//! End-to-end example: parse a TOML config span-first, validate it, lower it
-//! to a runtime type, and print the result.
+//! A warning is reported and the pipeline keeps going. An error stops it.
 //!
-//! This is the companion to the `hcl` example. The spec types, validators,
-//! config types, and lowering functions all live in `common`, which both
-//! examples share verbatim. Only the source text and the single `parse_toml`
-//! call below are format-specific.
+//! This runs the same TOML pipeline as the `toml` example over the same
+//! `common` spec, changing only the hostname. `0.0.0.0` is a legal address,
+//! so the rule for it emits a warning rather than an error. The gate blocks
+//! on `has_errors`. The warning renders and lowering still runs.
 //!
-//! Where the `hcl` example feeds an invalid config to show the diagnostics,
-//! this one feeds a valid config to show the lowered output.
+//! Swapping the gate to block on `has_issues` is what makes a warning fatal.
+//! That policy belongs to the caller. The gate therefore lives in `common`
+//! rather than in confval.
 //!
-//! The `limits` block is omitted here, so the output shows the config-side
-//! `#[confval(nested, default)]` materializing `LimitsSpec::default()` at
-//! runtime while the spec stays source-faithful.
-//!
-//! Run with: cargo run -p confval --example toml --features derive,color,toml
+//! Run with: cargo run -p confval --example issue_severity --features derive,color,toml
 
 mod common;
 
-use crate::common::evaluate_report;
+use crate::common::validate_and_gate;
 use common::{ServerConfig, ServerSpec};
 use confval::prelude::*;
 
@@ -35,12 +31,10 @@ workers = 8
     // Parse (toml)
     let spec: Option<ServerSpec> = confval::format::toml::parse_toml(&sources, id, &mut report);
 
-    // Validate
     let spec = spec.ok_or("parse returned None without reporting an error")?;
-    spec.validate(&mut report);
 
-    // Gate
-    evaluate_report(&sources, &report);
+    // Validate and gate
+    validate_and_gate(&spec, &sources, &mut report);
 
     // Lower
     let config = ServerConfig::lower(&spec, &mut report).ok_or("validated config lowers")?;

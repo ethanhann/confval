@@ -47,6 +47,10 @@ required-features = ["derive", "color", "toml"]
 name = "issue_severity"
 required-features = ["derive", "color", "toml"]
 
+[[example]]
+name = "validate_traversal"
+required-features = ["derive", "color", "toml"]
+
 [[test]]
 name = "compile_fail"
 required-features = ["derive"]
@@ -54,3 +58,7 @@ required-features = ["derive"]
 [[test]]
 name = "hcl_end_to_end"
 required-features = ["derive", "hcl"]
+
+[[test]]
+name = "validate_traversal"
+required-features = ["derive"]

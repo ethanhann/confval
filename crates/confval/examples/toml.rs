@@ -17,7 +17,7 @@
 
 mod common;
 
-use crate::common::evaluate_report;
+use crate::common::validate_and_gate;
 use common::{ServerConfig, ServerSpec};
 use confval::prelude::*;
 
@@ -34,12 +34,10 @@ workers = 8
     // Parse (toml)
     let spec: Option<ServerSpec> = confval::format::toml::parse_toml(&sources, id, &mut report);
 
-    // Validate
     let spec = spec.ok_or("parse returned None without reporting an error")?;
-    spec.validate(&mut report);
 
-    // Gate
-    evaluate_report(&sources, &report);
+    // Validate and gate
+    validate_and_gate(&spec, &sources, &mut report);
 
     // Lower
     let config = ServerConfig::lower(&spec, &mut report).ok_or("validated config lowers")?;
