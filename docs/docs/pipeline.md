@@ -33,14 +33,14 @@ functions you write and call yourself.
 One call runs the impls:
 
 ```rust
-spec.validate_all( & mut report);
+spec.validate_all(&mut report);
 ```
 
 `validate_all` runs a spec type's own rules and then descends into every `#[confval(nested)]` field, recursively.
 The descent comes from `#[derive(Spec)]`.
 A nested block added later is therefore validated without editing a validator.
 Calling `validate` instead checks the root and stops there.
-[Validation](./guide/validation.md#validate-writes-the-rules-validate_all-runs-them) covers the distinction.
+[Validation](./guide/validation.md#validate-impl-contains-the-rules-validate_all-runs-them) covers the distinction.
 
 Validation never panics.
 Not panicking is **absolutely critical** for a system with hot reload.
