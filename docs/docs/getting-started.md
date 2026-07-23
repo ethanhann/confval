@@ -42,8 +42,8 @@ cargo add confval --features "hcl,derive"
 | `derive` | off     | `confval-derive` | `#[derive(Spec)]` and `#[derive(Config)]` (format-neutral) |
 
 Frontends (that define the configuration format) are independent opt-ins.
-Pick `hcl` or `toml` for the format you actually want.
-The `derive` emits the format-neutral `FromFields`, so `derive` brings in no parser on its own.
+Pick `hcl` or `toml` for the format you want.
+The `derive` feature emits the format-neutral `FromFields`, so it brings in no parser on its own.
 
 ## A complete example
 
@@ -230,11 +230,11 @@ The `#[confval(default = ...)]` attributes fill a field the file left out of a `
 The example input writes `limits { mode = "log" }`, so `max_body_mb` comes from its attribute default.
 
 The handwritten `impl Default` supplies the whole struct when the block is absent entirely.
-That is what `#[confval(nested, default)]` on `LimitsConfig` reaches for during lowering.
+That is what `#[confval(nested, default)]` on `LimitsConfig` uses during lowering.
 
 Nothing checks that the two agree.
 Keeping `16` and `"enforce"` in step across both is manual.
-This flexibility is intentional as every use case cannot be accounted for.
+The flexibility is deliberate, since confval cannot account for every use case.
 
 See [Parsing](./guide/parsing.md#optional-fields-and-defaults) for the full set of field rules.
 
@@ -279,8 +279,8 @@ A spec type with nothing to check writes an empty impl.
 
 A `Validate` impl only sees its own fields.
 Something has to walk into the nested `limits` block.
-That is where `validate_all` comes into play.
-It is automatically generated, however, it still needs to be called:
+`validate_all` does that walk.
+The traversal is generated for you, but you still have to call `validate_all`:
 
 ```rust
 spec.validate_all(&mut report);
@@ -302,7 +302,7 @@ It adds every issue it finds to the report, so one run shows you all of them.
 
 ### The config types
 
-Lowering turns a validated spec into a config type, the form your program actually runs on.
+Lowering turns a validated spec into a config type, the form your program runs on.
 `#[derive(confval::Config)]` writes that step from the spec named in `lower_from`.
 
 ```rust

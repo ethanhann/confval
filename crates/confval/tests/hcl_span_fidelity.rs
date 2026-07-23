@@ -1,7 +1,8 @@
-//! Guards the span fidelity the `confval::format::hcl` adapter depends on: hcl-edit
-//! must expose byte-accurate spans for attribute keys and values, nested
-//! block attributes, individual array elements, and whole blocks. If an
-//! hcl-edit upgrade breaks any of these, error attribution breaks with it.
+//! Guards the span fidelity the `confval::format::hcl` adapter depends on. The
+//! adapter needs hcl-edit to expose byte-accurate spans for attribute keys and
+//! values, nested block attributes, individual array elements, and whole
+//! blocks. If an hcl-edit upgrade breaks any of these, error attribution
+//! breaks with it.
 
 #![cfg(feature = "hcl")]
 

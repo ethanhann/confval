@@ -1,7 +1,7 @@
 //! Checked integer narrowing for lowering functions.
 //!
 //! Spec types store every integer as `i64` (the widest type the source
-//! format produces); runtime types use the exact width they need. These
+//! format produces). Runtime types use the exact width they need. These
 //! helpers narrow between the two and are shaped to slot directly into
 //! `#[confval(lower(from = ..., with = ...))]`.
 //!

@@ -4,9 +4,9 @@
 //! then lowers it into the owned types defined here: a [`Fields`] is one
 //! structural level (a body, a table, an inline object), each [`Field`] is one
 //! named entry, and a [`Value`] is the data behind it. Once a frontend has
-//! produced a `Fields`, nothing downstream — the leaf parsers below, the
-//! `#[derive(Spec)]`-generated walks, the hand-written [`FromFields`] impls —
-//! knows or cares which format it came from.
+//! produced a `Fields`, nothing downstream knows or cares which format it came
+//! from. This holds for the leaf parsers below, the `#[derive(Spec)]`-generated
+//! walks, and the hand-written [`FromFields`] impls.
 //!
 //! The model is deliberately owned (no borrow of the format's AST). Config
 //! files are small, so the one copy out of the parse tree costs nothing and
@@ -18,8 +18,8 @@ use crate::source::{Located, SourceId, Span};
 /// A scalar leaf: the four value kinds every supported format shares.
 ///
 /// Integers and floats are kept distinct so a format that separates them
-/// syntactically (TOML's `1` vs `1.0`) round-trips faithfully; formats with a
-/// single number type (HCL) simply classify each literal as one or the other.
+/// syntactically (TOML's `1` vs `1.0`) round-trips faithfully. A format with a
+/// single number type (HCL) classifies each literal as one or the other.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Scalar {
     String(String),
@@ -47,7 +47,7 @@ pub enum ValueKind {
     Map(Fields),
     /// Present in source but outside the model: an HCL template or null, a
     /// TOML datetime. The label is the noun diagnostics use ("string
-    /// template", "datetime"); no leaf parser matches it, so it always
+    /// template", "datetime"). No leaf parser matches it, so it always
     /// surfaces as a type mismatch.
     Other(&'static str),
 }
@@ -57,7 +57,7 @@ pub enum ValueKind {
 pub struct Field {
     pub name: String,
     /// Span of the name alone (attribute key, block identifier, table header
-    /// key) — where unknown-field errors point.
+    /// key), where unknown-field errors point.
     pub name_span: Span,
     /// Span of the whole field, name and value together.
     pub span: Span,
@@ -68,8 +68,8 @@ pub struct Field {
 /// Whether a field was written as an attribute (`name = value`) or as a block
 /// (`name { ... }` in HCL, `[name]` / `[[name]]` in TOML).
 ///
-/// Both ultimately carry a nested structure when they name one — a block holds
-/// its [`Fields`] directly; an attribute holds a [`Value`] that may be a
+/// Both carry a nested structure when they name one. A block holds its
+/// [`Fields`] directly. An attribute holds a [`Value`] that may be a
 /// [`Map`](ValueKind::Map). The distinction is kept only so diagnostics can say
 /// "found block" rather than "found object", matching how the operator wrote
 /// it.
@@ -126,7 +126,7 @@ impl Fields {
 /// Implementations walk the fields once, match them by name, and push every
 /// problem they find to the report. Returning `None` means at least one error
 /// was pushed. This is the trait `#[derive(Spec)]` generates and the one a
-/// hand-written spec implements; it names no format.
+/// hand-written spec implements. It names no format.
 pub trait FromFields: Sized {
     fn from_fields(fields: &Fields, report: &mut Report) -> Option<Self>;
 }
@@ -176,7 +176,7 @@ pub fn parse_string_field(field: &Field, report: &mut Report) -> Option<Located<
     }
 }
 
-/// Parses an integer field. Floats are rejected; narrowing to a smaller width
+/// Parses an integer field. Floats are rejected. Narrowing to a smaller width
 /// happens at lowering, never here.
 pub fn parse_int_field(field: &Field, report: &mut Report) -> Option<Located<i64>> {
     let value = expect_value(field, "integer", report)?;
@@ -217,7 +217,7 @@ pub fn parse_bool_field(field: &Field, report: &mut Report) -> Option<Located<bo
 
 /// Parses an array-of-strings field with per-element spans, so an invalid
 /// element is reported at that element, not at the whole list. Every invalid
-/// element is reported; if any element is invalid the field is treated as
+/// element is reported. If any element is invalid, the field is treated as
 /// missing.
 pub fn parse_string_list_field(
     field: &Field,
@@ -570,7 +570,7 @@ mod tests {
         parse_single_struct(&mut slot, &mut seen, "tls", &first, &mut report);
         parse_single_struct(&mut slot, &mut seen, "tls", &second, &mut report);
 
-        // First occurrence wins; the repeat is a duplicate pointing back at it.
+        // First occurrence wins. The repeat is a duplicate pointing back at it.
         assert!(slot.is_some());
         assert_eq!(report.issues().len(), 1);
         assert_eq!(report.issues()[0].message, "duplicate field: tls");

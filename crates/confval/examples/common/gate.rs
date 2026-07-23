@@ -1,7 +1,7 @@
 use confval::prelude::*;
 
 /// Validates a spec, renders whatever the report collected, and stops the
-/// program when if an error was found.
+/// program if an error was found.
 ///
 /// In a real system with hot reload, `std::process::exit(1)` would not be
 /// called. Instead, the `report.has_errors()` gate would tell the system

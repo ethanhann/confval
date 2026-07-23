@@ -15,7 +15,7 @@ pub struct Issue {
 
 /// Accumulates issues across parse, validation, and lowering.
 ///
-/// The report is source-free: spans carry their [`SourceId`](crate::source::SourceId),
+/// The report is source-free. Spans carry their [`SourceId`](crate::source::SourceId),
 /// so reports from different files merge trivially and the
 /// [`SourceMap`](crate::source::SourceMap) is only needed at render time.
 #[derive(Debug, Default)]
@@ -67,7 +67,7 @@ impl Report {
 }
 
 /// Fluent construction of one [`Issue`]. Obtained from [`Report::error`] or
-/// [`Report::warning`]; nothing is recorded until [`emit`](Self::emit).
+/// [`Report::warning`]. Nothing is recorded until [`emit`](Self::emit).
 #[must_use = "an issue is not recorded until .emit() is called"]
 pub struct IssueBuilder<'a> {
     report: &'a mut Report,

@@ -14,7 +14,7 @@ Various just recipes are available, but these are the most useful:
 ## Design
 
 confval is built around five design decisions.
-These design decisions underpin the core functionality of the crate and should be adhered to.
+These design decisions should be adhered to.
 
 #### Spans travel with values.
 
@@ -41,8 +41,8 @@ These design decisions underpin the core functionality of the crate and should b
 
 serde, owo-colors, hcl-edit, toml_edit, and the derive macros are each behind a feature flag.
  
-A goal of confval is to not require dependencies in the future.
-Any new dependencies should ideally be behind a feature flag.
+confval aims to stay free of required dependencies.
+Put any new dependency behind a feature flag.
 
 ## Crate layout
 

@@ -34,15 +34,15 @@ where
 
     /// Checks a located value, pushing a span-carrying issue to the report
     /// if it is out of range. The error names the field and the bound it
-    /// violated; the help line restates that bound, using the configured
+    /// violated. The help line restates that bound, using the configured
     /// `units` and `help` text when present.
     pub fn check_located(&self, value: &Located<T>, field: &'static str, report: &mut Report) {
-        // NaN is unordered: it compares `false` against both bounds, so the
+        // NaN is unordered. It compares `false` against both bounds, so the
         // range checks below would silently accept it.
         // Reject it up front.
-        // The self-comparison is the only generic NaN test available here,
-        // for integer `T` it is always `false` and compiles away.
-        // Infinities need no special case: they fall outside any finite min/max.
+        // The self-comparison is the only generic NaN test available here.
+        // For integer `T` it is always `false` and compiles away.
+        // Infinities need no special case. They fall outside any finite min/max.
         #[allow(clippy::eq_op)]
         let is_nan = value.value != value.value;
         if is_nan {

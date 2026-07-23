@@ -8,7 +8,7 @@ use crate::source::Located;
 /// the report.
 ///
 /// Callers must gate on [`Report::has_errors`](crate::diagnostic::Report::has_errors)
-/// before lowering: lowering functions may assume field-level validation
+/// before lowering. Lowering functions may assume field-level validation
 /// passed, which is what makes narrowing conversions safe to write.
 pub trait Lower<S>: Sized {
     fn lower(spec: &S, report: &mut Report) -> Option<Self>;
@@ -19,7 +19,7 @@ pub trait Lower<S>: Sized {
 /// type. Auto-mapped fields with incompatible types fail as a missing
 /// `LowerAuto` implementation, naming both types.
 ///
-/// Numeric narrowing is deliberately absent: the range that makes a cast
+/// Numeric narrowing is deliberately absent. The range that makes a cast
 /// safe is knowledge this trait does not have, so narrowing always goes
 /// through an explicit lowering function.
 pub trait LowerAuto<Target> {

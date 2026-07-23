@@ -1,7 +1,7 @@
 //! UI tests pinning the derive macros' compile-time diagnostics.
 //!
 //! Each file under `tests/ui/fail/` must fail to compile with exactly the
-//! output in its `.stderr` sibling; files under `tests/ui/pass/` must
+//! output in its `.stderr` sibling. Files under `tests/ui/pass/` must
 //! compile. Re-bless expected output with `TRYBUILD=overwrite cargo test`.
 
 #[test]

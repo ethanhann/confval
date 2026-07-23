@@ -11,7 +11,7 @@ use crate::source::Located;
 /// for numeric bounds.
 ///
 /// The help line is always `expected one of: <comma-joined options>`. If a
-/// keyword ever needs custom guidance instead, add a `with_help` constructor at
+/// keyword needs custom guidance instead, add a `with_help` constructor at
 /// that point.
 ///
 /// ```rust

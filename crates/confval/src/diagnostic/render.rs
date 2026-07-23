@@ -1,6 +1,6 @@
 //! Rendering of a [`Report`] into human- and machine-readable output.
 //!
-//! The report data model lives in [`report`](super::report); this module only
+//! The report data model lives in [`report`](super::report). This module only
 //! reads a finished report and formats it against a [`SourceMap`], resolving
 //! each span's byte offset into a line and column at render time. Three formats
 //! are offered: a compact one-line-per-issue [`render_plain`](Report::render_plain),
@@ -57,8 +57,8 @@ impl Report {
 
     /// Colorized, rustc-style format: severity header, location line, source
     /// excerpt with a caret underline, help text, and related locations.
-    /// Issues are grouped by source, sources ordered by first appearance;
-    /// issues without a location come last.
+    /// Issues are grouped by source, sources ordered by first appearance.
+    /// Issues without a location come last.
     #[cfg(feature = "color")]
     pub fn render_pretty(&self, sources: &SourceMap, w: &mut impl fmt::Write) -> fmt::Result {
         use owo_colors::OwoColorize;
@@ -208,7 +208,7 @@ fn write_excerpt(
         width = pad.len()
     )?;
 
-    // Clamp the underline to the excerpt's line; multi-line spans underline
+    // Clamp the underline to the excerpt's line. Multi-line spans underline
     // their first line only. Snap to char boundaries so a span offset that
     // landed inside a multi-byte character cannot panic the slice below.
     let underline_start =
@@ -389,7 +389,7 @@ mod tests {
     #[cfg(feature = "color")]
     #[test]
     fn render_pretty_span_inside_multibyte_char_does_not_panic() {
-        // "é" is two bytes; an offset..offset+1 span ending mid-character must
+        // "é" is two bytes. An offset..offset+1 span ending mid-character must
         // not panic the underline slice.
         let mut sources = SourceMap::new();
         let id = sources.add("test.hcl", "x = é\n");

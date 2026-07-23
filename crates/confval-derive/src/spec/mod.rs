@@ -33,17 +33,17 @@ use syn::{Data, DeriveInput, Expr, Field, Fields, spanned::Spanned};
 /// generated `from_fields` function:
 ///
 /// - `slot_decls`: a local variable per field that holds the value once parsed.
-/// - `match_arms`: one arm per field name; when that name is seen in the source,
+/// - `match_arms`: one arm per field name. When that name is seen in the source,
 ///   the field is parsed into its slot.
 /// - `missing_checks`: run after the walk to report any required field that
 ///   never appeared.
 /// - `constructors`: build the final struct from the filled-in slots.
 ///
 /// At the caller's runtime the generated `from_fields` then iterates the fields
-/// actually present in the config source, routes each by name into its match
+/// present in the config source, routes each by name into its match
 /// arm (reporting any unrecognized name), runs the missing-field checks, and
-/// constructs `Self`. It checks only shape and presence, never values; semantic
-/// validation happens later, elsewhere.
+/// constructs `Self`. It checks only shape and presence, never values. Semantic
+/// validation happens later, in a separate pass.
 pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     // The derive only handles structs with named fields. Enums and tuple
     // structs are rejected with a message pointing at the type.
@@ -184,7 +184,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
                     // `S::default()` and is not reported as missing; without it,
                     // absence is a missing-field error. Either way a
                     // present-but-failed child is replaced with a detached
-                    // default so the parent and its siblings still validate: the
+                    // default so the parent and its siblings still validate. The
                     // child's structural error is already in the report, so the
                     // lowering gate blocks before the placeholder reaches runtime.
                     if options.default.is_none() {
@@ -273,10 +273,10 @@ fn default_expr(default: &Option<Expr>) -> TokenStream2 {
 }
 
 /// Rejects `#[confval(default ...)]` on field shapes that would silently ignore
-/// it. Only leaf fields honor a default value; a string list accepts a bare
+/// it. Only leaf fields honor a default value. A string list accepts a bare
 /// `#[confval(default)]` (meaning "empty") but not `default = <expr>`. Every
-/// other shape would drop the default on the floor, so flag it at compile time
-/// rather than surprise the author at runtime.
+/// other shape would ignore the default, so flag it at compile time rather than
+/// surprise the author at runtime.
 fn reject_unsupported_default(
     field: &Field,
     shape: &FieldShape,
@@ -291,7 +291,7 @@ fn reject_unsupported_default(
         // a bare `#[confval(default)]`. An explicit value cannot be honored.
         FieldShape::BareStringList => default.is_none(),
         // A non-optional nested block may default to its type's `Default` via a
-        // bare `#[confval(default)]`; there is no sensible `default = expr` for a
+        // bare `#[confval(default)]`. There is no sensible `default = expr` for a
         // whole sub-struct. An optional nested field is already "absent = None",
         // so a default would be meaningless there.
         FieldShape::Nested { optional: false } => default.is_none(),

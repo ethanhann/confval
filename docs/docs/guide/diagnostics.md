@@ -61,7 +61,7 @@ error: unknown load_balancing_strategy: failovr
 
 Line and column lookups are O(log n) via a per-source line index.
 Columns count characters, not bytes.
-An issue records only a severity, message, optional span, optional help, and related spans, and never touches source text until render time.
+An issue records only a severity, message, optional span, optional help, and related spans, and never reads source text until render time.
 
 ## Spans and source
 

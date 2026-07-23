@@ -27,9 +27,8 @@ pub struct Located<T> {
 
 A `Located<T>` contains a span.
 A span is a byte range in the configuration file.
-It provides per-field provenance, which is a fancy way of saying the span allows the spec to know what line in the
-configuration file the field came from.  
-It is what lets a later error point at the exact line and column a value came from.
+It gives each field its provenance.
+The span records where the value came from, so a later error can point at the exact line and column.
 `Span` and the `SourceMap` that resolves it are covered under [Diagnostics](./diagnostics.md#spans-and-source).
 
 A few behaviors are worth knowing:
@@ -228,7 +227,7 @@ A frontend builds it, and from there nothing knows which format the text was.
 - **`Value`** is a span plus a `ValueKind`: a `Scalar`, a `Seq` (a list), a `Map` (nested fields), or `Other`.
 - **`Scalar`** is `String`, `Int(i64)`, `Float(f64)`, or `Bool`.
   Integers and floats stay distinct so a format that separates them, like TOML's `1` and `1.0`, round-trips faithfully.
-- **`Other(label)`** is a value that exists in the file but sits outside the model, such as an HCL template or a TOML
+- **`Other(label)`** is a value that exists in the file but falls outside the model, such as an HCL template or a TOML
   datetime.
   It always surfaces as a plain type mismatch named by the label, for example `expected string, found datetime`.
 

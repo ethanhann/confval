@@ -19,9 +19,10 @@ confval assumes a fixed ordering of these stages, and the derives are designed a
 A frontend (`parse_hcl` or `parse_toml`) builds the neutral `Fields`, runs `FromFields`, and reports shape problems.
 
 Unknown fields, wrong types, missing required fields, and duplicate blocks are reported with spans.
-Parsing continues across inputs: an input whose tree was built keeps flowing into validation even if some of its
+Parsing continues across inputs.
+An input whose tree was built keeps flowing into validation even if some of its
 fields failed, so parse and validation problems appear together in one pass.
-Only an input that produced no tree at all (a syntax error) stops the load.
+Only an input that produced no tree (a syntax error) stops the load.
 
 ### 2. Validate (semantic)
 
@@ -43,15 +44,13 @@ Calling `validate` instead checks the root and stops there.
 [Validation](./guide/validation.md#validate-impl-contains-the-rules-validate_all-runs-them) covers the distinction.
 
 Validation never panics.
-Not panicking is **absolutely critical** for a system with hot reload.
-If validation panicked during a reload, a long-lived service would crash on a simple misconfiguration.
-Instead, the validation issues are reported.
+In a system with hot reload, a panic during a reload would crash a long-lived service on a simple misconfiguration.
+The issues are reported instead.
 
 Every validator appends issues to the report.
-Issues are not necessarily explicitly handled Rust errors.
-They are more often semantic validation rules that enforce some constraint a setting.
-For example, a date might pass the parse stage, indicating it is in fact a date, but violate a setting-specific rule
-where the date must be at least 90 days in the future.
+An issue is usually a semantic validation rule that enforces a constraint on a setting, not a handled Rust error.
+For example, a date might pass the parse stage, confirming it is a date, but violate a setting-specific rule
+requiring it to be at least 90 days in the future.
 
 Spans come from the `Located` fields, so validation works the same whether the spec was parsed from a file or
 constructed in code.
@@ -94,7 +93,7 @@ It reports the one error and short-circuits, since a lowering error is rare and 
 through.
 Say so in the message.
 For example, "this is likely a bug that should have been caught during validation".
-An operator reading that knows the problem sits in the software rather than in their configuration file.
+An operator reading that knows the problem is in the software rather than in their configuration file.
 
 Finally, the error still carries a span, so it renders with a source location like any other.
 

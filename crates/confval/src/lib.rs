@@ -11,7 +11,7 @@ pub use pipeline::range::RangeConstraint;
 /// The common imports for defining and lowering specs.
 ///
 /// A single `use confval::prelude::*;` pulls the everyday names a spec module
-/// reaches for: the source-location primitives ([`Located`](source::Located),
+/// uses: the source-location primitives ([`Located`](source::Located),
 /// [`Span`](source::Span), [`SourceMap`](source::SourceMap)), the diagnostic
 /// [`Report`](diagnostic::Report), the lowering pipeline
 /// ([`Lower`](pipeline::Lower), [`Validate`](pipeline::Validate),
@@ -23,8 +23,8 @@ pub use pipeline::range::RangeConstraint;
 /// `RangeConstraint` and its macro travel together so the validated-range
 /// pattern works from one import.
 ///
-/// Format adapters stay out of the prelude; reach for them through their
-/// explicit module path (`confval::format::hcl`). The diagnostic internals
+/// Format adapters stay out of the prelude. Use their explicit module path
+/// (`confval::format::hcl`). The diagnostic internals
 /// ([`Issue`](diagnostic::Issue), [`Severity`](diagnostic::Severity)) and the
 /// remaining source types ([`Source`](source::Source),
 /// [`SourceId`](source::SourceId)) likewise stay behind their module paths.

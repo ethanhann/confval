@@ -14,7 +14,7 @@ pub(crate) struct FieldOptions {
     /// Whether a `default` was requested, and with what value. The two `Option`
     /// layers mean different things:
     ///
-    /// - `None`              no `default` attribute at all.
+    /// - `None`              no `default` attribute.
     /// - `Some(None)`        `#[confval(default)]`, use the type's `Default`.
     /// - `Some(Some(expr))`  `#[confval(default = expr)]`, use `expr`.
     pub(crate) default: Option<Option<Expr>>,

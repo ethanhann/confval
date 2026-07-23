@@ -6,14 +6,14 @@ use std::ops::Deref;
 
 /// A parsed value together with its source span.
 ///
-/// `Deref` makes the wrapper transparent at use sites: code reading
+/// `Deref` makes the wrapper transparent at use sites. Code reading
 /// `Located<u16>` reads almost exactly like code reading `u16`. The span is
 /// consulted only for error attribution.
 ///
 /// # Equality ignores the span
 ///
 /// Two `Located` values with equal inner values are equal, regardless of
-/// where they came from. This is deliberate: a re-formatted but semantically
+/// where they came from. This is deliberate. A re-formatted but semantically
 /// identical config must compare equal for diffing and rollback. `Hash`
 /// agrees with `PartialEq`. If you need to compare locations, compare
 /// `.span` explicitly.

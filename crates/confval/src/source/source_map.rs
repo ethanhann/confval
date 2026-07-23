@@ -40,10 +40,10 @@ impl Source {
 
     /// Largest char boundary at or before `offset`, clamped to the text length.
     ///
-    /// Span offsets are raw bytes and a frontend may point one just inside a
+    /// Span offsets are raw bytes and a frontend may point one inside a
     /// multi-byte character (an HCL syntax error reported as `offset..offset+1`,
     /// for example). Snapping before slicing keeps rendering from panicking on
-    /// such a span; an already-aligned offset is returned unchanged.
+    /// such a span. An already-aligned offset is returned unchanged.
     pub(crate) fn floor_char_boundary(&self, offset: usize) -> usize {
         let mut offset = offset.min(self.text.len());
         while offset > 0 && !self.text.is_char_boundary(offset) {
@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn char_boundary_helpers_snap_and_clamp() {
         let source = Source::new("test.hcl", "x = é");
-        // "é" is bytes 4..6; 5 is interior.
+        // "é" is bytes 4..6. Byte 5 is interior.
         assert_eq!(source.floor_char_boundary(5), 4);
         assert_eq!(source.ceil_char_boundary(5), 6);
         // Already-aligned offsets are returned unchanged.

@@ -3,12 +3,12 @@
 //! This module's whole job is the conversion from `hcl_edit`'s syntax tree to
 //! the owned, format-neutral model in [`field`](crate::format::field). Once
 //! [`parse_hcl`] hands back a `Fields`, every span has been captured and no
-//! `hcl_edit` type escapes; the leaf parsers, the derive-generated walks, and
+//! `hcl_edit` type escapes. The leaf parsers, the derive-generated walks, and
 //! the hand-written [`FromFields`] impls all work against the neutral model.
 //!
 //! HCL offers two spellings for nested structures: blocks (`server { ... }`)
 //! and object-valued attributes (`server = { ... }`). A block becomes a
-//! [`FieldKind::Block`]; an object attribute becomes a [`FieldKind::Value`]
+//! [`FieldKind::Block`]. An object attribute becomes a [`FieldKind::Value`]
 //! whose value is a [`ValueKind::Map`]. Both reach the same `FromFields` impl,
 //! and the leaf parsers accept either.
 //!
@@ -375,7 +375,7 @@ mod tests {
 
     #[test]
     fn template_value_becomes_other() {
-        // A string interpolation has no static value; it must surface as a
+        // A string interpolation has no static value, so it must surface as a
         // type mismatch, not silently parse.
         let (_, _, fields) = parse("name = \"${var.x}\"\n");
         let mut report = Report::new();

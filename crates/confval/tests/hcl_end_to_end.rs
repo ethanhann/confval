@@ -63,7 +63,7 @@ impl Default for RetrySpec {
 
 // `Lower` is bound on `Validate`, so every spec lowered here needs an impl.
 // The `ValidateNested` half of that bound comes from `#[derive(Spec)]`.
-// These fixtures exercise parsing and lowering; their semantic checks live in
+// These fixtures exercise parsing and lowering. Their semantic checks live in
 // `validate_server_spec` below, which keeps this file's coverage of the
 // free-function validation path intact.
 impl Validate for ServerSpec {
@@ -331,7 +331,7 @@ fn spec_values_carry_byte_accurate_spans() {
 #[test]
 fn all_problems_are_reported_in_one_pass() {
     // The type mismatch is on an optional field so the tree still builds
-    // and validation runs; a mismatch on a required field stops the entity
+    // and validation runs. A mismatch on a required field stops the entity
     // at structural errors.
     let input = r#"hostname = "127.0.0.1"
 port = 99999

@@ -11,7 +11,7 @@ than one field.
 confval provides a `Validate` trait, described under [Validate](#validate) below.
 Its main purpose is to be named in a bound on the [lower](./lowering.md) stage.
 Every spec lowered into a config must implement it, or the config does not compile.
-This means that the bound guarantees a validator exists.
+The bound guarantees a validator exists.
 It does not guarantee that every field is checked inside that validator.
 
 The checks are (currently) intentionally minimal.
@@ -19,18 +19,17 @@ confval provides only two domain-agnostic checks: `RangeConstraint` and `Keyword
 
 ## Where a rule lives
 
-Validation rules live in one of two places: `Validation` impl and plain validator functions (when necessary).
+Validation rules live in one of two places: a `Validate` impl and plain validator functions (when necessary).
 
 ### Validate trait implementations
 
 A `Validate` impl on a spec type holds rules that the type can check from its own fields.
 It receives `&self`, so it can read every field of that struct.
-This level of granularity allows a rule spanning multiple fields to be created.
+A rule that spans several of the struct's fields can therefore live here.
 
 A nested child block is not this type's own field.
 A `Validate` impl therefore does not itself validate nested child specs.
 However, there is also no need to call `validate()` manually if you use `validate_all()` on the root spec.
-This is an important distinction.
 
 :::info
 You implement the `Validate` trait, but you call `validate_all` once on the root spec.
@@ -43,7 +42,7 @@ Validator functions are necessary primarily for cross-file and cross-block valid
 Depending on the domain, there may be complex semantic rules between files/blocks.
 For example, imagine a server with a central configuration file that has global settings, like enabling TLS, and
 subconfiguration files that may or may not be correct if TLS is enabled.
-This is where validator functions come into play.
+A validator function handles this case.
 
 A validator function takes whatever it needs to check and appends to the report:
 
@@ -158,10 +157,9 @@ Calling the validator remains the caller's responsibility.
 
 A `Validate` impl covers one spec type's own fields.
 It does not reach the nested blocks underneath it, because those are separate types with rules of their own.
-The collection of specs for a configuration surface is tree structure.
+The specs for a configuration surface form a tree.
 Something has to walk the tree.
-That walk is generated, with `validate_all` rather than written out manually (though writing it out manually is possible
-if desired).
+That walk is generated rather than written by hand, though you can write it yourself.
 
 `validate_all` runs this type's `validate`, then descends into every `#[confval(nested)]` field, recursively.
 One call at the root therefore covers the whole spec tree:

@@ -11,7 +11,7 @@ pub struct ServerConfig {
     pub port: u16,
     #[confval(lower(from = workers, with = workers_to_usize))]
     pub workers: usize,
-    // The spec field is `Option<Located<LimitsSpec>>`; with `default` an absent
+    // The spec field is `Option<Located<LimitsSpec>>`. With `default` an absent
     // block lowers `LimitsSpec::default()` instead of producing a missing-field
     // error, and the runtime field stays non-optional.
     #[confval(nested, default)]
@@ -44,7 +44,7 @@ pub enum Mode {
 }
 
 /// Mechanically lower the string to the mode.
-/// Even though it is capable of producing an error, it should never actually produce one.
+/// Even though it can produce an error, it never does.
 impl TryFrom<&str> for Mode {
     type Error = ();
 

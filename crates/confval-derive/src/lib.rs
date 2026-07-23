@@ -8,7 +8,7 @@
 //!   *walks* its nested blocks during validation (an
 //!   `impl confval::pipeline::ValidateNested`).
 //! - `#[derive(Config)]` writes the code that *converts* a parsed spec into the
-//!   runtime form the proxy actually uses (an `impl confval::pipeline::Lower`).
+//!   runtime form the proxy uses (an `impl confval::pipeline::Lower`).
 //!
 //! ## How a derive macro works (the mental model for this whole crate)
 //!
@@ -20,15 +20,15 @@
 //! So there are two layers to keep straight while reading this code:
 //!
 //! - The plain Rust here runs *at compile time*, inspecting the struct.
-//! - The code inside the `quote! { ... }` blocks is *generated* text; it does
-//!   not run now. It runs later, whenever the generated `impl` is actually
-//!   called at the program's runtime.
+//! - The code inside the `quote! { ... }` blocks is *generated* text. It does
+//!   not run now. It runs later, whenever the generated `impl` is called at the
+//!   program's runtime.
 //!
 //! Most of the work is therefore "looking at a field and deciding which snippet
 //! of code to emit for it."
 //!
 //! The two derives are independent. Each lives in its own module (`spec`,
-//! `config`); `common` holds the small `syn` type-inspection helpers they
+//! `config`). `common` holds the small `syn` type-inspection helpers they
 //! both use.
 
 mod common;

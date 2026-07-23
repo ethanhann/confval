@@ -31,9 +31,9 @@ impl Span {
 
     /// The smallest span covering both inputs.
     ///
-    /// Both spans must belong to the same source; merging is intended for
+    /// Both spans must belong to the same source. Merging is intended for
     /// spans that are same-source by construction, such as two fields of the
-    /// same block. A cross-source merge indicates a caller bug: it
+    /// same block. A cross-source merge indicates a caller bug. It
     /// debug-asserts and returns `a`.
     pub fn merge(a: Span, b: Span) -> Span {
         debug_assert_eq!(

@@ -46,13 +46,13 @@ pub(crate) enum Leaf {
 ///
 /// `nested` is the field's `#[confval(nested)]` flag. When set, the field is
 /// expected to be a sub-struct (or list of them) and is matched against the
-/// nested shapes; when unset, it must be a leaf scalar or a string list. A type
+/// nested shapes. When unset, it must be a leaf scalar or a string list. A type
 /// that fits none of the supported shapes is a compile error whose message
 /// names what was expected, pointing at the field's type.
 pub(crate) fn classify(field: &Field, nested: bool) -> syn::Result<FieldShape> {
     let ty = &field.ty;
     // First peel off an outer `Option`, if there is one. That wrapper is what
-    // makes a field optional; everything below classifies what is inside it.
+    // makes a field optional. Everything below classifies what is inside it.
     let (optional, inner) = match unwrap_generic(ty, "Option") {
         Some(inner) => (true, inner),
         None => (false, ty),

@@ -1,7 +1,7 @@
 //! TOML frontend: parses TOML text into the format-neutral [`Fields`] tree.
 //!
 //! Like [`hcl`](crate::format::hcl), this module's only job is the conversion
-//! from a concrete syntax tree — here `toml_edit`'s — to the owned model in
+//! from a concrete syntax tree (here `toml_edit`'s) to the owned model in
 //! [`field`](crate::format::field). It parses through
 //! [`Document`], the immutable document type that
 //! retains source spans, and emits the same neutral `Fields` every other
@@ -63,7 +63,7 @@ fn span_of(range: Option<Range<usize>>, source: SourceId) -> Span {
 }
 
 /// The whole-field span, name and value together. Either end may be missing
-/// (an absent toml_edit span); the present one then stands alone.
+/// (an absent toml_edit span). The present one then stands alone.
 fn entry_span(name_span: Span, value_span: Span) -> Span {
     if name_span.is_detached() {
         value_span
@@ -248,7 +248,7 @@ mod tests {
                 .value,
             8080
         );
-        // A TOML float is not an integer; the int parser rejects it.
+        // A TOML float is not an integer, so the int parser rejects it.
         assert!(parse_int_field(fields.get("ratio").unwrap(), &mut report).is_none());
         assert_eq!(report.issues()[0].message, "expected integer, found number");
         assert_eq!(
@@ -325,7 +325,7 @@ mod tests {
 
     #[test]
     fn datetime_becomes_other_and_mismatches() {
-        // A native TOML datetime has no neutral scalar; it must surface as a
+        // A native TOML datetime has no neutral scalar, so it must surface as a
         // type mismatch, not silently parse.
         let (_, _, fields) = parse("when = 1979-05-27T07:32:00Z\n");
         let mut report = Report::new();

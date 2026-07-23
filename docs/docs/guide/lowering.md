@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Lowering
 
-Once a spec is validated, lowering converts it into a config type: the runtime form your program actually uses.
+Once a spec is validated, lowering converts it into a config type: the runtime form your program uses.
 Because lowering runs only after the [gate](../pipeline.md), the narrowing conversions inside it never see a bad value.
 
 ## Defining a config
@@ -54,7 +54,8 @@ Adding a field to either struct without accounting for it on the other side is a
 
 `confval::pipeline::narrow` provides ready-made `with` functions.
 For integer width changes: `i64_to_u16`, `i64_to_u32`, `i64_to_u64`, `i64_to_usize`, and `opt_` variants for optional fields.
-They narrow with `try_from` rather than `as`: a value that does not fit is reported at its span and lowering fails, so a missing range rule surfaces as a located error instead of a silent truncation.
+They narrow with `try_from` rather than `as`.
+A value that does not fit is reported at its span and lowering fails, so a missing range rule surfaces as a located error instead of a silent truncation.
 `i64_secs_to_duration` (and `opt_i64_secs_to_duration`) route a seconds count through the same checked narrow into a `Duration`, rejecting a negative value rather than wrapping it.
 `i64_to_f64` widens to `f64` for the ratio and rate fields where an `as` cast cannot be named in a `with` attribute.
 

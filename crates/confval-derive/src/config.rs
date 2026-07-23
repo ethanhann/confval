@@ -3,18 +3,18 @@
 //!
 //! "Lowering" is that conversion. A spec is the freshly parsed config (every
 //! value still wrapped in `Located`, integers still wide, strings still
-//! strings); a config is the resolved, typed value the rest of the program
+//! strings). A config is the resolved, typed value the rest of the program
 //! runs on. This derive writes an `impl confval::pipeline::Lower<Spec>` that
 //! does the conversion field by field:
 //!
 //! - A field with no attribute auto-maps from the same-named spec field through
-//!   `LowerAuto`, which just unwraps the `Located` layers (no narrowing).
+//!   `LowerAuto`, which unwraps the `Located` layers (no narrowing).
 //! - A `#[confval(nested)]` field lowers through the inner type's own `Lower`.
 //! - Anything else takes an explicit `#[confval(lower(from = ..., with = ...))]`
 //!   naming the spec field(s) to read and the function that converts them.
 //!
 //! The generated code destructures the spec with no `..` rest pattern, which
-//! turns two whole classes of mistake into compile errors: a spec field that
+//! turns two classes of mistake into compile errors: a spec field that
 //! nothing consumes, and a `from` that names a field which does not exist.
 
 use crate::common::unwrap_generic;
@@ -300,7 +300,7 @@ fn parse_config_field_options(field: &Field) -> syn::Result<ConfigFieldSource> {
         })?;
     }
 
-    // `lower(...)` is exclusive with `nested`/`default`: a field either lowers
+    // `lower(...)` is exclusive with `nested`/`default`. A field lowers either
     // through its own `Lower` impl or through an explicit converter, not both.
     if let Some(with) = lower {
         if nested || nested_default {
