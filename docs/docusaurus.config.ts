@@ -35,6 +35,16 @@ const config: Config = {
 
   plugins: [
     [
+      'docusaurus-plugin-llms',
+      {
+        excludeImports: true,
+        docsDir: [
+          { path: 'docs', routeBasePath: 'docs', label: 'Docs' },
+          { path: 'releases', routeBasePath: 'releases', label: 'Releases' },
+        ],
+      },
+    ],
+    [
       '@docusaurus/plugin-content-blog',
       {
         id: 'releases',
@@ -126,6 +136,14 @@ const config: Config = {
             {
               label: 'Docs',
               to: '/docs/getting-started',
+            },
+            {
+              label: 'llms.txt',
+              href: 'https://ethanhann.com/confval/llms.txt',
+            },
+            {
+              label: 'llms-full.txt',
+              href: 'https://ethanhann.com/confval/llms-full.txt',
             },
           ],
         },
