@@ -26,6 +26,12 @@ pub enum Scalar {
     Int(i64),
     Float(f64),
     Bool(bool),
+    /// A literal from a stringly source, such as an environment variable or a
+    /// command line flag, that has not been type-parsed. The leaf parsers
+    /// coerce it to the type they expect, so the field's declared type decides
+    /// rather than a guess from the text. No file frontend produces it, so a
+    /// quoted string in a file stays a [`String`](Scalar::String).
+    Unparsed(String),
 }
 
 /// The data behind a field, with the span it occupied in source.
@@ -136,6 +142,9 @@ fn describe(value: &Value) -> &'static str {
         ValueKind::Scalar(Scalar::String(_)) => "string",
         ValueKind::Scalar(Scalar::Int(_)) | ValueKind::Scalar(Scalar::Float(_)) => "number",
         ValueKind::Scalar(Scalar::Bool(_)) => "bool",
+        // An unparsed literal is textual until a leaf parser coerces it, so a
+        // type mismatch describes it the way an operator wrote it.
+        ValueKind::Scalar(Scalar::Unparsed(_)) => "string",
         ValueKind::Seq(_) => "array",
         ValueKind::Map(_) => "object",
         ValueKind::Other(label) => label,
@@ -169,6 +178,7 @@ pub fn parse_string_field(field: &Field, report: &mut Report) -> Option<Located<
     let value = expect_value(field, "string", report)?;
     match &value.kind {
         ValueKind::Scalar(Scalar::String(string)) => Some(Located::new(string.clone(), value.span)),
+        ValueKind::Scalar(Scalar::Unparsed(raw)) => Some(Located::new(raw.clone(), value.span)),
         _ => {
             report_type_mismatch(value, "string", report);
             None
@@ -182,6 +192,13 @@ pub fn parse_int_field(field: &Field, report: &mut Report) -> Option<Located<i64
     let value = expect_value(field, "integer", report)?;
     match &value.kind {
         ValueKind::Scalar(Scalar::Int(int)) => Some(Located::new(*int, value.span)),
+        ValueKind::Scalar(Scalar::Unparsed(raw)) => match raw.parse::<i64>() {
+            Ok(int) => Some(Located::new(int, value.span)),
+            Err(_) => {
+                report_type_mismatch(value, "integer", report);
+                None
+            }
+        },
         _ => {
             report_type_mismatch(value, "integer", report);
             None
@@ -196,6 +213,13 @@ pub fn parse_float_field(field: &Field, report: &mut Report) -> Option<Located<f
     match &value.kind {
         ValueKind::Scalar(Scalar::Float(float)) => Some(Located::new(*float, value.span)),
         ValueKind::Scalar(Scalar::Int(int)) => Some(Located::new(*int as f64, value.span)),
+        ValueKind::Scalar(Scalar::Unparsed(raw)) => match raw.parse::<f64>() {
+            Ok(float) => Some(Located::new(float, value.span)),
+            Err(_) => {
+                report_type_mismatch(value, "number", report);
+                None
+            }
+        },
         _ => {
             report_type_mismatch(value, "number", report);
             None
@@ -208,6 +232,13 @@ pub fn parse_bool_field(field: &Field, report: &mut Report) -> Option<Located<bo
     let value = expect_value(field, "bool", report)?;
     match &value.kind {
         ValueKind::Scalar(Scalar::Bool(boolean)) => Some(Located::new(*boolean, value.span)),
+        ValueKind::Scalar(Scalar::Unparsed(raw)) => match raw.parse::<bool>() {
+            Ok(boolean) => Some(Located::new(boolean, value.span)),
+            Err(_) => {
+                report_type_mismatch(value, "bool", report);
+                None
+            }
+        },
         _ => {
             report_type_mismatch(value, "bool", report);
             None
@@ -640,6 +671,57 @@ mod tests {
         assert_eq!(issue.message, "duplicate field: port");
         assert_eq!(issue.span, Some(second));
         assert_eq!(issue.related[0], (first, "first declared here".to_string()));
+    }
+
+    #[test]
+    fn unparsed_literal_coerces_to_the_field_type() {
+        // Arrange
+        let field = scalar_field("port", Scalar::Unparsed("8080".to_string()));
+        let mut report = Report::new();
+        // Act
+        let value = parse_int_field(&field, &mut report);
+        // Assert
+        assert_eq!(value.unwrap().value, 8080);
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn unparsed_literal_that_does_not_parse_reports_a_mismatch() {
+        // Arrange
+        let field = scalar_field("port", Scalar::Unparsed("high".to_string()));
+        let mut report = Report::new();
+        // Act
+        let value = parse_int_field(&field, &mut report);
+        // Assert
+        assert!(value.is_none());
+        assert_eq!(report.issues()[0].message, "expected integer, found string");
+    }
+
+    #[test]
+    fn unparsed_literal_stays_a_string_for_a_string_field() {
+        // Arrange
+        let field = scalar_field("zip", Scalar::Unparsed("01234".to_string()));
+        let mut report = Report::new();
+        // Act
+        let value = parse_string_field(&field, &mut report);
+        // Assert
+        assert_eq!(value.unwrap().value, "01234");
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn unparsed_literal_coerces_to_bool_and_float() {
+        // Arrange
+        let daemon = scalar_field("daemon", Scalar::Unparsed("true".to_string()));
+        let ratio = scalar_field("ratio", Scalar::Unparsed("0.5".to_string()));
+        let mut report = Report::new();
+        // Act
+        let daemon = parse_bool_field(&daemon, &mut report);
+        let ratio = parse_float_field(&ratio, &mut report);
+        // Assert
+        assert!(daemon.unwrap().value);
+        assert_eq!(ratio.unwrap().value, 0.5);
+        assert!(!report.has_issues());
     }
 
     #[test]

@@ -26,24 +26,24 @@ use crate::source::{SourceId, SourceMap, Span};
 use std::ops::Range;
 use toml_edit::{Document, InlineTable, Item, Table, Value as TomlValue};
 
-/// Parses one registered source into a `T`, pushing syntax errors and
-/// structural problems into the report.
-pub fn parse_toml<T: FromFields>(
-    sources: &SourceMap,
-    id: SourceId,
-    report: &mut Report,
-) -> Option<T> {
+/// Parses one registered source into the neutral [`Fields`] tree.
+///
+/// This is the provider seam. A syntax error, the only failure that yields no
+/// tree, is pushed to the report and returns `None`. Field-level problems are
+/// reported but do not stop the parse, so a tree that built keeps flowing.
+/// Callers that assemble several sources hold the returned `Fields`, merge
+/// them, and run [`FromFields`] once on the result.
+pub fn parse_toml_fields(sources: &SourceMap, id: SourceId, report: &mut Report) -> Option<Fields> {
     let Some(source) = sources.get(id) else {
         report
-            .error("internal error: parse_toml called with an unregistered source id")
+            .error("internal error: parse_toml_fields called with an unregistered source id")
             .emit();
         return None;
     };
     match Document::parse(&source.text) {
         Ok(document) => {
             let enclosing = Span::new(id, 0, source.text.len() as u32);
-            let fields = fields_of_table(document.as_table(), enclosing, id, report);
-            T::from_fields(&fields, report)
+            Some(fields_of_table(document.as_table(), enclosing, id, report))
         }
         Err(error) => {
             report
@@ -53,6 +53,17 @@ pub fn parse_toml<T: FromFields>(
             None
         }
     }
+}
+
+/// Parses one registered source into a `T`, pushing syntax errors and
+/// structural problems into the report.
+pub fn parse_toml<T: FromFields>(
+    sources: &SourceMap,
+    id: SourceId,
+    report: &mut Report,
+) -> Option<T> {
+    let fields = parse_toml_fields(sources, id, report)?;
+    T::from_fields(&fields, report)
 }
 
 fn span_of(range: Option<Range<usize>>, source: SourceId) -> Span {
