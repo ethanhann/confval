@@ -43,10 +43,10 @@ let mut report = Report::new();
 let base = sources.add("server.toml", file_text);
 
 let spec: Option<ServerSpec> = Assembly::new()
-.merge(parse_toml_fields( & sources, base, & mut report))
-.merge(env_fields( & mut sources, "APP_", & mut report))
-.merge(cli_fields( & mut sources, std::env::args(), & mut report))
-.into( & mut report);
+.merge(parse_toml_fields(&sources, base, &mut report))
+.merge(env_fields(&mut sources, "APP_", &mut report))
+.merge(cli_fields(&mut sources, std::env::args(), &mut report))
+.into(&mut report);
 ```
 
 `into` merges the layers and runs the spec's parser once on the result. The value it returns is the same `ServerSpec`
@@ -59,15 +59,15 @@ Each provider function reads one source and returns a layer. The file providers 
 registered:
 
 ```rust
-let file_layer = parse_toml_fields( & sources, base, & mut report);
+let file_layer = parse_toml_fields(&sources, base, &mut report);
 ```
 
 The environment and command line providers register their own sources as they read, so they take the source map by
 mutable reference:
 
 ```rust
-let env_layer = env_fields( & mut sources, "APP_", & mut report);
-let cli_layer = cli_fields( & mut sources, std::env::args(), & mut report);
+let env_layer = env_fields(&mut sources, "APP_", &mut report);
+let cli_layer = cli_fields(&mut sources, std::env::args(), &mut report);
 ```
 
 A provider returns `None` when its source fails to parse, and it records the error in the report. When any layer is
@@ -84,7 +84,7 @@ let spec: Option<ServerSpec> = Assembly::new()
 .merge(file_layer) // base
 .merge(env_layer)  // overrides the file
 .merge(cli_layer)  // overrides the environment
-.into( & mut report);
+.into(&mut report);
 ```
 
 `join` lets an earlier layer keep its value and fills only what it did not set. Use it for a layer of fallback defaults
@@ -94,7 +94,7 @@ that should not override anything already present:
 let spec: Option<ServerSpec> = Assembly::new()
 .merge(file_layer)
 .join(defaults_layer) // fills gaps only
-.into( & mut report);
+.into(&mut report);
 ```
 
 When two layers set the same nested block, the blocks combine field by field. When two layers set the same array, the
@@ -106,7 +106,7 @@ higher-precedence array replaces the lower one.
 separates nesting levels, a single underscore stays part of a name, and each segment is lowercased:
 
 ```rust
-let env_layer = env_fields( & mut sources, "APP_", & mut report);
+let env_layer = env_fields(&mut sources, "APP_", &mut report);
 ```
 
 With the prefix `APP_`, variables map to fields like this:
@@ -120,7 +120,7 @@ With the prefix `APP_`, variables map to fields like this:
 Arguments that are not flags are ignored, so you may pass the whole argument list:
 
 ```rust
-let cli_layer = cli_fields( & mut sources, std::env::args(), & mut report);
+let cli_layer = cli_fields(&mut sources, std::env::args(), &mut report);
 ```
 
 Flags map to fields like this:
