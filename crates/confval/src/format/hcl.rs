@@ -27,24 +27,24 @@ use crate::source::{SourceId, SourceMap, Span};
 use hcl_edit::expr::{Expression, Object, ObjectKey};
 use hcl_edit::structure::{Body, Structure};
 
-/// Parses one registered source into a `T`, pushing syntax errors and
-/// structural problems into the report.
-pub fn parse_hcl<T: FromFields>(
-    sources: &SourceMap,
-    id: SourceId,
-    report: &mut Report,
-) -> Option<T> {
+/// Parses one registered source into the neutral [`Fields`] tree.
+///
+/// When you assemble configuration from several sources, you hold the returned
+/// `Fields`, merge it with the others, and run [`FromFields`] once on the
+/// merged result. A syntax error, the only failure that yields no tree, is
+/// reported and returns `None`. Field-level problems are reported but do not
+/// stop the parse, so a tree that parsed still reaches validation.
+pub fn parse_hcl_fields(sources: &SourceMap, id: SourceId, report: &mut Report) -> Option<Fields> {
     let Some(source) = sources.get(id) else {
         report
-            .error("internal error: parse_hcl called with an unregistered source id")
+            .error("internal error: parse_hcl_fields called with an unregistered source id")
             .emit();
         return None;
     };
     match hcl_edit::parser::parse_body(&source.text) {
         Ok(body) => {
             let enclosing = Span::new(id, 0, source.text.len() as u32);
-            let fields = fields_of_body(&body, enclosing, id, report);
-            T::from_fields(&fields, report)
+            Some(fields_of_body(&body, enclosing, id, report))
         }
         Err(error) => {
             let offset = error.location().offset() as u32;
@@ -55,6 +55,17 @@ pub fn parse_hcl<T: FromFields>(
             None
         }
     }
+}
+
+/// Parses one registered source into a `T`, pushing syntax errors and
+/// structural problems into the report.
+pub fn parse_hcl<T: FromFields>(
+    sources: &SourceMap,
+    id: SourceId,
+    report: &mut Report,
+) -> Option<T> {
+    let fields = parse_hcl_fields(sources, id, report)?;
+    T::from_fields(&fields, report)
 }
 
 /// Converts an hcl-edit node's span to a confval [`Span`]. Nodes not emitted by

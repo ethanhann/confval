@@ -2,6 +2,8 @@
 pub use confval_derive::{Config, Spec};
 pub mod diagnostic;
 pub mod format;
+#[cfg(feature = "layering")]
+pub mod layering;
 pub mod pipeline;
 pub mod source;
 

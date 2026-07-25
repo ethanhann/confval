@@ -22,6 +22,9 @@ color = ["dep:owo-colors"]
 hcl = ["dep:hcl-edit"]
 toml = ["dep:toml_edit"]
 derive = ["dep:confval-derive"]
+# Assemble one configuration from several layered sources. Combines file
+# providers with env and CLI by precedence. Pulls in no external crate.
+layering = []
 
 [dependencies]
 serde = { workspace = true, features = ["derive"], optional = true }
@@ -50,6 +53,10 @@ required-features = ["derive", "color", "toml"]
 [[example]]
 name = "validate_traversal"
 required-features = ["derive", "color", "toml"]
+
+[[example]]
+name = "layering"
+required-features = ["derive", "color", "toml", "layering"]
 
 [[test]]
 name = "compile_fail"

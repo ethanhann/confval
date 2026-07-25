@@ -4,6 +4,8 @@ Configuration parsing, validation, and lowering primitives for Rust.
 
 The [toml example](./crates/confval/examples/toml.rs) and [hcl example](./crates/confval/examples/hcl.rs) demonstrate
 how this crate is meant to be used.
+The [layering example](./crates/confval/examples/layering.rs) assembles one configuration from a file, the environment,
+and the command line.
 
 See the [confval documentation](https://snakeway.dev/docs/internals/confval/) for the full API overview.
 

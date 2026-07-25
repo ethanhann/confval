@@ -12,7 +12,9 @@ pub struct ServerSpec {
     pub port: Located<i64>,
     #[confval(default = 4)]
     pub workers: Located<i64>,
-    // Optional in the source. When the block is omitted the spec keeps it
+    #[confval(default = false)]
+    pub tls: Located<bool>,
+    // Optional in the source. When the block is omitted, the spec keeps it
     // `None`, so a spec dump stays source-faithful. The config side fills the
     // default at lowering time.
     #[confval(nested)]

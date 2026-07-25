@@ -4,20 +4,17 @@ sidebar_position: 1
 
 # Getting Started
 
-confval is a Rust crate for parsing, validating, and lowering configuration files.
-It records a source span for every parsed value, so a validation error can report the line and column in the file the
-value came from.
+confval is a Rust crate for parsing, validating, and lowering configuration files. It records a source span for every
+parsed value, so a validation error can report the line and column in the file the value came from.
 
-Use it to build the configuration layer of an application.
-You define the shape of the config as Rust types, parse a file into those types, run validation, and lower the result
-into the runtime types the rest of the program uses.
+Use it to build the configuration layer of an application. You define the shape of the config as Rust types, parse a
+file into those types, run validation, and lower the result into the runtime types the rest of the program uses.
 
 ## Installation
 
 Add confval to your `Cargo.toml`.
 
-The crate has no default features.
-Enable the format frontends and extras you use.
+The crate has no default features. Enable the format frontends and extras you use.
 
 For example, for TOML format, derive macros, JSON diagnostics, and console color support:
 
@@ -33,17 +30,19 @@ cargo add confval --features "hcl,derive"
 
 ### Feature flags
 
-| Flag     | Default | Brings in        | Enables                                                    |
-|----------|---------|------------------|------------------------------------------------------------|
-| `serde`  | off     | `serde`          | `Located` serde impls, `render_json`                       |
-| `color`  | off     | `owo-colors`     | `render_pretty` with ANSI color                            |
-| `hcl`    | off     | `hcl-edit`       | The `confval::format::hcl` frontend                        |
-| `toml`   | off     | `toml_edit`      | The `confval::format::toml` frontend                       |
-| `derive` | off     | `confval-derive` | `#[derive(Spec)]` and `#[derive(Config)]` (format-neutral) |
+| Flag       | Default | Brings in        | Enables                                                                                  |
+|------------|---------|------------------|------------------------------------------------------------------------------------------|
+| `serde`    | off     | `serde`          | `Located` serde impls, `render_json`                                                     |
+| `color`    | off     | `owo-colors`     | `render_pretty` with ANSI color                                                          |
+| `hcl`      | off     | `hcl-edit`       | The `confval::format::hcl` frontend                                                      |
+| `toml`     | off     | `toml_edit`      | The `confval::format::toml` frontend                                                     |
+| `derive`   | off     | `confval-derive` | `#[derive(Spec)]` and `#[derive(Config)]` (format-neutral)                               |
+| `layering` | off     | nothing          | The `confval::layering` module for assembling from a file, environment, and command line |
 
-Frontends (that define the configuration format) are independent opt-ins.
-Pick `hcl` or `toml` for the format you want.
-The `derive` feature emits the format-neutral `FromFields`, so it brings in no parser on its own.
+Frontends (that define the configuration format) are independent opt-ins. Pick `hcl` or `toml` for the format you want.
+The `derive` feature emits the format-neutral `FromFields`, so it brings in no parser on its own. The `layering` feature
+adds the [layering](./guide/layering.md) module, which merges several sources into one configuration. It pulls in no
+external crate.
 
 ## A complete example
 
@@ -54,8 +53,8 @@ The crate ships the same program as multiple runnable examples.
 `hcl.rs` and `toml.rs` each supply a source document and one parse call, and both pull everything after parsing from a
 shared `common/mod.rs`.
 
-Read through it once for the overall shape.
-The walkthrough below steps through it piece by piece, following the [pipeline contract](pipeline.md) in order.
+Read through it once for the overall shape. The walkthrough below steps through it piece by piece, following
+the [pipeline contract](pipeline.md) in order.
 
 ```rust
 use confval::prelude::*;
@@ -177,15 +176,13 @@ limits {
 ## Walking through the example
 
 The code breaks into four parts: the spec types you parse into, the validation rules, the config types you lower to, and
-the `main` that ties them together.
-Each part lines up with a phase of the [pipeline contract](pipeline.md).
+the `main` that ties them together. Each part lines up with a phase of the [pipeline contract](pipeline.md).
 
 ### The spec types
 
-When a file is parsed, it is deserialized into a spec type.
-Every field is wrapped in a [`Located<T>`](./guide/parsing.md#located-values), which links the value back to where it
-came from in the configuration file.
-That location is called a `span`.
+When a file is parsed, it is deserialized into a spec type. Every field is wrapped in a [
+`Located<T>`](./guide/parsing.md#located-values), which links the value back to where it came from in the configuration
+file. That location is called a `span`.
 
 ```rust
 #[derive(confval::Spec)]
@@ -199,17 +196,14 @@ struct ServerSpec {
 }
 ```
 
-`#[derive(confval::Spec)]` writes the parser for the struct.
-It only checks structure: whether each field is present and has the right type.
-Anything else is reported.
+`#[derive(confval::Spec)]` writes the parser for the struct. It only checks structure: whether each field is present and
+has the right type. Anything else is reported.
 
-- `hostname` and `port` are required.
-  Leave one out and it comes back as an error.
+- `hostname` and `port` are required. Leave one out and it comes back as an error.
 - `#[confval(default = 4)]` gives `workers` a value of `4` when the file omits it, so it is not reported as missing.
 - `#[confval(nested)]` parses `limits` with its own `LimitsSpec` parser, and `Option` makes the whole block optional.
 
-Spec fields use the loosest type that still parses, like `i64` for `port`.
-A `port` of `99999` parses fine here.
+Spec fields use the loosest type that still parses, like `i64` for `port`. A `port` of `99999` parses fine here.
 Validation catches it later, and points at its span.
 
 `LimitsSpec` works the same way.
@@ -226,23 +220,21 @@ struct LimitsSpec {
 
 The defaults are declared twice.
 
-The `#[confval(default = ...)]` attributes fill a field the file left out of a `limits` block that is present.
-The example input writes `limits { mode = "log" }`, so `max_body_mb` comes from its attribute default.
+The `#[confval(default = ...)]` attributes fill a field the file left out of a `limits` block that is present. The
+example input writes `limits { mode = "log" }`, so `max_body_mb` comes from its attribute default.
 
-The handwritten `impl Default` supplies the whole struct when the block is absent entirely.
-That is what `#[confval(nested, default)]` on `LimitsConfig` uses during lowering.
+The handwritten `impl Default` supplies the whole struct when the block is absent entirely. That is what
+`#[confval(nested, default)]` on `LimitsConfig` uses during lowering.
 
-Nothing checks that the two agree.
-Keeping `16` and `"enforce"` in step across both is manual.
-The flexibility is deliberate, since confval cannot account for every use case.
+Nothing checks that the two agree. Keeping `16` and `"enforce"` in step across both is manual. The flexibility is
+deliberate, since confval cannot account for every use case.
 
 See [Parsing](./guide/parsing.md#optional-fields-and-defaults) for the full set of field rules.
 
 ### The validation rules
 
 After parsing, validation checks what the values mean: ranges, allowed keywords, and rules that cross more than one
-field.
-Each field already carries its span, so every message it reports points back at the file.
+field. Each field already carries its span, so every message it reports points back at the file.
 
 Each spec type checks its own fields in a `Validate` impl.
 
@@ -273,32 +265,28 @@ impl Validate for ServerSpec {
 - For anything else, go through the report builder: `.at(span)` attaches the location, `.help(text)` adds a suggestion,
   and `.emit()` records the issue.
 
-Implementing `Validate` is not optional.
-Every generated `Lower` impl is bound on it, so a spec with no validator makes its config fail to compile.
-A spec type with nothing to check writes an empty impl.
+Implementing `Validate` is not optional. Every generated `Lower` impl is bound on it, so a spec with no validator makes
+its config fail to compile. A spec type with nothing to check writes an empty impl.
 
-A `Validate` impl only sees its own fields.
-Something has to walk into the nested `limits` block.
-`validate_all` does that walk.
-The traversal is generated for you, but you still have to call `validate_all`:
+A `Validate` impl only sees its own fields. Something has to walk into the nested `limits` block.
+`validate_all` does that walk. The traversal is generated for you, but you still have to call `validate_all`:
 
 ```rust
 spec.validate_all(&mut report);
 ```
 
-`validate_all` runs `ServerSpec`'s own rules and then descends into every `#[confval(nested)]` field, recursively.
-The one call above therefore also reaches `LimitsSpec`.
-`#[derive(Spec)]` writes that descent from the struct definition.
-A nested block added next month is validated without anyone editing a validator.
+`validate_all` runs `ServerSpec`'s own rules and then descends into every `#[confval(nested)]` field, recursively. The
+one call above therefore also reaches `LimitsSpec`.
+`#[derive(Spec)]` writes that descent from the struct definition. A nested block added next month is validated without
+anyone editing a validator.
 
-Implement `validate`.
-Call `validate_all`.
+Implement `validate`. Call `validate_all`.
 [Validation](./guide/validation.md#validate-impl-contains-the-rules-validate_all-runs-them) covers the difference.
 [Where a rule lives](./guide/validation.md#where-a-rule-lives) covers which rules belong in an impl rather than in a
 validator function.
 
-Validation never stops at the first problem.
-It adds every issue it finds to the report, so one run shows you all of them.
+Validation never stops at the first problem. It adds every issue it finds to the report, so one run shows you all of
+them.
 
 ### The config types
 
@@ -319,8 +307,8 @@ struct ServerConfig {
 }
 ```
 
-- `hostname` has no attribute, so it maps across on its own.
-  Lowering drops the `Located` wrapper, so `Located<String>` becomes `String`.
+- `hostname` has no attribute, so it maps across on its own. Lowering drops the `Located` wrapper, so `Located<String>`
+  becomes `String`.
 - `#[confval(lower(from = port, with = narrow::i64_to_u16))]` narrows the `i64` port down to a `u16`.
   [`narrow`](./guide/lowering.md#narrowing-helpers) refuses a value that does not fit instead of quietly truncating it.
 - `#[confval(nested, default)]` lowers `LimitsSpec::default()` when the file left the block out, so `limits` is always
@@ -339,7 +327,7 @@ Lowering only runs after the gate, so a conversion here never sees a bad value.
 
 ### Running the pipeline
 
-`main` runs the four phases in order.
+`main` runs the four stages in order.
 
 First, add the source text to a [`SourceMap`](./guide/diagnostics.md#spans-and-source) and parse it.
 `parse_hcl` only returns `None` when the input is broken enough that no tree comes out of it.
@@ -356,19 +344,18 @@ Second, validate the parsed spec.
 
 ```rust
 if let Some(spec) = &spec {
-    spec.validate_all(&mut report);
+spec.validate_all(&mut report);
 }
 ```
 
-Third, check the report.
-If it holds any errors, render them and stop before lowering.
+Third, check the report. If it holds any errors, render them and stop before lowering.
 
 ```rust
 if report.has_errors() {
-  let mut out = String::new();
-  report.render_pretty( &sources, &mut out).unwrap();
-  eprint ! ("{out}");
-  std::process::exit(1);
+let mut out = String::new();
+report.render_pretty(&sources, &mut out).unwrap();
+eprint ! ("{out}");
+std::process::exit(1);
 }
 ```
 
@@ -471,6 +458,23 @@ error: attempts must be at most 10
 upstream disabled: descend breaks, so the child is skipped
 no issues
 ```
+
+Run the layering example that assembles one config from a base file, a joined defaults file, the environment, and the command line:
+
+```shell
+cargo run -q -p confval --example layering --features derive,color,toml,layering
+```
+
+The environment sets `port` and the nested `limits.mode`, the command line sets `limits.max_body_mb` and `tls`, and the
+joined defaults file fills `workers`:
+
+```shell
+listening on 127.0.0.1:9090 with 8 workers
+limits: max_body_mb=64 mode=log
+tls: true
+```
+
+See [Layering](./guide/layering.md) for how the sources merge and how environment and command line values are coerced.
 
 ## Additional Examples
 

@@ -49,16 +49,14 @@ export default function HomepageFeatures(): ReactNode {
   return (
     <section className={styles.features}>
       <p className={styles.lead}>
-        confval turns a configuration file into runtime types in four phases:
+        confval turns a configuration file into runtime types in four stages:
         parse, validate, gate, and lower.
       </p>
       <div className={clsx(styles.diagram, wide ? styles.wide : styles.tall)}>
         <Mermaid value={wide ? PIPELINE_WIDE : PIPELINE_TALL} />
       </div>
       <p className={styles.caption}>
-        See <Link to="/docs/pipeline">The pipeline contract</Link> for the
-        detail on each phase, including the rare lowering error that
-        short-circuits.
+        See <Link to="/docs/pipeline">The pipeline contract</Link> for more architecture details.
       </p>
     </section>
   );
