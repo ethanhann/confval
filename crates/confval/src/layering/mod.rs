@@ -7,7 +7,7 @@
 //! substrate they read.
 //!
 //! [`Assembly`] collects the layers and folds them. Precedence is the call
-//! order: [`merge`](Assembly::merge) lets a later layer override an earlier
+//! order. [`merge`](Assembly::merge) lets a later layer override an earlier
 //! one, and [`join`](Assembly::join) lets an earlier layer stand while a later
 //! one fills what is missing. [`FromFields`] runs once, on the merged result.
 //!

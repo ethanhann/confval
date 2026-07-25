@@ -29,11 +29,11 @@ use hcl_edit::structure::{Body, Structure};
 
 /// Parses one registered source into the neutral [`Fields`] tree.
 ///
-/// This is the provider seam. A syntax error, the only failure that yields no
-/// tree, is pushed to the report and returns `None`. Field-level problems are
-/// reported but do not stop the parse, so a tree that built keeps flowing.
-/// Callers that assemble several sources hold the returned `Fields`, merge
-/// them, and run [`FromFields`] once on the result.
+/// When you assemble configuration from several sources, you hold the returned
+/// `Fields`, merge it with the others, and run [`FromFields`] once on the
+/// merged result. A syntax error, the only failure that yields no tree, is
+/// reported and returns `None`. Field-level problems are reported but do not
+/// stop the parse, so a tree that parsed still reaches validation.
 pub fn parse_hcl_fields(sources: &SourceMap, id: SourceId, report: &mut Report) -> Option<Fields> {
     let Some(source) = sources.get(id) else {
         report

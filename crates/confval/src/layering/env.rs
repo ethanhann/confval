@@ -7,12 +7,13 @@ use crate::source::{SourceMap, Span};
 
 /// Reads process environment variables into a neutral [`Fields`] tree.
 ///
-/// Variables are selected by `prefix`, and the prefix is stripped. A double
+/// Variables are selected by `prefix`, which is then stripped. A double
 /// underscore separates nesting levels and a single underscore stays literal,
 /// so `APP_SERVER__MAX_BODY_MB` under prefix `APP_` becomes
 /// `server.max_body_mb`. Segments are lowercased. Each value is registered as
-/// its own synthetic source, named `env:<VAR>`, so it carries a real span, and
-/// is emitted as an unparsed literal for the leaf parsers to coerce.
+/// its own synthetic source, named for the variable such as `env:APP_PORT`, so
+/// it carries a real span. The value is emitted as an unparsed literal for the
+/// leaf parsers to coerce.
 ///
 /// A prefix that matches nothing returns an empty level that contributes
 /// nothing to a merge. The provider has no syntax-error failure mode, so it

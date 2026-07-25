@@ -26,11 +26,12 @@ pub enum Scalar {
     Int(i64),
     Float(f64),
     Bool(bool),
-    /// A literal from a stringly source, such as an environment variable or a
-    /// command line flag, that has not been type-parsed. The leaf parsers
-    /// coerce it to the type they expect, so the field's declared type decides
-    /// rather than a guess from the text. No file frontend produces it, so a
-    /// quoted string in a file stays a [`String`](Scalar::String).
+    /// A raw string from a source that carries only strings, such as an
+    /// environment variable or a command line flag, before it is parsed to a
+    /// type. The leaf parsers coerce it to the type they expect, so the field's
+    /// declared type decides rather than a guess from the text. No file
+    /// frontend produces it, so a quoted string in a file stays a
+    /// [`String`](Scalar::String).
     Unparsed(String),
 }
 

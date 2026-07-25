@@ -10,9 +10,10 @@ use crate::source::{SourceMap, Span};
 /// Each flag uses the `--key=value` form. A dot separates nesting levels and a
 /// segment keeps its underscores, so `--server.max_body_mb=16` becomes
 /// `server.max_body_mb`. Each value is registered as its own synthetic source,
-/// named `cli:<key>`, and emitted as an unparsed literal for the leaf parsers
-/// to coerce. Arguments that are not `--key=value` flags are ignored, so the
-/// caller can pass the whole argument list.
+/// named for the flag such as `cli:server.max_body_mb`, so it carries a real
+/// span. The value is emitted as an unparsed literal for the leaf parsers to
+/// coerce. Arguments that are not `--key=value` flags are ignored, so you can
+/// pass the whole argument list.
 ///
 /// The provider has no syntax-error failure mode, so it returns `Some` and
 /// never `None`.

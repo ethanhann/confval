@@ -11,8 +11,8 @@ use crate::format::{Field, FieldKind, Fields, Scalar, Value, ValueKind};
 use crate::source::{SourceId, Span};
 use std::collections::BTreeMap;
 
-/// One decoded assignment: a path of segments and the raw value, already
-/// registered as its own synthetic source.
+/// One decoded assignment, a path of segments with its raw value. The value is
+/// already registered as its own synthetic source.
 pub(crate) struct Leaf {
     pub path: Vec<String>,
     pub raw: String,
