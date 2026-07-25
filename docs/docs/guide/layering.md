@@ -146,15 +146,16 @@ list keeps whatever the file layers provide, so change a list by editing a file.
 
 ## Running the Example
 
-The crate ships a `layering` example that assembles one `ServerSpec` from a file, the environment, and the command line:
+The crate ships a `layering` example that assembles one `ServerSpec` from a base file, a joined defaults file, the environment, and the command line:
 
 ```shell
 cargo run -q -p confval --example layering --features derive,color,toml,layering
 ```
 
-The file sets every field, the environment overrides `port` and `limits.mode`, and the command line overrides `workers`:
+The base file provides `hostname` and the `limits` block, the environment sets `port` and `limits.mode`, the command line sets `limits.max_body_mb` and `tls`, and the defaults file fills `workers` through `join`:
 
 ```shell
 listening on 127.0.0.1:9090 with 8 workers
-limits: max_body_mb=32 mode=log
+limits: max_body_mb=64 mode=log
+tls: true
 ```

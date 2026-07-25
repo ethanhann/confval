@@ -11,6 +11,9 @@ pub struct ServerConfig {
     pub port: u16,
     #[confval(lower(from = workers, with = workers_to_usize))]
     pub workers: usize,
+    // Only the layering example reads this, to show a bool coerced from a flag.
+    #[allow(dead_code)]
+    pub tls: bool,
     // The spec field is `Option<Located<LimitsSpec>>`. With `default` an absent
     // block lowers `LimitsSpec::default()` instead of producing a missing-field
     // error, and the runtime field stays non-optional.
