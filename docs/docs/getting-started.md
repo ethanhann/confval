@@ -327,7 +327,7 @@ Lowering only runs after the gate, so a conversion here never sees a bad value.
 
 ### Running the pipeline
 
-`main` runs the four phases in order.
+`main` runs the four stages in order.
 
 First, add the source text to a [`SourceMap`](./guide/diagnostics.md#spans-and-source) and parse it.
 `parse_hcl` only returns `None` when the input is broken enough that no tree comes out of it.
@@ -459,18 +459,19 @@ upstream disabled: descend breaks, so the child is skipped
 no issues
 ```
 
-Run the layering example that assembles one config from a file, the environment, and the command line:
+Run the layering example that assembles one config from a base file, a joined defaults file, the environment, and the command line:
 
 ```shell
 cargo run -q -p confval --example layering --features derive,color,toml,layering
 ```
 
-The file sets every field, the environment overrides `port` and the nested `limits.mode`, and the command line overrides
-`workers`:
+The environment sets `port` and the nested `limits.mode`, the command line sets `limits.max_body_mb` and `tls`, and the
+joined defaults file fills `workers`:
 
 ```shell
 listening on 127.0.0.1:9090 with 8 workers
-limits: max_body_mb=32 mode=log
+limits: max_body_mb=64 mode=log
+tls: true
 ```
 
 See [Layering](./guide/layering.md) for how the sources merge and how environment and command line values are coerced.
