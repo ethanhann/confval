@@ -116,6 +116,45 @@ KeywordSet::new( &LOAD_BALANCING_STRATEGIES)
 Every keyword field reports the same way, so a wrong value in any closed-set field produces the same message shape and
 lists the allowed set.
 
+## keyword_enum!
+
+A closed-set field is otherwise declared three times.
+A `const` slice of allowed strings feeds the `KeywordSet` check.
+A runtime enum holds the value the program runs on.
+A `TryFrom<&str>` impl bridges the two at lowering.
+Nothing keeps the three in agreement, so a variant added to one and not the others drifts.
+
+`keyword_enum!` declares all three from one table:
+
+```rust
+keyword_enum!(pub LimitMode, {
+    Enforce => "enforce",
+    Log     => "log",
+    Off     => "off",
+});
+```
+
+The keyword on the right of each arrow is the single source of truth.
+For the visibility you give it, the macro generates the enum (deriving `Debug, Clone, Copy, PartialEq, Eq`), the allowed
+set as `LimitMode::KEYWORDS`, a `LimitMode::keyword_set()` accessor, `as_str`, a `TryFrom<&str>` that accepts exactly the
+keywords, and `Display`.
+
+You validate a keyword field through the accessor:
+
+```rust
+impl Validate for LimitsSpec {
+    fn validate(&self, report: &mut Report) {
+        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
+    }
+}
+```
+
+The one artifact the macro does not generate is that `keyword_set().check_located(...)` call.
+Wire it into the `Validate` impl.
+A value that fails the check then never reaches the `TryFrom`, so the enum and its allowed set cannot drift.
+To lower the validated string into the enum, name `narrow::keyword::<LimitMode>` as the `with` function, which the
+[lowering](./lowering.md#narrowing-helpers) guide covers.
+
 ## Validate
 
 `Validate` holds the semantic checks a spec type can perform on itself:
