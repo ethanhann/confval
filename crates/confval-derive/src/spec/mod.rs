@@ -88,7 +88,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let shape = classify(field, options.nested)?;
         reject_unsupported_default(field, &shape, &options)?;
         if struct_options.derive_default {
-            default_ctors.push(default::field_ctor(field, ident, &shape, &options)?);
+            default_ctors.push(default::field_ctor(ident, &shape, &options)?);
         }
         // `slot` is the generated local variable's name, e.g. `__port`. The
         // leading underscores keep it from clashing with the user's own names.
