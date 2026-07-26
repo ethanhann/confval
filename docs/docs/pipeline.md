@@ -4,13 +4,12 @@ sidebar_position: 2
 
 # The Pipeline Contract
 
-The confval pipeline approach is inspired by
-the ["Parse, don't validate"](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) blog post by Alexis
-King.
-However, it does not use newtypes to couple construction with validation.
-Instead, think of the entire process as a multipass parser that sends a configuration file through this sequence:
-**parse**, **validate**, **gate**, and **lower**.
-confval assumes a fixed ordering of these stages, and the derives are designed around them.
+confval sends one configuration file through a fixed sequence of stages: **parse**, **validate**, **gate**, and **lower**.
+This page is the contract for that sequence.
+It defines what each stage does, in what order, and what each stage may assume about the ones before it.
+The derives are designed around this ordering.
+
+The approach is inspired by ["Parse, don't validate"](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) by Alexis King, though it does not use newtypes to couple construction with validation.
 
 ## The four stages
 
@@ -71,7 +70,7 @@ Lowering must not run when the report contains errors.
 Nothing in confval enforces this.
 The caller performs the check.
 Call `report.has_errors()` after validation and return before lowering when it is true.
-[Getting Started](./getting-started.md#running-the-pipeline) shows the check in place.
+[Getting Started](./getting-started.md#a-complete-example) shows the check in place.
 
 Report also has `has_warnings()` and `has_issues()` (i.e., has warnings or errors).
 This granularity gives the implementor the flexibility to decide if warnings should also prevent lowering or perhaps
