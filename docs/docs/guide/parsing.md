@@ -150,6 +150,32 @@ The two are independent, and one setting can use either, both, or neither.
 See [Lowering](./lowering.md#defining-a-config).
 :::
 
+### Deriving `Default` from the attribute defaults
+
+The attribute default fills a field the file omits.
+When the whole block is omitted, the config side supplies it through `#[confval(nested, default)]`, which lowers `S::default()`, so the spec type needs a `Default` impl.
+Writing that impl by hand repeats the attribute defaults, and nothing keeps the two in agreement.
+
+`#[confval(derive_default)]` on the struct generates the `Default` impl from the attribute defaults, so each default is declared once.
+
+```rust
+#[derive(confval::Spec)]
+#[confval(derive_default)]
+struct LimitsSpec {
+    #[confval(default = 16)]
+    max_body_mb: Located<i64>,
+    #[confval(default = "enforce".to_string())]
+    mode: Located<String>,
+}
+```
+
+The value it generates for a field is the value the parser fills when that field is absent.
+A field the parser would report as missing has no value to derive, so it is a compile error.
+A non-optional `Located<T>` or `Located<S>` with no default, and a `Vec<Located<String>>` with no default, each need a `#[confval(default)]` or a handwritten `impl Default`.
+An `Option` field and a nested list default on their own, because the parser already fills them when they are absent.
+
+The attribute is opt-in and additive, so a type that keeps its handwritten `impl Default` is unaffected.
+
 ### Nested structs
 
 `#[confval(nested)]` tells the parser to read a field with its own `Spec` type instead of as a scalar.
