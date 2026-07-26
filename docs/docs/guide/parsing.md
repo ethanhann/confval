@@ -14,6 +14,37 @@ Parsing checks structure only.
 It determines whether each field is present and has the right type.
 What the values mean is left to [validation](./validation.md).
 
+## Concept Overview
+
+This is a high-level look at parsing.
+The sections below cover each part in more detail.
+
+You define a spec as a struct, then parse a file into it with the frontend for the format you enabled.
+
+```rust
+use confval::prelude::*;
+
+#[derive(confval::Spec)]
+struct ServerSpec {
+    hostname: Located<String>,
+    port: Located<i64>,
+}
+
+let text = r#"hostname = "127.0.0.1"
+port = 8080
+"#;
+
+let mut sources = SourceMap::new();
+let mut report = Report::new();
+let id = sources.add("server.hcl", text);
+
+let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mut report);
+```
+
+Every field is wrapped in a `Located<T>`, which pairs the value with its source span, covered next.
+The parse checks structure only.
+It reports a missing field, a wrong type, or an unknown field, each at its span, and leaves what the values mean to [validation](./validation.md).
+
 ## Located values
 
 Every field on a spec is wrapped in a `Located<T>`.
