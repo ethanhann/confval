@@ -88,7 +88,7 @@ pub fn opt_i64_secs_to_duration(
 ///
 /// Name it in a `with` attribute with a turbofish so the derive knows which
 /// enum to parse into, for example:
-/// 
+///
 /// `#[confval(lower(from = mode, with = narrow::keyword::<LimitMode>))]`.
 ///
 /// The error branch is defensive. A keyword field is validated against
@@ -106,7 +106,7 @@ where
                 .error(format!("unknown keyword: {}", value.value))
                 .at(value.span)
                 .help(
-                    "This value passed no keyword check, or the keyword set and its enum disagree.",
+                    "This value was not checked against a keyword set, or the keyword set and its enum disagree.",
                 )
                 .emit();
             None
