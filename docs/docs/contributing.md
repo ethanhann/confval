@@ -16,28 +16,28 @@ Various just recipes are available, but these are the most useful:
 confval is built around five design decisions.
 These design decisions should be adhered to.
 
-#### Spans travel with values.
+### Spans travel with values.
 
 - Every parsed value carries the byte range it came from.
 - Any later check resolves that range to a line and column in the source file.
 
-#### All errors are collected and displayed to an operator.
+### All errors are collected and displayed to an operator.
 
 - Parsing and validation append to a shared report instead of returning on the first error.
 - The caller fixes one batch of problems rather than rerunning to find the next one.
 
-#### Validation happens in stages.
+### Validation happens in stages.
 
 - Parsing checks shape only, meaning the field exists and has the right type.
 - Range checks, closed sets, and cross-field rules run after parsing, in plain validation functions.
 
-#### The core does not know any file format.
+### The core does not know any file format.
 
 - Parsing produces a format-neutral field model.
 - A frontend converts one syntax into that model.
 - HCL and TOML ship today, each behind its own feature, and a new format is another frontend over the same model.
 
-#### The core has no required dependencies.
+### The core has no required dependencies.
 
 serde, owo-colors, hcl-edit, toml_edit, and the derive macros are each behind a feature flag.
  
