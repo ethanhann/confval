@@ -63,7 +63,11 @@ range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
 range_constraint!(MAX_BODY_MB, i64, min: 1, max: 1024);
 
-const LIMIT_MODES: [&str; 3] = ["enforce", "log", "off"];
+keyword_enum!(pub LimitMode, {
+    Enforce => "enforce",
+    Log     => "log",
+    Off     => "off",
+});
 
 #[derive(confval::Spec)]
 struct ServerSpec {
@@ -95,7 +99,7 @@ impl Default for LimitsSpec {
 impl Validate for LimitsSpec {
     fn validate(&self, report: &mut Report) {
         MAX_BODY_MB.check_located(&self.max_body_mb, "max_body_mb", report);
-        KeywordSet::new(&LIMIT_MODES).check_located(&self.mode, "mode", report);
+        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
     }
 }
 
@@ -131,7 +135,8 @@ struct ServerConfig {
 struct LimitsConfig {
     #[confval(lower(from = max_body_mb, with = narrow::i64_to_u16))]
     max_body_mb: u16,
-    mode: String,
+    #[confval(lower(from = mode, with = narrow::keyword::<LimitMode>))]
+    mode: LimitMode,
 }
 
 fn workers_to_usize(value: &Located<i64>, _report: &mut Report) -> Option<usize> {

@@ -27,12 +27,16 @@ Numeric bounds use `RangeConstraint`, closed sets use `KeywordSet`, and each pro
 
 ```rust
 range_constraint!(PORT, i64, min: 1, max: 65535);
-const LIMIT_MODES: [&str; 3] = ["enforce", "log", "off"];
+keyword_enum!(pub LimitMode, {
+    Enforce => "enforce",
+    Log     => "log",
+    Off     => "off",
+});
 
 impl Validate for ServerSpec {
     fn validate(&self, report: &mut Report) {
         PORT.check_located(&self.port, "port", report);
-        KeywordSet::new(&LIMIT_MODES).check_located(&self.mode, "mode", report);
+        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
     }
 }
 ```
