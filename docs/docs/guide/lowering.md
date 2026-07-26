@@ -59,6 +59,11 @@ A value that does not fit is reported at its span and lowering fails, so a missi
 `i64_secs_to_duration` (and `opt_i64_secs_to_duration`) route a seconds count through the same checked narrow into a `Duration`, rejecting a negative value rather than wrapping it.
 `i64_to_f64` widens to `f64` for the ratio and rate fields where an `as` cast cannot be named in a `with` attribute.
 
+`keyword::<T>` lowers a validated keyword string into the enum that [`keyword_enum!`](./validation.md#keyword_enum) generates, reading that enum's `TryFrom<&str>`.
+Name it with a turbofish so the derive knows which enum to parse into.
+The field was validated against the same set the `TryFrom` accepts, so the conversion does not fail in a running pipeline.
+The helper reports at the value's span only if the `keyword_set()` check was left out of the `Validate` impl.
+
 ```rust
 use confval::pipeline::narrow;
 
@@ -67,5 +72,8 @@ use confval::pipeline::narrow;
 struct ServerConfig {
     #[confval(lower(from = port, with = narrow::i64_to_u16))]
     port: u16,
+
+    #[confval(lower(from = mode, with = narrow::keyword::<LimitMode>))]
+    mode: LimitMode,
 }
 ```
