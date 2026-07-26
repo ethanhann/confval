@@ -90,6 +90,8 @@ jobs:
             flags: "--no-default-features --features toml,derive,color"
           - name: serde
             flags: "--no-default-features --features serde"
+          - name: layering
+            flags: "--no-default-features --features layering"
 
     steps:
       - name: Checkout
