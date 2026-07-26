@@ -1,4 +1,4 @@
-error: `hostname` has no derivable default; add #[confval(default = ...)] or write impl Default by hand
+error: `hostname` has no derivable default; add a bare #[confval(default)] (or #[confval(default = expr)] for a leaf) or write impl Default by hand
   --> tests/ui/fail/derive_default_no_default.rs:11:5
    |
 11 |     hostname: Located<String>,

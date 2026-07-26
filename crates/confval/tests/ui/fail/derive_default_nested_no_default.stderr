@@ -1,0 +1,5 @@
+error: `inner` has no derivable default; add a bare #[confval(default)] (or #[confval(default = expr)] for a leaf) or write impl Default by hand
+  --> tests/ui/fail/derive_default_nested_no_default.rs:19:5
+   |
+19 |     inner: Located<Inner>,
+   |     ^^^^^

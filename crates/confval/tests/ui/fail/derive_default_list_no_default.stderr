@@ -1,4 +1,4 @@
-error: `tags` has no derivable default; add #[confval(default = ...)] or write impl Default by hand
+error: `tags` has no derivable default; add a bare #[confval(default)] (or #[confval(default = expr)] for a leaf) or write impl Default by hand
   --> tests/ui/fail/derive_default_list_no_default.rs:11:5
    |
 11 |     tags: Vec<Located<String>>,
