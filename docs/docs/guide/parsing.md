@@ -169,6 +169,16 @@ struct LimitsSpec {
 }
 ```
 
+This resembles `#[derive(Default)]`.
+The difference is where the values come from.
+The standard derive fills each field with `T::default()`, so a `Located<String>` becomes empty and a `Located<i64>` becomes zero.
+`#[confval(derive_default)]` fills each field from its declared `#[confval(default)]` instead.
+It refuses a field that declares no default rather than inventing a value.
+
+Use `#[confval(derive_default)]` rather than `#[derive(Default)]` on a spec.
+The standard derive fills an undeclared field with `T::default()` without reporting it, so the value for an absent block and the value for a field the source omits can drift apart.
+`#[confval(derive_default)]` keeps those two values the same.
+
 The value it generates for a field is the value the parser fills when that field is absent.
 A field the parser would report as missing has no value to derive, so it is a compile error.
 A non-optional `Located<T>` or `Located<S>` with no default, and a `Vec<Located<String>>` with no default, each need a `#[confval(default)]` or a handwritten `impl Default`.
