@@ -51,6 +51,89 @@ impl<'a> KeywordSet<'a> {
     }
 }
 
+/// Declare a keyword enum, its allowed set, and the conversions between them in
+/// one place.
+///
+/// A closed-set field is otherwise declared three times. A `const` slice of
+/// allowed strings feeds the `KeywordSet` check. A runtime enum holds the value
+/// the program runs on. A `TryFrom<&str>` bridges the two at lowering. Nothing
+/// keeps the three in agreement, so a variant added to one and not the others
+/// drifts. `keyword_enum!` generates all three from a single table, plus
+/// `as_str` and `Display` for printing a variant back to its keyword.
+///
+/// For the visibility you give it, the macro generates:
+///
+/// - the enum, deriving `Debug, Clone, Copy, PartialEq, Eq`,
+/// - `KEYWORDS`, the allowed strings in declaration order,
+/// - `keyword_set()`, a `KeywordSet` over `KEYWORDS` to call from a `Validate` impl,
+/// - `as_str`, the keyword for a variant,
+/// - `TryFrom<&str>`, accepting exactly the keywords,
+/// - `Display`, printing through `as_str`.
+///
+/// The one artifact it does not generate is the `keyword_set().check_located(...)`
+/// call in your `Validate` impl. Once that call is in place, a value that fails
+/// the check never reaches the `TryFrom`, so the enum and its set cannot drift.
+///
+/// ```rust
+/// use confval::keyword_enum;
+///
+/// keyword_enum!(LimitMode, {
+///     Enforce => "enforce",
+///     Log     => "log",
+///     Off     => "off",
+/// });
+///
+/// assert_eq!(LimitMode::KEYWORDS, ["enforce", "log", "off"]);
+/// assert_eq!(LimitMode::Log.as_str(), "log");
+/// assert_eq!(LimitMode::try_from("off"), Ok(LimitMode::Off));
+/// assert!(LimitMode::try_from("nope").is_err());
+/// ```
+#[macro_export]
+macro_rules! keyword_enum {
+    ($vis:vis $name:ident, { $($variant:ident => $kw:literal),+ $(,)? }) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        $vis enum $name {
+            $($variant,)+
+        }
+
+        impl $name {
+            $vis const KEYWORDS: [&'static str; $crate::keyword_enum!(@count $($variant)+)] =
+                [$($kw,)+];
+
+            $vis const fn as_str(&self) -> &'static str {
+                match self {
+                    $(Self::$variant => $kw,)+
+                }
+            }
+
+            $vis fn keyword_set() -> $crate::KeywordSet<'static> {
+                $crate::KeywordSet::new(&[$($kw,)+])
+            }
+        }
+
+        impl ::core::convert::TryFrom<&str> for $name {
+            type Error = ();
+
+            fn try_from(value: &str) -> ::core::result::Result<Self, ()> {
+                match value {
+                    $($kw => ::core::result::Result::Ok(Self::$variant),)+
+                    _ => ::core::result::Result::Err(()),
+                }
+            }
+        }
+
+        impl ::core::fmt::Display for $name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                f.write_str(self.as_str())
+            }
+        }
+    };
+    (@count) => { 0usize };
+    (@count $head:ident $($tail:ident)*) => {
+        1usize + $crate::keyword_enum!(@count $($tail)*)
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,5 +191,104 @@ mod tests {
             &mut report,
         );
         assert_eq!(report.issues()[0].span, Some(span));
+    }
+
+    keyword_enum!(LimitMode, {
+        Enforce => "enforce",
+        Log     => "log",
+        Off     => "off",
+    });
+
+    keyword_enum!(Single, {
+        Only => "only",
+    });
+
+    #[test]
+    fn keywords_hold_the_set_in_declaration_order() {
+        // Assert
+        assert_eq!(LimitMode::KEYWORDS, ["enforce", "log", "off"]);
+    }
+
+    #[test]
+    fn as_str_returns_the_keyword_for_each_variant() {
+        // Assert
+        assert_eq!(LimitMode::Enforce.as_str(), "enforce");
+        assert_eq!(LimitMode::Log.as_str(), "log");
+        assert_eq!(LimitMode::Off.as_str(), "off");
+    }
+
+    #[test]
+    fn try_from_accepts_every_keyword() {
+        // Assert
+        assert_eq!(LimitMode::try_from("enforce"), Ok(LimitMode::Enforce));
+        assert_eq!(LimitMode::try_from("log"), Ok(LimitMode::Log));
+        assert_eq!(LimitMode::try_from("off"), Ok(LimitMode::Off));
+    }
+
+    #[test]
+    fn try_from_rejects_a_string_outside_the_set() {
+        // Assert
+        assert!(LimitMode::try_from("warn").is_err());
+    }
+
+    #[test]
+    fn display_prints_the_keyword() {
+        // Assert
+        assert_eq!(LimitMode::Off.to_string(), "off");
+    }
+
+    #[test]
+    fn keyword_set_accepts_an_allowed_value() {
+        // Arrange
+        let mut report = Report::new();
+
+        // Act
+        LimitMode::keyword_set().check_located(
+            &Located::detached("log".to_string()),
+            "mode",
+            &mut report,
+        );
+
+        // Assert
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn keyword_set_reports_an_unknown_value() {
+        // Arrange
+        let mut report = Report::new();
+
+        // Act
+        LimitMode::keyword_set().check_located(
+            &Located::detached("warn".to_string()),
+            "mode",
+            &mut report,
+        );
+
+        // Assert
+        assert!(report.has_errors());
+    }
+
+    #[test]
+    fn every_variant_round_trips_through_its_keyword() {
+        // Assert
+        for (variant, keyword) in [
+            (LimitMode::Enforce, "enforce"),
+            (LimitMode::Log, "log"),
+            (LimitMode::Off, "off"),
+        ] {
+            assert_eq!(variant.as_str(), keyword);
+            assert_eq!(LimitMode::try_from(keyword), Ok(variant));
+        }
+    }
+
+    #[test]
+    fn single_variant_table_with_trailing_comma_expands() {
+        // Assert
+        assert_eq!(Single::KEYWORDS, ["only"]);
+        assert_eq!(Single::Only.as_str(), "only");
+        assert_eq!(Single::Only.to_string(), "only");
+        assert_eq!(Single::keyword_set().allowed.len(), 1);
+        assert_eq!(Single::try_from("only"), Ok(Single::Only));
     }
 }

@@ -20,10 +20,11 @@ pub use pipeline::range::RangeConstraint;
 /// [`ValidateNested`](pipeline::ValidateNested), the
 /// [`ControlFlow`](core::ops::ControlFlow) a `descend` override returns, and
 /// the [`narrow`](pipeline::narrow) helpers), the constraint validators
-/// ([`KeywordSet`], [`RangeConstraint`] and its [`range_constraint!`] macro),
-/// and, with the `derive` feature, the [`Spec`] and [`Config`] derives.
-/// `RangeConstraint` and its macro travel together so the validated-range
-/// pattern works from one import.
+/// ([`KeywordSet`] and its [`keyword_enum!`] macro, [`RangeConstraint`] and its
+/// [`range_constraint!`] macro), and, with the `derive` feature, the [`Spec`]
+/// and [`Config`] derives.
+/// Each validator and its macro travel together, so the validated-range and
+/// keyword patterns each work from one import.
 ///
 /// Format adapters stay out of the prelude. Use their explicit module path
 /// (`confval::format::hcl`). The diagnostic internals
@@ -36,7 +37,7 @@ pub mod prelude {
     pub use crate::diagnostic::Report;
     pub use crate::pipeline::{Lower, Validate, ValidateNested, narrow};
     pub use crate::source::{Located, SourceMap, Span};
-    pub use crate::{KeywordSet, RangeConstraint, range_constraint};
+    pub use crate::{KeywordSet, RangeConstraint, keyword_enum, range_constraint};
 
     #[cfg(feature = "derive")]
     pub use crate::{Config, Spec};
