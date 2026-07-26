@@ -17,6 +17,33 @@ It does not guarantee that every field is checked inside that validator.
 The checks are (currently) intentionally minimal.
 confval provides only two domain-agnostic checks: `RangeConstraint` and `KeywordSet`.
 
+## Concept Overview
+
+This is a high-level look at validation.
+The sections below cover each part in more detail.
+
+A spec type checks its own fields in a `Validate` impl.
+Numeric bounds use `RangeConstraint`, closed sets use `KeywordSet`, and each problem is reported at the field's span.
+
+```rust
+range_constraint!(PORT, i64, min: 1, max: 65535);
+const LIMIT_MODES: [&str; 3] = ["enforce", "log", "off"];
+
+impl Validate for ServerSpec {
+    fn validate(&self, report: &mut Report) {
+        PORT.check_located(&self.port, "port", report);
+        KeywordSet::new(&LIMIT_MODES).check_located(&self.mode, "mode", report);
+    }
+}
+```
+
+You call `validate_all` once on the root spec.
+It runs each type's `validate` and descends into every nested block.
+
+```rust
+spec.validate_all(&mut report);
+```
+
 ## Where a rule lives
 
 Validation rules live in one of two places: a `Validate` impl and plain validator functions (when necessary).
