@@ -26,20 +26,12 @@ pub struct ServerSpec {
 }
 
 #[derive(confval::Spec)]
+#[confval(derive_default)]
 pub struct LimitsSpec {
     #[confval(default = 16)]
     pub max_body_mb: Located<i64>,
     #[confval(default = "enforce".to_string())]
     pub mode: Located<String>,
-}
-
-impl Default for LimitsSpec {
-    fn default() -> Self {
-        Self {
-            max_body_mb: Located::detached(16),
-            mode: Located::detached("enforce".to_string()),
-        }
-    }
 }
 
 impl Validate for LimitsSpec {
