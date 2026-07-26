@@ -26,56 +26,10 @@ pub struct ServerConfig {
 pub struct LimitsConfig {
     #[confval(lower(from = max_body_mb, with = narrow::i64_to_u16))]
     pub max_body_mb: u16,
-    // No `narrow` helper covers a keyword. `narrow` handles integer widths and
-    // durations, so a string to enum conversion is a `with` function of your
-    // own.
-    #[confval(lower(from = mode, with = mode_to_enum))]
-    pub mode: Mode,
-}
-
-/// The runtime form of the `mode` keyword.
-///
-/// The spec holds a `Located<String>`, so a wrong value is reported by
-/// `KeywordSet` alongside every other problem in the file.
-/// The string narrows to this enum only after the gate, so nothing downstream
-/// reparses it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode {
-    Enforce,
-    Log,
-    Off,
-}
-
-/// Mechanically lower the string to the mode.
-/// Even though it can produce an error, it never does.
-impl TryFrom<&str> for Mode {
-    type Error = ();
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "enforce" => Ok(Self::Enforce),
-            "log" => Ok(Self::Log),
-            "off" => Ok(Self::Off),
-            _ => Err(()),
-        }
-    }
-}
-
-fn mode_to_enum(value: &Located<String>, report: &mut Report) -> Option<Mode> {
-    match Mode::try_from(value.value.as_str()) {
-        Ok(mode) => Some(mode),
-        // Validation already checked this against LIMIT_MODES, so reaching here
-        // means there is a mismatch between the keyword set and the enum.
-        // A keyword was added to one, but not the other.
-        Err(_) => {
-            report
-                .error(format!("unknown mode: {}", value.value))
-                .at(value.span)
-                .help("This is likely a bug that should have been caught during validation.")
-                .emit();
-            None
-        }
-    }
+    // `narrow::keyword` lowers the validated string through the `TryFrom` that
+    // `keyword_enum!` generates, so a keyword needs no handwritten converter.
+    #[confval(lower(from = mode, with = narrow::keyword::<LimitMode>))]
+    pub mode: LimitMode,
 }
 
 fn workers_to_usize(value: &Located<i64>, _report: &mut Report) -> Option<usize> {
@@ -96,16 +50,5 @@ impl Display for ServerConfig {
             "limits: max_body_mb={} mode={}",
             self.limits.max_body_mb, self.limits.mode
         )
-    }
-}
-
-/// This is for demo purposes, to see what the values are in the examples' output.
-impl Display for Mode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        f.write_str(match self {
-            Self::Enforce => "enforce",
-            Self::Log => "log",
-            Self::Off => "off",
-        })
     }
 }

@@ -9,6 +9,9 @@
 //! means a validation rule is missing, not that the operator made a typo.
 //! Rather than truncating silently, the helpers report the failure at the
 //! value's span and return `None`.
+//!
+//! The module also holds `keyword`, which lowers a validated keyword string
+//! into the enum `keyword_enum!` generates, through the same `with` shape.
 
 use crate::diagnostic::Report;
 use crate::source::Located;
@@ -77,6 +80,37 @@ pub fn opt_i64_secs_to_duration(
     match value {
         Some(value) => i64_secs_to_duration(value, report).map(Some),
         None => Some(None),
+    }
+}
+
+/// Lower a validated keyword string into its enum, reading the `TryFrom<&str>`
+/// that `keyword_enum!` generates.
+///
+/// Name it in a `with` attribute with a turbofish so the derive knows which
+/// enum to parse into, for example:
+///
+/// `#[confval(lower(from = mode, with = narrow::keyword::<LimitMode>))]`.
+///
+/// The error branch is defensive. A keyword field is validated against
+/// `T::keyword_set()`, the same set this `TryFrom` accepts, so a value reaching
+/// the branch means the `keyword_set()` check was never wired into the
+/// `Validate` impl, or the set and the enum disagree.
+pub fn keyword<T>(value: &Located<String>, report: &mut Report) -> Option<T>
+where
+    T: for<'a> TryFrom<&'a str>,
+{
+    match T::try_from(value.value.as_str()) {
+        Ok(parsed) => Some(parsed),
+        Err(_) => {
+            report
+                .error(format!("unknown keyword: {}", value.value))
+                .at(value.span)
+                .help(
+                    "This value was not checked against a keyword set, or the keyword set and its enum disagree.",
+                )
+                .emit();
+            None
+        }
     }
 }
 
@@ -215,5 +249,59 @@ mod tests {
 
         assert_eq!(i64_to_f64(&value, &mut report), Some(-42.0));
         assert!(!report.has_errors());
+    }
+
+    // A minimal `TryFrom<&str>` stands in for a `keyword_enum!` enum here.
+    // `keyword` requires only the conversion, so this tests the helper without
+    // coupling it to the macro. The macro-generated case is covered end to end
+    // by the `common` example.
+    #[derive(Debug, PartialEq)]
+    enum Mode {
+        Log,
+    }
+
+    impl TryFrom<&str> for Mode {
+        type Error = ();
+
+        fn try_from(value: &str) -> Result<Self, ()> {
+            match value {
+                "log" => Ok(Self::Log),
+                _ => Err(()),
+            }
+        }
+    }
+
+    #[test]
+    fn valid_keyword_lowers_to_its_variant() {
+        // Arrange
+        let mut report = Report::new();
+        let value = Located::detached("log".to_string());
+        // Act
+        let lowered = keyword::<Mode>(&value, &mut report);
+        // Assert
+        assert_eq!(lowered, Some(Mode::Log));
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn unknown_keyword_returns_none_and_reports_at_the_span() {
+        // Arrange
+        let mut sources = crate::source::SourceMap::new();
+        let id = sources.add("test.hcl", "mode = \"warn\"");
+        let span = crate::source::Span {
+            source: id,
+            start: 8,
+            end: 12,
+        };
+        let mut report = Report::new();
+        let value = Located {
+            value: "warn".to_string(),
+            span,
+        };
+        // Act
+        let lowered = keyword::<Mode>(&value, &mut report);
+        // Assert
+        assert_eq!(lowered, None);
+        assert_eq!(report.issues()[0].span, Some(span));
     }
 }

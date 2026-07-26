@@ -27,12 +27,16 @@ Numeric bounds use `RangeConstraint`, closed sets use `KeywordSet`, and each pro
 
 ```rust
 range_constraint!(PORT, i64, min: 1, max: 65535);
-const LIMIT_MODES: [&str; 3] = ["enforce", "log", "off"];
+keyword_enum!(pub LimitMode, {
+    Enforce => "enforce",
+    Log     => "log",
+    Off     => "off",
+});
 
 impl Validate for ServerSpec {
     fn validate(&self, report: &mut Report) {
         PORT.check_located(&self.port, "port", report);
-        KeywordSet::new(&LIMIT_MODES).check_located(&self.mode, "mode", report);
+        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
     }
 }
 ```
@@ -115,6 +119,45 @@ KeywordSet::new( &LOAD_BALANCING_STRATEGIES)
 `expected one of: <comma-joined options>`.
 Every keyword field reports the same way, so a wrong value in any closed-set field produces the same message shape and
 lists the allowed set.
+
+## keyword_enum!
+
+A closed-set field is otherwise declared three times.
+A `const` slice of allowed strings feeds the `KeywordSet` check.
+A runtime enum holds the value the program runs on.
+A `TryFrom<&str>` impl bridges the two at lowering.
+Nothing keeps the three in agreement, so a variant added to one and not the others drifts.
+
+`keyword_enum!` declares all three from one table:
+
+```rust
+keyword_enum!(pub LimitMode, {
+    Enforce => "enforce",
+    Log     => "log",
+    Off     => "off",
+});
+```
+
+The keyword on the right of each arrow is the single source of truth.
+For the visibility you give it, the macro generates the enum (deriving `Debug, Clone, Copy, PartialEq, Eq`), the allowed
+set as `LimitMode::KEYWORDS`, a `LimitMode::keyword_set()` accessor, `as_str`, a `TryFrom<&str>` that accepts exactly the
+keywords, and `Display`.
+
+You validate a keyword field through the accessor:
+
+```rust
+impl Validate for LimitsSpec {
+    fn validate(&self, report: &mut Report) {
+        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
+    }
+}
+```
+
+The one artifact the macro does not generate is that `keyword_set().check_located(...)` call.
+Wire it into the `Validate` impl.
+A value that fails the check then never reaches the `TryFrom`, so the enum and its allowed set cannot drift.
+To lower the validated string into the enum, name `narrow::keyword::<LimitMode>` as the `with` function, which the
+[lowering](./lowering.md#narrowing-helpers) guide covers.
 
 ## Validate
 
