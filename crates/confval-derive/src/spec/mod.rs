@@ -13,11 +13,12 @@
 //! from one classification pass, so the two can never disagree about which
 //! fields hold nested specs. See the `traversal` module.
 
+mod default;
 mod options;
 mod shape;
 mod traversal;
 
-use options::{FieldOptions, parse_options};
+use options::{FieldOptions, parse_options, parse_struct_options};
 use shape::{FieldShape, Leaf, classify};
 use traversal::{nested_visit, validate_nested_impl};
 
@@ -62,6 +63,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     };
 
     let name = &input.ident;
+    let struct_options = parse_struct_options(input)?;
     // The four buckets of generated code fragments, filled in below and spliced
     // into the final `impl` at the end.
     let mut slot_decls = Vec::new();
@@ -71,6 +73,9 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     // The fifth bucket belongs to the separate `ValidateNested` impl below,
     // and holds one descent per nested field.
     let mut visits = Vec::new();
+    // `#[confval(derive_default)]` fills this with one fragment per field, used
+    // to build the generated `Default` impl.
+    let mut default_ctors = Vec::new();
 
     for field in &fields.named {
         let ident = field.ident.as_ref().ok_or_else(|| {
@@ -82,6 +87,9 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let options = parse_options(field)?;
         let shape = classify(field, options.nested)?;
         reject_unsupported_default(field, &shape, &options)?;
+        if struct_options.derive_default {
+            default_ctors.push(default::field_ctor(field, ident, &shape, &options)?);
+        }
         // `slot` is the generated local variable's name, e.g. `__port`. The
         // leading underscores keep it from clashing with the user's own names.
         let slot = format_ident!("__{}", ident);
@@ -214,6 +222,11 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     }
 
     let validate_nested = validate_nested_impl(name, &visits);
+    let default_impl = if struct_options.derive_default {
+        default::default_impl(name, &default_ctors)
+    } else {
+        quote! {}
+    };
 
     // Splice the four parsing buckets into the generated parser. This is the
     // code that runs at the caller's runtime, once per parsed struct.
@@ -241,6 +254,8 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
 
         #validate_nested
+
+        #default_impl
     })
 }
 

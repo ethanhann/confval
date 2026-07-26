@@ -4,7 +4,42 @@
 //! `#[confval(default)]` / `#[confval(default = expr)]`. This module turns those
 //! attributes into a plain [`FieldOptions`] struct the rest of the derive reads.
 
-use syn::{Expr, Field};
+use syn::{DeriveInput, Expr, Field};
+
+/// The struct-level `#[confval(...)]` options for `#[derive(Spec)]`.
+pub(crate) struct StructOptions {
+    /// `true` if the struct was marked `#[confval(derive_default)]`, which asks
+    /// the derive to generate the `Default` impl from the fields' attribute
+    /// defaults.
+    pub(crate) derive_default: bool,
+}
+
+/// Reads a struct's `#[confval(...)]` attributes into [`StructOptions`].
+///
+/// Recognizes `derive_default`. An unknown key is a compile error, so a typo
+/// like `#[confval(derive_defalt)]` is caught rather than ignored. The Config
+/// derive's own struct keys are unknown here, so a type that derives both `Spec`
+/// and `Config` is rejected. Separate spec and config types are the expected
+/// shape.
+pub(crate) fn parse_struct_options(input: &DeriveInput) -> syn::Result<StructOptions> {
+    let mut options = StructOptions {
+        derive_default: false,
+    };
+    for attr in &input.attrs {
+        if !attr.path().is_ident("confval") {
+            continue;
+        }
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("derive_default") {
+                options.derive_default = true;
+                Ok(())
+            } else {
+                Err(meta.error("unknown confval attribute; expected `derive_default`"))
+            }
+        })?;
+    }
+    Ok(options)
+}
 
 /// What a field's `#[confval(...)]` attributes asked for.
 pub(crate) struct FieldOptions {
