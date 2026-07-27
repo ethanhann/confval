@@ -25,6 +25,7 @@ use crate::diagnostic::Report;
 use crate::format::EmitError;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
 use crate::source::{SourceId, SourceMap, Span};
+use hcl_edit::Decorate;
 use hcl_edit::Ident;
 use hcl_edit::expr::{Array, Expression, Object, ObjectKey, ObjectValue};
 use hcl_edit::structure::{Attribute, Block, Body, Structure};
@@ -194,22 +195,31 @@ fn describe_other(expr: &Expression) -> &'static str {
 /// on a non-identifier attribute or block name, which HCL cannot spell, and on a
 /// [`ValueKind::Other`]. Neither arises on the populate path.
 pub fn emit_hcl(fields: &Fields) -> Result<String, EmitError> {
-    Ok(emit_body(fields)?.to_string())
+    Ok(emit_body(fields, 0)?.to_string())
 }
 
-fn emit_body(fields: &Fields) -> Result<Body, EmitError> {
+/// Builds a `Body` indented for the given nesting level.
+///
+/// Each structure is prefixed with `level` steps of two spaces. A block's inner
+/// body carries a suffix of the block's own indent, which `hcl-edit` writes just
+/// before the closing brace, so the brace lines up with the opener. Without the
+/// suffix the brace would sit at column zero.
+fn emit_body(fields: &Fields, level: usize) -> Result<Body, EmitError> {
+    let indent = "  ".repeat(level);
     let mut body = Body::new();
     for field in fields.iter() {
         match &field.kind {
             FieldKind::Value(value) => {
-                body.push(Structure::Attribute(Attribute::new(
-                    ident_of(&field.name)?,
-                    hcl_expr_of(value)?,
-                )));
+                let mut attribute = Attribute::new(ident_of(&field.name)?, hcl_expr_of(value)?);
+                attribute.decor_mut().set_prefix(indent.clone());
+                body.push(Structure::Attribute(attribute));
             }
             FieldKind::Block(inner) => {
                 let mut block = Block::new(ident_of(&field.name)?);
-                block.body = emit_body(inner)?;
+                block.decor_mut().set_prefix(indent.clone());
+                let mut inner_body = emit_body(inner, level + 1)?;
+                inner_body.decor_mut().set_suffix(indent.clone());
+                block.body = inner_body;
                 body.push(Structure::Block(block));
             }
         }
@@ -514,12 +524,11 @@ mod tests {
         // Act
         let text = emit_hcl(&fields).unwrap();
         // Assert
-        // hcl-edit emits a programmatically built block body without
-        // indentation. It is valid HCL and round-trips. Prettier layout is a
-        // formatting concern the milestone leaves out.
+        // The block body is indented one level, and the closing brace lines up
+        // with the opener.
         assert_eq!(
             text,
-            "hostname = \"api\"\nport = 8080\nlimits {\nmax_body_mb = 16\n}\n"
+            "hostname = \"api\"\nport = 8080\nlimits {\n  max_body_mb = 16\n}\n"
         );
     }
 

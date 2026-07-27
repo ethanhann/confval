@@ -626,4 +626,89 @@ mod tests {
             Err(EmitError::UnrepresentableValue("datetime"))
         );
     }
+
+    fn seq_field(name: &str, elements: Vec<ValueKind>) -> Field {
+        let values = elements.into_iter().map(Value::detached).collect();
+        Field::detached_value(name, Value::detached(ValueKind::Seq(values)))
+    }
+
+    #[test]
+    fn emit_toml_writes_an_empty_sequence_as_an_inline_array() {
+        let fields = Fields::detached(vec![seq_field("allow", vec![])]);
+        let text = emit_toml(&fields).unwrap();
+        assert_eq!(text, "allow = []\n");
+        let round = reparse(&text);
+        let mut report = Report::new();
+        let list = parse_string_list_field(round.get("allow").unwrap(), &mut report).unwrap();
+        assert!(list.value.is_empty());
+    }
+
+    #[test]
+    fn emit_toml_writes_a_mixed_sequence_as_an_inline_array() {
+        // A sequence is an array of tables only when every element is a map, so
+        // a scalar mixed in forces an inline array.
+        let fields = Fields::detached(vec![seq_field(
+            "items",
+            vec![
+                ValueKind::Scalar(Scalar::Int(1)),
+                ValueKind::Map(Fields::detached(vec![scalar("a", Scalar::Int(2))])),
+            ],
+        )]);
+        let text = emit_toml(&fields).unwrap();
+        assert!(!text.contains("[[items]]"), "should be inline: {text}");
+        assert!(text.contains("items = ["), "got: {text}");
+        let round = reparse(&text);
+        let FieldKind::Value(value) = &round.get("items").unwrap().kind else {
+            panic!("items should be an attribute");
+        };
+        assert!(matches!(value.kind, ValueKind::Seq(_)));
+    }
+
+    #[test]
+    fn emit_toml_writes_a_map_as_an_inline_table() {
+        let map = Fields::detached(vec![scalar("cert", Scalar::String("a.pem".to_string()))]);
+        let fields = Fields::detached(vec![Field::detached_value(
+            "tls",
+            Value::detached(ValueKind::Map(map)),
+        )]);
+        let text = emit_toml(&fields).unwrap();
+        assert!(text.contains("tls = {"), "got: {text}");
+        let round = reparse(&text);
+        let mut report = Report::new();
+        let parsed: Option<Located<Probe>> =
+            parse_struct_field(round.get("tls").unwrap(), &mut report);
+        assert!(parsed.is_some());
+    }
+
+    #[test]
+    fn emit_toml_round_trips_an_empty_block() {
+        let fields = Fields::detached(vec![Field::detached_block(
+            "empty",
+            Fields::detached(vec![]),
+        )]);
+        let round = reparse(&emit_toml(&fields).unwrap());
+        let FieldKind::Block(inner) = &round.get("empty").unwrap().kind else {
+            panic!("empty should be a block");
+        };
+        assert_eq!(inner.iter().count(), 0);
+    }
+
+    #[test]
+    fn emit_toml_writes_nested_blocks_as_dotted_headers() {
+        let inner = Fields::detached(vec![Field::detached_block(
+            "burst",
+            Fields::detached(vec![scalar("rate", Scalar::Int(100))]),
+        )]);
+        let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
+        let text = emit_toml(&fields).unwrap();
+        assert!(text.contains("[limits.burst]"), "got: {text}");
+        let round = reparse(&text);
+        let FieldKind::Block(limits) = &round.get("limits").unwrap().kind else {
+            panic!("limits should be a block");
+        };
+        assert!(matches!(
+            limits.get("burst").map(|f| &f.kind),
+            Some(FieldKind::Block(_))
+        ));
+    }
 }
