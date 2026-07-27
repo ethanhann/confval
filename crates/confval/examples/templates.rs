@@ -17,7 +17,7 @@
 //! its own types rather than reusing `common`, so the output shows only the
 //! write path.
 //!
-//! Run with: cargo run -p confval --example populate --features derive,color,toml
+//! Run with: cargo run -p confval --example templates --features derive,color,toml
 
 use confval::format::{FieldKind, Fields, Scalar, Value, ValueKind};
 use confval::prelude::*;

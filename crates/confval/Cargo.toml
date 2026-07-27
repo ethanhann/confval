@@ -59,7 +59,7 @@ name = "layering"
 required-features = ["derive", "color", "toml", "layering"]
 
 [[example]]
-name = "populate"
+name = "templates"
 required-features = ["derive", "color", "toml"]
 
 [[test]]
