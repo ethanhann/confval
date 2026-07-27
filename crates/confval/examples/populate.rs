@@ -1,0 +1,109 @@
+//! The write path: parse a minimal config, populate it, and print the field
+//! model.
+//!
+//! The other examples read a config and run it through the pipeline. This one
+//! runs the parse backward. The source sets only `hostname` and `port`, so
+//! `to_fields` fills every default the source omitted, the `workers` and `tls`
+//! leaves and the whole `limits` block from `LimitsSpec::default()`. Every value
+//! it produces carries a detached span, because the data comes from the spec
+//! rather than the file.
+//!
+//! `limits` is an optional block, so parsing leaves it `None` and a spec dump
+//! stays source-faithful. The `#[confval(nested, default)]` marker is the
+//! populate signal that fills it here.
+//!
+//! This is the populate half of template generation. Serializing the field
+//! model back to text is a later milestone, so this example prints the model
+//! directly. It defines its own types rather than reusing `common`, so the
+//! output shows only the write path.
+//!
+//! Run with: cargo run -p confval --example populate --features derive,color,toml
+
+use confval::format::{FieldKind, Fields, Scalar, Value, ValueKind};
+use confval::prelude::*;
+
+#[derive(confval::Spec)]
+struct ServerSpec {
+    hostname: Located<String>,
+    port: Located<i64>,
+    #[confval(default = 4)]
+    workers: Located<i64>,
+    #[confval(default = false)]
+    tls: Located<bool>,
+    #[confval(nested, default)]
+    limits: Option<Located<LimitsSpec>>,
+}
+
+impl Validate for ServerSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[derive(confval::Spec)]
+#[confval(derive_default)]
+struct LimitsSpec {
+    #[confval(default = 16)]
+    max_body_mb: Located<i64>,
+    #[confval(default = "enforce".to_string())]
+    mode: Located<String>,
+}
+
+impl Validate for LimitsSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+fn main() -> Result<(), String> {
+    let input = "hostname = \"127.0.0.1\"\nport = 8080\n";
+
+    let mut sources = SourceMap::new();
+    let mut report = Report::new();
+    let id = sources.add("server.toml", input);
+
+    let spec: ServerSpec = confval::format::toml::parse_toml(&sources, id, &mut report)
+        .ok_or("parse returned None without reporting an error")?;
+
+    let fields = spec.to_fields();
+
+    println!("populated configuration:");
+    print_fields(&fields, 0);
+    Ok(())
+}
+
+/// Prints a field level as indented `name = value` lines and `name { ... }`
+/// blocks, so the filled `limits` block is visible in the output.
+fn print_fields(fields: &Fields, depth: usize) {
+    let indent = "  ".repeat(depth);
+    for field in fields.iter() {
+        match &field.kind {
+            FieldKind::Block(inner) => {
+                println!("{indent}{} {{", field.name);
+                print_fields(inner, depth + 1);
+                println!("{indent}}}");
+            }
+            FieldKind::Value(value) => {
+                println!("{indent}{} = {}", field.name, render_value(value));
+            }
+        }
+    }
+}
+
+fn render_value(value: &Value) -> String {
+    match &value.kind {
+        ValueKind::Scalar(scalar) => render_scalar(scalar),
+        ValueKind::Seq(elements) => {
+            let rendered: Vec<String> = elements.iter().map(render_value).collect();
+            format!("[{}]", rendered.join(", "))
+        }
+        ValueKind::Map(_) => "{ ... }".to_string(),
+        ValueKind::Other(label) => label.to_string(),
+    }
+}
+
+fn render_scalar(scalar: &Scalar) -> String {
+    match scalar {
+        Scalar::String(text) => format!("{text:?}"),
+        Scalar::Int(number) => number.to_string(),
+        Scalar::Float(number) => number.to_string(),
+        Scalar::Bool(flag) => flag.to_string(),
+        Scalar::Unparsed(text) => format!("{text:?}"),
+    }
+}
