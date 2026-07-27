@@ -18,12 +18,10 @@ pub struct ServerSpec {
     pub workers: Located<i64>,
     #[confval(default = false)]
     pub tls: Located<bool>,
-    // Optional in the source. When the block is omitted, parsing keeps it
-    // `None`, so a spec dump stays source-faithful. The `default` marker is the
-    // populate signal: `to_fields` fills an absent block from
-    // `LimitsSpec::default()`. The config side fills the default at lowering
-    // time.
-    #[confval(nested, default)]
+    // Optional in the source. When the block is omitted, the spec keeps it
+    // `None`, so a spec dump stays source-faithful. The config side fills the
+    // default at lowering time.
+    #[confval(nested)]
     pub limits: Option<Located<LimitsSpec>>,
 }
 
