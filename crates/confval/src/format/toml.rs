@@ -21,10 +21,14 @@
 //!   [`ValueKind::Other`] and surfaces as an ordinary type mismatch.
 
 use crate::diagnostic::Report;
+use crate::format::EmitError;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
 use crate::source::{SourceId, SourceMap, Span};
+use std::collections::HashSet;
 use std::ops::Range;
-use toml_edit::{Document, InlineTable, Item, Table, Value as TomlValue};
+use toml_edit::{
+    Array, ArrayOfTables, Document, DocumentMut, InlineTable, Item, Table, Value as TomlValue,
+};
 
 /// Parses one registered source into the neutral [`Fields`] tree.
 ///
@@ -205,6 +209,131 @@ fn fields_of_inline_table(
     Fields::new(source, enclosing, items)
 }
 
+/// Serializes a [`Fields`] tree to canonical TOML text.
+///
+/// This is the inverse of [`parse_toml_fields`]. It builds a `toml_edit`
+/// document by structure and returns its text, dropping the comments and layout
+/// the neutral model never held. Same-named blocks at one level group into a
+/// `[[array of tables]]`, so a repeated block keeps every element rather than
+/// overwriting a sibling. It fails only on a [`ValueKind::Other`], which
+/// populate never produces.
+pub fn emit_toml(fields: &Fields) -> Result<String, EmitError> {
+    let mut document = DocumentMut::new();
+    emit_table(fields, document.as_table_mut())?;
+    Ok(document.to_string())
+}
+
+/// Fills a `toml_edit` table from a neutral level.
+fn emit_table(fields: &Fields, table: &mut Table) -> Result<(), EmitError> {
+    let mut grouped: HashSet<&str> = HashSet::new();
+    for field in fields.iter() {
+        match &field.kind {
+            FieldKind::Value(value) => {
+                table.insert(&field.name, item_of_value(value)?);
+            }
+            FieldKind::Block(_) => {
+                // Group same-named blocks by name across the level, so a
+                // non-consecutive repeat is kept rather than overwritten.
+                if !grouped.insert(field.name.as_str()) {
+                    continue;
+                }
+                let blocks: Vec<&Fields> = fields
+                    .iter()
+                    .filter_map(|other| match &other.kind {
+                        FieldKind::Block(inner) if other.name == field.name => Some(inner),
+                        _ => None,
+                    })
+                    .collect();
+                if blocks.len() == 1 {
+                    let mut subtable = Table::new();
+                    emit_table(blocks[0], &mut subtable)?;
+                    table.insert(&field.name, Item::Table(subtable));
+                } else {
+                    let mut array = ArrayOfTables::new();
+                    for inner in blocks {
+                        let mut subtable = Table::new();
+                        emit_table(inner, &mut subtable)?;
+                        array.push(subtable);
+                    }
+                    table.insert(&field.name, Item::ArrayOfTables(array));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Maps one neutral value to a table item: a scalar, an inline array, an inline
+/// table, or a `[[array of tables]]` for a non-empty sequence of maps.
+fn item_of_value(value: &Value) -> Result<Item, EmitError> {
+    match &value.kind {
+        ValueKind::Scalar(scalar) => Ok(Item::Value(toml_value_of_scalar(scalar))),
+        ValueKind::Seq(elements) => {
+            if !elements.is_empty()
+                && elements
+                    .iter()
+                    .all(|element| matches!(element.kind, ValueKind::Map(_)))
+            {
+                let mut array = ArrayOfTables::new();
+                for element in elements {
+                    if let ValueKind::Map(inner) = &element.kind {
+                        let mut subtable = Table::new();
+                        emit_table(inner, &mut subtable)?;
+                        array.push(subtable);
+                    }
+                }
+                Ok(Item::ArrayOfTables(array))
+            } else {
+                Ok(Item::Value(TomlValue::Array(toml_array_of(elements)?)))
+            }
+        }
+        ValueKind::Map(inner) => Ok(Item::Value(TomlValue::InlineTable(toml_inline_of(inner)?))),
+        ValueKind::Other(label) => Err(EmitError::UnrepresentableValue(label)),
+    }
+}
+
+/// Maps one neutral value to an inline `toml_edit` value, for an array element
+/// or an inline-table entry. A sequence of maps is an inline array of inline
+/// tables here, because an array of tables has no inline spelling.
+fn toml_value_of(value: &Value) -> Result<TomlValue, EmitError> {
+    match &value.kind {
+        ValueKind::Scalar(scalar) => Ok(toml_value_of_scalar(scalar)),
+        ValueKind::Seq(elements) => Ok(TomlValue::Array(toml_array_of(elements)?)),
+        ValueKind::Map(inner) => Ok(TomlValue::InlineTable(toml_inline_of(inner)?)),
+        ValueKind::Other(label) => Err(EmitError::UnrepresentableValue(label)),
+    }
+}
+
+fn toml_array_of(elements: &[Value]) -> Result<Array, EmitError> {
+    let mut array = Array::new();
+    for element in elements {
+        array.push(toml_value_of(element)?);
+    }
+    Ok(array)
+}
+
+fn toml_inline_of(fields: &Fields) -> Result<InlineTable, EmitError> {
+    let mut inline = InlineTable::new();
+    for field in fields.iter() {
+        let value = match &field.kind {
+            FieldKind::Value(value) => toml_value_of(value)?,
+            FieldKind::Block(inner) => TomlValue::InlineTable(toml_inline_of(inner)?),
+        };
+        inline.insert(&field.name, value);
+    }
+    Ok(inline)
+}
+
+fn toml_value_of_scalar(scalar: &Scalar) -> TomlValue {
+    match scalar {
+        Scalar::String(string) => TomlValue::from(string.clone()),
+        Scalar::Int(int) => TomlValue::from(*int),
+        Scalar::Float(float) => TomlValue::from(*float),
+        Scalar::Bool(boolean) => TomlValue::from(*boolean),
+        Scalar::Unparsed(raw) => TomlValue::from(raw.clone()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,5 +494,136 @@ mod tests {
         assert!(parsed.is_none());
         assert!(report.has_errors());
         assert!(report.issues()[0].message.starts_with("syntax error:"));
+    }
+
+    fn scalar(name: &str, scalar: Scalar) -> Field {
+        Field::detached_value(name, Value::detached(ValueKind::Scalar(scalar)))
+    }
+
+    fn reparse(text: &str) -> Fields {
+        let mut sources = SourceMap::new();
+        let id = sources.add("emitted.toml", text.to_string());
+        let mut report = Report::new();
+        let fields = parse_toml_fields(&sources, id, &mut report).unwrap();
+        assert!(
+            !report.has_issues(),
+            "reparse issues: {:?}",
+            report.issues()
+        );
+        fields
+    }
+
+    #[test]
+    fn emit_toml_writes_canonical_text() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("hostname", Scalar::String("api".to_string())),
+            scalar("port", Scalar::Int(8080)),
+            Field::detached_block(
+                "limits",
+                Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
+            ),
+        ]);
+        // Act
+        let text = emit_toml(&fields).unwrap();
+        // Assert
+        assert_eq!(
+            text,
+            "hostname = \"api\"\nport = 8080\n\n[limits]\nmax_body_mb = 16\n"
+        );
+    }
+
+    #[test]
+    fn emit_toml_round_trips_scalars_and_a_block() {
+        let fields = Fields::detached(vec![
+            scalar("name", Scalar::String("api".to_string())),
+            scalar("count", Scalar::Int(42)),
+            scalar("flag", Scalar::Bool(true)),
+            Field::detached_block(
+                "tls",
+                Fields::detached(vec![scalar("cert", Scalar::String("a.pem".to_string()))]),
+            ),
+        ]);
+        let round = reparse(&emit_toml(&fields).unwrap());
+        let mut report = Report::new();
+        assert_eq!(
+            parse_int_field(round.get("count").unwrap(), &mut report)
+                .unwrap()
+                .value,
+            42
+        );
+        let FieldKind::Block(tls) = &round.get("tls").unwrap().kind else {
+            panic!("tls should be a block");
+        };
+        assert_eq!(
+            parse_string_field(tls.get("cert").unwrap(), &mut report)
+                .unwrap()
+                .value,
+            "a.pem"
+        );
+    }
+
+    #[test]
+    fn emit_toml_groups_repeated_blocks_into_array_of_tables() {
+        // Two same-named blocks with a field between them still group into one
+        // [[service]], so a non-consecutive repeat is not overwritten.
+        let block = |port: i64| {
+            Field::detached_block(
+                "service",
+                Fields::detached(vec![scalar("port", Scalar::Int(port))]),
+            )
+        };
+        let fields = Fields::detached(vec![
+            block(1),
+            scalar("name", Scalar::String("x".to_string())),
+            block(2),
+        ]);
+        let text = emit_toml(&fields).unwrap();
+        assert!(text.contains("[[service]]"), "got: {text}");
+        assert!(!text.contains("[service]\n"), "got: {text}");
+        let round = reparse(&text);
+        let mut report = Report::new();
+        let mut services: Vec<Located<Probe>> = Vec::new();
+        parse_struct_list_field(&mut services, round.get("service").unwrap(), &mut report);
+        assert_eq!(services.len(), 2);
+    }
+
+    #[test]
+    fn emit_toml_quotes_a_non_identifier_key() {
+        let fields = Fields::detached(vec![scalar("weird key", Scalar::Int(1))]);
+        let text = emit_toml(&fields).unwrap();
+        assert!(text.contains("\"weird key\""), "got: {text}");
+        let round = reparse(&text);
+        assert!(round.get("weird key").is_some());
+    }
+
+    #[test]
+    fn emit_toml_preserves_the_float_distinction() {
+        let fields = Fields::detached(vec![
+            scalar("ratio", Scalar::Float(0.5)),
+            scalar("whole", Scalar::Float(1.0)),
+        ]);
+        let round = reparse(&emit_toml(&fields).unwrap());
+        let mut report = Report::new();
+        // A TOML float stays a float, so the int parser rejects it.
+        assert!(parse_int_field(round.get("whole").unwrap(), &mut report).is_none());
+        assert_eq!(
+            parse_float_field(round.get("whole").unwrap(), &mut report)
+                .unwrap()
+                .value,
+            1.0
+        );
+    }
+
+    #[test]
+    fn emit_toml_rejects_an_unrepresentable_value() {
+        let fields = Fields::detached(vec![Field::detached_value(
+            "when",
+            Value::detached(ValueKind::Other("datetime")),
+        )]);
+        assert_eq!(
+            emit_toml(&fields),
+            Err(EmitError::UnrepresentableValue("datetime"))
+        );
     }
 }

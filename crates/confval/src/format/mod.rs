@@ -1,3 +1,5 @@
+mod emit;
+pub use emit::EmitError;
 pub mod field;
 pub use field::*;
 #[cfg(feature = "hcl")]

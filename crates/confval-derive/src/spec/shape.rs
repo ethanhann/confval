@@ -31,10 +31,7 @@ pub(crate) enum FieldShape {
     /// populate walk can spell `<S as Default>::default()` when it fills an
     /// absent marked block. The parser and traversal ignore it. It is boxed
     /// because a `syn::Type` is large and would otherwise bloat every variant.
-    Nested {
-        optional: bool,
-        spec_ty: Box<Type>,
-    },
+    Nested { optional: bool, spec_ty: Box<Type> },
     /// A repeated nested sub-struct, `Vec<Located<S>>` (zero or more blocks).
     NestedList,
 }
