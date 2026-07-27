@@ -1,5 +1,5 @@
-//! The write path: parse a minimal config, populate it, and print the field
-//! model.
+//! The write path: parse a minimal config, populate it, and emit it back to
+//! text, both plain and as an annotated template.
 //!
 //! The other examples read a config and run it through the pipeline. This one
 //! runs the parse backward. The source sets only `hostname` and `port`, so
@@ -12,10 +12,10 @@
 //! stays source-faithful. The `#[confval(nested, default)]` marker is the
 //! populate signal that fills it here.
 //!
-//! This is the populate half of template generation. Serializing the field
-//! model back to text is a later milestone, so this example prints the model
-//! directly. It defines its own types rather than reusing `common`, so the
-//! output shows only the write path.
+//! `emit_toml` serializes the populated model to text, and `to_template` adds
+//! the doc comment above each field for the annotated form. The example defines
+//! its own types rather than reusing `common`, so the output shows only the
+//! write path.
 //!
 //! Run with: cargo run -p confval --example populate --features derive,color,toml
 

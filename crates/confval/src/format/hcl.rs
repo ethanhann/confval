@@ -242,9 +242,13 @@ fn hcl_comment_prefix(doc: &Option<String>, indent: &str) -> String {
             let mut out = String::new();
             for line in text.split('\n') {
                 out.push_str(indent);
-                out.push_str("# ");
-                out.push_str(line);
-                out.push('\n');
+                if line.is_empty() {
+                    out.push_str("#\n");
+                } else {
+                    out.push_str("# ");
+                    out.push_str(line);
+                    out.push('\n');
+                }
             }
             out.push_str(indent);
             out

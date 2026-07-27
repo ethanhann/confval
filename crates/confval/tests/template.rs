@@ -158,3 +158,35 @@ fn a_template_parses_back_to_the_populated_spec() {
         expected
     );
 }
+
+#[derive(confval::Spec, PartialEq, Debug)]
+struct DocShapes {
+    /// First line.
+    ///
+    /// Third line.
+    #[doc(hidden)]
+    count: Located<i64>,
+}
+
+impl Validate for DocShapes {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_blank_doc_line_renders_bare_and_a_doc_list_is_skipped() {
+    let spec = DocShapes {
+        count: Located::detached(1),
+    };
+    let text = emit_toml(&spec.to_template()).expect("emit toml");
+    // The blank line between the two comment lines renders as a bare `#`, with
+    // no trailing space, and the `#[doc(hidden)]` attribute is skipped rather
+    // than harvested or errored.
+    assert!(
+        text.contains("# First line.\n#\n# Third line."),
+        "got:\n{text}"
+    );
+    assert!(
+        !text.contains("# \n"),
+        "trailing space on blank line:\n{text}"
+    );
+}

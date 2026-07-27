@@ -255,7 +255,7 @@ fn emit_table(fields: &Fields, table: &mut Table) -> Result<(), EmitError> {
                     let mut subtable = Table::new();
                     emit_table(blocks[0], &mut subtable)?;
                     if let Some(doc) = &field.doc {
-                        subtable.decor_mut().set_prefix(toml_comment(doc));
+                        subtable.decor_mut().set_prefix(toml_block_comment(doc));
                     }
                     table.insert(&field.name, Item::Table(subtable));
                 } else {
@@ -268,7 +268,7 @@ fn emit_table(fields: &Fields, table: &mut Table) -> Result<(), EmitError> {
                         if index == 0
                             && let Some(doc) = &field.doc
                         {
-                            subtable.decor_mut().set_prefix(toml_comment(doc));
+                            subtable.decor_mut().set_prefix(toml_block_comment(doc));
                         }
                         array.push(subtable);
                     }
@@ -342,16 +342,27 @@ fn toml_inline_of(fields: &Fields) -> Result<InlineTable, EmitError> {
 }
 
 /// Renders a doc comment as TOML comment lines, one `# line` per source line,
-/// with a trailing newline so the field follows on its own line. TOML content
-/// is flat, so the comment carries no indentation.
+/// with a trailing newline so the field follows on its own line. A blank line
+/// renders as a bare `#` with no trailing space. TOML content is flat, so the
+/// comment carries no indentation.
 fn toml_comment(doc: &str) -> String {
     let mut out = String::new();
     for line in doc.split('\n') {
-        out.push_str("# ");
-        out.push_str(line);
-        out.push('\n');
+        if line.is_empty() {
+            out.push_str("#\n");
+        } else {
+            out.push_str("# ");
+            out.push_str(line);
+            out.push('\n');
+        }
     }
     out
+}
+
+/// The comment prefix for a `[table]` or a `[[array of tables]]`, with a leading
+/// blank line so a commented section keeps the spacing the plain dump has.
+fn toml_block_comment(doc: &str) -> String {
+    format!("\n{}", toml_comment(doc))
 }
 
 fn toml_value_of_scalar(scalar: &Scalar) -> TomlValue {
