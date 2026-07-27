@@ -11,22 +11,25 @@
 //! The traversal is generated here rather than under its own derive because it
 //! is read off the same field shapes the parser is built from. Both impls come
 //! from one classification pass, so the two can never disagree about which
-//! fields hold nested specs. See the `traversal` module.
+//! fields hold nested specs. See the `traversal` module. The per-field parsing
+//! fragments themselves are emitted by the `parser` module.
 
 mod default;
 mod options;
+mod parser;
 mod populate;
 mod shape;
 mod traversal;
 
-use options::{FieldOptions, parse_options, parse_struct_options};
+use options::{parse_options, parse_struct_options};
+use parser::{field_parser, reject_unsupported_default};
 use populate::{field_emit, to_fields_impl};
-use shape::{FieldShape, Leaf, classify};
+use shape::classify;
 use traversal::{nested_visit, validate_nested_impl};
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{format_ident, quote};
-use syn::{Data, DeriveInput, Expr, Field, Fields, spanned::Spanned};
+use quote::quote;
+use syn::{Data, DeriveInput, Fields};
 
 /// Builds the `FromFields` parser for one `#[derive(Spec)]` struct.
 ///
@@ -87,18 +90,14 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let ident = field.ident.as_ref().ok_or_else(|| {
             syn::Error::new_spanned(field, "named field is missing an identifier")
         })?;
-        let field_name = ident.to_string();
-        // Read the field's attributes, work out its parsing shape, and reject
-        // a `default` on a shape that cannot honor it (see below).
+        // Read the field's attributes, work out its parsing shape, and reject a
+        // `default` on a shape that cannot honor it.
         let options = parse_options(field)?;
         let shape = classify(field, options.nested)?;
         reject_unsupported_default(field, &shape, &options)?;
         if struct_options.derive_default {
             default_ctors.push(default::field_ctor(ident, &shape, &options)?);
         }
-        // `slot` is the generated local variable's name, e.g. `__port`. The
-        // leading underscores keep it from clashing with the user's own names.
-        let slot = format_ident!("__{}", ident);
 
         // A nested field is parsed by the fragments below and validated by the
         // `ValidateNested` impl, so it contributes to both.
@@ -110,127 +109,13 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         to_fields_emits.push(field_emit(ident, &shape, &options, false));
         to_template_emits.push(field_emit(ident, &shape, &options, true));
 
-        // Emit the parsing fragments for this field, tailored to its shape.
-        match shape {
-            FieldShape::Leaf { leaf, optional } => {
-                let parser = leaf_parser(&leaf);
-                slot_decls.push(quote! { let mut #slot = ::core::option::Option::None; });
-                match (&options.default, optional) {
-                    (Some(default), true) => {
-                        match_arms.push(quote! { #field_name => #slot = #parser, });
-                        let expr = default_expr(default);
-                        constructors.push(quote! {
-                            #ident: #slot.or_else(|| ::core::option::Option::Some(
-                                ::confval::source::Located::detached(#expr),
-                            )),
-                        });
-                    }
-                    (Some(default), false) => {
-                        match_arms.push(quote! { #field_name => #slot = #parser, });
-                        let expr = default_expr(default);
-                        constructors.push(quote! {
-                            #ident: #slot.unwrap_or_else(
-                                || ::confval::source::Located::detached(#expr),
-                            ),
-                        });
-                    }
-                    (None, true) => {
-                        match_arms.push(quote! { #field_name => #slot = #parser, });
-                        constructors.push(quote! { #ident: #slot, });
-                    }
-                    (None, false) => {
-                        // Required, no default: track presence in the same
-                        // single pass that parses, so a present-but-failed
-                        // field is not also reported as missing, without an
-                        // O(fields) `Fields::has` rescan.
-                        let seen = format_ident!("__{}_seen", ident);
-                        slot_decls.push(quote! { let mut #seen = false; });
-                        match_arms.push(quote! {
-                            #field_name => { #seen = true; #slot = #parser; }
-                        });
-                        missing_checks.push(seen_missing_check(&field_name, &seen));
-                        constructors.push(quote! { #ident: #slot?, });
-                    }
-                }
-            }
-            FieldShape::BareStringList => {
-                slot_decls.push(quote! { let mut #slot = ::core::option::Option::None; });
-                if options.default.is_some() {
-                    match_arms.push(quote! {
-                        #field_name => #slot =
-                            ::confval::format::parse_string_list_field(__field, report),
-                    });
-                    constructors.push(quote! {
-                        #ident: #slot.map(|__list| __list.value).unwrap_or_default(),
-                    });
-                } else {
-                    let seen = format_ident!("__{}_seen", ident);
-                    slot_decls.push(quote! { let mut #seen = false; });
-                    match_arms.push(quote! {
-                        #field_name => {
-                            #seen = true;
-                            #slot = ::confval::format::parse_string_list_field(__field, report);
-                        }
-                    });
-                    missing_checks.push(seen_missing_check(&field_name, &seen));
-                    constructors.push(quote! { #ident: #slot?.value, });
-                }
-            }
-            FieldShape::OptionalWrappedStringList => {
-                slot_decls.push(quote! { let mut #slot = ::core::option::Option::None; });
-                match_arms.push(quote! {
-                    #field_name => #slot =
-                        ::confval::format::parse_string_list_field(__field, report),
-                });
-                constructors.push(quote! { #ident: #slot, });
-            }
-            FieldShape::Nested { optional, .. } => {
-                let seen = format_ident!("__{}_seen", ident);
-                slot_decls.push(quote! {
-                    let mut #slot = ::core::option::Option::None;
-                    let mut #seen: ::core::option::Option<::confval::source::Span> =
-                        ::core::option::Option::None;
-                });
-                match_arms.push(quote! {
-                    #field_name => ::confval::format::parse_single_struct(
-                        &mut #slot, &mut #seen, #field_name, __field, report,
-                    ),
-                });
-                if optional {
-                    constructors.push(quote! { #ident: #slot, });
-                } else {
-                    // A non-optional nested field is a `Located<S>`. With
-                    // `#[confval(default)]` an absent block is filled with
-                    // `S::default()` and is not reported as missing; without it,
-                    // absence is a missing-field error. Either way a
-                    // present-but-failed child is replaced with a detached
-                    // default so the parent and its siblings still validate. The
-                    // child's structural error is already in the report, so the
-                    // lowering gate blocks before the placeholder reaches runtime.
-                    if options.default.is_none() {
-                        missing_checks.push(quote! {
-                            if #seen.is_none() {
-                                ::confval::format::report_missing_field(
-                                    #field_name, fields.enclosing(), report,
-                                );
-                            }
-                        });
-                    }
-                    constructors.push(quote! {
-                        #ident: #slot.unwrap_or_default(),
-                    });
-                }
-            }
-            FieldShape::NestedList => {
-                slot_decls.push(quote! { let mut #slot = ::std::vec::Vec::new(); });
-                match_arms.push(quote! {
-                    #field_name => ::confval::format::parse_struct_list_field(
-                        &mut #slot, __field, report,
-                    ),
-                });
-                constructors.push(quote! { #ident: #slot, });
-            }
-        }
+        // Emit the parsing fragments for this field, tailored to its shape, and
+        // splice each into its bucket.
+        let parsed = field_parser(ident, &shape, &options);
+        slot_decls.extend(parsed.slot_decls);
+        match_arms.extend(parsed.match_arms);
+        missing_checks.extend(parsed.missing_checks);
+        constructors.extend(parsed.constructors);
     }
 
     let validate_nested = validate_nested_impl(name, &visits);
@@ -272,90 +157,4 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
         #to_fields
     })
-}
-
-/// Picks the confval parse function for a leaf type.
-///
-/// Returns a generated expression that parses the current field into an
-/// `Option<Located<T>>`. `PathBuf` has no parser of its own: it is read as a
-/// string and converted, so its arm wraps the string parser with a `map`.
-fn leaf_parser(leaf: &Leaf) -> TokenStream2 {
-    match leaf {
-        Leaf::String => quote! { ::confval::format::parse_string_field(__field, report) },
-        Leaf::Int => quote! { ::confval::format::parse_int_field(__field, report) },
-        Leaf::Float => quote! { ::confval::format::parse_float_field(__field, report) },
-        Leaf::Bool => quote! { ::confval::format::parse_bool_field(__field, report) },
-        Leaf::PathBuf => quote! {
-            ::confval::format::parse_string_field(__field, report)
-                .map(|__value| __value.map(::std::path::PathBuf::from))
-        },
-    }
-}
-
-/// The generated expression for a leaf field's default value, used when the
-/// field is absent from the source. `#[confval(default = expr)]` uses `expr`;
-/// a bare `#[confval(default)]` falls back to the type's `Default`.
-fn default_expr(default: &Option<Expr>) -> TokenStream2 {
-    match default {
-        Some(expr) => quote! { #expr },
-        None => quote! { ::core::default::Default::default() },
-    }
-}
-
-/// Rejects `#[confval(default ...)]` on field shapes that would silently ignore
-/// it. Only leaf fields honor a default value. A string list accepts a bare
-/// `#[confval(default)]` (meaning "empty") but not `default = <expr>`. Every
-/// other shape would ignore the default, so flag it at compile time rather than
-/// surprise the author at runtime.
-fn reject_unsupported_default(
-    field: &Field,
-    shape: &FieldShape,
-    options: &FieldOptions,
-) -> syn::Result<()> {
-    let Some(default) = &options.default else {
-        return Ok(());
-    };
-    let supported = match shape {
-        FieldShape::Leaf { .. } => true,
-        // A string list's only meaningful default is the empty list, written as
-        // a bare `#[confval(default)]`. An explicit value cannot be honored.
-        FieldShape::BareStringList => default.is_none(),
-        // A nested block, optional or not, accepts a bare `#[confval(default)]`.
-        // On a non-optional block the parser fills an absent block with the
-        // type's `Default`. On an optional block the bare default is the
-        // populate marker `ToFields` reads to fill an absent block, and parsing
-        // still leaves it `None`. Neither has a sensible `default = expr` for a
-        // whole sub-struct.
-        FieldShape::Nested {
-            optional: false, ..
-        }
-        | FieldShape::Nested { optional: true, .. } => default.is_none(),
-        FieldShape::NestedList | FieldShape::OptionalWrappedStringList => false,
-    };
-    if supported {
-        return Ok(());
-    }
-    let span = default
-        .as_ref()
-        .map(Spanned::span)
-        .unwrap_or_else(|| field.span());
-    Err(syn::Error::new(
-        span,
-        "#[confval(default)] is not supported here; a leaf field takes \
-         #[confval(default)] or #[confval(default = expr)], while a string list \
-         or a nested block accepts only a bare #[confval(default)]",
-    ))
-}
-
-/// The generated after-the-walk check that reports a required field as missing.
-///
-/// `seen` is the boolean local the match arm flips to `true` when it parses the
-/// field. If the walk finished without ever setting it, the field was absent
-/// and an error is reported against the enclosing block.
-fn seen_missing_check(field_name: &str, seen: &proc_macro2::Ident) -> TokenStream2 {
-    quote! {
-        if !#seen {
-            ::confval::format::report_missing_field(#field_name, fields.enclosing(), report);
-        }
-    }
 }
