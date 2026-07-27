@@ -93,6 +93,7 @@ fn fields_of_body(body: &Body, enclosing: Span, source: SourceId, report: &mut R
                 span: span_of(attr, source),
                 source,
                 kind: FieldKind::Value(value_of_expr(&attr.value, source, report)),
+                doc: None,
             }),
             Structure::Block(block) => {
                 let block_span = span_of(block, source);
@@ -102,6 +103,7 @@ fn fields_of_body(body: &Body, enclosing: Span, source: SourceId, report: &mut R
                     span: block_span,
                     source,
                     kind: FieldKind::Block(fields_of_body(&block.body, block_span, source, report)),
+                    doc: None,
                 });
             }
         }
@@ -140,6 +142,7 @@ fn fields_of_object(
             span: Span::merge(name_span, value.span),
             source,
             kind: FieldKind::Value(value),
+            doc: None,
         });
     }
     Fields::new(source, enclosing, items)
@@ -208,15 +211,18 @@ fn emit_body(fields: &Fields, level: usize) -> Result<Body, EmitError> {
     let indent = "  ".repeat(level);
     let mut body = Body::new();
     for field in fields.iter() {
+        // The prefix carries the field's doc comment, if any, above its
+        // indentation, so the comment aligns with the field it documents.
+        let prefix = hcl_comment_prefix(&field.doc, &indent);
         match &field.kind {
             FieldKind::Value(value) => {
                 let mut attribute = Attribute::new(ident_of(&field.name)?, hcl_expr_of(value)?);
-                attribute.decor_mut().set_prefix(indent.clone());
+                attribute.decor_mut().set_prefix(prefix);
                 body.push(Structure::Attribute(attribute));
             }
             FieldKind::Block(inner) => {
                 let mut block = Block::new(ident_of(&field.name)?);
-                block.decor_mut().set_prefix(indent.clone());
+                block.decor_mut().set_prefix(prefix);
                 let mut inner_body = emit_body(inner, level + 1)?;
                 inner_body.decor_mut().set_suffix(indent.clone());
                 block.body = inner_body;
@@ -225,6 +231,26 @@ fn emit_body(fields: &Fields, level: usize) -> Result<Body, EmitError> {
         }
     }
     Ok(body)
+}
+
+/// The decor prefix for a field: its doc comment as `# line` comments, each at
+/// the field's indentation, followed by the field's own indent. With no doc it
+/// is just the indent.
+fn hcl_comment_prefix(doc: &Option<String>, indent: &str) -> String {
+    match doc {
+        Some(text) => {
+            let mut out = String::new();
+            for line in text.split('\n') {
+                out.push_str(indent);
+                out.push_str("# ");
+                out.push_str(line);
+                out.push('\n');
+            }
+            out.push_str(indent);
+            out
+        }
+        None => indent.to_string(),
+    }
 }
 
 fn hcl_expr_of(value: &Value) -> Result<Expression, EmitError> {

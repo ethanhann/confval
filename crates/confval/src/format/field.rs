@@ -70,6 +70,12 @@ pub struct Field {
     pub span: Span,
     pub source: SourceId,
     pub kind: FieldKind,
+    /// The doc comment to render above the field when emitting an annotated
+    /// template, or `None` for no comment. Parsing sets it to `None`, because a
+    /// parsed file's comments are dropped. The populate walk sets it from a
+    /// spec field's doc comment for `to_template`. A multi-line comment is one
+    /// string with newline separators.
+    pub doc: Option<String>,
 }
 
 /// Whether a field was written as an attribute (`name = value`) or as a block
@@ -117,6 +123,7 @@ impl Field {
             span: Span::detached(),
             source: SourceId::DETACHED,
             kind: FieldKind::Value(value),
+            doc: None,
         }
     }
 
@@ -129,7 +136,15 @@ impl Field {
             span: Span::detached(),
             source: SourceId::DETACHED,
             kind: FieldKind::Block(fields),
+            doc: None,
         }
+    }
+
+    /// Attaches a doc comment, for the annotated-template walk. `None` leaves
+    /// the field without a comment.
+    pub fn with_doc(mut self, doc: Option<String>) -> Self {
+        self.doc = doc;
+        self
     }
 }
 
@@ -196,7 +211,16 @@ pub trait FromFields: Sized {
 /// produces carries a detached span because the data comes from the spec rather
 /// than a source file.
 pub trait ToFields {
+    /// The populated field model with no comments.
     fn to_fields(&self) -> Fields;
+
+    /// The populated field model with each field's doc comment attached, for an
+    /// annotated template. Defaults to [`to_fields`](ToFields::to_fields), so an
+    /// impl that does not harvest comments emits none and adding the method
+    /// breaks no caller.
+    fn to_template(&self) -> Fields {
+        self.to_fields()
+    }
 }
 
 fn describe(value: &Value) -> &'static str {
@@ -458,6 +482,7 @@ mod tests {
             name_span: span(0, name.len() as u32),
             span: span(0, 10),
             source: SOURCE,
+            doc: None,
             kind: FieldKind::Value(Value {
                 span: span(0, 10),
                 kind: ValueKind::Scalar(scalar),
@@ -478,6 +503,7 @@ mod tests {
             name_span: span(0, name.len() as u32),
             span: span(0, 10),
             source: SOURCE,
+            doc: None,
             kind: FieldKind::Value(Value {
                 span: span(0, 10),
                 kind: ValueKind::Seq(values),
@@ -550,6 +576,7 @@ mod tests {
             name_span: span(0, 3),
             span: span(0, 10),
             source: SOURCE,
+            doc: None,
             kind: FieldKind::Block(Fields::new(SOURCE, span(0, 10), vec![])),
         };
         let mut report = Report::new();
@@ -598,6 +625,7 @@ mod tests {
             name_span: span(0, 3),
             span: span(0, 10),
             source: SOURCE,
+            doc: None,
             kind: FieldKind::Block(Fields::new(SOURCE, span(0, 10), vec![])),
         };
         let object = Field {
@@ -605,6 +633,7 @@ mod tests {
             name_span: span(0, 3),
             span: span(0, 10),
             source: SOURCE,
+            doc: None,
             kind: FieldKind::Value(map_value(vec![])),
         };
         let from_block: Option<Located<Probe>> = parse_struct_field(&block, &mut report);
@@ -630,6 +659,7 @@ mod tests {
             name_span: span(0, 8),
             span: span(0, 10),
             source: SOURCE,
+            doc: None,
             kind: FieldKind::Value(Value {
                 span: span(0, 10),
                 kind: ValueKind::Seq(vec![map_value(vec![]), map_value(vec![])]),
@@ -653,6 +683,7 @@ mod tests {
             name_span: span(0, 3),
             span: span(0, 4),
             source: SOURCE,
+            doc: None,
             kind: FieldKind::Value(map_value(vec![])),
         };
         let second = Field {
@@ -716,6 +747,7 @@ mod tests {
             name_span: span(0, 3),
             span: span(0, 10),
             source: SOURCE,
+            doc: None,
             kind: FieldKind::Block(Fields::new(SOURCE, span(0, 10), vec![])),
         };
         report_unknown_field(&block, &mut report);
@@ -812,6 +844,7 @@ mod tests {
             name_span: span(0, 4),
             span: span(0, 10),
             source: SOURCE,
+            doc: None,
             kind: FieldKind::Value(Value {
                 span: span(0, 10),
                 kind: ValueKind::Other("datetime"),

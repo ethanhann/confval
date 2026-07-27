@@ -149,6 +149,7 @@ fn field_of_item(
         span: entry_span(name_span, value_span),
         source,
         kind,
+        doc: None,
     }
 }
 
@@ -204,6 +205,7 @@ fn fields_of_inline_table(
             span,
             source,
             kind: FieldKind::Value(value),
+            doc: None,
         });
     }
     Fields::new(source, enclosing, items)
@@ -230,6 +232,11 @@ fn emit_table(fields: &Fields, table: &mut Table) -> Result<(), EmitError> {
         match &field.kind {
             FieldKind::Value(value) => {
                 table.insert(&field.name, item_of_value(value)?);
+                if let Some(doc) = &field.doc
+                    && let Some(mut entry) = table.get_key_value_mut(&field.name)
+                {
+                    entry.0.leaf_decor_mut().set_prefix(toml_comment(doc));
+                }
             }
             FieldKind::Block(_) => {
                 // Group same-named blocks by name across the level, so a
@@ -247,12 +254,22 @@ fn emit_table(fields: &Fields, table: &mut Table) -> Result<(), EmitError> {
                 if blocks.len() == 1 {
                     let mut subtable = Table::new();
                     emit_table(blocks[0], &mut subtable)?;
+                    if let Some(doc) = &field.doc {
+                        subtable.decor_mut().set_prefix(toml_comment(doc));
+                    }
                     table.insert(&field.name, Item::Table(subtable));
                 } else {
+                    // The comment renders once, above the first array-of-tables
+                    // element.
                     let mut array = ArrayOfTables::new();
-                    for inner in blocks {
+                    for (index, inner) in blocks.into_iter().enumerate() {
                         let mut subtable = Table::new();
                         emit_table(inner, &mut subtable)?;
+                        if index == 0
+                            && let Some(doc) = &field.doc
+                        {
+                            subtable.decor_mut().set_prefix(toml_comment(doc));
+                        }
                         array.push(subtable);
                     }
                     table.insert(&field.name, Item::ArrayOfTables(array));
@@ -322,6 +339,19 @@ fn toml_inline_of(fields: &Fields) -> Result<InlineTable, EmitError> {
         inline.insert(&field.name, value);
     }
     Ok(inline)
+}
+
+/// Renders a doc comment as TOML comment lines, one `# line` per source line,
+/// with a trailing newline so the field follows on its own line. TOML content
+/// is flat, so the comment carries no indentation.
+fn toml_comment(doc: &str) -> String {
+    let mut out = String::new();
+    for line in doc.split('\n') {
+        out.push_str("# ");
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
 }
 
 fn toml_value_of_scalar(scalar: &Scalar) -> TomlValue {
