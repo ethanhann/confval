@@ -58,6 +58,10 @@ required-features = ["derive", "color", "toml"]
 name = "layering"
 required-features = ["derive", "color", "toml", "layering"]
 
+[[example]]
+name = "populate"
+required-features = ["derive", "color", "toml"]
+
 [[test]]
 name = "compile_fail"
 required-features = ["derive"]
