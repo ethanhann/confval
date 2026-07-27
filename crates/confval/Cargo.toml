@@ -75,5 +75,9 @@ name = "emit"
 required-features = ["derive", "toml", "hcl"]
 
 [[test]]
+name = "template"
+required-features = ["derive", "toml", "hcl"]
+
+[[test]]
 name = "validate_traversal"
 required-features = ["derive"]

@@ -24,12 +24,17 @@ use confval::prelude::*;
 
 #[derive(confval::Spec)]
 struct ServerSpec {
+    /// The address the server binds to.
     hostname: Located<String>,
+    /// The port the server listens on.
     port: Located<i64>,
+    /// The number of worker threads.
     #[confval(default = 4)]
     workers: Located<i64>,
+    /// Whether TLS is enabled.
     #[confval(default = false)]
     tls: Located<bool>,
+    /// Request size and mode limits.
     #[confval(nested, default)]
     limits: Option<Located<LimitsSpec>>,
 }
@@ -41,8 +46,10 @@ impl Validate for ServerSpec {
 #[derive(confval::Spec)]
 #[confval(derive_default)]
 struct LimitsSpec {
+    /// The maximum request body size, in megabytes.
     #[confval(default = 16)]
     max_body_mb: Located<i64>,
+    /// How limit violations are handled.
     #[confval(default = "enforce".to_string())]
     mode: Located<String>,
 }
@@ -73,6 +80,14 @@ fn main() -> Result<(), String> {
     println!();
     println!("emitted TOML:");
     print!("{text}");
+
+    // Emit an annotated template: the same configuration with each field's doc
+    // comment rendered above it, harvested from the spec's `///` comments.
+    let template =
+        confval::format::toml::emit_toml(&spec.to_template()).map_err(|error| error.to_string())?;
+    println!();
+    println!("emitted TOML template:");
+    print!("{template}");
     Ok(())
 }
 
