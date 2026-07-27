@@ -15,10 +15,12 @@
 
 mod default;
 mod options;
+mod populate;
 mod shape;
 mod traversal;
 
 use options::{FieldOptions, parse_options, parse_struct_options};
+use populate::{field_emit, to_fields_impl};
 use shape::{FieldShape, Leaf, classify};
 use traversal::{nested_visit, validate_nested_impl};
 
@@ -76,6 +78,8 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     // `#[confval(derive_default)]` fills this with one fragment per field, used
     // to build the generated `Default` impl.
     let mut default_ctors = Vec::new();
+    // One fragment per field for the `ToFields` populate walk, always built.
+    let mut to_fields_emits = Vec::new();
 
     for field in &fields.named {
         let ident = field.ident.as_ref().ok_or_else(|| {
@@ -97,6 +101,10 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         // A nested field is parsed by the fragments below and validated by the
         // `ValidateNested` impl, so it contributes to both.
         visits.extend(nested_visit(&shape, ident));
+
+        // The populate walk emits one fragment per field, read off the same
+        // shape and options, so `ToFields` cannot drift from the parser.
+        to_fields_emits.push(field_emit(ident, &shape, &options));
 
         // Emit the parsing fragments for this field, tailored to its shape.
         match shape {
@@ -172,7 +180,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 });
                 constructors.push(quote! { #ident: #slot, });
             }
-            FieldShape::Nested { optional } => {
+            FieldShape::Nested { optional, .. } => {
                 let seen = format_ident!("__{}_seen", ident);
                 slot_decls.push(quote! {
                     let mut #slot = ::core::option::Option::None;
@@ -227,6 +235,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     } else {
         quote! {}
     };
+    let to_fields = to_fields_impl(name, &to_fields_emits);
 
     // Splice the four parsing buckets into the generated parser. This is the
     // code that runs at the caller's runtime, once per parsed struct.
@@ -256,6 +265,8 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         #validate_nested
 
         #default_impl
+
+        #to_fields
     })
 }
 
@@ -305,14 +316,17 @@ fn reject_unsupported_default(
         // A string list's only meaningful default is the empty list, written as
         // a bare `#[confval(default)]`. An explicit value cannot be honored.
         FieldShape::BareStringList => default.is_none(),
-        // A non-optional nested block may default to its type's `Default` via a
-        // bare `#[confval(default)]`. There is no sensible `default = expr` for a
-        // whole sub-struct. An optional nested field is already "absent = None",
-        // so a default would be meaningless there.
-        FieldShape::Nested { optional: false } => default.is_none(),
-        FieldShape::Nested { optional: true }
-        | FieldShape::NestedList
-        | FieldShape::OptionalWrappedStringList => false,
+        // A nested block, optional or not, accepts a bare `#[confval(default)]`.
+        // On a non-optional block the parser fills an absent block with the
+        // type's `Default`. On an optional block the bare default is the
+        // populate marker `ToFields` reads to fill an absent block, and parsing
+        // still leaves it `None`. Neither has a sensible `default = expr` for a
+        // whole sub-struct.
+        FieldShape::Nested {
+            optional: false, ..
+        }
+        | FieldShape::Nested { optional: true, .. } => default.is_none(),
+        FieldShape::NestedList | FieldShape::OptionalWrappedStringList => false,
     };
     if supported {
         return Ok(());
@@ -325,7 +339,7 @@ fn reject_unsupported_default(
         span,
         "#[confval(default)] is not supported here; a leaf field takes \
          #[confval(default)] or #[confval(default = expr)], while a string list \
-         or a non-optional nested block accepts only a bare #[confval(default)]",
+         or a nested block accepts only a bare #[confval(default)]",
     ))
 }
 

@@ -24,10 +24,12 @@ use quote::quote;
 /// walk down an arbitrarily deep spec tree from a single call at the root.
 pub(crate) fn nested_visit(shape: &FieldShape, ident: &Ident) -> Option<TokenStream2> {
     match shape {
-        FieldShape::Nested { optional: false } => Some(quote! {
+        FieldShape::Nested {
+            optional: false, ..
+        } => Some(quote! {
             ::confval::pipeline::Validate::validate_all(&self.#ident.value, report);
         }),
-        FieldShape::Nested { optional: true } => Some(quote! {
+        FieldShape::Nested { optional: true, .. } => Some(quote! {
             if let ::core::option::Option::Some(__child) = &self.#ident {
                 ::confval::pipeline::Validate::validate_all(&__child.value, report);
             }

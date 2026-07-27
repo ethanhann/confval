@@ -96,11 +96,60 @@ pub struct Fields {
     items: Vec<Field>,
 }
 
+impl Value {
+    /// A value with no source location, its span the detached sentinel. Used by
+    /// the `ToFields` code `#[derive(Spec)]` generates.
+    pub fn detached(kind: ValueKind) -> Self {
+        Self {
+            span: Span::detached(),
+            kind,
+        }
+    }
+}
+
+impl Field {
+    /// An attribute field with no source location, carrying a populated value.
+    /// The name, name span, and field span are all the detached sentinel.
+    pub fn detached_value(name: &str, value: Value) -> Self {
+        Self {
+            name: name.to_string(),
+            name_span: Span::detached(),
+            span: Span::detached(),
+            source: SourceId::DETACHED,
+            kind: FieldKind::Value(value),
+        }
+    }
+
+    /// A block field with no source location, carrying a populated nested level.
+    /// The name span and field span are the detached sentinel.
+    pub fn detached_block(name: &str, fields: Fields) -> Self {
+        Self {
+            name: name.to_string(),
+            name_span: Span::detached(),
+            span: Span::detached(),
+            source: SourceId::DETACHED,
+            kind: FieldKind::Block(fields),
+        }
+    }
+}
+
 impl Fields {
     pub fn new(source: SourceId, enclosing: Span, items: Vec<Field>) -> Self {
         Self {
             source,
             enclosing,
+            items,
+        }
+    }
+
+    /// A structural level with no source location, for a populated view built
+    /// from a spec's defaults rather than parsed. The source and the enclosing
+    /// span are the detached sentinel. Used by the `ToFields` code
+    /// `#[derive(Spec)]` generates.
+    pub fn detached(items: Vec<Field>) -> Self {
+        Self {
+            source: SourceId::DETACHED,
+            enclosing: Span::detached(),
             items,
         }
     }
@@ -136,6 +185,18 @@ impl Fields {
 /// hand-written spec implements. It names no format.
 pub trait FromFields: Sized {
     fn from_fields(fields: &Fields, report: &mut Report) -> Option<Self>;
+}
+
+/// Structural emission of a neutral field view from `Self`.
+///
+/// This is the write-path counterpart of [`FromFields`]. Parsing reads a
+/// [`Fields`] and builds a spec. Populate walks a spec and builds a [`Fields`],
+/// filling every default the source omitted, so it adds to the data rather than
+/// inverting the parse. `#[derive(Spec)]` generates it, and every value it
+/// produces carries a detached span because the data comes from the spec rather
+/// than a source file.
+pub trait ToFields {
+    fn to_fields(&self) -> Fields;
 }
 
 fn describe(value: &Value) -> &'static str {
@@ -723,6 +784,25 @@ mod tests {
         assert!(daemon.unwrap().value);
         assert_eq!(ratio.unwrap().value, 0.5);
         assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn detached_constructors_carry_no_source_location() {
+        // Arrange
+        let value = Value::detached(ValueKind::Scalar(Scalar::Int(16)));
+        let attribute = Field::detached_value("max_body_mb", value);
+        let block = Field::detached_block("limits", Fields::detached(vec![]));
+        let level = Fields::detached(vec![attribute.clone()]);
+        // Act
+        let attribute_detached = attribute.name_span.is_detached()
+            && attribute.span.is_detached()
+            && attribute.source == SourceId::DETACHED;
+        // Assert
+        assert!(attribute_detached);
+        assert!(block.name_span.is_detached() && block.span.is_detached());
+        assert!(block.source == SourceId::DETACHED);
+        assert!(level.enclosing().is_detached());
+        assert_eq!(level.source(), SourceId::DETACHED);
     }
 
     #[test]
