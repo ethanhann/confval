@@ -47,6 +47,50 @@ impl Validate for All {
     fn validate(&self, _report: &mut Report) {}
 }
 
+// A three-level chain of marked blocks, so a filled block that itself carries a
+// marked absent block is exercised. This guards the recursion the milestone is
+// built on, not just a one-level fill.
+#[derive(confval::Spec, PartialEq, Debug)]
+#[confval(derive_default)]
+struct DeepLeaf {
+    #[confval(default = 5)]
+    n: Located<i64>,
+}
+
+impl Validate for DeepLeaf {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[derive(confval::Spec, PartialEq, Debug)]
+#[confval(derive_default)]
+struct DeepMid {
+    #[confval(nested, default)]
+    leaf: Option<Located<DeepLeaf>>,
+}
+
+impl Validate for DeepMid {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[derive(confval::Spec, PartialEq, Debug)]
+struct DeepTop {
+    #[confval(nested, default)]
+    mid: Option<Located<DeepMid>>,
+}
+
+impl Validate for DeepTop {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+// A zero-field spec, so the `to_fields` branch that drops `mut` for an empty
+// item vector is compiled.
+#[derive(confval::Spec, PartialEq, Debug)]
+struct NoFields {}
+
+impl Validate for NoFields {
+    fn validate(&self, _report: &mut Report) {}
+}
+
 fn sample() -> All {
     All {
         text: Located::detached("api".to_string()),
@@ -84,6 +128,13 @@ fn scalar_of<'a>(fields: &'a Fields, name: &str) -> &'a Scalar {
             ..
         }) => scalar,
         _ => panic!("{name} is not a scalar attribute"),
+    }
+}
+
+fn block_of<'a>(fields: &'a Fields, name: &str) -> &'a Fields {
+    match &fields.get(name).expect("block present").kind {
+        FieldKind::Block(inner) => inner,
+        _ => panic!("{name} is not a block"),
     }
 }
 
@@ -167,4 +218,15 @@ fn main() {
     assert_eq!(first, second);
     assert!(first.marked_absent.is_some());
     assert!(first.unmarked_absent.is_none());
+
+    // A filled block fills its own marked absent child, so the fill reaches a
+    // grandchild block two levels down from the root.
+    let deep = DeepTop { mid: None }.to_fields();
+    let mid = block_of(&deep, "mid");
+    let leaf = block_of(mid, "leaf");
+    assert_eq!(*scalar_of(leaf, "n"), Scalar::Int(5));
+
+    // A zero-field spec populates to an empty level.
+    let empty = NoFields {}.to_fields();
+    assert_eq!(empty.iter().count(), 0);
 }
