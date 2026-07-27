@@ -23,8 +23,25 @@ pub(crate) fn field_emit(
     ident: &Ident,
     shape: &FieldShape,
     options: &FieldOptions,
+    annotate: bool,
 ) -> TokenStream2 {
     let name = ident.to_string();
+    // The template walk recurses with `to_template`, so a nested block's own
+    // children carry their comments too. The plain walk recurses with
+    // `to_fields`.
+    let recurse = if annotate {
+        quote! { to_template }
+    } else {
+        quote! { to_fields }
+    };
+    // The comment to attach to each field, or nothing on the plain walk or for a
+    // field with no doc. Appending an empty token leaves the field unchanged.
+    let doc = match (annotate, &options.doc) {
+        (true, Some(text)) => {
+            quote! { .with_doc(::core::option::Option::Some(#text.to_string())) }
+        }
+        _ => quote! {},
+    };
     match shape {
         FieldShape::Leaf { leaf, optional } => {
             if *optional {
@@ -36,7 +53,7 @@ pub(crate) fn field_emit(
                             ::confval::format::Value::detached(
                                 ::confval::format::ValueKind::Scalar(#scalar),
                             ),
-                        ));
+                        )#doc);
                     }
                 }
             } else {
@@ -47,7 +64,7 @@ pub(crate) fn field_emit(
                         ::confval::format::Value::detached(
                             ::confval::format::ValueKind::Scalar(#scalar),
                         ),
-                    ));
+                    )#doc);
                 }
             }
         }
@@ -59,7 +76,7 @@ pub(crate) fn field_emit(
                     ::confval::format::Value::detached(::confval::format::ValueKind::Seq(
                         self.#ident.iter().map(#element).collect(),
                     )),
-                ));
+                )#doc);
             }
         }
         FieldShape::OptionalWrappedStringList => {
@@ -71,7 +88,7 @@ pub(crate) fn field_emit(
                         ::confval::format::Value::detached(::confval::format::ValueKind::Seq(
                             __list.value.iter().map(#element).collect(),
                         )),
-                    ));
+                    )#doc);
                 }
             }
         }
@@ -80,8 +97,8 @@ pub(crate) fn field_emit(
                 quote! {
                     __items.push(::confval::format::Field::detached_block(
                         #name,
-                        ::confval::format::ToFields::to_fields(&self.#ident.value),
-                    ));
+                        ::confval::format::ToFields::#recurse(&self.#ident.value),
+                    )#doc);
                 }
             } else if options.default.is_some() {
                 // The populate marker: fill an absent block from `S::default()`,
@@ -92,15 +109,15 @@ pub(crate) fn field_emit(
                         ::core::option::Option::Some(__child) => {
                             __items.push(::confval::format::Field::detached_block(
                                 #name,
-                                ::confval::format::ToFields::to_fields(&__child.value),
-                            ));
+                                ::confval::format::ToFields::#recurse(&__child.value),
+                            )#doc);
                         }
                         ::core::option::Option::None => {
                             let __filled: #spec_ty = ::core::default::Default::default();
                             __items.push(::confval::format::Field::detached_block(
                                 #name,
-                                ::confval::format::ToFields::to_fields(&__filled),
-                            ));
+                                ::confval::format::ToFields::#recurse(&__filled),
+                            )#doc);
                         }
                     }
                 }
@@ -109,8 +126,8 @@ pub(crate) fn field_emit(
                     if let ::core::option::Option::Some(__child) = &self.#ident {
                         __items.push(::confval::format::Field::detached_block(
                             #name,
-                            ::confval::format::ToFields::to_fields(&__child.value),
-                        ));
+                            ::confval::format::ToFields::#recurse(&__child.value),
+                        )#doc);
                     }
                 }
             }
@@ -119,31 +136,47 @@ pub(crate) fn field_emit(
             for __child in &self.#ident {
                 __items.push(::confval::format::Field::detached_block(
                     #name,
-                    ::confval::format::ToFields::to_fields(&__child.value),
-                ));
+                    ::confval::format::ToFields::#recurse(&__child.value),
+                )#doc);
             }
         },
     }
 }
 
-/// Assembles the field fragments into the generated `impl ToFields`.
+/// Assembles the field fragments into the generated `impl ToFields`, with both
+/// the plain `to_fields` walk and the annotated `to_template` walk.
 ///
 /// A struct with no fields declares the item vector without `mut`, so the
 /// generated impl carries no unused-mut warning under `-D warnings`.
-pub(crate) fn to_fields_impl(name: &Ident, emits: &[TokenStream2]) -> TokenStream2 {
-    let items_decl = if emits.is_empty() {
-        quote! { let __items = ::std::vec::Vec::new(); }
-    } else {
-        quote! { let mut __items = ::std::vec::Vec::new(); }
-    };
+pub(crate) fn to_fields_impl(
+    name: &Ident,
+    fields_emits: &[TokenStream2],
+    template_emits: &[TokenStream2],
+) -> TokenStream2 {
+    let fields_decl = items_decl(fields_emits);
+    let template_decl = items_decl(template_emits);
     quote! {
         impl ::confval::format::ToFields for #name {
             fn to_fields(&self) -> ::confval::format::Fields {
-                #items_decl
-                #(#emits)*
+                #fields_decl
+                #(#fields_emits)*
+                ::confval::format::Fields::detached(__items)
+            }
+
+            fn to_template(&self) -> ::confval::format::Fields {
+                #template_decl
+                #(#template_emits)*
                 ::confval::format::Fields::detached(__items)
             }
         }
+    }
+}
+
+fn items_decl(emits: &[TokenStream2]) -> TokenStream2 {
+    if emits.is_empty() {
+        quote! { let __items = ::std::vec::Vec::new(); }
+    } else {
+        quote! { let mut __items = ::std::vec::Vec::new(); }
     }
 }
 

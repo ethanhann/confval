@@ -1,8 +1,10 @@
 //! Reading the per-field `#[confval(...)]` options for `#[derive(Spec)]`.
 //!
-//! A spec field can be annotated with `#[confval(nested)]` and/or
-//! `#[confval(default)]` / `#[confval(default = expr)]`. This module turns those
-//! attributes into a plain [`FieldOptions`] struct the rest of the derive reads.
+//! A spec field can be annotated with `#[confval(nested)]`,
+//! `#[confval(default)]` / `#[confval(default = expr)]`, and
+//! `#[confval(doc = "...")]`. This module turns those attributes, plus a
+//! harvested `///` doc comment, into a plain [`FieldOptions`] struct the rest of
+//! the derive reads.
 
 use syn::{DeriveInput, Expr, Field};
 
@@ -53,6 +55,10 @@ pub(crate) struct FieldOptions {
     /// - `Some(None)`        `#[confval(default)]`, use the type's `Default`.
     /// - `Some(Some(expr))`  `#[confval(default = expr)]`, use `expr`.
     pub(crate) default: Option<Option<Expr>>,
+    /// The doc comment `to_template` renders above the field, or `None`. Comes
+    /// from `#[confval(doc = "...")]` if present, otherwise the field's `///`
+    /// doc comments joined into one string.
+    pub(crate) doc: Option<String>,
 }
 
 /// Reads a field's `#[confval(...)]` attributes into [`FieldOptions`].
@@ -64,7 +70,9 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
     let mut options = FieldOptions {
         nested: false,
         default: None,
+        doc: None,
     };
+    let mut confval_doc = None;
     for attr in &field.attrs {
         if !attr.path().is_ident("confval") {
             continue;
@@ -81,10 +89,44 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                     options.default = Some(None);
                 }
                 Ok(())
+            } else if meta.path.is_ident("doc") {
+                let text: syn::LitStr = meta.value()?.parse()?;
+                confval_doc = Some(text.value());
+                Ok(())
             } else {
-                Err(meta.error("unknown confval attribute; expected `nested` or `default`"))
+                Err(meta.error("unknown confval attribute; expected `nested`, `default`, or `doc`"))
             }
         })?;
     }
+    // A `#[confval(doc = "...")]` overrides the harvested `///` comment.
+    options.doc = confval_doc.or_else(|| harvest_doc_comment(&field.attrs));
     Ok(options)
+}
+
+/// Joins a field's `///` doc comments into one string, one line per `#[doc]`
+/// attribute, trimming the single leading space `///` inserts on each line.
+/// Returns `None` when the field has no doc comment.
+fn harvest_doc_comment(attrs: &[syn::Attribute]) -> Option<String> {
+    let lines: Vec<String> = attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("doc"))
+        .filter_map(|attr| match &attr.meta {
+            syn::Meta::NameValue(name_value) => match &name_value.value {
+                syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(text),
+                    ..
+                }) => {
+                    let raw = text.value();
+                    Some(raw.strip_prefix(' ').unwrap_or(&raw).to_string())
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    if lines.is_empty() {
+        None
+    } else {
+        Some(lines.join("\n"))
+    }
 }

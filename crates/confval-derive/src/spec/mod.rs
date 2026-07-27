@@ -78,8 +78,10 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     // `#[confval(derive_default)]` fills this with one fragment per field, used
     // to build the generated `Default` impl.
     let mut default_ctors = Vec::new();
-    // One fragment per field for the `ToFields` populate walk, always built.
+    // One fragment per field for each `ToFields` walk, the plain `to_fields`
+    // and the annotated `to_template`, always built.
     let mut to_fields_emits = Vec::new();
+    let mut to_template_emits = Vec::new();
 
     for field in &fields.named {
         let ident = field.ident.as_ref().ok_or_else(|| {
@@ -102,9 +104,11 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         // `ValidateNested` impl, so it contributes to both.
         visits.extend(nested_visit(&shape, ident));
 
-        // The populate walk emits one fragment per field, read off the same
-        // shape and options, so `ToFields` cannot drift from the parser.
-        to_fields_emits.push(field_emit(ident, &shape, &options));
+        // The populate walks emit one fragment per field, read off the same
+        // shape and options, so `ToFields` cannot drift from the parser. The
+        // template walk attaches the field's doc comment.
+        to_fields_emits.push(field_emit(ident, &shape, &options, false));
+        to_template_emits.push(field_emit(ident, &shape, &options, true));
 
         // Emit the parsing fragments for this field, tailored to its shape.
         match shape {
@@ -235,7 +239,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     } else {
         quote! {}
     };
-    let to_fields = to_fields_impl(name, &to_fields_emits);
+    let to_fields = to_fields_impl(name, &to_fields_emits, &to_template_emits);
 
     // Splice the four parsing buckets into the generated parser. This is the
     // code that runs at the caller's runtime, once per parsed struct.
