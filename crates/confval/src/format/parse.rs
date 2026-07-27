@@ -1,11 +1,11 @@
 //! The leaf parsers over the format-neutral field model.
 //!
-//! Each function reads one [`Field`](crate::format::field::Field) from a
+//! Each function reads one [`Field`] from a
 //! [`Fields`](crate::format::field::Fields) tree, coerces it to a Rust type, and
 //! reports a diagnostic when the shape does not match. They name no format: the
 //! same parser runs whether the tree came from HCL, TOML, or a populated spec.
 //! `#[derive(Spec)]` calls them, and so does a hand-written
-//! [`FromFields`](crate::format::field::FromFields) impl.
+//! [`FromFields`] impl.
 
 use super::field::{Field, FieldKind, FromFields, Scalar, Value, ValueKind};
 use crate::diagnostic::Report;

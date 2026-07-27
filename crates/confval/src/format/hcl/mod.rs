@@ -6,8 +6,7 @@
 //! `hcl_edit` type escapes. The leaf parsers, the derive-generated walks, and
 //! the hand-written [`FromFields`] impls all work against the neutral model.
 //!
-//! The write path, [`emit_hcl`], lives in the sibling
-//! [`emit`](crate::format::hcl::emit) module.
+//! The write path, [`emit_hcl`], lives in the sibling `emit` module.
 //!
 //! HCL offers two spellings for nested structures: blocks (`server { ... }`)
 //! and object-valued attributes (`server = { ... }`). A block becomes a
