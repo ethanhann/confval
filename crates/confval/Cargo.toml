@@ -79,5 +79,9 @@ name = "template"
 required-features = ["derive", "toml", "hcl"]
 
 [[test]]
+name = "layering"
+required-features = ["derive", "toml", "layering"]
+
+[[test]]
 name = "validate_traversal"
 required-features = ["derive"]
