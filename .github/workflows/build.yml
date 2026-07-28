@@ -113,3 +113,6 @@ jobs:
 
       - name: Build
         run: cargo build -p confval --locked ${{ matrix.features.flags }}
+
+      - name: Test
+        run: cargo test -p confval --locked ${{ matrix.features.flags }}
