@@ -182,6 +182,12 @@ A value with no representation, such as a TOML datetime, fails in any format.
 A name that is not a valid identifier fails when you emit HCL, which has no way to quote it, while TOML quotes it without trouble.
 HCL also spells a value and a block side by side under one name.
 A TOML key names one thing, so `emit_toml` refuses that pair rather than silently dropping one of the two.
+A name used twice for plain values has no spelling in either format, so both emitters refuse it as well.
+Each emit error names the dotted path of the field responsible, so a failure in a large tree points at its location.
+
+A tree assembled by layering can carry unparsed text from an environment variable or a command line flag.
+That text emits as a string literal, since its type was never decided.
+A typed reparse of the emitted file therefore reads those leaves as strings.
 
 ## Detached Spans and the Fixed Point
 

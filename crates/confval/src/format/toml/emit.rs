@@ -5,7 +5,7 @@
 //! doc comments an annotated template carries.
 
 use crate::format::EmitError;
-use crate::format::emit::comment_lines;
+use crate::format::emit::{child_path, comment_lines};
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 use std::collections::HashSet;
 use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Value as TomlValue};
@@ -17,46 +17,80 @@ use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Val
 /// comments and layout the neutral model never held. Same-named blocks at one
 /// level group into a `[[array of tables]]`, so a repeated block keeps every
 /// element rather than overwriting a sibling. It fails on a
-/// [`ValueKind::Other`] and on a level where a value and a block share one
-/// name, which TOML cannot spell. Populate produces neither, so both arise
-/// only for a parsed or hand-built `Fields`.
+/// [`ValueKind::Other`] and on a name with conflicting uses at one level: a
+/// value next to a same-named block, two same-named values, or any repetition
+/// inside an inline table. Populate produces none of these, so they arise only
+/// for a parsed or hand-built `Fields`.
 pub fn emit_toml(fields: &Fields) -> Result<String, EmitError> {
     let mut document = DocumentMut::new();
-    emit_table(fields, document.as_table_mut())?;
-    Ok(document.to_string())
+    emit_table(fields, document.as_table_mut(), "")?;
+    let text = document.to_string();
+    // A doc-commented section carries a leading blank line to separate it from
+    // what precedes it. At the top of the document nothing precedes it.
+    match text.strip_prefix('\n') {
+        Some(stripped) => Ok(stripped.to_string()),
+        None => Ok(text),
+    }
 }
 
-/// A name held by both a value field and a block field at one level. A TOML
-/// key names one thing, so inserting both would silently overwrite one, and
-/// emit refuses instead.
+/// A name whose uses at one level TOML cannot spell side by side. Repeated
+/// blocks group into an array of tables, so a name repeated only by blocks is
+/// fine. Any other repetition, two values or a value next to a block, would
+/// silently overwrite one of them, and emit refuses instead.
 fn conflicting_name(fields: &Fields) -> Option<&str> {
-    let block_names: HashSet<&str> = fields
-        .iter()
-        .filter(|field| matches!(field.kind, FieldKind::Block(_)))
-        .map(|field| field.name.as_str())
-        .collect();
-    fields
-        .iter()
-        .find(|field| {
-            matches!(field.kind, FieldKind::Value(_)) && block_names.contains(field.name.as_str())
-        })
-        .map(|field| field.name.as_str())
+    fields.iter().find_map(|field| {
+        let group = fields.iter().filter(|other| other.name == field.name);
+        let mut count = 0;
+        let mut all_blocks = true;
+        for other in group {
+            count += 1;
+            all_blocks &= matches!(other.kind, FieldKind::Block(_));
+        }
+        (count > 1 && !all_blocks).then_some(field.name.as_str())
+    })
+}
+
+/// A name repeated at all inside an inline table, where nothing can repeat,
+/// not even blocks, which have no array-of-tables spelling there.
+fn repeated_inline_name(fields: &Fields) -> Option<&str> {
+    fields.iter().find_map(|field| {
+        let count = fields
+            .iter()
+            .filter(|other| other.name == field.name)
+            .count();
+        (count > 1).then_some(field.name.as_str())
+    })
 }
 
 /// Fills a `toml_edit` table from a neutral level.
-fn emit_table(fields: &Fields, table: &mut Table) -> Result<(), EmitError> {
+fn emit_table(fields: &Fields, table: &mut Table, path: &str) -> Result<(), EmitError> {
     if let Some(name) = conflicting_name(fields) {
-        return Err(EmitError::ConflictingName(name.to_string()));
+        return Err(EmitError::ConflictingName {
+            name: name.to_string(),
+            path: path.to_string(),
+        });
     }
     let mut grouped: HashSet<&str> = HashSet::new();
     for field in fields.iter() {
         match &field.kind {
             FieldKind::Value(value) => {
-                table.insert(&field.name, item_of_value(value)?);
-                if let Some(doc) = &field.doc
-                    && let Some(mut entry) = table.get_key_value_mut(&field.name)
-                {
-                    entry.0.leaf_decor_mut().set_prefix(toml_comment(doc));
+                let child = child_path(path, &field.name);
+                let mut item = item_of_value(value, &child)?;
+                // An array of tables renders its key once per `[[element]]`,
+                // so a comment on the key would repeat. It goes above the
+                // first element instead, like the block path's grouped form.
+                if let Item::ArrayOfTables(array) = &mut item {
+                    if let (Some(doc), Some(first)) = (&field.doc, array.iter_mut().next()) {
+                        first.decor_mut().set_prefix(toml_block_comment(doc));
+                    }
+                    table.insert(&field.name, item);
+                } else {
+                    table.insert(&field.name, item);
+                    if let Some(doc) = &field.doc
+                        && let Some(mut entry) = table.get_key_value_mut(&field.name)
+                    {
+                        entry.0.leaf_decor_mut().set_prefix(toml_comment(doc));
+                    }
                 }
             }
             FieldKind::Block(_) => {
@@ -72,10 +106,17 @@ fn emit_table(fields: &Fields, table: &mut Table) -> Result<(), EmitError> {
                         _ => None,
                     })
                     .collect();
+                // Only one comment can render above the group, so the group
+                // takes the first doc any element carries.
+                let doc = fields
+                    .iter()
+                    .filter(|other| other.name == field.name)
+                    .find_map(|other| other.doc.as_deref());
+                let child = child_path(path, &field.name);
                 if blocks.len() == 1 {
                     let mut subtable = Table::new();
-                    emit_table(blocks[0], &mut subtable)?;
-                    if let Some(doc) = &field.doc {
+                    emit_table(blocks[0], &mut subtable, &child)?;
+                    if let Some(doc) = doc {
                         subtable.decor_mut().set_prefix(toml_block_comment(doc));
                     }
                     table.insert(&field.name, Item::Table(subtable));
@@ -85,9 +126,9 @@ fn emit_table(fields: &Fields, table: &mut Table) -> Result<(), EmitError> {
                     let mut array = ArrayOfTables::new();
                     for (index, inner) in blocks.into_iter().enumerate() {
                         let mut subtable = Table::new();
-                        emit_table(inner, &mut subtable)?;
+                        emit_table(inner, &mut subtable, &child)?;
                         if index == 0
-                            && let Some(doc) = &field.doc
+                            && let Some(doc) = doc
                         {
                             subtable.decor_mut().set_prefix(toml_block_comment(doc));
                         }
@@ -103,7 +144,7 @@ fn emit_table(fields: &Fields, table: &mut Table) -> Result<(), EmitError> {
 
 /// Maps one neutral value to a table item: a scalar, an inline array, an inline
 /// table, or a `[[array of tables]]` for a non-empty sequence of maps.
-fn item_of_value(value: &Value) -> Result<Item, EmitError> {
+fn item_of_value(value: &Value, path: &str) -> Result<Item, EmitError> {
     match &value.kind {
         ValueKind::Scalar(scalar) => Ok(Item::Value(toml_value_of_scalar(scalar))),
         ValueKind::Seq(elements) => {
@@ -116,49 +157,63 @@ fn item_of_value(value: &Value) -> Result<Item, EmitError> {
                 for element in elements {
                     if let ValueKind::Map(inner) = &element.kind {
                         let mut subtable = Table::new();
-                        emit_table(inner, &mut subtable)?;
+                        emit_table(inner, &mut subtable, path)?;
                         array.push(subtable);
                     }
                 }
                 Ok(Item::ArrayOfTables(array))
             } else {
-                Ok(Item::Value(TomlValue::Array(toml_array_of(elements)?)))
+                Ok(Item::Value(TomlValue::Array(toml_array_of(
+                    elements, path,
+                )?)))
             }
         }
-        ValueKind::Map(inner) => Ok(Item::Value(TomlValue::InlineTable(toml_inline_of(inner)?))),
-        ValueKind::Other(label) => Err(EmitError::UnrepresentableValue(label)),
+        ValueKind::Map(inner) => Ok(Item::Value(TomlValue::InlineTable(toml_inline_of(
+            inner, path,
+        )?))),
+        ValueKind::Other(label) => Err(EmitError::UnrepresentableValue {
+            label,
+            path: path.to_string(),
+        }),
     }
 }
 
 /// Maps one neutral value to an inline `toml_edit` value, for an array element
 /// or an inline-table entry. A sequence of maps is an inline array of inline
 /// tables here, because an array of tables has no inline spelling.
-fn toml_value_of(value: &Value) -> Result<TomlValue, EmitError> {
+fn toml_value_of(value: &Value, path: &str) -> Result<TomlValue, EmitError> {
     match &value.kind {
         ValueKind::Scalar(scalar) => Ok(toml_value_of_scalar(scalar)),
-        ValueKind::Seq(elements) => Ok(TomlValue::Array(toml_array_of(elements)?)),
-        ValueKind::Map(inner) => Ok(TomlValue::InlineTable(toml_inline_of(inner)?)),
-        ValueKind::Other(label) => Err(EmitError::UnrepresentableValue(label)),
+        ValueKind::Seq(elements) => Ok(TomlValue::Array(toml_array_of(elements, path)?)),
+        ValueKind::Map(inner) => Ok(TomlValue::InlineTable(toml_inline_of(inner, path)?)),
+        ValueKind::Other(label) => Err(EmitError::UnrepresentableValue {
+            label,
+            path: path.to_string(),
+        }),
     }
 }
 
-fn toml_array_of(elements: &[Value]) -> Result<Array, EmitError> {
+fn toml_array_of(elements: &[Value], path: &str) -> Result<Array, EmitError> {
     let mut array = Array::new();
     for element in elements {
-        array.push(toml_value_of(element)?);
+        array.push(toml_value_of(element, path)?);
     }
     Ok(array)
 }
 
-fn toml_inline_of(fields: &Fields) -> Result<InlineTable, EmitError> {
-    if let Some(name) = conflicting_name(fields) {
-        return Err(EmitError::ConflictingName(name.to_string()));
+fn toml_inline_of(fields: &Fields, path: &str) -> Result<InlineTable, EmitError> {
+    if let Some(name) = repeated_inline_name(fields) {
+        return Err(EmitError::ConflictingName {
+            name: name.to_string(),
+            path: path.to_string(),
+        });
     }
     let mut inline = InlineTable::new();
     for field in fields.iter() {
+        let child = child_path(path, &field.name);
         let value = match &field.kind {
-            FieldKind::Value(value) => toml_value_of(value)?,
-            FieldKind::Block(inner) => TomlValue::InlineTable(toml_inline_of(inner)?),
+            FieldKind::Value(value) => toml_value_of(value, &child)?,
+            FieldKind::Block(inner) => TomlValue::InlineTable(toml_inline_of(inner, &child)?),
         };
         inline.insert(&field.name, value);
     }
@@ -248,7 +303,13 @@ mod tests {
         // Act
         let result = emit_toml(&fields);
         // Assert
-        assert_eq!(result, Err(EmitError::ConflictingName("x".to_string())));
+        assert_eq!(
+            result,
+            Err(EmitError::ConflictingName {
+                name: "x".to_string(),
+                path: "".to_string(),
+            })
+        );
     }
 
     #[test]
@@ -265,7 +326,154 @@ mod tests {
         // Act
         let result = emit_toml(&fields);
         // Assert
-        assert_eq!(result, Err(EmitError::ConflictingName("x".to_string())));
+        assert_eq!(
+            result,
+            Err(EmitError::ConflictingName {
+                name: "x".to_string(),
+                path: "obj".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn emit_toml_writes_an_array_of_tables_doc_once() {
+        // Arrange
+        // The key of an array of tables renders once per `[[element]]`, so a
+        // comment on the key would repeat. It belongs above the first element,
+        // matching the block path's pinned behavior.
+        let map = |port: i64| {
+            Value::detached(ValueKind::Map(Fields::detached(vec![scalar(
+                "port",
+                Scalar::Int(port),
+            )])))
+        };
+        let fields = Fields::detached(vec![
+            Field::detached_value("svc", Value::detached(ValueKind::Seq(vec![map(1), map(2)])))
+                .with_doc(Some("A service entry.".to_string())),
+        ]);
+        // Act
+        let text = emit_toml(&fields).unwrap();
+        // Assert
+        assert_eq!(
+            text.matches("# A service entry.").count(),
+            1,
+            "got:\n{text}"
+        );
+        assert_eq!(text.matches("[[svc]]").count(), 2, "got:\n{text}");
+    }
+
+    #[test]
+    fn emit_toml_starts_a_doc_commented_first_table_without_a_blank_line() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            Field::detached_block(
+                "limits",
+                Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
+            )
+            .with_doc(Some("Request limits.".to_string())),
+        ]);
+        // Act
+        let text = emit_toml(&fields).unwrap();
+        // Assert
+        assert!(text.starts_with("# Request limits.\n"), "got: {text:?}");
+    }
+
+    #[test]
+    fn emit_toml_uses_a_later_blocks_doc_when_the_first_has_none() {
+        // Arrange
+        // Only one comment can render above the grouped array, so the group
+        // takes the first doc any element carries.
+        let block = |port: i64| {
+            Field::detached_block(
+                "svc",
+                Fields::detached(vec![scalar("port", Scalar::Int(port))]),
+            )
+        };
+        let fields = Fields::detached(vec![
+            block(1),
+            block(2).with_doc(Some("A service entry.".to_string())),
+        ]);
+        // Act
+        let text = emit_toml(&fields).unwrap();
+        // Assert
+        assert_eq!(
+            text.matches("# A service entry.").count(),
+            1,
+            "got:\n{text}"
+        );
+    }
+
+    #[test]
+    fn emit_toml_rejects_two_values_sharing_a_name() {
+        // Arrange
+        // A TOML key names one thing, so a second value under the same name
+        // would silently overwrite the first.
+        let fields = Fields::detached(vec![
+            scalar("x", Scalar::Int(1)),
+            scalar("x", Scalar::Int(2)),
+        ]);
+        // Act
+        let result = emit_toml(&fields);
+        // Assert
+        assert_eq!(
+            result,
+            Err(EmitError::ConflictingName {
+                name: "x".to_string(),
+                path: "".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn emit_toml_rejects_a_repeated_name_inside_an_inline_table() {
+        // Arrange
+        // Nothing repeats inside an inline table, not even blocks, which have
+        // no array-of-tables spelling there.
+        let pair = Fields::detached(vec![
+            scalar("x", Scalar::Int(1)),
+            scalar("x", Scalar::Int(2)),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_value(
+            "obj",
+            Value::detached(ValueKind::Map(pair)),
+        )]);
+        // Act
+        let result = emit_toml(&fields);
+        // Assert
+        assert_eq!(
+            result,
+            Err(EmitError::ConflictingName {
+                name: "x".to_string(),
+                path: "obj".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn emit_toml_names_the_nested_path_in_an_error() {
+        // Arrange
+        let fields = Fields::detached(vec![Field::detached_block(
+            "limits",
+            Fields::detached(vec![Field::detached_value(
+                "when",
+                Value::detached(ValueKind::Other("datetime")),
+            )]),
+        )]);
+        // Act
+        let result = emit_toml(&fields);
+        // Assert
+        let error = result.unwrap_err();
+        assert_eq!(
+            error,
+            EmitError::UnrepresentableValue {
+                label: "datetime",
+                path: "limits.when".to_string(),
+            }
+        );
+        assert_eq!(
+            error.to_string(),
+            "cannot emit datetime: the value has no representation in the model (at `limits.when`)"
+        );
     }
 
     #[test]
@@ -402,7 +610,10 @@ mod tests {
         )]);
         assert_eq!(
             emit_toml(&fields),
-            Err(EmitError::UnrepresentableValue("datetime"))
+            Err(EmitError::UnrepresentableValue {
+                label: "datetime",
+                path: "when".to_string(),
+            })
         );
     }
 

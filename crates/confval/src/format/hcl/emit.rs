@@ -5,7 +5,7 @@
 //! renders the doc comments an annotated template carries.
 
 use crate::format::EmitError;
-use crate::format::emit::comment_lines;
+use crate::format::emit::{child_path, comment_lines};
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 use hcl_edit::Decorate;
 use hcl_edit::Ident;
@@ -19,12 +19,14 @@ use hcl_edit::structure::{Attribute, Block, Body, Structure};
 /// comments and layout the neutral model never held. A nested struct emits as a
 /// block, a repeated block emits once per element, and a non-identifier object
 /// key is quoted. It fails on a non-identifier attribute or block name, which
-/// HCL cannot spell, and on a [`ValueKind::Other`]. Those two arise only when you
-/// emit a parsed `Fields`, not on the populate path. It also fails on the two
-/// numeric values HCL has no literal for, an `i64::MIN` and a non-finite float,
-/// which a populated spec can hold.
+/// HCL cannot spell, on a [`ValueKind::Other`], on two same-named values at one
+/// level, which HCL rejects as duplicate attributes, and on any repeated name
+/// inside an object. Those arise only when you emit a parsed or hand-built
+/// `Fields`, not on the populate path. It also fails on the two numeric values
+/// HCL has no literal for, an `i64::MIN` and a non-finite float, which a
+/// populated spec can hold.
 pub fn emit_hcl(fields: &Fields) -> Result<String, EmitError> {
-    Ok(emit_body(fields, 0)?.to_string())
+    Ok(emit_body(fields, 0, "")?.to_string())
 }
 
 /// Builds a `Body` indented for the given nesting level.
@@ -33,7 +35,15 @@ pub fn emit_hcl(fields: &Fields) -> Result<String, EmitError> {
 /// body carries a suffix of the block's own indent, which `hcl-edit` writes just
 /// before the closing brace, so the brace lines up with the opener. Without the
 /// suffix the brace would sit at column zero.
-fn emit_body(fields: &Fields, level: usize) -> Result<Body, EmitError> {
+fn emit_body(fields: &Fields, level: usize, path: &str) -> Result<Body, EmitError> {
+    // HCL repeats blocks freely and spells a value next to a block, but it
+    // rejects a duplicate attribute, and hcl-edit would keep only the first.
+    if let Some(name) = duplicate_attribute_name(fields) {
+        return Err(EmitError::ConflictingName {
+            name: name.to_string(),
+            path: path.to_string(),
+        });
+    }
     let indent = "  ".repeat(level);
     let mut body = Body::new();
     for field in fields.iter() {
@@ -42,14 +52,17 @@ fn emit_body(fields: &Fields, level: usize) -> Result<Body, EmitError> {
         let prefix = hcl_comment_prefix(&field.doc, &indent);
         match &field.kind {
             FieldKind::Value(value) => {
-                let mut attribute = Attribute::new(ident_of(&field.name)?, hcl_expr_of(value)?);
+                let child = child_path(path, &field.name);
+                let mut attribute =
+                    Attribute::new(ident_of(&field.name, path)?, hcl_expr_of(value, &child)?);
                 attribute.decor_mut().set_prefix(prefix);
                 body.push(Structure::Attribute(attribute));
             }
             FieldKind::Block(inner) => {
-                let mut block = Block::new(ident_of(&field.name)?);
+                let child = child_path(path, &field.name);
+                let mut block = Block::new(ident_of(&field.name, path)?);
                 block.decor_mut().set_prefix(prefix);
-                let mut inner_body = emit_body(inner, level + 1)?;
+                let mut inner_body = emit_body(inner, level + 1, &child)?;
                 inner_body.decor_mut().set_suffix(indent.clone());
                 block.body = inner_body;
                 body.push(Structure::Block(block));
@@ -83,27 +96,60 @@ fn hcl_comment_prefix(doc: &Option<String>, indent: &str) -> String {
     }
 }
 
-fn hcl_expr_of(value: &Value) -> Result<Expression, EmitError> {
+fn hcl_expr_of(value: &Value, path: &str) -> Result<Expression, EmitError> {
     match &value.kind {
-        ValueKind::Scalar(scalar) => hcl_expr_of_scalar(scalar),
+        ValueKind::Scalar(scalar) => hcl_expr_of_scalar(scalar, path),
         ValueKind::Seq(elements) => {
             let mut array = Array::new();
             for element in elements {
-                array.push(hcl_expr_of(element)?);
+                array.push(hcl_expr_of(element, path)?);
             }
             Ok(Expression::Array(array))
         }
-        ValueKind::Map(inner) => Ok(Expression::Object(hcl_object_of(inner)?)),
-        ValueKind::Other(label) => Err(EmitError::UnrepresentableValue(label)),
+        ValueKind::Map(inner) => Ok(Expression::Object(hcl_object_of(inner, path)?)),
+        ValueKind::Other(label) => Err(EmitError::UnrepresentableValue {
+            label,
+            path: path.to_string(),
+        }),
     }
 }
 
-fn hcl_object_of(fields: &Fields) -> Result<Object, EmitError> {
+/// A name used by more than one value field at one level, which HCL cannot
+/// spell as duplicate attributes.
+fn duplicate_attribute_name(fields: &Fields) -> Option<&str> {
+    fields.iter().find_map(|field| {
+        let values = fields
+            .iter()
+            .filter(|other| other.name == field.name && matches!(other.kind, FieldKind::Value(_)))
+            .count();
+        (values > 1).then_some(field.name.as_str())
+    })
+}
+
+/// A name repeated at all inside an object, which is a map with unique keys.
+fn repeated_object_name(fields: &Fields) -> Option<&str> {
+    fields.iter().find_map(|field| {
+        let count = fields
+            .iter()
+            .filter(|other| other.name == field.name)
+            .count();
+        (count > 1).then_some(field.name.as_str())
+    })
+}
+
+fn hcl_object_of(fields: &Fields, path: &str) -> Result<Object, EmitError> {
+    if let Some(name) = repeated_object_name(fields) {
+        return Err(EmitError::ConflictingName {
+            name: name.to_string(),
+            path: path.to_string(),
+        });
+    }
     let mut object = Object::new();
     for field in fields.iter() {
+        let child = child_path(path, &field.name);
         let value = match &field.kind {
-            FieldKind::Value(value) => hcl_expr_of(value)?,
-            FieldKind::Block(inner) => Expression::Object(hcl_object_of(inner)?),
+            FieldKind::Value(value) => hcl_expr_of(value, &child)?,
+            FieldKind::Block(inner) => Expression::Object(hcl_object_of(inner, &child)?),
         };
         object.insert(object_key_of(&field.name), ObjectValue::new(value));
     }
@@ -119,7 +165,7 @@ fn object_key_of(name: &str) -> ObjectKey {
     }
 }
 
-fn hcl_expr_of_scalar(scalar: &Scalar) -> Result<Expression, EmitError> {
+fn hcl_expr_of_scalar(scalar: &Scalar, path: &str) -> Result<Expression, EmitError> {
     let expr = match scalar {
         Scalar::String(string) => Expression::from(string.clone()),
         Scalar::Int(int) => {
@@ -130,7 +176,10 @@ fn hcl_expr_of_scalar(scalar: &Scalar) -> Result<Expression, EmitError> {
             // https://github.com/martinohmann/hcl-rs/pull/549. Once a released
             // hcl-edit round-trips i64::MIN, this rejection can be removed.
             if *int == i64::MIN {
-                return Err(EmitError::UnrepresentableValue("i64::MIN"));
+                return Err(EmitError::UnrepresentableValue {
+                    label: "i64::MIN",
+                    path: path.to_string(),
+                });
             }
             Expression::from(*int)
         }
@@ -138,7 +187,10 @@ fn hcl_expr_of_scalar(scalar: &Scalar) -> Result<Expression, EmitError> {
             // HCL has no literal for infinity or NaN. hcl-edit maps a non-finite
             // float to `null`, so refuse rather than silently change the value.
             if !float.is_finite() {
-                return Err(EmitError::UnrepresentableValue("non-finite float"));
+                return Err(EmitError::UnrepresentableValue {
+                    label: "non-finite float",
+                    path: path.to_string(),
+                });
             }
             // hcl-edit's own float conversion turns a whole-valued float into
             // an integer with a saturating cast, which corrupts a magnitude of
@@ -150,7 +202,12 @@ fn hcl_expr_of_scalar(scalar: &Scalar) -> Result<Expression, EmitError> {
                 Ok(expression) => expression,
                 // Unreachable: the debug form of a finite float is always a
                 // valid HCL number or a negation of one.
-                Err(_) => return Err(EmitError::UnrepresentableValue("float")),
+                Err(_) => {
+                    return Err(EmitError::UnrepresentableValue {
+                        label: "float",
+                        path: path.to_string(),
+                    });
+                }
             }
         }
         Scalar::Bool(boolean) => Expression::from(*boolean),
@@ -161,8 +218,11 @@ fn hcl_expr_of_scalar(scalar: &Scalar) -> Result<Expression, EmitError> {
 
 /// An attribute or block name must be a valid HCL identifier, because HCL has no
 /// quoted spelling for one. A non-identifier name is unrepresentable.
-fn ident_of(name: &str) -> Result<Ident, EmitError> {
-    Ident::try_new(name).map_err(|_| EmitError::UnrepresentableName(name.to_string()))
+fn ident_of(name: &str, path: &str) -> Result<Ident, EmitError> {
+    Ident::try_new(name).map_err(|_| EmitError::UnrepresentableName {
+        name: name.to_string(),
+        path: path.to_string(),
+    })
 }
 
 #[cfg(test)]
@@ -277,7 +337,10 @@ mod tests {
         let fields = Fields::detached(vec![scalar("weird key", Scalar::Int(1))]);
         assert_eq!(
             emit_hcl(&fields),
-            Err(EmitError::UnrepresentableName("weird key".to_string()))
+            Err(EmitError::UnrepresentableName {
+                name: "weird key".to_string(),
+                path: String::new(),
+            })
         );
     }
 
@@ -308,7 +371,10 @@ mod tests {
         )]);
         assert_eq!(
             emit_hcl(&fields),
-            Err(EmitError::UnrepresentableValue("string template"))
+            Err(EmitError::UnrepresentableValue {
+                label: "string template",
+                path: "name".to_string(),
+            })
         );
     }
 
@@ -320,7 +386,10 @@ mod tests {
         let fields = Fields::detached(vec![scalar("offset", Scalar::Int(i64::MIN))]);
         assert_eq!(
             emit_hcl(&fields),
-            Err(EmitError::UnrepresentableValue("i64::MIN"))
+            Err(EmitError::UnrepresentableValue {
+                label: "i64::MIN",
+                path: "offset".to_string(),
+            })
         );
     }
 
@@ -332,10 +401,95 @@ mod tests {
             let fields = Fields::detached(vec![scalar("rate", Scalar::Float(value))]);
             assert_eq!(
                 emit_hcl(&fields),
-                Err(EmitError::UnrepresentableValue("non-finite float")),
+                Err(EmitError::UnrepresentableValue {
+                    label: "non-finite float",
+                    path: "rate".to_string(),
+                }),
                 "value {value} should be rejected"
             );
         }
+    }
+
+    #[test]
+    fn emit_hcl_rejects_two_attributes_sharing_a_name() {
+        // Arrange
+        // HCL rejects a duplicate attribute at parse time, and hcl-edit keeps
+        // only the first on emit, so refusing beats losing one silently.
+        let fields = Fields::detached(vec![
+            scalar("x", Scalar::Int(1)),
+            scalar("x", Scalar::Int(2)),
+        ]);
+        // Act
+        let result = emit_hcl(&fields);
+        // Assert
+        assert_eq!(
+            result,
+            Err(EmitError::ConflictingName {
+                name: "x".to_string(),
+                path: "".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn emit_hcl_keeps_a_value_and_a_block_sharing_a_name() {
+        // Arrange
+        // HCL spells `x = 1` next to `x { }`, so the pair emits and reparses,
+        // unlike in TOML where the same pair is refused.
+        let fields = Fields::detached(vec![
+            scalar("x", Scalar::Int(1)),
+            Field::detached_block("x", Fields::detached(vec![scalar("y", Scalar::Int(2))])),
+        ]);
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+        // Assert
+        assert!(text.contains("x = 1"), "got: {text:?}");
+        assert!(text.contains("x {"), "got: {text:?}");
+        let round = reparse(&text);
+        assert_eq!(round.iter().count(), 2);
+    }
+
+    #[test]
+    fn emit_hcl_rejects_a_repeated_name_inside_an_object() {
+        // Arrange
+        // An object is a map, so a repeated key has no faithful spelling.
+        let pair = Fields::detached(vec![
+            scalar("x", Scalar::Int(1)),
+            scalar("x", Scalar::Int(2)),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_value(
+            "obj",
+            Value::detached(ValueKind::Map(pair)),
+        )]);
+        // Act
+        let result = emit_hcl(&fields);
+        // Assert
+        assert_eq!(
+            result,
+            Err(EmitError::ConflictingName {
+                name: "x".to_string(),
+                path: "obj".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn emit_hcl_names_the_nested_path_in_an_error() {
+        // Arrange
+        let fields = Fields::detached(vec![Field::detached_block(
+            "limits",
+            Fields::detached(vec![scalar("rate", Scalar::Float(f64::NAN))]),
+        )]);
+        // Act
+        let result = emit_hcl(&fields);
+        // Assert
+        assert_eq!(
+            result,
+            Err(EmitError::UnrepresentableValue {
+                label: "non-finite float",
+                path: "limits.rate".to_string(),
+            })
+        );
     }
 
     #[test]

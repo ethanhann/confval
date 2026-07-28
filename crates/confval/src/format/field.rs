@@ -185,6 +185,7 @@ impl Fields {
         self.items.iter()
     }
 
+    #[cfg(feature = "layering")]
     pub(crate) fn into_items(self) -> Vec<Field> {
         self.items
     }

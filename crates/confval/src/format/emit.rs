@@ -7,50 +7,83 @@
 //! literal for every value populate produces and quotes any key. Emitting a
 //! populated spec to HCL fails only for the two numeric values HCL cannot spell,
 //! an `i64::MIN` and a non-finite float. The remaining failures arise when you
-//! emit a `Fields` a frontend parsed, which can carry a name or a value the
-//! target format cannot spell, or an HCL level that pairs a value and a block
-//! under one name, which TOML cannot.
+//! emit a `Fields` a frontend parsed or built by hand, which can carry a name
+//! or a value the target format cannot spell, or use one name in conflicting
+//! ways at one level, such as a value next to a same-named block in TOML or
+//! two same-named values in either format.
+//!
+//! A layered tree can carry [`Scalar::Unparsed`](super::Scalar) text from an
+//! environment variable or a flag. That text emits as a string literal, since
+//! its type was never decided, so a typed reparse of the emitted file reads
+//! those leaves as strings.
 
 use std::fmt::{self, Display, Formatter};
 
 /// Why a `Fields` could not be emitted to a format.
+///
+/// Each variant carries `path`, the dotted field path to where the problem
+/// sits, so an error in a large tree names its location. For a name problem
+/// the path is the enclosing level, empty at the document root. For a value
+/// problem it is the offending field itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EmitError {
     /// A name has no representation in the target format, such as a
     /// non-identifier attribute or block name in HCL. TOML quotes any key, so
     /// this arises only for HCL.
-    UnrepresentableName(String),
+    UnrepresentableName { name: String, path: String },
     /// A `ValueKind::Other`, a value the neutral model could not represent such
     /// as an HCL template or a TOML datetime, so there is no literal to emit.
-    /// The string is the model's noun for it.
-    UnrepresentableValue(&'static str),
-    /// One level holds a value and a block under the same name. HCL spells the
-    /// pair side by side, but a TOML key names one thing, so emitting it would
-    /// silently lose one of the two. TOML emit refuses instead. Populate never
-    /// produces the pair, so this arises only for a parsed or hand-built
-    /// `Fields`.
-    ConflictingName(String),
+    /// The label is the model's noun for it.
+    UnrepresentableValue { label: &'static str, path: String },
+    /// A name used at one level in a way the target format cannot spell twice:
+    /// two values under one name in either format, a value next to a block in
+    /// TOML, or any repetition inside an inline table or object. Emitting
+    /// would silently lose one of the uses, so emit refuses. Populate never
+    /// produces these, so they arise only for a parsed or hand-built `Fields`.
+    ConflictingName { name: String, path: String },
+}
+
+/// The location suffix for an emit error message, empty at the document root.
+fn location(path: &str) -> String {
+    if path.is_empty() {
+        String::new()
+    } else {
+        format!(" (at `{path}`)")
+    }
+}
+
+/// The dotted path of a field under `path`, which is empty at the root.
+#[cfg(any(feature = "toml", feature = "hcl"))]
+pub(crate) fn child_path(path: &str, name: &str) -> String {
+    if path.is_empty() {
+        name.to_string()
+    } else {
+        format!("{path}.{name}")
+    }
 }
 
 impl Display for EmitError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            EmitError::UnrepresentableName(name) => {
+            EmitError::UnrepresentableName { name, path } => {
                 write!(
                     f,
-                    "cannot emit `{name}`: not a valid name in the target format"
+                    "cannot emit `{name}`: not a valid name in the target format{}",
+                    location(path)
                 )
             }
-            EmitError::UnrepresentableValue(label) => {
+            EmitError::UnrepresentableValue { label, path } => {
                 write!(
                     f,
-                    "cannot emit {label}: the value has no representation in the model"
+                    "cannot emit {label}: the value has no representation in the model{}",
+                    location(path)
                 )
             }
-            EmitError::ConflictingName(name) => {
+            EmitError::ConflictingName { name, path } => {
                 write!(
                     f,
-                    "cannot emit `{name}`: a value and a block share the name at one level"
+                    "cannot emit `{name}`: the name has conflicting uses at one level{}",
+                    location(path)
                 )
             }
         }
@@ -67,6 +100,7 @@ impl std::error::Error for EmitError {}
 /// becomes its own line, so a stray carriage return reads as the break it stands
 /// for. A control character other than tab is dropped, because HCL ends a comment
 /// at a bare carriage return and TOML rejects a non-printable one.
+#[cfg(any(feature = "toml", feature = "hcl"))]
 pub(crate) fn comment_lines(doc: &str) -> Vec<String> {
     doc.replace("\r\n", "\n")
         .replace('\r', "\n")
@@ -79,7 +113,7 @@ pub(crate) fn comment_lines(doc: &str) -> Vec<String> {
         .collect()
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(feature = "toml", feature = "hcl")))]
 mod tests {
     use super::*;
 
