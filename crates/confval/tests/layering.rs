@@ -84,7 +84,7 @@ mode = "enforce"
             &mut report,
         ))
         .join(parse_toml_fields(&sources, defaults, &mut report))
-        .into(&mut report);
+        .assemble(&mut report);
 
     // Assert
     assert!(!report.has_issues(), "issues: {:?}", report.issues());
@@ -120,7 +120,7 @@ fn a_bad_env_value_reports_a_type_mismatch_at_the_variable() {
             "CONFVAL_LAYERING_BAD_",
             &mut report,
         ))
-        .into(&mut report);
+        .assemble(&mut report);
 
     // Assert
     assert!(spec.is_none());
@@ -149,7 +149,7 @@ fn a_repeated_cli_flag_is_last_wins_through_the_assembly() {
             ["--port=1".to_string(), "--port=2".to_string()],
             &mut report,
         ))
-        .into(&mut report);
+        .assemble(&mut report);
 
     // Assert
     assert!(!report.has_issues(), "issues: {:?}", report.issues());
@@ -178,7 +178,7 @@ mode = "log"
     let spec: Option<ServerSpec> = Assembly::new()
         .merge(parse_toml_fields(&sources, base, &mut report))
         .join(parse_toml_fields(&sources, defaults, &mut report))
-        .into(&mut report);
+        .assemble(&mut report);
 
     // Assert
     assert!(!report.has_issues(), "issues: {:?}", report.issues());
@@ -206,7 +206,7 @@ fn a_kind_conflict_across_sources_is_reported_with_both_spans() {
             ["--limits=5".to_string()],
             &mut report,
         ))
-        .into(&mut report);
+        .assemble(&mut report);
 
     // Assert
     assert!(report.has_errors());

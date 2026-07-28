@@ -23,7 +23,7 @@
 //!     .merge(base)
 //!     .merge(env_fields(sources, "APP_", report))
 //!     .merge(cli_fields(sources, args, report))
-//!     .into::<T>(report);
+//!     .assemble::<T>(report);
 //! # spec
 //! # }
 //! ```
@@ -45,7 +45,7 @@ use merge::Verb;
 /// The builder borrows nothing. Each provider is a free function the caller
 /// invokes, so a provider's `&mut Report` borrow ends before the next runs and
 /// the chain never holds two mutable borrows of the report at once.
-/// [`into`](Assembly::into) takes the report once, at the end.
+/// [`assemble`](Assembly::assemble) takes the report once, at the end.
 #[derive(Default)]
 pub struct Assembly {
     layers: Vec<Layer>,
@@ -88,8 +88,7 @@ impl Assembly {
     /// errors from the source that failed. Otherwise the layers fold left to
     /// right, the first as the base, and `FromFields` runs on the merged
     /// `Fields`.
-    #[allow(clippy::should_implement_trait)]
-    pub fn into<T: FromFields>(self, report: &mut Report) -> Option<T> {
+    pub fn assemble<T: FromFields>(self, report: &mut Report) -> Option<T> {
         if self.layers.iter().any(|layer| layer.fields.is_none()) {
             return None;
         }
@@ -148,7 +147,10 @@ mod tests {
         );
         let over = cli_fields(&mut sources, vec!["--port=2".to_string()], &mut report);
         // Act
-        let server: Option<Server> = Assembly::new().merge(base).merge(over).into(&mut report);
+        let server: Option<Server> = Assembly::new()
+            .merge(base)
+            .merge(over)
+            .assemble(&mut report);
         // Assert
         let server = server.unwrap();
         assert_eq!(server.host, "filehost");
@@ -164,7 +166,10 @@ mod tests {
         let base = cli_fields(&mut sources, vec!["--host=only".to_string()], &mut report);
         let over = cli_fields(&mut sources, vec!["--port=8080".to_string()], &mut report);
         // Act
-        let server: Option<Server> = Assembly::new().merge(base).merge(over).into(&mut report);
+        let server: Option<Server> = Assembly::new()
+            .merge(base)
+            .merge(over)
+            .assemble(&mut report);
         // Assert
         assert_eq!(server.unwrap().port, 8080);
     }
@@ -180,7 +185,10 @@ mod tests {
             &mut report,
         );
         // Act: a provider that produced no tree is a `None` layer.
-        let server: Option<Server> = Assembly::new().merge(good).merge(None).into(&mut report);
+        let server: Option<Server> = Assembly::new()
+            .merge(good)
+            .merge(None)
+            .assemble(&mut report);
         // Assert
         assert!(server.is_none());
         assert!(!report.has_issues());
@@ -202,7 +210,10 @@ mod tests {
             &mut report,
         );
         // Act
-        let server: Option<Server> = Assembly::new().merge(base).join(defaults).into(&mut report);
+        let server: Option<Server> = Assembly::new()
+            .merge(base)
+            .join(defaults)
+            .assemble(&mut report);
         // Assert
         assert_eq!(server.unwrap().host, "primary");
     }

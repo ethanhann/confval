@@ -31,7 +31,7 @@ The sections that follow cover each part in more detail.
 
 Each configuration source becomes a layer through a provider function.
 A file uses `parse_hcl_fields` or `parse_toml_fields`, the environment uses `env_fields`, and the command line uses `cli_fields`.
-You pass the layers to `Assembly` in precedence order and call `into` with the spec type you want:
+You pass the layers to `Assembly` in precedence order and call `assemble` with the spec type you want:
 
 ```rust
 use confval::layering::{Assembly, cli_fields, env_fields};
@@ -46,10 +46,10 @@ let spec: Option<ServerSpec> = Assembly::new()
     .merge(parse_toml_fields(&sources, base, &mut report))
     .merge(env_fields(&mut sources, "APP_", &mut report))
     .merge(cli_fields(&mut sources, std::env::args(), &mut report))
-    .into(&mut report);
+    .assemble(&mut report);
 ```
 
-`into` merges the layers and runs the spec's parser once on the result.
+`assemble` merges the layers and runs the spec's parser once on the result.
 The value it returns is the same `ServerSpec` you would get from a single file, so you validate, gate, and lower it exactly as the [pipeline](../pipeline.md) describes.
 
 ## Building Layers
@@ -69,7 +69,7 @@ let cli_layer = cli_fields(&mut sources, std::env::args(), &mut report);
 ```
 
 A provider returns `None` when its source fails to parse, and it records the error in the report.
-When any layer is `None`, `into` returns `None` before parsing the spec, so check the report for errors after `into` as you would after parsing one file.
+When any layer is `None`, `assemble` returns `None` before parsing the spec, so check the report for errors after `assemble` as you would after parsing one file.
 
 ## Precedence
 
@@ -81,7 +81,7 @@ let spec: Option<ServerSpec> = Assembly::new()
     .merge(file_layer) // base
     .merge(env_layer)  // overrides the file
     .merge(cli_layer)  // overrides the environment
-    .into(&mut report);
+    .assemble(&mut report);
 ```
 
 `join` lets an earlier layer keep its value and fills only what it did not set.
@@ -91,7 +91,7 @@ Use it for a layer of fallback defaults that should not override anything alread
 let spec: Option<ServerSpec> = Assembly::new()
     .merge(file_layer)
     .join(defaults_layer) // fills gaps only
-    .into(&mut report);
+    .assemble(&mut report);
 ```
 
 When two layers set the same nested block, the blocks combine field by field.
