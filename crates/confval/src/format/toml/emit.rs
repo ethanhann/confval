@@ -211,6 +211,30 @@ mod tests {
     }
 
     #[test]
+    fn emit_toml_round_trips_a_non_finite_float() {
+        // TOML spells infinity and NaN as keywords, so these emit rather than
+        // fail, unlike the HCL emitter which has no literal for them.
+        for value in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            // Arrange
+            let fields = Fields::detached(vec![scalar("rate", Scalar::Float(value))]);
+
+            // Act
+            let text = emit_toml(&fields).unwrap();
+
+            // Assert
+            let round = reparse(&text);
+            let mut report = Report::new();
+            let parsed = parse_float_field(round.get("rate").unwrap(), &mut report).unwrap();
+            if value.is_nan() {
+                assert!(parsed.value.is_nan(), "emitted: {text:?}");
+            } else {
+                assert_eq!(parsed.value, value, "emitted: {text:?}");
+            }
+            assert!(!report.has_issues());
+        }
+    }
+
+    #[test]
     fn emit_toml_writes_canonical_text() {
         // Arrange
         let fields = Fields::detached(vec![

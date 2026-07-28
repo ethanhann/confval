@@ -140,7 +140,18 @@ fn hcl_expr_of_scalar(scalar: &Scalar) -> Result<Expression, EmitError> {
             if !float.is_finite() {
                 return Err(EmitError::UnrepresentableValue("non-finite float"));
             }
-            Expression::from(*float)
+            // hcl-edit's own float conversion turns a whole-valued float into
+            // an integer with a saturating cast, which corrupts a magnitude of
+            // 2^63 or more and drops the float spelling everywhere else.
+            // Parsing the float's shortest round-trip text instead keeps the
+            // emitted literal exact, because a parsed expression renders its
+            // own text verbatim.
+            match format!("{float:?}").parse::<Expression>() {
+                Ok(expression) => expression,
+                // Unreachable: the debug form of a finite float is always a
+                // valid HCL number or a negation of one.
+                Err(_) => return Err(EmitError::UnrepresentableValue("float")),
+            }
         }
         Scalar::Bool(boolean) => Expression::from(*boolean),
         Scalar::Unparsed(raw) => Expression::from(raw.clone()),
@@ -160,7 +171,9 @@ mod tests {
     use super::*;
     use crate::diagnostic::Report;
     use crate::format::field::{Field, FromFields};
-    use crate::format::parse::{parse_int_field, parse_string_field, parse_struct_list_field};
+    use crate::format::parse::{
+        parse_float_field, parse_int_field, parse_string_field, parse_struct_list_field,
+    };
     use crate::source::{Located, SourceMap};
 
     struct Probe;
@@ -322,6 +335,55 @@ mod tests {
                 Err(EmitError::UnrepresentableValue("non-finite float")),
                 "value {value} should be rejected"
             );
+        }
+    }
+
+    #[test]
+    fn emit_hcl_writes_a_float_as_a_float_literal() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("whole", Scalar::Float(4.0)),
+            scalar("fractional", Scalar::Float(1.5)),
+        ]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        // A whole-valued float keeps a float spelling, so the neutral model's
+        // float kind survives the reparse instead of collapsing to an integer.
+        assert_eq!(text, "whole = 4.0\nfractional = 1.5\n");
+        let round = reparse(&text);
+        for name in ["whole", "fractional"] {
+            let FieldKind::Value(value) = &round.get(name).unwrap().kind else {
+                panic!("{name} should be an attribute");
+            };
+            assert!(
+                matches!(value.kind, ValueKind::Scalar(Scalar::Float(_))),
+                "{name} should reparse as a float, got: {:?}",
+                value.kind
+            );
+        }
+    }
+
+    #[test]
+    fn emit_hcl_round_trips_a_float_beyond_i64_range() {
+        // A whole float of magnitude 2^63 or more has no exact i64, so an
+        // integer collapse would saturate and corrupt the value.
+        let extremes = [1e19, -1e300, 9_223_372_036_854_775_808.0, 1.5e300];
+        for expected in extremes {
+            // Arrange
+            let fields = Fields::detached(vec![scalar("rate", Scalar::Float(expected))]);
+
+            // Act
+            let text = emit_hcl(&fields).unwrap();
+
+            // Assert
+            let round = reparse(&text);
+            let mut report = Report::new();
+            let parsed = parse_float_field(round.get("rate").unwrap(), &mut report).unwrap();
+            assert_eq!(parsed.value, expected, "emitted text: {text:?}");
+            assert!(!report.has_issues());
         }
     }
 
