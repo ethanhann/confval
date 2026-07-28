@@ -35,6 +35,7 @@ struct ServerSpec {
     /// The hostname to bind.
     /// Second line of the comment.
     hostname: Located<String>,
+    /// This rustdoc must lose to the attribute.
     #[confval(doc = "The listen port (overridden text).")]
     port: Located<i64>,
     workers: Located<i64>,
@@ -65,6 +66,26 @@ fn sample() -> ServerSpec {
             }),
         ],
     }
+}
+
+#[test]
+fn a_doc_attribute_wins_over_a_rustdoc_on_the_same_field() {
+    // Arrange
+    // `port` carries both spellings, so this pins the precedence at
+    // `options.rs`, where the attribute is consulted before the harvested
+    // rustdoc.
+    let spec = sample();
+
+    // Act
+    let fields = spec.to_template();
+
+    // Assert
+    assert_eq!(
+        fields.get("port").unwrap().doc.as_deref(),
+        Some("The listen port (overridden text).")
+    );
+    let text = emit_toml(&fields).expect("emit toml");
+    assert!(!text.contains("This rustdoc must lose"), "got:\n{text}");
 }
 
 #[test]
