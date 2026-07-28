@@ -6,6 +6,8 @@
 //! harvested `///` doc comment, into a plain [`FieldOptions`] struct the rest of
 //! the derive reads.
 
+use proc_macro2::TokenStream as TokenStream2;
+use quote::quote;
 use syn::{DeriveInput, Expr, Field};
 
 /// The struct-level `#[confval(...)]` options for `#[derive(Spec)]`.
@@ -33,6 +35,9 @@ pub(crate) fn parse_struct_options(input: &DeriveInput) -> syn::Result<StructOpt
         }
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("derive_default") {
+                if options.derive_default {
+                    return Err(meta.error("duplicate confval attribute `derive_default`"));
+                }
                 options.derive_default = true;
                 Ok(())
             } else {
@@ -41,6 +46,21 @@ pub(crate) fn parse_struct_options(input: &DeriveInput) -> syn::Result<StructOpt
         })?;
     }
     Ok(options)
+}
+
+impl FieldOptions {
+    /// The value expression a requested default resolves to: the given `expr`
+    /// for `#[confval(default = expr)]`, the type's `Default` for a bare
+    /// `#[confval(default)]`, and `None` when no default was requested.
+    ///
+    /// The parser's absent-field fill and the `derive_default` impl both read
+    /// this one mapping, so the two cannot disagree on what a default means.
+    pub(crate) fn default_value(&self) -> Option<TokenStream2> {
+        self.default.as_ref().map(|default| match default {
+            Some(expr) => quote! { #expr },
+            None => quote! { ::core::default::Default::default() },
+        })
+    }
 }
 
 /// What a field's `#[confval(...)]` attributes asked for.
@@ -79,9 +99,15 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
         }
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("nested") {
+                if options.nested {
+                    return Err(meta.error("duplicate confval attribute `nested`"));
+                }
                 options.nested = true;
                 Ok(())
             } else if meta.path.is_ident("default") {
+                if options.default.is_some() {
+                    return Err(meta.error("duplicate confval attribute `default`"));
+                }
                 if meta.input.peek(syn::Token![=]) {
                     let expr: Expr = meta.value()?.parse()?;
                     options.default = Some(Some(expr));
@@ -90,6 +116,9 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 }
                 Ok(())
             } else if meta.path.is_ident("doc") {
+                if confval_doc.is_some() {
+                    return Err(meta.error("duplicate confval attribute `doc`"));
+                }
                 let text: syn::LitStr = meta.value()?.parse()?;
                 confval_doc = Some(text.value());
                 Ok(())

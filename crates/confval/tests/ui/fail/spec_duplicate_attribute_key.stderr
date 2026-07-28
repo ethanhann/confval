@@ -1,0 +1,5 @@
+error: duplicate confval attribute `default`
+ --> tests/ui/fail/spec_duplicate_attribute_key.rs:7:28
+  |
+7 |     #[confval(default = 1, default = 2)]
+  |                            ^^^^^^^

@@ -7,7 +7,10 @@
 //! omitted resolve to the same value.
 //!
 //! This module reads the same `FieldShape` and `FieldOptions` the parser is
-//! built from, so the generated default cannot drift from what parsing fills.
+//! built from, and a leaf's value comes from the shared
+//! `FieldOptions::default_value`, the one mapping from a `default` attribute to
+//! its expression, so the generated default cannot drift from what parsing
+//! fills.
 
 use super::options::FieldOptions;
 use super::shape::FieldShape;
@@ -25,21 +28,24 @@ pub(crate) fn field_ctor(
     match shape {
         FieldShape::Leaf { optional, .. } => leaf_ctor(ident, *optional, options),
         // A string list is required unless it carries a bare `#[confval(default)]`,
-        // which the parser reads as the empty list.
+        // which the parser reads as the empty list. A `default = expr` has no
+        // meaning here. `reject_unsupported_default` reports it with a better
+        // span, and the arm refuses it too, so this match stands correct on
+        // its own rather than through call order.
         FieldShape::BareStringList => match options.default {
-            Some(_) => Ok(quote! { #ident: ::std::vec::Vec::new(), }),
-            None => Err(no_default_error(ident)),
+            Some(None) => Ok(quote! { #ident: ::std::vec::Vec::new(), }),
+            Some(Some(_)) | None => Err(no_default_error(ident)),
         },
         // A non-optional nested block defaults through a bare `#[confval(default)]`,
-        // which the parser reads as `S::default()`. A `default = expr` on this
-        // shape is already rejected by the parser.
+        // which the parser reads as `S::default()`. A `default = expr` is
+        // refused for the same reason as on the string list.
         FieldShape::Nested {
             optional: false, ..
         } => match options.default {
-            Some(_) => Ok(quote! {
+            Some(None) => Ok(quote! {
                 #ident: ::confval::source::Located::detached(::core::default::Default::default()),
             }),
-            None => Err(no_default_error(ident)),
+            Some(Some(_)) | None => Err(no_default_error(ident)),
         },
         // The parser fills these when absent, so no declaration is needed.
         FieldShape::OptionalWrappedStringList | FieldShape::Nested { optional: true, .. } => {
@@ -69,11 +75,8 @@ pub(crate) fn default_impl(name: &Ident, ctors: &[TokenStream2]) -> TokenStream2
 /// optional leaf with no default is `None`, which is what the parser leaves for
 /// an absent optional field.
 fn leaf_ctor(ident: &Ident, optional: bool, options: &FieldOptions) -> syn::Result<TokenStream2> {
-    let value = match &options.default {
-        Some(Some(expr)) => quote! { ::confval::source::Located::detached(#expr) },
-        Some(None) => {
-            quote! { ::confval::source::Located::detached(::core::default::Default::default()) }
-        }
+    let value = match options.default_value() {
+        Some(expr) => quote! { ::confval::source::Located::detached(#expr) },
         None => {
             if optional {
                 return Ok(quote! { #ident: ::core::option::Option::None, });

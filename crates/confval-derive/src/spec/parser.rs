@@ -16,7 +16,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
-use syn::{Expr, Field, Ident};
+use syn::{Field, Ident};
 
 /// The four generated fragments for one field, each spliced into the matching
 /// bucket in the parent's `from_fields`.
@@ -56,21 +56,19 @@ pub(crate) fn field_parser(
             let parser = leaf_parser(leaf);
             out.slot_decls
                 .push(quote! { let mut #slot = ::core::option::Option::None; });
-            match (&options.default, optional) {
-                (Some(default), true) => {
+            match (options.default_value(), optional) {
+                (Some(expr), true) => {
                     out.match_arms
                         .push(quote! { #field_name => #slot = #parser, });
-                    let expr = default_expr(default);
                     out.constructors.push(quote! {
                         #ident: #slot.or_else(|| ::core::option::Option::Some(
                             ::confval::source::Located::detached(#expr),
                         )),
                     });
                 }
-                (Some(default), false) => {
+                (Some(expr), false) => {
                     out.match_arms
                         .push(quote! { #field_name => #slot = #parser, });
-                    let expr = default_expr(default);
                     out.constructors.push(quote! {
                         #ident: #slot.unwrap_or_else(
                             || ::confval::source::Located::detached(#expr),
@@ -199,16 +197,6 @@ fn leaf_parser(leaf: &Leaf) -> TokenStream2 {
             ::confval::format::parse_string_field(__field, report)
                 .map(|__value| __value.map(::std::path::PathBuf::from))
         },
-    }
-}
-
-/// The generated expression for a leaf field's default value, used when the
-/// field is absent from the source. `#[confval(default = expr)]` uses `expr`;
-/// a bare `#[confval(default)]` falls back to the type's `Default`.
-fn default_expr(default: &Option<Expr>) -> TokenStream2 {
-    match default {
-        Some(expr) => quote! { #expr },
-        None => quote! { ::core::default::Default::default() },
     }
 }
 

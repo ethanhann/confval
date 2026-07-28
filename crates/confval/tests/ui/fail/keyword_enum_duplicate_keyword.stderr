@@ -1,0 +1,20 @@
+error[E0080]: evaluation panicked: keyword_enum!: two variants map to the same keyword
+ --> tests/ui/fail/keyword_enum_duplicate_keyword.rs:5:1
+  |
+5 | / keyword_enum!(Dup, {
+6 | |     A => "same",
+7 | |     B => "same",
+8 | | });
+  | |__^ evaluation of `_` failed here
+  |
+  = note: this error originates in the macro `$crate::panic::panic_2021` which comes from the expansion of the macro `keyword_enum` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unreachable pattern
+ --> tests/ui/fail/keyword_enum_duplicate_keyword.rs:7:10
+  |
+6 |     A => "same",
+  |          ------ matches all the relevant values
+7 |     B => "same",
+  |          ^^^^^^ no value can reach this
+  |
+  = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
