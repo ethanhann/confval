@@ -147,6 +147,7 @@ mod tests {
             name_span: sp(A, 0, 0),
             span: sp(A, 0, 0),
             source: A,
+            doc: None,
             kind: FieldKind::Value(Value {
                 span: sp(A, 0, 0),
                 kind: ValueKind::Scalar(value),
@@ -167,6 +168,7 @@ mod tests {
             name_span: sp(A, 0, 0),
             span: sp(A, 0, 0),
             source: A,
+            doc: None,
             kind: FieldKind::Value(Value {
                 span: sp(A, 0, 0),
                 kind: ValueKind::Seq(elements),
@@ -180,6 +182,7 @@ mod tests {
             name_span: sp(A, 0, 0),
             span: sp(A, 0, 0),
             source: A,
+            doc: None,
             kind: FieldKind::Block(Fields::new(A, sp(A, 0, 0), items)),
         }
     }
@@ -190,6 +193,7 @@ mod tests {
             name_span: sp(A, 0, 0),
             span: sp(A, 0, 0),
             source: A,
+            doc: None,
             kind: FieldKind::Value(Value {
                 span: sp(A, 0, 0),
                 kind: ValueKind::Map(Fields::new(A, sp(A, 0, 0), items)),

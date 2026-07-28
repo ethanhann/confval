@@ -8,6 +8,8 @@
 //! frontend does, so the leaf parsers, the derive-generated walks, and the
 //! hand-written [`FromFields`] impls work against it unchanged.
 //!
+//! The write path, [`emit_toml`], lives in the sibling `emit` module.
+//!
 //! TOML's structural shapes map onto the neutral model as follows:
 //!
 //! - A `[table]` section becomes a [`FieldKind::Block`], mirroring an HCL
@@ -25,6 +27,9 @@ use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, 
 use crate::source::{SourceId, SourceMap, Span};
 use std::ops::Range;
 use toml_edit::{Document, InlineTable, Item, Table, Value as TomlValue};
+
+mod emit;
+pub use emit::emit_toml;
 
 /// Parses one registered source into the neutral [`Fields`] tree.
 ///
@@ -145,6 +150,7 @@ fn field_of_item(
         span: entry_span(name_span, value_span),
         source,
         kind,
+        doc: None,
     }
 }
 
@@ -200,6 +206,7 @@ fn fields_of_inline_table(
             span,
             source,
             kind: FieldKind::Value(value),
+            doc: None,
         });
     }
     Fields::new(source, enclosing, items)
@@ -208,7 +215,7 @@ fn fields_of_inline_table(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::format::field::{
+    use crate::format::parse::{
         parse_bool_field, parse_float_field, parse_int_field, parse_string_field,
         parse_string_list_field, parse_struct_field, parse_struct_list_field, report_unknown_field,
     };

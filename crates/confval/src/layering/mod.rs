@@ -104,7 +104,7 @@ impl Assembly {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::format::field::{parse_int_field, parse_string_field};
+    use crate::format::parse::{parse_int_field, parse_string_field};
     use crate::source::SourceMap;
 
     struct Server {

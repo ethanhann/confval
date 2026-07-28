@@ -32,7 +32,7 @@ serde_json = { workspace = true, optional = true }
 owo-colors = { workspace = true, optional = true }
 hcl-edit = { workspace = true, optional = true }
 toml_edit = { workspace = true, optional = true }
-confval-derive = { version = "=0.5.0", path = "../confval-derive", optional = true }
+confval-derive = { version = "=0.6.0", path = "../confval-derive", optional = true }
 
 [dev-dependencies]
 hcl-edit = "0.9"
@@ -58,6 +58,10 @@ required-features = ["derive", "color", "toml"]
 name = "layering"
 required-features = ["derive", "color", "toml", "layering"]
 
+[[example]]
+name = "templates"
+required-features = ["derive", "color", "toml"]
+
 [[test]]
 name = "compile_fail"
 required-features = ["derive"]
@@ -65,6 +69,14 @@ required-features = ["derive"]
 [[test]]
 name = "hcl_end_to_end"
 required-features = ["derive", "hcl"]
+
+[[test]]
+name = "emit"
+required-features = ["derive", "toml", "hcl"]
+
+[[test]]
+name = "template"
+required-features = ["derive", "toml", "hcl"]
 
 [[test]]
 name = "validate_traversal"

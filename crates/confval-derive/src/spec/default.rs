@@ -33,14 +33,16 @@ pub(crate) fn field_ctor(
         // A non-optional nested block defaults through a bare `#[confval(default)]`,
         // which the parser reads as `S::default()`. A `default = expr` on this
         // shape is already rejected by the parser.
-        FieldShape::Nested { optional: false } => match options.default {
+        FieldShape::Nested {
+            optional: false, ..
+        } => match options.default {
             Some(_) => Ok(quote! {
                 #ident: ::confval::source::Located::detached(::core::default::Default::default()),
             }),
             None => Err(no_default_error(ident)),
         },
         // The parser fills these when absent, so no declaration is needed.
-        FieldShape::OptionalWrappedStringList | FieldShape::Nested { optional: true } => {
+        FieldShape::OptionalWrappedStringList | FieldShape::Nested { optional: true, .. } => {
             Ok(quote! { #ident: ::core::option::Option::None, })
         }
         FieldShape::NestedList => Ok(quote! { #ident: ::std::vec::Vec::new(), }),

@@ -1,0 +1,5 @@
+error: expected string literal
+ --> tests/ui/fail/spec_doc_not_string.rs:7:21
+  |
+7 |     #[confval(doc = 42)]
+  |                     ^^

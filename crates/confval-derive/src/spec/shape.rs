@@ -7,7 +7,7 @@
 //! switches on that shape.
 
 use crate::common::{last_segment, unwrap_generic};
-use syn::{Field, spanned::Spanned};
+use syn::{Field, Type, spanned::Spanned};
 
 /// The kind of a spec field, which decides how it is parsed.
 ///
@@ -27,8 +27,11 @@ pub(crate) enum FieldShape {
     OptionalWrappedStringList,
     /// A single nested sub-struct, `Located<S>` or `Option<Located<S>>`, parsed
     /// by recursing into `S`'s own generated parser. `optional` is true when
-    /// wrapped in `Option`.
-    Nested { optional: bool },
+    /// wrapped in `Option`. `spec_ty` is the inner type `S`, captured so the
+    /// populate walk can spell `<S as Default>::default()` when it fills an
+    /// absent marked block. The parser and traversal ignore it. It is boxed
+    /// because a `syn::Type` is large and would otherwise bloat every variant.
+    Nested { optional: bool, spec_ty: Box<Type> },
     /// A repeated nested sub-struct, `Vec<Located<S>>` (zero or more blocks).
     NestedList,
 }
@@ -76,8 +79,11 @@ pub(crate) fn classify(field: &Field, nested: bool) -> syn::Result<FieldShape> {
                 "nested list fields must be Vec<Located<S>>",
             ));
         }
-        if unwrap_generic(inner, "Located").is_some() {
-            return Ok(FieldShape::Nested { optional });
+        if let Some(spec_ty) = unwrap_generic(inner, "Located") {
+            return Ok(FieldShape::Nested {
+                optional,
+                spec_ty: Box::new(spec_ty.clone()),
+            });
         }
         return Err(syn::Error::new(
             ty.span(),

@@ -26,6 +26,11 @@ pub use pipeline::range::RangeConstraint;
 /// Each validator and its macro travel together, so the validated-range and
 /// keyword patterns each work from one import.
 ///
+/// The write-path trait [`ToFields`](format::ToFields) is in the prelude,
+/// because you call `spec.to_fields()` as a method and the trait must be in
+/// scope. Its parse counterpart [`FromFields`](format::FromFields) stays out,
+/// because a frontend calls it through its module path rather than as a method.
+///
 /// Format adapters stay out of the prelude. Use their explicit module path
 /// (`confval::format::hcl`). The diagnostic internals
 /// ([`Issue`](diagnostic::Issue), [`Severity`](diagnostic::Severity)) and the
@@ -35,6 +40,7 @@ pub mod prelude {
     pub use core::ops::ControlFlow;
 
     pub use crate::diagnostic::Report;
+    pub use crate::format::ToFields;
     pub use crate::pipeline::{Lower, Validate, ValidateNested, narrow};
     pub use crate::source::{Located, SourceMap, Span};
     pub use crate::{KeywordSet, RangeConstraint, keyword_enum, range_constraint};
