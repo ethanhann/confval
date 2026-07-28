@@ -16,7 +16,8 @@
 use crate::diagnostic::Report;
 use crate::source::{SourceId, Span};
 
-/// A scalar leaf: the four value kinds every supported format shares.
+/// A scalar leaf: the value kinds every supported format shares, plus the raw
+/// form a non-file source yields.
 ///
 /// Integers and floats are kept distinct so a format that separates them
 /// syntactically (TOML's `1` vs `1.0`) round-trips faithfully. A format with a

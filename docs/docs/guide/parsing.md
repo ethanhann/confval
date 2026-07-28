@@ -292,8 +292,13 @@ A frontend builds it, and from there nothing knows which format the text was.
   `[name]` in TOML).
   The split lets a diagnostic say "found block" rather than "found object".
 - **`Value`** is a span plus a `ValueKind`: a `Scalar`, a `Seq` (a list), a `Map` (nested fields), or `Other`.
-- **`Scalar`** is `String`, `Int(i64)`, `Float(f64)`, or `Bool`.
+- **`Scalar`** is `String`, `Int(i64)`, `Float(f64)`, `Bool`, or `Unparsed`.
   Integers and floats stay distinct so a format that separates them, like TOML's `1` and `1.0`, round-trips faithfully.
+- **`Unparsed(String)`** is the raw text of a value from a source that only carries strings, such as an environment
+  variable or a command line flag.
+  The leaf parsers coerce it to the type they expect, so the field's declared type decides what `"8080"` becomes.
+  No file frontend produces it.
+  A quoted string in a file stays a `String`.
 - **`Other(label)`** is a value that exists in the file but falls outside the model, such as an HCL template or a TOML
   datetime.
   It always surfaces as a plain type mismatch named by the label, for example `expected string, found datetime`.
