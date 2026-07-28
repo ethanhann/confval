@@ -351,3 +351,66 @@ fn raw_ident_fields_round_trip_in_both_formats() {
         raw_idents()
     );
 }
+
+// A leaf field declared after a nested block.
+//
+// TOML requires a bare key above any table header at the same level,
+// so populate emitting the block first relies on
+// toml_edit hoisting the leaf. This pins that reliance in both formats.
+#[derive(confval::Spec, PartialEq, Debug)]
+struct BlockThenLeaf {
+    #[confval(nested, default)]
+    limits: Option<Located<LimitsSpec>>,
+    port: Located<i64>,
+}
+
+impl Validate for BlockThenLeaf {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+fn parse_block_then_leaf<F>(text: &str, name: &str, parse: F) -> BlockThenLeaf
+where
+    F: Fn(&SourceMap, confval::source::SourceId, &mut Report) -> Option<BlockThenLeaf>,
+{
+    let mut sources = SourceMap::new();
+    let id = sources.add(name, text.to_string());
+    let mut report = Report::new();
+    let Some(spec) = parse(&sources, id, &mut report) else {
+        panic!("block-then-leaf config should parse: {text}");
+    };
+    assert!(!report.has_issues(), "issues: {:?}", report.issues());
+    spec
+}
+
+#[test]
+fn a_leaf_after_a_block_round_trips_in_both_formats() {
+    // Arrange
+    // `port` is declared after the filled `limits` block, so populate emits the
+    // block first.
+    let fields = BlockThenLeaf {
+        limits: None,
+        port: Located::detached(8080),
+    }
+    .to_fields();
+
+    // Act
+    let toml = emit_toml(&fields).expect("emit toml");
+    let hcl = emit_hcl(&fields).expect("emit hcl");
+    let from_toml = parse_block_then_leaf(&toml, "b.toml", parse_toml::<BlockThenLeaf>);
+    let from_hcl = parse_block_then_leaf(&hcl, "b.hcl", parse_hcl::<BlockThenLeaf>);
+
+    // Assert
+    // TOML hoists the leaf above the table header, so the bare key precedes
+    // `[limits]` and the text stays valid.
+    let port_at = toml.find("port =").expect("port key in toml");
+    let table_at = toml.find("[limits]").expect("limits table in toml");
+    assert!(
+        port_at < table_at,
+        "leaf must be hoisted above the table:\n{toml}"
+    );
+    // Both formats preserve the leaf that follows the block.
+    assert_eq!(from_toml.port.value, 8080);
+    assert_eq!(from_hcl.port.value, 8080);
+    assert!(from_toml.limits.is_some());
+    assert!(from_hcl.limits.is_some());
+}
