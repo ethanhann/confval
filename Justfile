@@ -30,7 +30,7 @@ validate-docs: check-doc-snippets
     cargo doc --all-features --no-deps
     cd docs && npm run build
 
-# Fail if RustRover mangled a borrow (e.g. "& x" or "& mut") inside a Rust code fence in the docs.
+# Fail if RustRover mangled a Rust code fence in the docs: a spread borrow ("& x", "( &x"), or a method chain reflowed to column zero.
 check-doc-snippets:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -40,12 +40,12 @@ check-doc-snippets:
       FNR == 1 { inrust = 0; incode = 0 }
       /^```rust/ { inrust = 1; incode = 1; next }
       /^```/ { if (incode) { incode = 0; inrust = 0 } else { incode = 1 } next }
-      inrust && ($0 ~ /[^&]& / || $0 ~ /^& /) { printf "%s:%d:%s\n", FILENAME, FNR, $0 }
+      inrust && ($0 ~ /[^&]& / || $0 ~ /^& / || $0 ~ /\( &/ || $0 ~ /^\./) { printf "%s:%d:%s\n", FILENAME, FNR, $0 }
     ' $files)
     if [ -n "$hits" ]; then
-      echo "Mangled borrows in Rust code fences (RustRover reformatting?):" >&2
+      echo "Mangled Rust code fences (RustRover reformatting?):" >&2
       echo "$hits" >&2
-      echo "Fix: change '& x' to '&x' and '& mut' to '&mut'." >&2
+      echo "Fix: change '& x' to '&x', '( &x' to '(&x', and indent a leading '.method' chain line." >&2
       exit 1
     fi
 
