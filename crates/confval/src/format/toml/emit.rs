@@ -16,16 +16,38 @@ use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Val
 /// builds a `toml_edit` document by structure and returns its text, dropping the
 /// comments and layout the neutral model never held. Same-named blocks at one
 /// level group into a `[[array of tables]]`, so a repeated block keeps every
-/// element rather than overwriting a sibling. It fails only on a
-/// [`ValueKind::Other`], which populate never produces.
+/// element rather than overwriting a sibling. It fails on a
+/// [`ValueKind::Other`] and on a level where a value and a block share one
+/// name, which TOML cannot spell. Populate produces neither, so both arise
+/// only for a parsed or hand-built `Fields`.
 pub fn emit_toml(fields: &Fields) -> Result<String, EmitError> {
     let mut document = DocumentMut::new();
     emit_table(fields, document.as_table_mut())?;
     Ok(document.to_string())
 }
 
+/// A name held by both a value field and a block field at one level. A TOML
+/// key names one thing, so inserting both would silently overwrite one, and
+/// emit refuses instead.
+fn conflicting_name(fields: &Fields) -> Option<&str> {
+    let block_names: HashSet<&str> = fields
+        .iter()
+        .filter(|field| matches!(field.kind, FieldKind::Block(_)))
+        .map(|field| field.name.as_str())
+        .collect();
+    fields
+        .iter()
+        .find(|field| {
+            matches!(field.kind, FieldKind::Value(_)) && block_names.contains(field.name.as_str())
+        })
+        .map(|field| field.name.as_str())
+}
+
 /// Fills a `toml_edit` table from a neutral level.
 fn emit_table(fields: &Fields, table: &mut Table) -> Result<(), EmitError> {
+    if let Some(name) = conflicting_name(fields) {
+        return Err(EmitError::ConflictingName(name.to_string()));
+    }
     let mut grouped: HashSet<&str> = HashSet::new();
     for field in fields.iter() {
         match &field.kind {
@@ -129,6 +151,9 @@ fn toml_array_of(elements: &[Value]) -> Result<Array, EmitError> {
 }
 
 fn toml_inline_of(fields: &Fields) -> Result<InlineTable, EmitError> {
+    if let Some(name) = conflicting_name(fields) {
+        return Err(EmitError::ConflictingName(name.to_string()));
+    }
     let mut inline = InlineTable::new();
     for field in fields.iter() {
         let value = match &field.kind {
@@ -208,6 +233,39 @@ mod tests {
             report.issues()
         );
         fields
+    }
+
+    #[test]
+    fn emit_toml_rejects_a_value_and_a_block_sharing_a_name() {
+        // Arrange
+        // HCL spells `x = 1` next to `x { }`, so a parsed Fields can hold
+        // both. A TOML key names one thing, so emitting the pair would lose
+        // one of them silently.
+        let fields = Fields::detached(vec![
+            scalar("x", Scalar::Int(1)),
+            Field::detached_block("x", Fields::detached(vec![scalar("y", Scalar::Int(2))])),
+        ]);
+        // Act
+        let result = emit_toml(&fields);
+        // Assert
+        assert_eq!(result, Err(EmitError::ConflictingName("x".to_string())));
+    }
+
+    #[test]
+    fn emit_toml_rejects_the_shared_name_inside_an_inline_table() {
+        // Arrange
+        let pair = Fields::detached(vec![
+            scalar("x", Scalar::Int(1)),
+            Field::detached_block("x", Fields::detached(vec![])),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_value(
+            "obj",
+            Value::detached(ValueKind::Map(pair)),
+        )]);
+        // Act
+        let result = emit_toml(&fields);
+        // Assert
+        assert_eq!(result, Err(EmitError::ConflictingName("x".to_string())));
     }
 
     #[test]

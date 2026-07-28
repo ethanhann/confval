@@ -43,11 +43,21 @@ pub(crate) fn combine(base: &Fields, incoming: &Fields, verb: Verb, report: &mut
             ([], _) => items.extend(in_group.into_iter().cloned()),
             ([acc], [inc]) => items.push(combine_field(acc, inc, verb, report)),
             // A repeated field is a nested list. The whole group replaces under
-            // merge and stands under join, mirroring the array rule.
-            (base_many, in_many) => match verb {
-                Verb::Merge => items.extend(in_many.iter().copied().cloned()),
-                Verb::Join => items.extend(base_many.iter().copied().cloned()),
-            },
+            // merge and stands under join, mirroring the array rule. A kind
+            // mismatch between the groups is the same cross-source conflict the
+            // one-to-one arm reports, judged by each group's first field since
+            // a parsed group is homogeneous.
+            (base_many, in_many) => {
+                if let (Some(acc), Some(incoming)) = (base_many.first(), in_many.first())
+                    && structural_fields(acc).is_some() != structural_fields(incoming).is_some()
+                {
+                    report_conflict(acc, incoming, report);
+                }
+                match verb {
+                    Verb::Merge => items.extend(in_many.iter().copied().cloned()),
+                    Verb::Join => items.extend(base_many.iter().copied().cloned()),
+                }
+            }
         }
     }
 
@@ -351,6 +361,58 @@ mod tests {
             merged.get("port").unwrap().kind,
             FieldKind::Block(_)
         ));
+    }
+
+    #[test]
+    fn repeated_blocks_against_a_scalar_report_a_conflict() {
+        // Arrange
+        // The group arm used to skip the kind check, so a scalar override
+        // silently replaced a repeated block group.
+        let base = level(
+            A,
+            sp(A, 0, 0),
+            vec![block("server", vec![]), block("server", vec![])],
+        );
+        let over = level(A, sp(A, 0, 0), vec![scalar("server", Scalar::Int(1))]);
+        let mut report = Report::new();
+        // Act
+        let merged = combine(&base, &over, Verb::Merge, &mut report);
+        // Assert
+        assert!(report.has_errors());
+        assert_eq!(
+            report.issues()[0].message,
+            "`server` is a value in one source and a block in another"
+        );
+        assert!(matches!(
+            merged.get("server").unwrap().kind,
+            FieldKind::Value(_)
+        ));
+        assert_eq!(merged.iter().count(), 1);
+    }
+
+    #[test]
+    fn repeated_blocks_against_repeated_blocks_replace_without_a_conflict() {
+        // Arrange
+        let base = level(
+            A,
+            sp(A, 0, 0),
+            vec![block("server", vec![]), block("server", vec![])],
+        );
+        let over = level(
+            A,
+            sp(A, 0, 0),
+            vec![
+                block("server", vec![scalar("port", Scalar::Int(1))]),
+                block("server", vec![scalar("port", Scalar::Int(2))]),
+                block("server", vec![scalar("port", Scalar::Int(3))]),
+            ],
+        );
+        let mut report = Report::new();
+        // Act
+        let merged = combine(&base, &over, Verb::Merge, &mut report);
+        // Assert
+        assert_eq!(merged.iter().count(), 3);
+        assert!(!report.has_issues());
     }
 
     #[test]

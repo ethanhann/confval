@@ -8,7 +8,8 @@
 //! populated spec to HCL fails only for the two numeric values HCL cannot spell,
 //! an `i64::MIN` and a non-finite float. The remaining failures arise when you
 //! emit a `Fields` a frontend parsed, which can carry a name or a value the
-//! target format cannot spell.
+//! target format cannot spell, or an HCL level that pairs a value and a block
+//! under one name, which TOML cannot.
 
 use std::fmt::{self, Display, Formatter};
 
@@ -23,6 +24,12 @@ pub enum EmitError {
     /// as an HCL template or a TOML datetime, so there is no literal to emit.
     /// The string is the model's noun for it.
     UnrepresentableValue(&'static str),
+    /// One level holds a value and a block under the same name. HCL spells the
+    /// pair side by side, but a TOML key names one thing, so emitting it would
+    /// silently lose one of the two. TOML emit refuses instead. Populate never
+    /// produces the pair, so this arises only for a parsed or hand-built
+    /// `Fields`.
+    ConflictingName(String),
 }
 
 impl Display for EmitError {
@@ -38,6 +45,12 @@ impl Display for EmitError {
                 write!(
                     f,
                     "cannot emit {label}: the value has no representation in the model"
+                )
+            }
+            EmitError::ConflictingName(name) => {
+                write!(
+                    f,
+                    "cannot emit `{name}`: a value and a block share the name at one level"
                 )
             }
         }

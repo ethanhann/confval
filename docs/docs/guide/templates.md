@@ -180,6 +180,8 @@ A spec that holds neither emits to HCL without failing.
 Emit can also fail on a `Fields` that a frontend parsed rather than populated, because a parsed model can carry a name or a value the target format cannot spell.
 A value with no representation, such as a TOML datetime, fails in any format.
 A name that is not a valid identifier fails when you emit HCL, which has no way to quote it, while TOML quotes it without trouble.
+HCL also spells a value and a block side by side under one name.
+A TOML key names one thing, so `emit_toml` refuses that pair rather than silently dropping one of the two.
 
 ## Detached Spans and the Fixed Point
 
