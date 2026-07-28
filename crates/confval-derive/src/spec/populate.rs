@@ -10,6 +10,7 @@ use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
+use syn::ext::IdentExt;
 use syn::Ident;
 
 /// The fragment that pushes one field onto the populated level's item vector,
@@ -25,7 +26,9 @@ pub(crate) fn field_emit(
     options: &FieldOptions,
     annotate: bool,
 ) -> TokenStream2 {
-    let name = ident.to_string();
+    // A field whose config key is a Rust keyword is a raw identifier, so strip
+    // the `r#` before it becomes the emitted key name.
+    let name = ident.unraw().to_string();
     // The template walk recurses with `to_template`, so a nested block's own
     // children carry their comments too. The plain walk recurses with
     // `to_fields`.

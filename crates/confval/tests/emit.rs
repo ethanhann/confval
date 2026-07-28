@@ -280,3 +280,68 @@ fn toml_emit_alone_preserves_a_parsed_map() {
     assert_eq!(reparsed, parse_holder(source));
     assert_eq!(reparsed.tls.as_ref().unwrap().value.cert.value, "a.pem");
 }
+
+// A spec whose config keys collide with Rust keywords, so the fields must be
+// written as raw identifiers. The config key is `type`, not the `r#type` spelling
+// the raw identifier carries.
+#[derive(confval::Spec, PartialEq, Debug)]
+struct RawIdents {
+    r#type: Located<String>,
+    r#match: Located<i64>,
+}
+
+impl Validate for RawIdents {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+fn raw_idents() -> RawIdents {
+    RawIdents {
+        r#type: Located::detached("service".to_string()),
+        r#match: Located::detached(7),
+    }
+}
+
+fn parse_raw_idents<F>(text: &str, name: &str, parse: F) -> RawIdents
+where
+    F: Fn(&SourceMap, confval::source::SourceId, &mut Report) -> Option<RawIdents>,
+{
+    let mut sources = SourceMap::new();
+    let id = sources.add(name, text.to_string());
+    let mut report = Report::new();
+    let Some(spec) = parse(&sources, id, &mut report) else {
+        panic!("raw-ident config should parse: {text}");
+    };
+    assert!(!report.has_issues(), "issues: {:?}", report.issues());
+    spec
+}
+
+#[test]
+fn raw_ident_fields_populate_under_their_bare_keys() {
+    // Arrange
+    let spec = raw_idents();
+
+    // Act
+    let fields = spec.to_fields();
+
+    // Assert
+    let names: Vec<&str> = fields.iter().map(|field| field.name.as_str()).collect();
+    assert_eq!(names, vec!["type", "match"]);
+}
+
+#[test]
+fn raw_ident_fields_round_trip_in_both_formats() {
+    // Arrange
+    let fields = raw_idents().to_fields();
+
+    // Act
+    let toml = emit_toml(&fields).expect("emit toml");
+    let hcl = emit_hcl(&fields).expect("emit hcl");
+
+    // Assert
+    // Emit spells the bare key, not the raw-identifier form.
+    assert!(toml.contains("type = "), "raw-ident key leaked: {toml}");
+    assert!(!toml.contains("r#type"), "raw-ident key leaked: {toml}");
+    assert!(hcl.contains("type = "), "raw-ident key leaked: {hcl}");
+    assert_eq!(parse_raw_idents(&toml, "k.toml", parse_toml::<RawIdents>), raw_idents());
+    assert_eq!(parse_raw_idents(&hcl, "k.hcl", parse_hcl::<RawIdents>), raw_idents());
+}

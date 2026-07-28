@@ -14,6 +14,7 @@ use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
+use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 use syn::{Expr, Field, Ident};
 
@@ -38,7 +39,10 @@ pub(crate) fn field_parser(
     shape: &FieldShape,
     options: &FieldOptions,
 ) -> FieldParser {
-    let field_name = ident.to_string();
+    // A field whose config key is a Rust keyword is a raw identifier, so strip
+    // the `r#` before it becomes the matched name. The slot and seen locals go
+    // through `format_ident!`, which already unraws, so they are not touched.
+    let field_name = ident.unraw().to_string();
     let slot = format_ident!("__{}", ident);
     let mut out = FieldParser {
         slot_decls: Vec::new(),
