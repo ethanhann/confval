@@ -5,6 +5,7 @@
 //! renders the doc comments an annotated template carries.
 
 use crate::format::EmitError;
+use crate::format::emit::comment_lines;
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 use hcl_edit::Decorate;
 use hcl_edit::Ident;
@@ -65,13 +66,13 @@ fn hcl_comment_prefix(doc: &Option<String>, indent: &str) -> String {
     match doc {
         Some(text) => {
             let mut out = String::new();
-            for line in text.split('\n') {
+            for line in comment_lines(text) {
                 out.push_str(indent);
                 if line.is_empty() {
                     out.push_str("#\n");
                 } else {
                     out.push_str("# ");
-                    out.push_str(line);
+                    out.push_str(&line);
                     out.push('\n');
                 }
             }
@@ -322,5 +323,18 @@ mod tests {
                 "value {value} should be rejected"
             );
         }
+    }
+
+    #[test]
+    fn emit_hcl_normalizes_a_control_char_in_a_doc_comment() {
+        // A lone carriage return in a doc override would end an HCL comment early.
+        // Emit splits it into a second comment line, so the template reparses.
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(1)).with_doc(Some("line one\rline two".to_string())),
+        ]);
+        let text = emit_hcl(&fields).unwrap();
+        assert!(text.contains("# line one\n"), "got: {text:?}");
+        assert!(text.contains("# line two\n"), "got: {text:?}");
+        reparse(&text);
     }
 }

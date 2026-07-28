@@ -5,6 +5,7 @@
 //! doc comments an annotated template carries.
 
 use crate::format::EmitError;
+use crate::format::emit::comment_lines;
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 use std::collections::HashSet;
 use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Value as TomlValue};
@@ -145,12 +146,12 @@ fn toml_inline_of(fields: &Fields) -> Result<InlineTable, EmitError> {
 /// comment carries no indentation.
 fn toml_comment(doc: &str) -> String {
     let mut out = String::new();
-    for line in doc.split('\n') {
+    for line in comment_lines(doc) {
         if line.is_empty() {
             out.push_str("#\n");
         } else {
             out.push_str("# ");
-            out.push_str(line);
+            out.push_str(&line);
             out.push('\n');
         }
     }
@@ -406,5 +407,17 @@ mod tests {
             limits.get("burst").map(|f| &f.kind),
             Some(FieldKind::Block(_))
         ));
+    }
+
+    #[test]
+    fn emit_toml_normalizes_a_control_char_in_a_doc_comment() {
+        // A NUL is not a printable TOML comment character. Emit drops it, so the
+        // template reparses.
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(1)).with_doc(Some("a\0b".to_string())),
+        ]);
+        let text = emit_toml(&fields).unwrap();
+        assert!(text.contains("# ab\n"), "got: {text:?}");
+        reparse(&text);
     }
 }
