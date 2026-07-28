@@ -75,25 +75,22 @@ struct ServerSpec {
     port: Located<i64>,
     #[confval(default = 4)]
     workers: Located<i64>,
+    #[confval(default = false)]
+    tls: Located<bool>,
+    // Optional in the source. When the block is omitted, the spec keeps it
+    // `None`, so a spec dump stays source-faithful. The config side fills the
+    // default at lowering time.
     #[confval(nested)]
     limits: Option<Located<LimitsSpec>>,
 }
 
 #[derive(confval::Spec)]
+#[confval(derive_default)]
 struct LimitsSpec {
     #[confval(default = 16)]
     max_body_mb: Located<i64>,
     #[confval(default = "enforce".to_string())]
     mode: Located<String>,
-}
-
-impl Default for LimitsSpec {
-    fn default() -> Self {
-        Self {
-            max_body_mb: Located::detached(16),
-            mode: Located::detached("enforce".to_string()),
-        }
-    }
 }
 
 impl Validate for LimitsSpec {
@@ -115,6 +112,14 @@ impl Validate for ServerSpec {
                 .help("Set hostname to a reachable address, e.g. \"127.0.0.1\".")
                 .emit();
         }
+
+        if self.hostname.value == "0.0.0.0" {
+            report
+                .warning("hostname set to listen on every available network device")
+                .at(self.hostname.span)
+                .help("This might be undesired.")
+                .emit();
+        }
     }
 }
 
@@ -126,6 +131,10 @@ struct ServerConfig {
     port: u16,
     #[confval(lower(from = workers, with = workers_to_usize))]
     workers: usize,
+    tls: bool,
+    // The spec field is `Option<Located<LimitsSpec>>`. With `default` an absent
+    // block lowers `LimitsSpec::default()` instead of producing a missing-field
+    // error, and the runtime field stays non-optional.
     #[confval(nested, default)]
     limits: LimitsConfig,
 }
@@ -175,6 +184,11 @@ limits {
         "listening on {}:{} with {} workers",
         config.hostname, config.port, config.workers
     );
+    println!(
+        "limits: max_body_mb={} mode={}",
+        config.limits.max_body_mb, config.limits.mode
+    );
+    println!("tls: {}", config.tls);
 }
 ```
 
@@ -183,7 +197,9 @@ limits {
 The program above has four parts.
 Each maps to one stage of the [pipeline](pipeline.md) and has its own guide page for the detail.
 
-- The spec types, `ServerSpec` and `LimitsSpec`, declare the fields you parse a file into. See [Parsing](./guide/parsing.md).
+- The spec types, `ServerSpec` and `LimitsSpec`, declare the fields you parse a file into.
+  `#[confval(derive_default)]` on `LimitsSpec` derives its `Default` from the same attribute defaults that fill an omitted field.
+  See [Parsing](./guide/parsing.md).
 - The `Validate` impls check what the values mean and report at each field's span. See [Validation](./guide/validation.md).
 - The config types, `ServerConfig` and `LimitsConfig`, are the runtime form the validated spec lowers into. See [Lowering](./guide/lowering.md).
 - The `main` function runs the stages in order: parse, validate, check `has_errors`, then lower. How the report renders is covered in [Diagnostics](./guide/diagnostics.md).
@@ -193,7 +209,9 @@ The `has_errors` check stops the run before lowering, and all three come back re
 
 ## Running the crate examples
 
-The crate ships two runnable examples that define the same types and differ only in the format they read.
+The crate ships six runnable examples.
+`hcl` and `toml` define the same types and differ only in the format they read.
+The rest demonstrate one feature each.
 
 Run the HCL example:
 
@@ -295,6 +313,55 @@ tls: true
 ```
 
 See [Layering](./guide/layering.md) for how the sources merge and how environment and command line values are coerced.
+
+Run the templates example that renders a spec back to configuration text:
+
+```shell
+cargo run -q -p confval --example templates --features derive,color,toml
+```
+
+The spec populates with its defaults, emits as plain TOML, and emits again as a template with each field's doc comment above it:
+
+```shell
+populated field model:
+hostname = "127.0.0.1"
+port = 8080
+workers = 4
+tls = false
+limits {
+  max_body_mb = 16
+  mode = "enforce"
+}
+
+emitted TOML:
+hostname = "127.0.0.1"
+port = 8080
+workers = 4
+tls = false
+
+[limits]
+max_body_mb = 16
+mode = "enforce"
+
+emitted TOML template:
+# The address the server binds to.
+hostname = "127.0.0.1"
+# The port the server listens on.
+port = 8080
+# The number of worker threads.
+workers = 4
+# Whether TLS is enabled.
+tls = false
+
+# Request size and mode limits.
+[limits]
+# The maximum request body size, in megabytes.
+max_body_mb = 16
+# How limit violations are handled.
+mode = "enforce"
+```
+
+See [Templates](./guide/templates.md) for how `to_fields`, `to_template`, and the emitters fit together.
 
 ## Additional Examples
 
