@@ -95,7 +95,7 @@ range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(DRAIN, i64, min: 0, max: 300, units: "seconds");
 range_constraint!(WORKERS, i64, min: 1, max: 512, help: "Match this to your CPU core count.");
 
-PORT.check_located( &spec.port, "port", report);
+PORT.check_located(&spec.port, "port", report);
 ```
 
 `check_located` emits an error at the value's span when out of range.
@@ -111,8 +111,8 @@ This is the string counterpart of `RangeConstraint` for fields like strategies, 
 const LOAD_BALANCING_STRATEGIES: [&str; 5] =
     ["failover", "round_robin", "request_pressure", "sticky_hash", "random"];
 
-KeywordSet::new( &LOAD_BALANCING_STRATEGIES)
-.check_located( &spec.load_balancing_strategy, "load_balancing_strategy", report);
+KeywordSet::new(&LOAD_BALANCING_STRATEGIES)
+    .check_located(&spec.load_balancing_strategy, "load_balancing_strategy", report);
 ```
 
 `check_located` reports `unknown {field}: {value}` at the value's span, with a help line of
