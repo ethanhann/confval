@@ -82,7 +82,7 @@ fn hcl_comment_prefix(doc: &Option<String>, indent: &str) -> String {
 
 fn hcl_expr_of(value: &Value) -> Result<Expression, EmitError> {
     match &value.kind {
-        ValueKind::Scalar(scalar) => Ok(hcl_expr_of_scalar(scalar)),
+        ValueKind::Scalar(scalar) => hcl_expr_of_scalar(scalar),
         ValueKind::Seq(elements) => {
             let mut array = Array::new();
             for element in elements {
@@ -116,14 +116,26 @@ fn object_key_of(name: &str) -> ObjectKey {
     }
 }
 
-fn hcl_expr_of_scalar(scalar: &Scalar) -> Expression {
-    match scalar {
+fn hcl_expr_of_scalar(scalar: &Scalar) -> Result<Expression, EmitError> {
+    let expr = match scalar {
         Scalar::String(string) => Expression::from(string.clone()),
-        Scalar::Int(int) => Expression::from(*int),
+        Scalar::Int(int) => {
+            // HCL reads a negative integer as a negation of its magnitude, and
+            // i64::MIN's magnitude is 2^63, which overflows i64 on the way back
+            // in. HCL has no literal that round-trips it, so refuse rather than
+            // emit text the HCL parser cannot read. The upstream fix is
+            // https://github.com/martinohmann/hcl-rs/pull/549. Once a released
+            // hcl-edit round-trips i64::MIN, this rejection can be removed.
+            if *int == i64::MIN {
+                return Err(EmitError::UnrepresentableValue("i64::MIN"));
+            }
+            Expression::from(*int)
+        }
         Scalar::Float(float) => Expression::from(*float),
         Scalar::Bool(boolean) => Expression::from(*boolean),
         Scalar::Unparsed(raw) => Expression::from(raw.clone()),
-    }
+    };
+    Ok(expr)
 }
 
 /// An attribute or block name must be a valid HCL identifier, because HCL has no
@@ -274,6 +286,18 @@ mod tests {
         assert_eq!(
             emit_hcl(&fields),
             Err(EmitError::UnrepresentableValue("string template"))
+        );
+    }
+
+    #[test]
+    fn emit_hcl_rejects_i64_min() {
+        // i64::MIN emits as `-9223372036854775808`, which HCL reads as a negation
+        // of 2^63 and overflows on the way back in, so emit must refuse it rather
+        // than produce text the HCL parser cannot read.
+        let fields = Fields::detached(vec![scalar("offset", Scalar::Int(i64::MIN))]);
+        assert_eq!(
+            emit_hcl(&fields),
+            Err(EmitError::UnrepresentableValue("i64::MIN"))
         );
     }
 }
