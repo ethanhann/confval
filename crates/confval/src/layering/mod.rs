@@ -12,14 +12,17 @@
 //! one fills what is missing. [`FromFields`] runs once, on the merged result.
 //!
 //! ```no_run
-//! use confval::layering::{Assembly, env_fields};
-//! use confval::format::hcl::parse_hcl_fields;
+//! use confval::layering::{Assembly, cli_fields, env_fields};
 //! # use confval::source::SourceMap;
 //! # use confval::diagnostic::Report;
-//! # fn demo<T: confval::format::FromFields>(sources: &mut SourceMap, base: confval::source::SourceId, report: &mut Report) -> Option<T> {
+//! # use confval::format::Fields;
+//! # fn demo<T: confval::format::FromFields>(sources: &mut SourceMap, base: Option<Fields>, args: Vec<String>, report: &mut Report) -> Option<T> {
+//! // `base` came from a file frontend, `parse_toml_fields` or
+//! // `parse_hcl_fields`, behind its format feature.
 //! let spec = Assembly::new()
-//!     .merge(parse_hcl_fields(sources, base, report))
+//!     .merge(base)
 //!     .merge(env_fields(sources, "APP_", report))
+//!     .merge(cli_fields(sources, args, report))
 //!     .into::<T>(report);
 //! # spec
 //! # }
