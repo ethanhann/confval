@@ -24,7 +24,7 @@ use confval::prelude::*;
 
 #[derive(confval::Spec)]
 struct ServerSpec {
-    /// The address the server binds to.
+    #[confval(doc = "The address the server binds to.")]
     hostname: Located<String>,
     /// The port the server listens on.
     port: Located<i64>,
