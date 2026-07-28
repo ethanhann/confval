@@ -32,7 +32,7 @@ serde_json = { workspace = true, optional = true }
 owo-colors = { workspace = true, optional = true }
 hcl-edit = { workspace = true, optional = true }
 toml_edit = { workspace = true, optional = true }
-confval-derive = { version = "=0.5.0", path = "../confval-derive", optional = true }
+confval-derive = { version = "=0.6.0", path = "../confval-derive", optional = true }
 
 [dev-dependencies]
 hcl-edit = "0.9"
