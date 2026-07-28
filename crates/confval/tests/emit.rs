@@ -342,6 +342,12 @@ fn raw_ident_fields_round_trip_in_both_formats() {
     assert!(toml.contains("type = "), "raw-ident key leaked: {toml}");
     assert!(!toml.contains("r#type"), "raw-ident key leaked: {toml}");
     assert!(hcl.contains("type = "), "raw-ident key leaked: {hcl}");
-    assert_eq!(parse_raw_idents(&toml, "k.toml", parse_toml::<RawIdents>), raw_idents());
-    assert_eq!(parse_raw_idents(&hcl, "k.hcl", parse_hcl::<RawIdents>), raw_idents());
+    assert_eq!(
+        parse_raw_idents(&toml, "k.toml", parse_toml::<RawIdents>),
+        raw_idents()
+    );
+    assert_eq!(
+        parse_raw_idents(&hcl, "k.hcl", parse_hcl::<RawIdents>),
+        raw_idents()
+    );
 }

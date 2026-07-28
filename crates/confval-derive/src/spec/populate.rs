@@ -10,8 +10,8 @@ use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::ext::IdentExt;
 use syn::Ident;
+use syn::ext::IdentExt;
 
 /// The fragment that pushes one field onto the populated level's item vector,
 /// or nothing when the field has no value to show.
