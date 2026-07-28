@@ -88,15 +88,31 @@ impl Assembly {
     /// errors from the source that failed. Otherwise the layers fold left to
     /// right, the first as the base, and `FromFields` runs on the merged
     /// `Fields`.
+    ///
+    /// A `None` always arrives with at least one error in the report. When a
+    /// layer is `None` and nothing was reported, or the assembly holds no
+    /// layers, an internal error is reported so the caller is never left with
+    /// a silent failure.
     pub fn assemble<T: FromFields>(self, report: &mut Report) -> Option<T> {
+        if self.layers.is_empty() {
+            report
+                .error("internal error: assemble called with no layers")
+                .emit();
+            return None;
+        }
         if self.layers.iter().any(|layer| layer.fields.is_none()) {
+            if !report.has_errors() {
+                report
+                    .error("internal error: a layer produced no fields and reported no error")
+                    .emit();
+            }
             return None;
         }
         let mut layers = self.layers.into_iter();
         let mut merged = layers.next()?.fields?;
         for layer in layers {
             if let Some(fields) = layer.fields {
-                merged = merge::combine(&merged, &fields, layer.verb, report);
+                merged = merge::combine(merged, fields, layer.verb, report);
             }
         }
         T::from_fields(&merged, report)
@@ -190,8 +206,43 @@ mod tests {
             .merge(None)
             .assemble(&mut report);
         // Assert
+        // The provider contract is report-then-None. This layer reported
+        // nothing, so assemble supplies the fallback error rather than
+        // returning `None` with a clean report.
         assert!(server.is_none());
-        assert!(!report.has_issues());
+        assert!(report.has_errors());
+        assert!(report.issues()[0].message.contains("reported no error"));
+    }
+
+    #[test]
+    fn a_failed_source_with_a_reported_error_adds_nothing() {
+        // Arrange
+        let mut sources = SourceMap::new();
+        let mut report = Report::new();
+        let good = cli_fields(&mut sources, vec!["--host=h".to_string()], &mut report);
+        report
+            .error("syntax error: the provider already reported")
+            .emit();
+        // Act
+        let server: Option<Server> = Assembly::new()
+            .merge(good)
+            .merge(None)
+            .assemble(&mut report);
+        // Assert
+        assert!(server.is_none());
+        assert_eq!(report.issues().len(), 1);
+    }
+
+    #[test]
+    fn an_empty_assembly_reports_an_internal_error() {
+        // Arrange
+        let mut report = Report::new();
+        // Act
+        let server: Option<Server> = Assembly::new().assemble(&mut report);
+        // Assert
+        assert!(server.is_none());
+        assert!(report.has_errors());
+        assert!(report.issues()[0].message.contains("no layers"));
     }
 
     #[test]

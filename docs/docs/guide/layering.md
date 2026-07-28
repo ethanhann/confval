@@ -70,6 +70,7 @@ let cli_layer = cli_fields(&mut sources, std::env::args(), &mut report);
 
 A provider returns `None` when its source fails to parse, and it records the error in the report.
 When any layer is `None`, `assemble` returns `None` before parsing the spec, so check the report for errors after `assemble` as you would after parsing one file.
+`assemble` never returns `None` with an empty report.
 
 ## Precedence
 
@@ -115,7 +116,8 @@ With the prefix `APP_`, variables map to fields like this:
 
 `cli_fields` reads flags in the `--key=value` form.
 A dot separates nesting levels, and a segment keeps its underscores.
-Arguments that are not flags are ignored, so you may pass the whole argument list:
+Arguments that are not flags are ignored, so you may pass the whole argument list.
+A flag written without its value, such as `--port` for `--port=8080`, is reported as a warning, since the space-separated form sets nothing:
 
 ```rust
 let cli_layer = cli_fields(&mut sources, std::env::args(), &mut report);

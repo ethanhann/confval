@@ -50,8 +50,11 @@ fn from_os_vars(
                     Err(os_name) => os_name.to_string_lossy().into_owned(),
                 };
                 if lossy.starts_with(prefix) {
+                    let source = sources.add(format!("env:{lossy}"), lossy.clone());
+                    let span = Span::new(source, 0, lossy.len() as u32);
                     report
                         .error(format!("environment variable is not valid UTF-8: {lossy}"))
+                        .at(span)
                         .emit();
                 }
             }
@@ -77,8 +80,11 @@ fn from_vars(
         }
         let path: Vec<String> = rest.split("__").map(|s| s.to_ascii_lowercase()).collect();
         if path.iter().any(|segment| segment.is_empty()) {
+            let source = sources.add(format!("env:{name}"), name.clone());
+            let span = Span::new(source, 0, name.len() as u32);
             report
                 .error(format!("malformed environment variable name: {name}"))
+                .at(span)
                 .emit();
             continue;
         }
@@ -187,7 +193,10 @@ mod tests {
         );
         // Assert
         assert!(report.has_errors());
-        assert!(report.issues()[0].message.contains("malformed"));
+        let issue = &report.issues()[0];
+        assert!(issue.message.contains("malformed"));
+        let span = issue.span.expect("the error should carry a span");
+        assert_eq!(sources.get(span.source).unwrap().name, "env:APP_SERVER__");
     }
 
     #[cfg(unix)]
@@ -248,6 +257,9 @@ mod tests {
                 "unexpected message: {}",
                 issue.message
             );
+            let span = issue.span.expect("the error should carry a span");
+            let name = &sources.get(span.source).unwrap().name;
+            assert!(name.starts_with("env:"), "unexpected source: {name}");
         }
     }
 

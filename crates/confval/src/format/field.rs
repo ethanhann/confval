@@ -185,6 +185,10 @@ impl Fields {
         self.items.iter()
     }
 
+    pub(crate) fn into_items(self) -> Vec<Field> {
+        self.items
+    }
+
     pub fn has(&self, name: &str) -> bool {
         self.items.iter().any(|field| field.name == name)
     }
