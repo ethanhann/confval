@@ -395,13 +395,17 @@ mod tests {
 
     #[test]
     fn out_of_range_integer_is_reported_not_panicked() {
-        // hcl-edit panics on `-9223372036854775808`, whose magnitude is 2^63, so
-        // the parse boundary must catch it and report a syntax error rather than
-        // abort the host program.
+        // Arrange
+        // hcl-edit panics on `-9223372036854775808`, whose magnitude is 2^63.
         let mut sources = SourceMap::new();
         let id = sources.add("min.hcl", "offset = -9223372036854775808\n");
         let mut report = Report::new();
+
+        // Act
         let parsed = parse_hcl_fields(&sources, id, &mut report);
+
+        // Assert
+        // The parse boundary caught the panic and reported a syntax error.
         assert!(parsed.is_none());
         assert!(report.has_errors());
         assert!(

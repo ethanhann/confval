@@ -327,12 +327,17 @@ mod tests {
 
     #[test]
     fn emit_hcl_normalizes_a_control_char_in_a_doc_comment() {
+        // Arrange
         // A lone carriage return in a doc override would end an HCL comment early.
-        // Emit splits it into a second comment line, so the template reparses.
         let fields = Fields::detached(vec![
             scalar("port", Scalar::Int(1)).with_doc(Some("line one\rline two".to_string())),
         ]);
+
+        // Act
         let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        // The carriage return became a second comment line, so the template reparses.
         assert!(text.contains("# line one\n"), "got: {text:?}");
         assert!(text.contains("# line two\n"), "got: {text:?}");
         reparse(&text);

@@ -411,12 +411,17 @@ mod tests {
 
     #[test]
     fn emit_toml_normalizes_a_control_char_in_a_doc_comment() {
-        // A NUL is not a printable TOML comment character. Emit drops it, so the
-        // template reparses.
+        // Arrange
+        // A NUL is not a printable TOML comment character.
         let fields = Fields::detached(vec![
             scalar("port", Scalar::Int(1)).with_doc(Some("a\0b".to_string())),
         ]);
+
+        // Act
         let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        // Emit drops the NUL, so the template reparses.
         assert!(text.contains("# ab\n"), "got: {text:?}");
         reparse(&text);
     }
