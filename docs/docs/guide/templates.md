@@ -166,11 +166,18 @@ The marker changes populate only, so parsing still leaves an absent block `None`
 
 ## When Emit Fails
 
-Emitting a populated spec always succeeds, so on the template and dump paths you can write `emit_toml(&spec.to_template())?` and trust the call.
-Populate produces only values and names the target format can represent, so nothing on that path can fail to emit.
+Emit returns a `Result`, because not every field model has a faithful spelling in every format.
+On the populate path the risk is small, and it depends on the format.
 
-Emit still returns a `Result`, because a `Fields` that a frontend parsed can hold something the target format cannot spell.
-Two cases arise when you emit a parsed model.
+Emitting a populated spec to TOML always succeeds.
+TOML has a literal for every value populate produces and quotes any key, so `emit_toml(&spec.to_template())?` cannot fail on a populated model.
+
+Emitting a populated spec to HCL fails only for two numeric values HCL has no literal for.
+The first is `i64::MIN`, which HCL would spell as a negation that overflows when it is read back.
+The second is a non-finite float, an infinity or a NaN, which HCL has no keyword for.
+A spec that holds neither emits to HCL without failing.
+
+Emit can also fail on a `Fields` that a frontend parsed rather than populated, because a parsed model can carry a name or a value the target format cannot spell.
 A value with no representation, such as a TOML datetime, fails in any format.
 A name that is not a valid identifier fails when you emit HCL, which has no way to quote it, while TOML quotes it without trouble.
 

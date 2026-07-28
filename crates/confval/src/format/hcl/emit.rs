@@ -18,8 +18,10 @@ use hcl_edit::structure::{Attribute, Block, Body, Structure};
 /// comments and layout the neutral model never held. A nested struct emits as a
 /// block, a repeated block emits once per element, and a non-identifier object
 /// key is quoted. It fails on a non-identifier attribute or block name, which
-/// HCL cannot spell, and on a [`ValueKind::Other`]. Neither arises on the
-/// populate path.
+/// HCL cannot spell, and on a [`ValueKind::Other`]. Those two arise only when you
+/// emit a parsed `Fields`, not on the populate path. It also fails on the two
+/// numeric values HCL has no literal for, an `i64::MIN` and a non-finite float,
+/// which a populated spec can hold.
 pub fn emit_hcl(fields: &Fields) -> Result<String, EmitError> {
     Ok(emit_body(fields, 0)?.to_string())
 }
@@ -131,7 +133,14 @@ fn hcl_expr_of_scalar(scalar: &Scalar) -> Result<Expression, EmitError> {
             }
             Expression::from(*int)
         }
-        Scalar::Float(float) => Expression::from(*float),
+        Scalar::Float(float) => {
+            // HCL has no literal for infinity or NaN. hcl-edit maps a non-finite
+            // float to `null`, so refuse rather than silently change the value.
+            if !float.is_finite() {
+                return Err(EmitError::UnrepresentableValue("non-finite float"));
+            }
+            Expression::from(*float)
+        }
         Scalar::Bool(boolean) => Expression::from(*boolean),
         Scalar::Unparsed(raw) => Expression::from(raw.clone()),
     };
@@ -299,5 +308,19 @@ mod tests {
             emit_hcl(&fields),
             Err(EmitError::UnrepresentableValue("i64::MIN"))
         );
+    }
+
+    #[test]
+    fn emit_hcl_rejects_a_non_finite_float() {
+        // HCL has no literal for infinity or NaN, and hcl-edit would emit `null`,
+        // so emit must refuse rather than silently change the value.
+        for value in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            let fields = Fields::detached(vec![scalar("rate", Scalar::Float(value))]);
+            assert_eq!(
+                emit_hcl(&fields),
+                Err(EmitError::UnrepresentableValue("non-finite float")),
+                "value {value} should be rejected"
+            );
+        }
     }
 }

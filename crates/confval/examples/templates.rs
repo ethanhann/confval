@@ -74,8 +74,8 @@ fn main() -> Result<(), String> {
     print_fields(&fields, 0);
 
     // Emit the populated model back to TOML text, the write path's second half.
-    // Emitting a populated spec never fails, so the error maps to a message only
-    // to satisfy the signature.
+    // Emitting a populated spec to TOML never fails, so the error maps to a
+    // message only to satisfy the signature.
     let text = confval::format::toml::emit_toml(&fields).map_err(|error| error.to_string())?;
     println!();
     println!("emitted TOML:");

@@ -2,9 +2,11 @@
 //!
 //! Emit serializes the neutral [`Fields`](crate::format::Fields) model back to a
 //! format's text. Not every `Fields` is representable in every format, so emit
-//! is fallible. A populated spec never hits either case, because populate builds
-//! only identifier names and never a `ValueKind::Other`. The cases arise when
-//! you emit a `Fields` a frontend parsed, which can carry a name or a value the
+//! is fallible. Emitting a populated spec to TOML never fails, because TOML has a
+//! literal for every value populate produces and quotes any key. Emitting a
+//! populated spec to HCL fails only for the two numeric values HCL cannot spell,
+//! an `i64::MIN` and a non-finite float. The remaining failures arise when you
+//! emit a `Fields` a frontend parsed, which can carry a name or a value the
 //! target format cannot spell.
 
 use std::fmt::{self, Display, Formatter};
