@@ -7,7 +7,7 @@ how this crate is meant to be used.
 The [layering example](./crates/confval/examples/layering.rs) assembles one configuration from a file, the environment,
 and the command line.
 
-See the [confval documentation](https://snakeway.dev/docs/internals/confval/) for the full API overview.
+See the [confval documentation](https://ethanhann.com/confval/) for the full API overview.
 
 The confval crate was originally extracted from the [Snakeway reverse proxy](https://snakeway.dev) configuration
 subsystem after reusable patterns emerged during development.
