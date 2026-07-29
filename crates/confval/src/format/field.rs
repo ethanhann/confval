@@ -6,7 +6,7 @@
 //! named entry, and a [`Value`] is the data behind it. Once a frontend has
 //! produced a `Fields`, nothing downstream knows or cares which format it came
 //! from. This holds for the leaf parsers in [`parse`](crate::format::parse),
-//! the `#[derive(Spec)]`-generated walks, and the hand-written [`FromFields`]
+//! the `#[derive(Spec)]`-generated walks, and the handwritten [`FromFields`]
 //! impls.
 //!
 //! The model is deliberately owned (no borrow of the format's AST). Config
@@ -222,7 +222,7 @@ impl Fields {
 /// Implementations walk the fields once, match them by name, and push every
 /// problem they find to the report. Returning `None` means at least one error
 /// was pushed. This is the trait `#[derive(Spec)]` generates and the one a
-/// hand-written spec implements. It names no format.
+/// handwritten spec implements. It names no format.
 pub trait FromFields: Sized {
     /// Builds `Self` from one structural level, reporting every problem
     /// found. `None` means at least one error was pushed.

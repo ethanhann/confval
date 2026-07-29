@@ -6,7 +6,7 @@
 //! [`Document`], the immutable document type that
 //! retains source spans, and emits the same neutral `Fields` every other
 //! frontend does, so the leaf parsers, the derive-generated walks, and the
-//! hand-written [`FromFields`] impls work against it unchanged.
+//! handwritten [`FromFields`] impls work against it unchanged.
 //!
 //! The write path, [`emit_toml`], lives in the sibling `emit` module.
 //!
