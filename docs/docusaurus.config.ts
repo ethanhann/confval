@@ -74,10 +74,10 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           editUrl:
             'https://github.com/ethanhann/confval/tree/main/docs/',
-          lastVersion: '0.5.0',
+          lastVersion: '0.6.0',
           versions: {
             current: {
-              label: '0.5.x-dev',
+              label: '0.6.x-dev',
               banner: 'unreleased',
             },
           },
