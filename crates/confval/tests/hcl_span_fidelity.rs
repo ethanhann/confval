@@ -24,69 +24,91 @@ const INPUT: &str = r#"server {
 
 #[test]
 fn attribute_value_spans_are_byte_accurate() {
+    // Arrange
     let body = parse_body(INPUT).unwrap();
     let server = body.blocks().next().unwrap();
 
+    // Act
     let hostname = server.body.get_attribute("hostname").unwrap();
-    assert_eq!(&INPUT[hostname.value.span().unwrap()], "\"example.com\"");
-
     let port = server.body.get_attribute("port").unwrap();
-    assert_eq!(&INPUT[port.value.span().unwrap()], "8080");
-
     let daemon = server.body.get_attribute("daemon").unwrap();
+
+    // Assert
+    assert_eq!(&INPUT[hostname.value.span().unwrap()], "\"example.com\"");
+    assert_eq!(&INPUT[port.value.span().unwrap()], "8080");
     assert_eq!(&INPUT[daemon.value.span().unwrap()], "true");
 }
 
 #[test]
 fn attribute_key_spans_are_byte_accurate() {
+    // Arrange
     let body = parse_body(INPUT).unwrap();
     let server = body.blocks().next().unwrap();
 
+    // Act
     let hostname = server.body.get_attribute("hostname").unwrap();
+
+    // Assert
     assert_eq!(&INPUT[hostname.key.span().unwrap()], "hostname");
 }
 
 #[test]
 fn nested_block_attribute_spans_are_byte_accurate() {
+    // Arrange
     let body = parse_body(INPUT).unwrap();
     let server = body.blocks().next().unwrap();
     let tls = server.body.get_blocks("tls").next().unwrap();
 
+    // Act
     let cert = tls.body.get_attribute("cert").unwrap();
+
+    // Assert
     assert_eq!(&INPUT[cert.value.span().unwrap()], "\"cert.pem\"");
 }
 
 #[test]
 fn array_elements_have_individual_spans() {
+    // Arrange
     let body = parse_body(INPUT).unwrap();
     let server = body.blocks().next().unwrap();
-
     let allow = server.body.get_attribute("allow").unwrap();
     let array = allow.value.as_array().unwrap();
+
+    // Act
     let texts: Vec<&str> = array
         .iter()
         .map(|element| &INPUT[element.span().unwrap()])
         .collect();
+
+    // Assert
     assert_eq!(texts, vec!["\"10.0.0.0/8\"", "\"not a cidr\""]);
 }
 
 #[test]
 fn block_span_covers_header_through_closing_brace() {
+    // Arrange
     let body = parse_body(INPUT).unwrap();
     let server = body.blocks().next().unwrap();
 
+    // Act
     let text = &INPUT[server.span().unwrap()];
+
+    // Assert
     assert!(text.starts_with("server {"), "got: {text:?}");
     assert!(text.ends_with('}'), "got: {text:?}");
 }
 
 #[test]
 fn nested_block_span_covers_header_through_closing_brace() {
+    // Arrange
     let body = parse_body(INPUT).unwrap();
     let server = body.blocks().next().unwrap();
     let tls = server.body.get_blocks("tls").next().unwrap();
 
+    // Act
     let text = &INPUT[tls.span().unwrap()];
+
+    // Assert
     assert!(text.starts_with("tls {"), "got: {text:?}");
     assert!(text.ends_with('}'), "got: {text:?}");
 }

@@ -222,16 +222,23 @@ where
 
 #[test]
 fn deep_nesting_round_trips_in_both_formats() {
+    // Arrange
     // A three-level fill exercises nested blocks: `[mid]` then `[mid.leaf]` in
     // TOML, and a block inside a block in HCL.
     let fields = DeepTop { mid: None }.to_fields();
     let populated = deep_populated(&fields);
 
+    // Act
     let toml = emit_toml(&fields).expect("emit toml");
+
+    // Assert
     assert!(toml.contains("[mid.leaf]"), "dotted header: {toml}");
     assert_eq!(parse_deep(&toml, parse_toml::<DeepTop>), populated);
 
+    // Act
     let hcl = emit_hcl(&fields).expect("emit hcl");
+
+    // Assert
     assert!(hcl.contains("    n = 7"), "indented two levels: {hcl}");
     assert_eq!(parse_deep(&hcl, parse_hcl::<DeepTop>), populated);
 }
@@ -268,6 +275,7 @@ fn parse_holder(text: &str) -> TlsHolder {
 
 #[test]
 fn toml_emit_alone_preserves_a_parsed_map() {
+    // Arrange
     // The source spells `tls` as an inline table, which parses as a `Map`, a
     // shape populate never produces. Emitting the parsed `Fields` and reparsing
     // must reach the same spec, so emit alone inverts parse.
@@ -279,7 +287,10 @@ fn toml_emit_alone_preserves_a_parsed_map() {
         panic!("source should parse to fields");
     };
 
+    // Act
     let text = emit_toml(&fields).expect("emit toml");
+
+    // Assert
     let reparsed = parse_holder(&text);
     assert_eq!(reparsed, parse_holder(source));
     assert_eq!(reparsed.tls.as_ref().unwrap().value.cert.value, "a.pem");

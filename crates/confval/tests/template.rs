@@ -90,7 +90,13 @@ fn a_doc_attribute_wins_over_a_rustdoc_on_the_same_field() {
 
 #[test]
 fn toml_template_carries_the_comments() {
-    let text = emit_toml(&sample().to_template()).expect("emit toml");
+    // Arrange
+    let spec = sample();
+
+    // Act
+    let text = emit_toml(&spec.to_template()).expect("emit toml");
+
+    // Assert
     // The harvested multi-line comment, both lines.
     assert!(text.contains("# The hostname to bind."), "got:\n{text}");
     assert!(
@@ -114,7 +120,13 @@ fn toml_template_carries_the_comments() {
 
 #[test]
 fn hcl_template_indents_a_nested_comment_and_repeats_a_block_comment() {
-    let text = emit_hcl(&sample().to_template()).expect("emit hcl");
+    // Arrange
+    let spec = sample();
+
+    // Act
+    let text = emit_hcl(&spec.to_template()).expect("emit hcl");
+
+    // Assert
     // The nested comment carries the field's one-level indentation.
     assert!(text.contains("  # Max body size in MB."), "got:\n{text}");
     // HCL annotates every repeated block.
@@ -127,8 +139,14 @@ fn hcl_template_indents_a_nested_comment_and_repeats_a_block_comment() {
 
 #[test]
 fn to_fields_stays_comment_free() {
-    let toml = emit_toml(&sample().to_fields()).expect("emit toml");
-    let hcl = emit_hcl(&sample().to_fields()).expect("emit hcl");
+    // Arrange
+    let spec = sample();
+
+    // Act
+    let toml = emit_toml(&spec.to_fields()).expect("emit toml");
+    let hcl = emit_hcl(&spec.to_fields()).expect("emit hcl");
+
+    // Assert
     assert!(!toml.contains('#'), "toml had a comment:\n{toml}");
     assert!(!hcl.contains('#'), "hcl had a comment:\n{hcl}");
 }
@@ -166,18 +184,19 @@ fn parse_hcl_spec(text: &str) -> ServerSpec {
 
 #[test]
 fn a_template_parses_back_to_the_populated_spec() {
+    // Arrange
     // Comments are ignored by the parser, so a template reparses to the same
     // spec as the plain populate, which pins that annotation changes only the
     // comments and not the values.
     let expected = populated(&sample().to_fields());
-    assert_eq!(
-        parse_toml_spec(&emit_toml(&sample().to_template()).unwrap()),
-        expected
-    );
-    assert_eq!(
-        parse_hcl_spec(&emit_hcl(&sample().to_template()).unwrap()),
-        expected
-    );
+
+    // Act
+    let from_toml = parse_toml_spec(&emit_toml(&sample().to_template()).unwrap());
+    let from_hcl = parse_hcl_spec(&emit_hcl(&sample().to_template()).unwrap());
+
+    // Assert
+    assert_eq!(from_toml, expected);
+    assert_eq!(from_hcl, expected);
 }
 
 /// Widget assembly settings.
@@ -343,10 +362,15 @@ impl Validate for DocShapes {
 
 #[test]
 fn a_blank_doc_line_renders_bare_and_a_doc_list_is_skipped() {
+    // Arrange
     let spec = DocShapes {
         count: Located::detached(1),
     };
+
+    // Act
     let text = emit_toml(&spec.to_template()).expect("emit toml");
+
+    // Assert
     // The blank line between the two comment lines renders as a bare `#`, with
     // no trailing space, and the `#[doc(hidden)]` attribute is skipped rather
     // than harvested or errored.

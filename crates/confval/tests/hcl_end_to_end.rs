@@ -240,9 +240,11 @@ tls {
 
 #[test]
 fn valid_config_parses_and_lowers() {
+    // Act
     let (_, report, config) = load(VALID);
-    assert!(!report.has_issues(), "issues: {:?}", report.issues());
 
+    // Assert
+    assert!(!report.has_issues(), "issues: {:?}", report.issues());
     let config = config.unwrap();
     assert_eq!(config.addr, "127.0.0.1:8080".parse().unwrap());
     assert!(!config.daemon);
@@ -261,16 +263,24 @@ fn valid_config_parses_and_lowers() {
 
 #[test]
 fn config_side_default_nested_defaults_when_absent_and_takes_value_when_present() {
+    // Arrange
+    let with_retry = format!("{VALID}\nretry {{\n  max_attempts = 7\n}}\n");
+
+    // Act
     // Absent: VALID has no `retry` block. The spec keeps it as `None` (so a
     // spec dump stays source-faithful), and the config-side
     // `#[confval(nested, default)]` lowers `RetrySpec::default()`.
     let (_, report, config) = load(VALID);
+
+    // Assert
     assert!(!report.has_issues(), "issues: {:?}", report.issues());
     assert_eq!(config.unwrap().retry.max_attempts, 3);
 
+    // Act
     // Present: an explicit block overrides the default.
-    let with_retry = format!("{VALID}\nretry {{\n  max_attempts = 7\n}}\n");
     let (_, report, config) = load(&with_retry);
+
+    // Assert
     assert!(!report.has_issues(), "issues: {:?}", report.issues());
     assert_eq!(config.unwrap().retry.max_attempts, 7);
 }
@@ -280,35 +290,51 @@ fn config_side_default_nested_defaults_when_absent_and_takes_value_when_present(
 /// vs `--repr=populated_spec` split relies on.
 #[test]
 fn optional_spec_nested_field_stays_absent_when_omitted() {
+    // Arrange
     let mut sources = SourceMap::new();
     let mut report = Report::new();
     let id = sources.add("server.hcl", VALID);
 
+    // Act
     let spec: ServerSpec = parse_hcl(&sources, id, &mut report).unwrap();
+
+    // Assert
     assert!(spec.retry.is_none());
 }
 
 #[test]
 fn defaulted_nested_block_defaults_when_absent_and_takes_value_when_present() {
+    // Arrange
+    let with_limits = format!("{VALID}\nlimits {{\n  max_body_mb = 50\n}}\n");
+
+    // Act
     // Absent: VALID has no `limits` block, so it lowers to LimitsSpec::default().
     let (_, report, config) = load(VALID);
+
+    // Assert
     assert!(!report.has_issues(), "issues: {:?}", report.issues());
     assert_eq!(config.unwrap().limits.max_body_mb, 10);
 
+    // Act
     // Present: an explicit block overrides the default.
-    let with_limits = format!("{VALID}\nlimits {{\n  max_body_mb = 50\n}}\n");
     let (_, report, config) = load(&with_limits);
+
+    // Assert
     assert!(!report.has_issues(), "issues: {:?}", report.issues());
     assert_eq!(config.unwrap().limits.max_body_mb, 50);
 }
 
 #[test]
 fn spec_values_carry_byte_accurate_spans() {
+    // Arrange
     let mut sources = SourceMap::new();
     let mut report = Report::new();
     let id = sources.add("server.hcl", VALID);
 
+    // Act
     let spec: ServerSpec = parse_hcl(&sources, id, &mut report).unwrap();
+
+    // Assert
     let span = spec.hostname.span;
     assert_eq!(
         &VALID[span.start as usize..span.end as usize],
@@ -330,6 +356,7 @@ fn spec_values_carry_byte_accurate_spans() {
 
 #[test]
 fn all_problems_are_reported_in_one_pass() {
+    // Arrange
     // The type mismatch is on an optional field so the tree still builds
     // and validation runs. A mismatch on a required field stops the entity
     // at structural errors.
@@ -341,9 +368,12 @@ shutdown_timeout_seconds = 30
 pid_file = 42
 hostnme = "typo"
 "#;
-    let (_, report, config) = load(input);
-    assert!(config.is_none());
 
+    // Act
+    let (_, report, config) = load(input);
+
+    // Assert
+    assert!(config.is_none());
     let messages: Vec<&str> = report
         .issues()
         .iter()
@@ -366,6 +396,7 @@ hostnme = "typo"
 
 #[test]
 fn out_of_range_value_is_retained_but_gated_from_lowering() {
+    // Arrange
     let input = r#"hostname = "127.0.0.1"
 port = 99999
 daemon = false
@@ -376,24 +407,38 @@ shutdown_timeout_seconds = 30
     let mut report = Report::new();
     let id = sources.add("server.hcl", input);
 
+    // Act
     let spec: Option<ServerSpec> = parse_hcl(&sources, id, &mut report);
+
+    // Assert
     let spec = spec.expect("out-of-range values still produce the tree");
     assert!(!report.has_errors(), "parsing is structural only");
+
+    // Act
     validate_server_spec(&spec, &mut report);
+
+    // Assert
     assert_eq!(spec.port.value, 99999);
     assert!(report.has_errors());
 
+    // Act
     let (_, report, config) = load(input);
+
+    // Assert
     assert!(config.is_none());
     assert!(report.has_errors());
 }
 
 #[test]
 fn missing_required_fields_are_all_reported() {
+    // Arrange
     let input = "hostname = \"127.0.0.1\"\ndaemon = true\n";
-    let (_, report, config) = load(input);
-    assert!(config.is_none());
 
+    // Act
+    let (_, report, config) = load(input);
+
+    // Assert
+    assert!(config.is_none());
     let messages: Vec<&str> = report
         .issues()
         .iter()
@@ -415,6 +460,7 @@ fn missing_required_fields_are_all_reported() {
 
 #[test]
 fn missing_field_in_nested_block_is_reported() {
+    // Arrange
     let input = r#"hostname = "127.0.0.1"
 port = 8080
 daemon = false
@@ -425,7 +471,11 @@ tls {
   cert = "cert.pem"
 }
 "#;
+
+    // Act
     let (_, report, config) = load(input);
+
+    // Assert
     assert!(config.is_none());
     let issue = report
         .issues()
@@ -440,6 +490,7 @@ tls {
 
 #[test]
 fn duplicate_attribute_is_a_parser_level_syntax_error() {
+    // Arrange
     // HCL's grammar requires unique attribute keys, so hcl-edit rejects a
     // redefined attribute during parsing and from_fields never sees it. Only
     // blocks, which may legally repeat, get the collected duplicate-field
@@ -451,9 +502,12 @@ daemon = false
 max_connections = 100
 shutdown_timeout_seconds = 30
 "#;
-    let (_, report, config) = load(input);
-    assert!(config.is_none());
 
+    // Act
+    let (_, report, config) = load(input);
+
+    // Assert
+    assert!(config.is_none());
     let issue = &report.issues()[0];
     assert!(issue.message.starts_with("syntax error:"), "got: {issue:?}");
     assert!(
@@ -464,6 +518,7 @@ shutdown_timeout_seconds = 30
 
 #[test]
 fn duplicate_block_points_back_at_first_occurrence() {
+    // Arrange
     let input = r#"hostname = "127.0.0.1"
 port = 8080
 daemon = false
@@ -480,9 +535,12 @@ tls {
   key = "b.key"
 }
 "#;
-    let (_, report, config) = load(input);
-    assert!(config.is_none());
 
+    // Act
+    let (_, report, config) = load(input);
+
+    // Assert
+    assert!(config.is_none());
     let issue = report
         .issues()
         .iter()
@@ -501,13 +559,18 @@ tls {
 
 #[test]
 fn lowering_failure_is_caught_not_panicking() {
+    // Arrange
     let input = r#"hostname = "not a hostname"
 port = 8080
 daemon = false
 max_connections = 100
 shutdown_timeout_seconds = 30
 "#;
+
+    // Act
     let (_, report, config) = load(input);
+
+    // Assert
     assert!(config.is_none());
     assert!(
         report
@@ -521,24 +584,36 @@ shutdown_timeout_seconds = 30
 
 #[test]
 fn syntax_error_reports_location_and_stops() {
+    // Act
     let (_, report, config) = load("port = \n");
+
+    // Assert
     assert!(config.is_none());
     assert!(report.issues()[0].message.starts_with("syntax error:"));
 }
 
 #[test]
 fn syntax_error_at_multibyte_char_renders_without_panicking() {
+    // Arrange
     // `€` is the unexpected token at byte offset 7 and occupies bytes 7..10,
     // so parse_hcl's `offset..offset+1` error span ends at byte 8, inside the
     // character. Rendering must snap to a char boundary rather than panic on
     // the string slice. Exercises every render path because line_column (used
     // by all three) is the slice that previously panicked.
-    let (sources, report, config) = load("port = €\n");
+    let input = "port = €\n";
+
+    // Act
+    let (sources, report, config) = load(input);
+
+    // Assert
     assert!(config.is_none());
     assert!(report.issues()[0].message.starts_with("syntax error:"));
 
+    // Act
     let mut plain = String::new();
     report.render_plain(&sources, &mut plain).unwrap();
+
+    // Assert
     assert!(plain.contains("syntax error:"), "got: {plain}");
 
     #[cfg(feature = "color")]
