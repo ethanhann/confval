@@ -134,8 +134,10 @@ mod tests {
     fn a_single_segment_becomes_a_top_level_field() {
         // Arrange
         let mut report = Report::new();
+
         // Act
         let fields = build(ROOT, vec![leaf(&["port"], "8080")], &mut report);
+
         // Assert
         assert_eq!(unparsed(fields.get("port").unwrap()), "8080");
         assert!(!report.has_issues());
@@ -149,8 +151,10 @@ mod tests {
             leaf(&["server", "port"], "1"),
         ];
         let mut report = Report::new();
+
         // Act
         let fields = build(ROOT, leaves, &mut report);
+
         // Assert
         let FieldKind::Block(server) = &fields.get("server").unwrap().kind else {
             panic!("expected a nested block");
@@ -164,8 +168,10 @@ mod tests {
         // Arrange
         let leaves = vec![leaf(&["server"], "flat"), leaf(&["server", "port"], "1")];
         let mut report = Report::new();
+
         // Act
         let _ = build(ROOT, leaves, &mut report);
+
         // Assert
         assert!(report.has_errors());
         assert!(

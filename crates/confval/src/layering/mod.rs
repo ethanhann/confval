@@ -12,15 +12,18 @@
 //! one fills what is missing. [`FromFields`] runs once, on the merged result.
 //!
 //! ```no_run
-//! use confval::layering::{Assembly, env_fields};
-//! use confval::format::hcl::parse_hcl_fields;
+//! use confval::layering::{Assembly, cli_fields, env_fields};
 //! # use confval::source::SourceMap;
 //! # use confval::diagnostic::Report;
-//! # fn demo<T: confval::format::FromFields>(sources: &mut SourceMap, base: confval::source::SourceId, report: &mut Report) -> Option<T> {
+//! # use confval::format::Fields;
+//! # fn demo<T: confval::format::FromFields>(sources: &mut SourceMap, base: Option<Fields>, args: Vec<String>, report: &mut Report) -> Option<T> {
+//! // `base` came from a file frontend, `parse_toml_fields` or
+//! // `parse_hcl_fields`, behind its format feature.
 //! let spec = Assembly::new()
-//!     .merge(parse_hcl_fields(sources, base, report))
+//!     .merge(base)
 //!     .merge(env_fields(sources, "APP_", report))
-//!     .into::<T>(report);
+//!     .merge(cli_fields(sources, args, report))
+//!     .assemble::<T>(report);
 //! # spec
 //! # }
 //! ```
@@ -42,7 +45,7 @@ use merge::Verb;
 /// The builder borrows nothing. Each provider is a free function the caller
 /// invokes, so a provider's `&mut Report` borrow ends before the next runs and
 /// the chain never holds two mutable borrows of the report at once.
-/// [`into`](Assembly::into) takes the report once, at the end.
+/// [`assemble`](Assembly::assemble) takes the report once, at the end.
 #[derive(Default)]
 pub struct Assembly {
     layers: Vec<Layer>,
@@ -54,6 +57,7 @@ struct Layer {
 }
 
 impl Assembly {
+    /// An assembly with no layers yet.
     pub fn new() -> Self {
         Self::default()
     }
@@ -85,16 +89,31 @@ impl Assembly {
     /// errors from the source that failed. Otherwise the layers fold left to
     /// right, the first as the base, and `FromFields` runs on the merged
     /// `Fields`.
-    #[allow(clippy::should_implement_trait)]
-    pub fn into<T: FromFields>(self, report: &mut Report) -> Option<T> {
+    ///
+    /// A `None` always arrives with at least one error in the report. When a
+    /// layer is `None` and nothing was reported, or the assembly holds no
+    /// layers, an internal error is reported so the caller is never left with
+    /// a silent failure.
+    pub fn assemble<T: FromFields>(self, report: &mut Report) -> Option<T> {
+        if self.layers.is_empty() {
+            report
+                .error("internal error: assemble called with no layers")
+                .emit();
+            return None;
+        }
         if self.layers.iter().any(|layer| layer.fields.is_none()) {
+            if !report.has_errors() {
+                report
+                    .error("internal error: a layer produced no fields and reported no error")
+                    .emit();
+            }
             return None;
         }
         let mut layers = self.layers.into_iter();
         let mut merged = layers.next()?.fields?;
         for layer in layers {
             if let Some(fields) = layer.fields {
-                merged = merge::combine(&merged, &fields, layer.verb, report);
+                merged = merge::combine(merged, fields, layer.verb, report);
             }
         }
         T::from_fields(&merged, report)
@@ -144,8 +163,13 @@ mod tests {
             &mut report,
         );
         let over = cli_fields(&mut sources, vec!["--port=2".to_string()], &mut report);
+
         // Act
-        let server: Option<Server> = Assembly::new().merge(base).merge(over).into(&mut report);
+        let server: Option<Server> = Assembly::new()
+            .merge(base)
+            .merge(over)
+            .assemble(&mut report);
+
         // Assert
         let server = server.unwrap();
         assert_eq!(server.host, "filehost");
@@ -160,8 +184,13 @@ mod tests {
         let mut report = Report::new();
         let base = cli_fields(&mut sources, vec!["--host=only".to_string()], &mut report);
         let over = cli_fields(&mut sources, vec!["--port=8080".to_string()], &mut report);
+
         // Act
-        let server: Option<Server> = Assembly::new().merge(base).merge(over).into(&mut report);
+        let server: Option<Server> = Assembly::new()
+            .merge(base)
+            .merge(over)
+            .assemble(&mut report);
+
         // Assert
         assert_eq!(server.unwrap().port, 8080);
     }
@@ -176,11 +205,55 @@ mod tests {
             vec!["--host=h".to_string(), "--port=1".to_string()],
             &mut report,
         );
+
         // Act: a provider that produced no tree is a `None` layer.
-        let server: Option<Server> = Assembly::new().merge(good).merge(None).into(&mut report);
+        let server: Option<Server> = Assembly::new()
+            .merge(good)
+            .merge(None)
+            .assemble(&mut report);
+
+        // Assert
+        // The provider contract is report-then-None. This layer reported
+        // nothing, so assemble supplies the fallback error rather than
+        // returning `None` with a clean report.
+        assert!(server.is_none());
+        assert!(report.has_errors());
+        assert!(report.issues()[0].message.contains("reported no error"));
+    }
+
+    #[test]
+    fn a_failed_source_with_a_reported_error_adds_nothing() {
+        // Arrange
+        let mut sources = SourceMap::new();
+        let mut report = Report::new();
+        let good = cli_fields(&mut sources, vec!["--host=h".to_string()], &mut report);
+        report
+            .error("syntax error: the provider already reported")
+            .emit();
+
+        // Act
+        let server: Option<Server> = Assembly::new()
+            .merge(good)
+            .merge(None)
+            .assemble(&mut report);
+
         // Assert
         assert!(server.is_none());
-        assert!(!report.has_issues());
+        assert_eq!(report.issues().len(), 1);
+    }
+
+    #[test]
+    fn an_empty_assembly_reports_an_internal_error() {
+        // Arrange
+        let mut report = Report::new();
+
+        // Act
+        let server: Option<Server> = Assembly::new().assemble(&mut report);
+
+        // Assert
+        assert!(server.is_none());
+        assert!(report.has_errors());
+        assert!(report.issues()[0].message.contains("no layers"));
     }
 
     #[test]
@@ -198,8 +271,13 @@ mod tests {
             vec!["--host=fallback".to_string()],
             &mut report,
         );
+
         // Act
-        let server: Option<Server> = Assembly::new().merge(base).join(defaults).into(&mut report);
+        let server: Option<Server> = Assembly::new()
+            .merge(base)
+            .join(defaults)
+            .assemble(&mut report);
+
         // Assert
         assert_eq!(server.unwrap().host, "primary");
     }

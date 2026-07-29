@@ -6,10 +6,15 @@ use crate::source::Span;
 /// sources than the primary span).
 #[derive(Debug, Clone)]
 pub struct Issue {
+    /// Whether the issue is an error or a warning.
     pub severity: Severity,
+    /// What went wrong, in the operator's terms.
     pub message: String,
+    /// The primary location, or `None` for an issue with no source position.
     pub span: Option<Span>,
+    /// An optional suggestion for fixing the problem.
     pub help: Option<String>,
+    /// Secondary locations with their labels.
     pub related: Vec<(Span, String)>,
 }
 
@@ -24,6 +29,7 @@ pub struct Report {
 }
 
 impl Report {
+    /// An empty report.
     pub fn new() -> Self {
         Self::default()
     }
@@ -40,18 +46,21 @@ impl Report {
         IssueBuilder::new(self, Severity::Warning, message.into())
     }
 
+    /// Whether any recorded issue is an error.
     pub fn has_errors(&self) -> bool {
         self.issues
             .iter()
             .any(|issue| issue.severity == Severity::Error)
     }
 
+    /// Whether any recorded issue is a warning.
     pub fn has_warnings(&self) -> bool {
         self.issues
             .iter()
             .any(|issue| issue.severity == Severity::Warning)
     }
 
+    /// Whether anything was recorded at all.
     pub fn has_issues(&self) -> bool {
         !self.issues.is_empty()
     }
@@ -61,6 +70,7 @@ impl Report {
         &self.issues
     }
 
+    /// Appends another report's issues, keeping insertion order.
     pub fn merge(&mut self, other: Report) {
         self.issues.extend(other.issues);
     }
@@ -95,6 +105,7 @@ impl<'a> IssueBuilder<'a> {
         self
     }
 
+    /// Attaches a suggestion for fixing the problem.
     pub fn help(mut self, help: impl Into<String>) -> Self {
         self.issue.help = Some(help.into());
         self
@@ -109,6 +120,7 @@ impl<'a> IssueBuilder<'a> {
         self
     }
 
+    /// Records the issue on the report.
     pub fn emit(self) {
         self.report.issues.push(self.issue);
     }

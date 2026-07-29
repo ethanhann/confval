@@ -562,8 +562,10 @@ mod tests {
         // Arrange
         let field = scalar_field("port", Scalar::Unparsed("8080".to_string()));
         let mut report = Report::new();
+
         // Act
         let value = parse_int_field(&field, &mut report);
+
         // Assert
         assert_eq!(value.unwrap().value, 8080);
         assert!(!report.has_issues());
@@ -574,8 +576,10 @@ mod tests {
         // Arrange
         let field = scalar_field("port", Scalar::Unparsed("high".to_string()));
         let mut report = Report::new();
+
         // Act
         let value = parse_int_field(&field, &mut report);
+
         // Assert
         assert!(value.is_none());
         assert_eq!(report.issues()[0].message, "expected integer, found string");
@@ -586,8 +590,10 @@ mod tests {
         // Arrange
         let field = scalar_field("zip", Scalar::Unparsed("01234".to_string()));
         let mut report = Report::new();
+
         // Act
         let value = parse_string_field(&field, &mut report);
+
         // Assert
         assert_eq!(value.unwrap().value, "01234");
         assert!(!report.has_issues());
@@ -599,9 +605,11 @@ mod tests {
         let daemon = scalar_field("daemon", Scalar::Unparsed("true".to_string()));
         let ratio = scalar_field("ratio", Scalar::Unparsed("0.5".to_string()));
         let mut report = Report::new();
+
         // Act
         let daemon = parse_bool_field(&daemon, &mut report);
         let ratio = parse_float_field(&ratio, &mut report);
+
         // Assert
         assert!(daemon.unwrap().value);
         assert_eq!(ratio.unwrap().value, 0.5);

@@ -54,6 +54,12 @@ jobs:
       - name: Run doctests
         run: cargo test --locked --all-features --doc
 
+      - name: Install just
+        uses: taiki-e/install-action@just
+
+      - name: Run examples
+        run: just examples
+
       - name: cargo doc
         env:
           RUSTDOCFLAGS: "-D warnings"
@@ -113,3 +119,6 @@ jobs:
 
       - name: Build
         run: cargo build -p confval --locked ${{ matrix.features.flags }}
+
+      - name: Test
+        run: cargo test -p confval --locked ${{ matrix.features.flags }}

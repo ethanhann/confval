@@ -12,6 +12,7 @@
 
 use crate::diagnostic::Report;
 use crate::format::{Field, FieldKind, Fields, Value, ValueKind};
+use crate::source::{SourceId, Span};
 
 /// How an incoming layer combines with the accumulated one.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -23,49 +24,164 @@ pub(crate) enum Verb {
 }
 
 /// Combines `incoming` into `base`, keeping `base`'s source and enclosing span.
-pub(crate) fn combine(base: &Fields, incoming: &Fields, verb: Verb, report: &mut Report) -> Fields {
-    let mut names: Vec<&str> = Vec::new();
-    for field in base.iter().chain(incoming.iter()) {
-        if !names.contains(&field.name.as_str()) {
-            names.push(field.name.as_str());
-        }
-    }
-
+/// Both levels are taken by value, so a kept field moves rather than clones.
+pub(crate) fn combine(base: Fields, incoming: Fields, verb: Verb, report: &mut Report) -> Fields {
+    let source = base.source();
+    let enclosing = base.enclosing();
+    let mut incoming_groups = grouped(incoming);
     let mut items: Vec<Field> = Vec::new();
-    for name in names {
-        let base_group: Vec<&Field> = base.iter().filter(|f| f.name.as_str() == name).collect();
-        let in_group: Vec<&Field> = incoming
-            .iter()
-            .filter(|f| f.name.as_str() == name)
-            .collect();
-        match (base_group.as_slice(), in_group.as_slice()) {
-            (_, []) => items.extend(base_group.into_iter().cloned()),
-            ([], _) => items.extend(in_group.into_iter().cloned()),
-            ([acc], [inc]) => items.push(combine_field(acc, inc, verb, report)),
-            // A repeated field is a nested list. The whole group replaces under
-            // merge and stands under join, mirroring the array rule.
-            (base_many, in_many) => match verb {
-                Verb::Merge => items.extend(in_many.iter().copied().cloned()),
-                Verb::Join => items.extend(base_many.iter().copied().cloned()),
-            },
+    for (name, mut base_group) in grouped(base) {
+        let position = incoming_groups.iter().position(|(other, _)| *other == name);
+        let Some(mut in_group) = position.map(|index| incoming_groups.remove(index).1) else {
+            items.append(&mut base_group);
+            continue;
+        };
+        if base_group.len() == 1
+            && in_group.len() == 1
+            && let (Some(acc), Some(inc)) = (base_group.pop(), in_group.pop())
+        {
+            items.push(combine_field(acc, inc, verb, report));
+            continue;
+        }
+        // A repeated field is a nested list. The whole group replaces under
+        // merge and stands under join, mirroring the array rule. A kind
+        // mismatch between the groups is the same cross-source conflict the
+        // one-to-one arm reports, judged by each group's first field since a
+        // parsed group is homogeneous.
+        if let (Some(acc), Some(inc)) = (base_group.first(), in_group.first())
+            && structural_fields(acc).is_some() != structural_fields(inc).is_some()
+        {
+            report_conflict(acc, inc, report);
+        }
+        match verb {
+            Verb::Merge => items.append(&mut in_group),
+            Verb::Join => items.append(&mut base_group),
         }
     }
-
-    Fields::new(base.source(), base.enclosing(), items)
+    for (_, mut group) in incoming_groups {
+        items.append(&mut group);
+    }
+    Fields::new(source, enclosing, items)
 }
 
-fn combine_field(acc: &Field, incoming: &Field, verb: Verb, report: &mut Report) -> Field {
-    match (structural_fields(acc), structural_fields(incoming)) {
-        (Some(acc_inner), Some(in_inner)) => {
-            let merged = combine(acc_inner, in_inner, verb, report);
-            rewrap(acc, merged)
+/// Partitions a level into same-named groups, keeping first-appearance order
+/// within and across groups.
+fn grouped(fields: Fields) -> Vec<(String, Vec<Field>)> {
+    let mut groups: Vec<(String, Vec<Field>)> = Vec::new();
+    for field in fields.into_items() {
+        match groups.iter_mut().find(|(name, _)| *name == field.name) {
+            Some((_, group)) => group.push(field),
+            None => {
+                let name = field.name.clone();
+                groups.push((name, vec![field]));
+            }
         }
-        (Some(_), None) | (None, Some(_)) => {
-            report_conflict(acc, incoming, report);
+    }
+    groups
+}
+
+fn combine_field(acc: Field, incoming: Field, verb: Verb, report: &mut Report) -> Field {
+    use Split::{Plain, Structural};
+    match (split_structural(acc), split_structural(incoming)) {
+        (Structural(shell, acc_inner), Structural(_, in_inner)) => {
+            let merged = combine(acc_inner, in_inner, verb, report);
+            shell.rewrap(merged)
+        }
+        (Structural(shell, acc_inner), Plain(incoming)) => {
+            let acc = shell.rewrap(acc_inner);
+            report_conflict(&acc, &incoming, report);
             keep(acc, incoming, verb)
         }
-        (None, None) => keep(acc, incoming, verb),
+        (Plain(acc), Structural(shell, in_inner)) => {
+            let incoming = shell.rewrap(in_inner);
+            report_conflict(&acc, &incoming, report);
+            keep(acc, incoming, verb)
+        }
+        (Plain(acc), Plain(incoming)) => keep(acc, incoming, verb),
     }
+}
+
+/// The structural spelling a field used, so a merged inner level can be
+/// wrapped back in the spelling the base document had.
+enum Spelling {
+    Block,
+    Map { value_span: Span },
+}
+
+/// A structural field taken apart: everything but the inner level.
+struct Shell {
+    name: String,
+    name_span: Span,
+    span: Span,
+    source: SourceId,
+    doc: Option<String>,
+    spelling: Spelling,
+}
+
+impl Shell {
+    fn rewrap(self, inner: Fields) -> Field {
+        let kind = match self.spelling {
+            Spelling::Block => FieldKind::Block(inner),
+            Spelling::Map { value_span } => FieldKind::Value(Value {
+                span: value_span,
+                kind: ValueKind::Map(inner),
+            }),
+        };
+        Field {
+            name: self.name,
+            name_span: self.name_span,
+            span: self.span,
+            source: self.source,
+            doc: self.doc,
+            kind,
+        }
+    }
+}
+
+/// A field taken apart for the merge: a structural field splits into its shell
+/// and inner level, and any other field passes through whole.
+enum Split {
+    Structural(Shell, Fields),
+    Plain(Field),
+}
+
+fn split_structural(field: Field) -> Split {
+    let Field {
+        name,
+        name_span,
+        span,
+        source,
+        doc,
+        kind,
+    } = field;
+    let (spelling, inner) = match kind {
+        FieldKind::Block(inner) => (Spelling::Block, inner),
+        FieldKind::Value(Value {
+            kind: ValueKind::Map(inner),
+            span: value_span,
+        }) => (Spelling::Map { value_span }, inner),
+        kind => {
+            return Split::Plain(Field {
+                name,
+                name_span,
+                span,
+                source,
+                doc,
+                kind,
+            });
+        }
+    };
+    Split::Structural(
+        Shell {
+            name,
+            name_span,
+            span,
+            source,
+            doc,
+            spelling,
+        },
+        inner,
+    )
 }
 
 /// The inner level of a structural field, whichever spelling it used.
@@ -80,27 +196,16 @@ fn structural_fields(field: &Field) -> Option<&Fields> {
     }
 }
 
-/// Wraps a merged inner level in the accumulator's spelling, so the result
-/// reads as the base document with its overrides applied.
-fn rewrap(acc: &Field, merged: Fields) -> Field {
-    let kind = match &acc.kind {
-        FieldKind::Block(_) => FieldKind::Block(merged),
-        FieldKind::Value(value) => FieldKind::Value(Value {
-            span: value.span,
-            kind: ValueKind::Map(merged),
-        }),
-    };
-    Field {
-        kind,
-        ..acc.clone()
-    }
-}
-
-/// The incoming field wins under merge, the accumulated field under join.
-fn keep(acc: &Field, incoming: &Field, verb: Verb) -> Field {
+/// The incoming field wins under merge, the accumulated field under join. The
+/// doc comes from the accumulated side either way, matching [`Shell::rewrap`],
+/// so a template's comment survives a value override.
+fn keep(acc: Field, incoming: Field, verb: Verb) -> Field {
     match verb {
-        Verb::Merge => incoming.clone(),
-        Verb::Join => acc.clone(),
+        Verb::Merge => Field {
+            doc: acc.doc,
+            ..incoming
+        },
+        Verb::Join => acc,
     }
 }
 
@@ -222,8 +327,10 @@ mod tests {
         let base = level(A, sp(A, 0, 0), vec![scalar("port", Scalar::Int(1))]);
         let over = level(A, sp(A, 0, 0), vec![scalar("port", Scalar::Int(2))]);
         let mut report = Report::new();
+
         // Act
-        let merged = combine(&base, &over, Verb::Merge, &mut report);
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         assert_eq!(scalar_of(merged.get("port").unwrap()), &Scalar::Int(2));
         assert!(!report.has_issues());
@@ -242,8 +349,10 @@ mod tests {
             ],
         );
         let mut report = Report::new();
+
         // Act
-        let merged = combine(&base, &over, Verb::Join, &mut report);
+        let merged = combine(base, over, Verb::Join, &mut report);
+
         // Assert
         assert_eq!(scalar_of(merged.get("port").unwrap()), &Scalar::Int(1));
         assert_eq!(
@@ -269,8 +378,10 @@ mod tests {
             )],
         );
         let mut report = Report::new();
+
         // Act
-        let merged = combine(&base, &over, Verb::Merge, &mut report);
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         let FieldKind::Block(server) = &merged.get("server").unwrap().kind else {
             panic!("expected a block");
@@ -297,8 +408,10 @@ mod tests {
             )],
         );
         let mut report = Report::new();
+
         // Act
-        let merged = combine(&base, &over, Verb::Merge, &mut report);
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         let FieldKind::Block(server) = &merged.get("server").unwrap().kind else {
             panic!("expected the base block spelling to survive");
@@ -321,8 +434,10 @@ mod tests {
             vec![seq("allow", vec![Scalar::String("b".to_string())])],
         );
         let mut report = Report::new();
+
         // Act
-        let merged = combine(&base, &over, Verb::Merge, &mut report);
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         let FieldKind::Value(Value {
             kind: ValueKind::Seq(elements),
@@ -340,8 +455,10 @@ mod tests {
         let base = level(A, sp(A, 0, 0), vec![scalar("port", Scalar::Int(1))]);
         let over = level(A, sp(A, 0, 0), vec![block("port", vec![])]);
         let mut report = Report::new();
+
         // Act
-        let merged = combine(&base, &over, Verb::Merge, &mut report);
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         assert_eq!(
             report.issues()[0].message,
@@ -354,13 +471,93 @@ mod tests {
     }
 
     #[test]
+    fn merge_keeps_the_base_doc_on_an_overridden_value() {
+        // Arrange
+        // `rewrap` keeps the base's doc on a merged block, so the value-level
+        // override follows the same rule: the value moves, the doc stays.
+        let mut base_field = scalar("port", Scalar::Int(1));
+        base_field.doc = Some("The listen port.".to_string());
+        let mut over_field = scalar("port", Scalar::Int(2));
+        over_field.doc = Some("Override doc.".to_string());
+        let base = level(A, sp(A, 0, 0), vec![base_field]);
+        let over = level(A, sp(A, 0, 0), vec![over_field]);
+        let mut report = Report::new();
+
+        // Act
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
+        // Assert
+        let field = merged.get("port").unwrap();
+        assert_eq!(scalar_of(field), &Scalar::Int(2));
+        assert_eq!(field.doc.as_deref(), Some("The listen port."));
+    }
+
+    #[test]
+    fn repeated_blocks_against_a_scalar_report_a_conflict() {
+        // Arrange
+        // The group arm used to skip the kind check, so a scalar override
+        // silently replaced a repeated block group.
+        let base = level(
+            A,
+            sp(A, 0, 0),
+            vec![block("server", vec![]), block("server", vec![])],
+        );
+        let over = level(A, sp(A, 0, 0), vec![scalar("server", Scalar::Int(1))]);
+        let mut report = Report::new();
+
+        // Act
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
+        // Assert
+        assert!(report.has_errors());
+        assert_eq!(
+            report.issues()[0].message,
+            "`server` is a value in one source and a block in another"
+        );
+        assert!(matches!(
+            merged.get("server").unwrap().kind,
+            FieldKind::Value(_)
+        ));
+        assert_eq!(merged.iter().count(), 1);
+    }
+
+    #[test]
+    fn repeated_blocks_against_repeated_blocks_replace_without_a_conflict() {
+        // Arrange
+        let base = level(
+            A,
+            sp(A, 0, 0),
+            vec![block("server", vec![]), block("server", vec![])],
+        );
+        let over = level(
+            A,
+            sp(A, 0, 0),
+            vec![
+                block("server", vec![scalar("port", Scalar::Int(1))]),
+                block("server", vec![scalar("port", Scalar::Int(2))]),
+                block("server", vec![scalar("port", Scalar::Int(3))]),
+            ],
+        );
+        let mut report = Report::new();
+
+        // Act
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
+        // Assert
+        assert_eq!(merged.iter().count(), 3);
+        assert!(!report.has_issues());
+    }
+
+    #[test]
     fn merged_level_keeps_the_base_source_and_enclosing() {
         // Arrange
         let base = level(A, sp(A, 3, 7), vec![scalar("port", Scalar::Int(1))]);
         let over = level(B, sp(B, 9, 9), vec![scalar("host", Scalar::Int(2))]);
         let mut report = Report::new();
+
         // Act
-        let merged = combine(&base, &over, Verb::Merge, &mut report);
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         assert_eq!(merged.source(), A);
         assert_eq!(merged.enclosing(), sp(A, 3, 7));

@@ -106,7 +106,7 @@ where
                 .error(format!("unknown keyword: {}", value.value))
                 .at(value.span)
                 .help(
-                    "This value was not checked against a keyword set, or the keyword set and its enum disagree.",
+                    "the value was not checked against a keyword set, or the set and its enum disagree",
                 )
                 .emit();
             None
@@ -276,8 +276,10 @@ mod tests {
         // Arrange
         let mut report = Report::new();
         let value = Located::detached("log".to_string());
+
         // Act
         let lowered = keyword::<Mode>(&value, &mut report);
+
         // Assert
         assert_eq!(lowered, Some(Mode::Log));
         assert!(!report.has_errors());
@@ -298,8 +300,10 @@ mod tests {
             value: "warn".to_string(),
             span,
         };
+
         // Act
         let lowered = keyword::<Mode>(&value, &mut report);
+
         // Assert
         assert_eq!(lowered, None);
         assert_eq!(report.issues()[0].span, Some(span));

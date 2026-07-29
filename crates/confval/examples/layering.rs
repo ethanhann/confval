@@ -68,7 +68,7 @@ workers = 8
             &mut report,
         ))
         .join(parse_toml_fields(&sources, defaults, &mut report))
-        .into(&mut report);
+        .assemble(&mut report);
 
     let spec = spec.ok_or("a source produced no tree (see the report)")?;
 

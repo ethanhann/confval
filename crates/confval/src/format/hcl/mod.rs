@@ -61,7 +61,7 @@ pub fn parse_hcl_fields(sources: &SourceMap, id: SourceId, report: &mut Report) 
     match parsed {
         Ok(Ok(body)) => {
             let enclosing = Span::new(id, 0, source.text.len() as u32);
-            Some(fields_of_body(&body, enclosing, id, report))
+            Some(fields_of_body(&body, enclosing, &source.text, id, report))
         }
         Ok(Err(error)) => {
             let offset = error.location().offset() as u32;
@@ -103,8 +103,15 @@ pub fn span_of(node: &impl hcl_edit::Span, source: SourceId) -> Span {
 
 /// Normalizes a body's attributes and blocks into neutral fields. `enclosing`
 /// is the span missing-field errors point at: the surrounding block, or the
-/// whole file at the root.
-fn fields_of_body(body: &Body, enclosing: Span, source: SourceId, report: &mut Report) -> Fields {
+/// whole file at the root. `text` is the source's full text, which numeric
+/// literals are re-read from.
+fn fields_of_body(
+    body: &Body,
+    enclosing: Span,
+    text: &str,
+    source: SourceId,
+    report: &mut Report,
+) -> Fields {
     let mut items = Vec::new();
     for structure in body.iter() {
         match structure {
@@ -113,7 +120,7 @@ fn fields_of_body(body: &Body, enclosing: Span, source: SourceId, report: &mut R
                 name_span: span_of(&attr.key, source),
                 span: span_of(attr, source),
                 source,
-                kind: FieldKind::Value(value_of_expr(&attr.value, source, report)),
+                kind: FieldKind::Value(value_of_expr(&attr.value, text, source, report)),
                 doc: None,
             }),
             Structure::Block(block) => {
@@ -123,7 +130,13 @@ fn fields_of_body(body: &Body, enclosing: Span, source: SourceId, report: &mut R
                     name_span: span_of(&block.ident, source),
                     span: block_span,
                     source,
-                    kind: FieldKind::Block(fields_of_body(&block.body, block_span, source, report)),
+                    kind: FieldKind::Block(fields_of_body(
+                        &block.body,
+                        block_span,
+                        text,
+                        source,
+                        report,
+                    )),
                     doc: None,
                 });
             }
@@ -137,6 +150,7 @@ fn fields_of_body(body: &Body, enclosing: Span, source: SourceId, report: &mut R
 fn fields_of_object(
     object: &Object,
     enclosing: Span,
+    text: &str,
     source: SourceId,
     report: &mut Report,
 ) -> Fields {
@@ -156,7 +170,7 @@ fn fields_of_object(
             },
         };
         let name_span = span_of(key, source);
-        let value = value_of_expr(value.expr(), source, report);
+        let value = value_of_expr(value.expr(), text, source, report);
         items.push(Field {
             name: name.to_string(),
             name_span,
@@ -172,33 +186,53 @@ fn fields_of_object(
 /// Converts one HCL expression into a neutral [`Value`], recursing through
 /// arrays and objects. Anything the model has no scalar for (a template, null)
 /// becomes [`ValueKind::Other`] with a diagnostic label.
-fn value_of_expr(expr: &Expression, source: SourceId, report: &mut Report) -> Value {
+fn value_of_expr(expr: &Expression, text: &str, source: SourceId, report: &mut Report) -> Value {
     let span = span_of(expr, source);
     let kind = if let Some(string) = expr.as_str() {
         ValueKind::Scalar(Scalar::String(string.to_string()))
     } else if let Some(boolean) = expr.as_bool() {
         ValueKind::Scalar(Scalar::Bool(boolean))
     } else if let Some(number) = expr.as_number() {
-        if let Some(int) = number.as_i64() {
-            ValueKind::Scalar(Scalar::Int(int))
-        } else if let Some(float) = number.as_f64() {
-            ValueKind::Scalar(Scalar::Float(float))
-        } else {
-            ValueKind::Other("number")
+        match scalar_of_number(number, span, text) {
+            Some(scalar) => ValueKind::Scalar(scalar),
+            None => ValueKind::Other("number"),
         }
     } else if let Some(array) = expr.as_array() {
         ValueKind::Seq(
             array
                 .iter()
-                .map(|element| value_of_expr(element, source, report))
+                .map(|element| value_of_expr(element, text, source, report))
                 .collect(),
         )
     } else if let Expression::Object(object) = expr {
-        ValueKind::Map(fields_of_object(object, span, source, report))
+        ValueKind::Map(fields_of_object(object, span, text, source, report))
     } else {
         ValueKind::Other(describe_other(expr))
     };
     Value { span, kind }
+}
+
+/// Converts a parsed number into a scalar. hcl-edit collapses a whole-valued
+/// float literal into an integer with a saturating cast, which corrupts a
+/// magnitude of 2^63 or more and drops the float kind everywhere else. The
+/// literal's text says which kind the author wrote, so a literal that spells a
+/// float, with a dot or an exponent, is re-read from the source text.
+fn scalar_of_number(number: &hcl_edit::Number, span: Span, text: &str) -> Option<Scalar> {
+    if let Some(literal) = text.get(span.start as usize..span.end as usize)
+        && literal.contains(['.', 'e', 'E'])
+    {
+        // A negation may carry whitespace between the sign and the digits,
+        // which f64's parser does not accept.
+        let compact: String = literal.split_whitespace().collect();
+        if let Ok(float) = compact.parse::<f64>() {
+            return Some(Scalar::Float(float));
+        }
+    }
+    if let Some(int) = number.as_i64() {
+        Some(Scalar::Int(int))
+    } else {
+        number.as_f64().map(Scalar::Float)
+    }
 }
 
 /// Diagnostic label for an expression the neutral model cannot represent.
@@ -231,7 +265,8 @@ mod tests {
         let id = sources.add("test.hcl", input);
         let body = hcl_edit::parser::parse_body(&sources.get(id).unwrap().text).unwrap();
         let mut report = Report::new();
-        let fields = fields_of_body(&body, Span::new(id, 0, 0), id, &mut report);
+        let text = sources.get(id).unwrap().text.clone();
+        let fields = fields_of_body(&body, Span::new(id, 0, 0), &text, id, &mut report);
         assert!(
             !report.has_issues(),
             "frontend reported: {:?}",
@@ -278,6 +313,47 @@ mod tests {
         assert_eq!(ratio.unwrap().value, 0.5);
         assert_eq!(whole.unwrap().value, 1.0);
         assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn float_literal_beyond_i64_range_parses_exactly() {
+        // Arrange
+        // hcl-edit collapses a whole-valued float to an integer with a
+        // saturating cast, so these literals corrupt unless the value is
+        // recovered from the source text.
+        let input = "rate = 1e19\nfloor = -1e300\n";
+
+        // Act
+        let (_, _, fields) = parse(input);
+
+        // Assert
+        let mut report = Report::new();
+        let rate = parse_float_field(fields.get("rate").unwrap(), &mut report).unwrap();
+        let floor = parse_float_field(fields.get("floor").unwrap(), &mut report).unwrap();
+        assert_eq!(rate.value, 1e19);
+        assert_eq!(floor.value, -1e300);
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn whole_float_literal_keeps_the_float_kind() {
+        // Arrange
+        let input = "ratio = 4.0\n";
+
+        // Act
+        let (_, _, fields) = parse(input);
+
+        // Assert
+        // The literal spells a float, so the neutral model keeps the float
+        // kind instead of collapsing to an integer.
+        let FieldKind::Value(value) = &fields.get("ratio").unwrap().kind else {
+            panic!("ratio should be a value");
+        };
+        assert!(
+            matches!(value.kind, ValueKind::Scalar(Scalar::Float(f)) if f == 4.0),
+            "ratio should stay a float, got: {:?}",
+            value.kind
+        );
     }
 
     #[test]

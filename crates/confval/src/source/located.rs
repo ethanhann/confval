@@ -19,11 +19,14 @@ use std::ops::Deref;
 /// `.span` explicitly.
 #[derive(Clone, Debug)]
 pub struct Located<T> {
+    /// The parsed value.
     pub value: T,
+    /// Where the value came from.
     pub span: Span,
 }
 
 impl<T> Located<T> {
+    /// A value with the span it was parsed from.
     pub fn new(value: T, span: Span) -> Self {
         Self { value, span }
     }
@@ -36,6 +39,7 @@ impl<T> Located<T> {
         }
     }
 
+    /// Transforms the value, keeping the span.
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Located<U> {
         Located {
             value: f(self.value),
@@ -43,6 +47,7 @@ impl<T> Located<T> {
         }
     }
 
+    /// A `Located` borrowing the value, keeping the span.
     pub fn as_ref(&self) -> Located<&T> {
         Located {
             value: &self.value,
