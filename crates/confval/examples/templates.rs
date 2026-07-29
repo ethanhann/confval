@@ -61,6 +61,8 @@ impl Validate for LimitsSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
+/// This is an example parent spec with intentionally out-of-order nested blocks,
+/// but in the template the max_weight is bubbled to the top.
 #[derive(confval::Spec)]
 #[confval(derive_default)]
 struct WidgetSpec {
@@ -78,6 +80,7 @@ impl Validate for WidgetSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
+/// This is an example child spec used to demonstrate block ordering.
 #[derive(confval::Spec)]
 #[confval(derive_default)]
 struct SprocketSpec {
