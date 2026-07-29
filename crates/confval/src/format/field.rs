@@ -248,6 +248,15 @@ pub trait ToFields {
     fn to_template(&self) -> Fields {
         self.to_fields()
     }
+
+    /// The doc comment on the spec type itself, or `None`. A parent's template
+    /// walk renders it above a block embedding this spec when the embedding
+    /// field carries no doc of its own, so a spec documented once at its
+    /// definition annotates every such site. Defaults to `None`, so a
+    /// hand-written impl opts in rather than breaks.
+    fn spec_doc(&self) -> Option<String> {
+        None
+    }
 }
 
 #[cfg(test)]

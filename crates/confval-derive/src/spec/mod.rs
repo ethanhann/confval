@@ -124,7 +124,12 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     } else {
         quote! {}
     };
-    let to_fields = to_fields_impl(name, &to_fields_emits, &to_template_emits);
+    let to_fields = to_fields_impl(
+        name,
+        &to_fields_emits,
+        &to_template_emits,
+        &struct_options.doc,
+    );
 
     // Splice the four parsing buckets into the generated parser. This is the
     // code that runs at the caller's runtime, once per parsed struct.

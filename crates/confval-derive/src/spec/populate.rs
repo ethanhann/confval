@@ -45,6 +45,18 @@ pub(crate) fn field_emit(
         }
         _ => quote! {},
     };
+    // A block whose embedding field has no doc falls back to the child type's
+    // own doc at runtime, read through `spec_doc`. The receiver differs per
+    // arm, so each nested arm supplies the expression its block recurses on.
+    let nested_doc = |receiver: TokenStream2| -> TokenStream2 {
+        match (annotate, &options.doc) {
+            (false, _) => quote! {},
+            (true, Some(_)) => doc.clone(),
+            (true, None) => {
+                quote! { .with_doc(::confval::format::ToFields::spec_doc(#receiver)) }
+            }
+        }
+    };
     match shape {
         FieldShape::Leaf { leaf, optional } => {
             if *optional {
@@ -97,6 +109,7 @@ pub(crate) fn field_emit(
         }
         FieldShape::Nested { optional, spec_ty } => {
             if !*optional {
+                let doc = nested_doc(quote! { &self.#ident.value });
                 quote! {
                     __items.push(::confval::format::Field::detached_block(
                         #name,
@@ -107,24 +120,27 @@ pub(crate) fn field_emit(
                 // The populate marker: fill an absent block from `S::default()`,
                 // spelling the inner type so the `Fields` return can infer it.
                 let spec_ty = &**spec_ty;
+                let child_doc = nested_doc(quote! { &__child.value });
+                let filled_doc = nested_doc(quote! { &__filled });
                 quote! {
                     match &self.#ident {
                         ::core::option::Option::Some(__child) => {
                             __items.push(::confval::format::Field::detached_block(
                                 #name,
                                 ::confval::format::ToFields::#recurse(&__child.value),
-                            )#doc);
+                            )#child_doc);
                         }
                         ::core::option::Option::None => {
                             let __filled: #spec_ty = ::core::default::Default::default();
                             __items.push(::confval::format::Field::detached_block(
                                 #name,
                                 ::confval::format::ToFields::#recurse(&__filled),
-                            )#doc);
+                            )#filled_doc);
                         }
                     }
                 }
             } else {
+                let doc = nested_doc(quote! { &__child.value });
                 quote! {
                     if let ::core::option::Option::Some(__child) = &self.#ident {
                         __items.push(::confval::format::Field::detached_block(
@@ -135,19 +151,24 @@ pub(crate) fn field_emit(
                 }
             }
         }
-        FieldShape::NestedList => quote! {
-            for __child in &self.#ident {
-                __items.push(::confval::format::Field::detached_block(
-                    #name,
-                    ::confval::format::ToFields::#recurse(&__child.value),
-                )#doc);
+        FieldShape::NestedList => {
+            let doc = nested_doc(quote! { &__child.value });
+            quote! {
+                for __child in &self.#ident {
+                    __items.push(::confval::format::Field::detached_block(
+                        #name,
+                        ::confval::format::ToFields::#recurse(&__child.value),
+                    )#doc);
+                }
             }
-        },
+        }
     }
 }
 
 /// Assembles the field fragments into the generated `impl ToFields`, with both
-/// the plain `to_fields` walk and the annotated `to_template` walk.
+/// the plain `to_fields` walk and the annotated `to_template` walk. A struct
+/// with a doc comment also overrides `spec_doc`, the fallback a parent's
+/// template walk renders above a block whose embedding field has no doc.
 ///
 /// A struct with no fields declares the item vector without `mut`, so the
 /// generated impl carries no unused-mut warning under `-D warnings`.
@@ -155,9 +176,17 @@ pub(crate) fn to_fields_impl(
     name: &Ident,
     fields_emits: &[TokenStream2],
     template_emits: &[TokenStream2],
+    spec_doc: &Option<String>,
 ) -> TokenStream2 {
     let fields_decl = items_decl(fields_emits);
     let template_decl = items_decl(template_emits);
+    let spec_doc_impl = spec_doc.as_ref().map(|text| {
+        quote! {
+            fn spec_doc(&self) -> ::core::option::Option<::std::string::String> {
+                ::core::option::Option::Some(#text.to_string())
+            }
+        }
+    });
     quote! {
         impl ::confval::format::ToFields for #name {
             fn to_fields(&self) -> ::confval::format::Fields {
@@ -171,6 +200,8 @@ pub(crate) fn to_fields_impl(
                 #(#template_emits)*
                 ::confval::format::Fields::detached(__items)
             }
+
+            #spec_doc_impl
         }
     }
 }

@@ -61,26 +61,30 @@ impl Validate for LimitsSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
-/// This is an example parent spec with intentionally out-of-order nested blocks,
-/// but in the template the max_weight is bubbled to the top.
+/// Widget assembly settings. The `widget` field embedding this spec has no doc
+/// of its own, so the template renders this struct-level comment above the
+/// block.
 #[derive(confval::Spec)]
 #[confval(derive_default)]
 struct WidgetSpec {
+    /// The primary sprocket. A field doc wins over the struct doc on
+    /// `SprocketSpec`.
     #[confval(nested, default)]
-    sprocket: Located<SprocketSpec>,
+    primary_sprocket: Located<SprocketSpec>,
 
     #[confval(default = 16)]
     max_weight: Located<i64>,
 
     #[confval(nested, default)]
-    sprocket2: Located<SprocketSpec>,
+    secondary_sprocket: Located<SprocketSpec>,
 }
 
 impl Validate for WidgetSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
-/// This is an example child spec used to demonstrate block ordering.
+/// A sprocket's dimensions. The `sprocket2` field has no doc, so its block
+/// falls back to this comment.
 #[derive(confval::Spec)]
 #[confval(derive_default)]
 struct SprocketSpec {
