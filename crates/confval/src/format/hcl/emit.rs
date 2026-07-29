@@ -46,7 +46,7 @@ fn emit_body(fields: &Fields, level: usize, path: &str) -> Result<Body, EmitErro
     }
     let indent = "  ".repeat(level);
     let mut body = Body::new();
-    for field in fields.iter() {
+    for (index, field) in fields.iter().enumerate() {
         // The prefix carries the field's doc comment, if any, above its
         // indentation, so the comment aligns with the field it documents.
         let prefix = hcl_comment_prefix(&field.doc, &indent);
@@ -61,6 +61,11 @@ fn emit_body(fields: &Fields, level: usize, path: &str) -> Result<Body, EmitErro
             FieldKind::Block(inner) => {
                 let child = child_path(path, &field.name);
                 let mut block = Block::new(ident_of(&field.name, path)?);
+                let prefix = if index == 0 {
+                    prefix
+                } else {
+                    format!("\n{prefix}")
+                };
                 block.decor_mut().set_prefix(prefix);
                 let mut inner_body = emit_body(inner, level + 1, &child)?;
                 inner_body.decor_mut().set_suffix(indent.clone());
@@ -276,12 +281,94 @@ mod tests {
         let text = emit_hcl(&fields).unwrap();
 
         // Assert
-        // The block body is indented one level, and the closing brace lines up
-        // with the opener.
+        // The block body is indented one level, the closing brace lines up
+        // with the opener, and a blank line separates the block from the
+        // attribute above it.
         assert_eq!(
             text,
-            "hostname = \"api\"\nport = 8080\nlimits {\n  max_body_mb = 16\n}\n"
+            "hostname = \"api\"\nport = 8080\n\nlimits {\n  max_body_mb = 16\n}\n"
         );
+    }
+
+    #[test]
+    fn emit_hcl_starts_a_leading_block_without_a_blank_line() {
+        // Arrange
+        // The blank line separates a block from what precedes it. A block that
+        // opens the document, or opens its parent's body, has nothing above it.
+        let inner = Fields::detached(vec![Field::detached_block(
+            "burst",
+            Fields::detached(vec![scalar("rate", Scalar::Int(100))]),
+        )]);
+        let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "limits {\n  burst {\n    rate = 100\n  }\n}\n");
+    }
+
+    #[test]
+    fn emit_hcl_separates_consecutive_blocks_with_a_blank_line() {
+        // Arrange
+        let block = |port: i64| {
+            Field::detached_block(
+                "service",
+                Fields::detached(vec![scalar("port", Scalar::Int(port))]),
+            )
+        };
+        let fields = Fields::detached(vec![block(1), block(2)]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            text,
+            "service {\n  port = 1\n}\n\nservice {\n  port = 2\n}\n"
+        );
+    }
+
+    #[test]
+    fn emit_hcl_separates_a_nested_block_from_a_preceding_attribute() {
+        // Arrange
+        let inner = Fields::detached(vec![
+            scalar("mode", Scalar::String("log".to_string())),
+            Field::detached_block(
+                "burst",
+                Fields::detached(vec![scalar("rate", Scalar::Int(100))]),
+            ),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        // The blank line carries no indentation, and the nested block keeps its
+        // own indent after it.
+        assert_eq!(
+            text,
+            "limits {\n  mode = \"log\"\n\n  burst {\n    rate = 100\n  }\n}\n"
+        );
+    }
+
+    #[test]
+    fn emit_hcl_puts_the_blank_line_above_a_blocks_doc_comment() {
+        // Arrange
+        // The comment belongs to the block, so the separating blank line goes
+        // above the comment, not between the comment and the block.
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(1)),
+            Field::detached_block("limits", Fields::detached(vec![]))
+                .with_doc(Some("Request limits.".to_string())),
+        ]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port = 1\n\n# Request limits.\nlimits {\n}\n");
     }
 
     #[test]
