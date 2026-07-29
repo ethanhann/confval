@@ -11,6 +11,8 @@ use crate::source::Located;
 /// before lowering. Lowering functions may assume field-level validation
 /// passed, which is what makes narrowing conversions safe to write.
 pub trait Lower<S>: Sized {
+    /// Builds the runtime type from a validated spec, reporting anything
+    /// that still fails. `None` means at least one error was pushed.
     fn lower(spec: &S, report: &mut Report) -> Option<Self>;
 }
 
@@ -23,6 +25,7 @@ pub trait Lower<S>: Sized {
 /// safe is knowledge this trait does not have, so narrowing always goes
 /// through an explicit lowering function.
 pub trait LowerAuto<Target> {
+    /// The infallible conversion for an auto-mapped field.
     fn lower_auto(&self) -> Target;
 }
 

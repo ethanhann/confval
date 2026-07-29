@@ -30,6 +30,9 @@ overflow-checks = true      # Ensure safer arithmetic operations
 unwrap_used = "deny"
 expect_used = "deny"
 
+[workspace.lints.rust]
+missing_docs = "deny"
+
 [workspace.dependencies]
 serde = { version = "1" }
 serde_json = { version = "1" }

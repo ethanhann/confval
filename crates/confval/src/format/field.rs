@@ -24,9 +24,13 @@ use crate::source::{SourceId, Span};
 /// single number type (HCL) classifies each literal as one or the other.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Scalar {
+    /// A string value.
     String(String),
+    /// An integer value.
     Int(i64),
+    /// A float value.
     Float(f64),
+    /// A boolean value.
     Bool(bool),
     /// A raw string from a source that carries only strings, such as an
     /// environment variable or a command line flag, before it is parsed to a
@@ -40,7 +44,9 @@ pub enum Scalar {
 /// The data behind a field, with the span it occupied in source.
 #[derive(Debug, Clone)]
 pub struct Value {
+    /// The byte range the value occupied in its source.
     pub span: Span,
+    /// What the value is.
     pub kind: ValueKind,
 }
 
@@ -48,6 +54,7 @@ pub struct Value {
 /// model cannot represent.
 #[derive(Debug, Clone)]
 pub enum ValueKind {
+    /// A single leaf value.
     Scalar(Scalar),
     /// An array. Elements keep their own spans so a bad element is reported at
     /// the element, not the whole list.
@@ -64,13 +71,16 @@ pub enum ValueKind {
 /// One named entry at a structural level: an attribute, a block, or a table.
 #[derive(Debug, Clone)]
 pub struct Field {
+    /// The field's name as written in the source.
     pub name: String,
     /// Span of the name alone (attribute key, block identifier, table header
     /// key), where unknown-field errors point.
     pub name_span: Span,
     /// Span of the whole field, name and value together.
     pub span: Span,
+    /// The source the field was read from.
     pub source: SourceId,
+    /// Whether the field is an attribute or a block, and its data.
     pub kind: FieldKind,
     /// The doc comment to render above the field when emitting an annotated
     /// template, or `None` for no comment. Parsing sets it to `None`, because a
@@ -90,7 +100,9 @@ pub struct Field {
 /// it.
 #[derive(Debug, Clone)]
 pub enum FieldKind {
+    /// An attribute: `name = value`.
     Value(Value),
+    /// A block: `name { ... }` in HCL, `[name]` in TOML.
     Block(Fields),
 }
 
@@ -151,6 +163,8 @@ impl Field {
 }
 
 impl Fields {
+    /// A level read from `source`, with `enclosing` as the span
+    /// missing-field errors point at.
     pub fn new(source: SourceId, enclosing: Span, items: Vec<Field>) -> Self {
         Self {
             source,
@@ -171,6 +185,7 @@ impl Fields {
         }
     }
 
+    /// The source this level was read from.
     pub fn source(&self) -> SourceId {
         self.source
     }
@@ -181,6 +196,7 @@ impl Fields {
         self.enclosing
     }
 
+    /// The fields in source order.
     pub fn iter(&self) -> std::slice::Iter<'_, Field> {
         self.items.iter()
     }
@@ -190,10 +206,12 @@ impl Fields {
         self.items
     }
 
+    /// Whether a field with the name exists at this level.
     pub fn has(&self, name: &str) -> bool {
         self.items.iter().any(|field| field.name == name)
     }
 
+    /// The first field with the name, or `None`.
     pub fn get(&self, name: &str) -> Option<&Field> {
         self.items.iter().find(|field| field.name == name)
     }
@@ -206,6 +224,8 @@ impl Fields {
 /// was pushed. This is the trait `#[derive(Spec)]` generates and the one a
 /// hand-written spec implements. It names no format.
 pub trait FromFields: Sized {
+    /// Builds `Self` from one structural level, reporting every problem
+    /// found. `None` means at least one error was pushed.
     fn from_fields(fields: &Fields, report: &mut Report) -> Option<Self>;
 }
 

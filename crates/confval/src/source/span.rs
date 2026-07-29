@@ -19,12 +19,16 @@ impl SourceId {
 /// and threaded everywhere by value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Span {
+    /// The registered source the range points into.
     pub source: SourceId,
+    /// The range's starting byte offset, inclusive.
     pub start: u32,
+    /// The range's ending byte offset, exclusive.
     pub end: u32,
 }
 
 impl Span {
+    /// A byte range within the given source.
     pub fn new(source: SourceId, start: u32, end: u32) -> Self {
         Self { source, start, end }
     }
@@ -62,6 +66,7 @@ impl Span {
         }
     }
 
+    /// Whether this is the detached sentinel rather than a real location.
     pub fn is_detached(&self) -> bool {
         self.source == SourceId::DETACHED
     }

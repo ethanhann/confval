@@ -10,11 +10,13 @@ pub struct Source {
     /// Display name, typically the path relative to the config root,
     /// e.g. "ingress.d/api.hcl".
     pub name: String,
+    /// The source's full text.
     pub text: String,
     line_index: LineIndex,
 }
 
 impl Source {
+    /// A source from its display name and text.
     pub fn new(name: impl Into<String>, text: impl Into<String>) -> Self {
         let text = text.into();
         let line_index = LineIndex::new(&text);
@@ -89,10 +91,12 @@ pub struct SourceMap {
 }
 
 impl SourceMap {
+    /// An empty source map.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Registers a source and returns its id, which spans refer back to.
     pub fn add(&mut self, name: impl Into<String>, text: impl Into<String>) -> SourceId {
         assert!(
             self.sources.len() < SourceId::DETACHED.index(),

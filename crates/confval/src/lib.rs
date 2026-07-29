@@ -1,10 +1,24 @@
+//! Parse, validate, and lower configuration files, with a source span on
+//! every value so a diagnostic reports the exact line and column it came
+//! from.
+//!
+//! The pipeline runs in stages. A format frontend parses text into a
+//! format-neutral field model, a spec type parses out of that model, plain
+//! validation functions check what the values mean, and lowering narrows the
+//! validated spec into the runtime types the rest of the program uses.
+
 #[cfg(feature = "derive")]
 pub use confval_derive::{Config, Spec};
+/// Collecting and rendering diagnostics: the [`Report`](diagnostic::Report)
+/// and its issues.
 pub mod diagnostic;
+/// The format-neutral field model, the file frontends, and the emitters.
 pub mod format;
 #[cfg(feature = "layering")]
 pub mod layering;
 pub mod pipeline;
+/// Source registration and location: [`SourceMap`](source::SourceMap),
+/// [`Span`](source::Span), and [`Located`](source::Located).
 pub mod source;
 
 pub use pipeline::keyword::KeywordSet;

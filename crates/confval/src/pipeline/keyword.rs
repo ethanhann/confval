@@ -28,10 +28,12 @@ use crate::source::Located;
 /// ```
 #[derive(Debug, Clone)]
 pub struct KeywordSet<'a> {
+    /// The allowed keywords, in declaration order.
     pub allowed: &'a [&'a str],
 }
 
 impl<'a> KeywordSet<'a> {
+    /// A set over the given keywords.
     pub const fn new(allowed: &'a [&'a str]) -> Self {
         Self { allowed }
     }

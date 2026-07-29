@@ -16,7 +16,7 @@ lint:
 # Test everything
 validate: format lint test validate-docs examples
 
-# Run examples
+# Run examples. The hcl one exits nonzero by design (it renders a failing config), so its line is failure-tolerant.
 examples:
     echo "Running crate examples..."
     -cargo run -q -p confval --features derive,color,hcl,serde --example hcl
@@ -26,9 +26,30 @@ examples:
     cargo run -q -p confval --features derive,color,toml,serde,layering --example layering
     cargo run -q -p confval --features derive,color,toml,serde --example templates
 
-validate-docs: check-doc-snippets
+validate-docs: check-doc-snippets check-doc-programs
     cargo doc --all-features --no-deps
     cd docs && npm run build
+
+# Compile every Rust fence in the docs that contains fn main, so a full-program listing cannot drift from the crate.
+check-doc-programs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir=target/doc-programs
+    rm -rf "$dir"
+    mkdir -p "$dir/src/bin"
+    for f in $(find docs/docs docs/releases -name '*.md'); do
+      prefix=$(basename "$f" .md | tr -c 'a-zA-Z0-9' '_')
+      awk -v outdir="$dir/src/bin" -v prefix="$prefix" '
+        /^```rust$/ { inblock = 1; buf = ""; next }
+        /^```/ { if (inblock) { inblock = 0; if (buf ~ /fn main/) { count++; printf "%s", buf > (outdir "/" prefix count ".rs") } } next }
+        inblock { buf = buf $0 "\n" }
+      ' "$f"
+    done
+    count=$(ls "$dir/src/bin" | wc -l | tr -d ' ')
+    if [ "$count" -eq 0 ]; then echo "no full-program doc snippets found"; exit 0; fi
+    printf '[package]\nname = "doc-programs"\nversion = "0.0.0"\nedition = "2024"\n\n[dependencies]\nconfval = { path = "../../crates/confval", features = ["derive", "toml", "hcl", "color", "serde", "layering"] }\n\n[workspace]\n' > "$dir/Cargo.toml"
+    cargo build -q --manifest-path "$dir/Cargo.toml"
+    echo "compiled $count doc program(s)"
 
 # Fail if RustRover mangled a Rust code fence in the docs: a spread borrow ("& x", "( &x"), or a method chain reflowed to column zero.
 check-doc-snippets:

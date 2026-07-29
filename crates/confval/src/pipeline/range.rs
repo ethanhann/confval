@@ -2,11 +2,17 @@ use crate::diagnostic::Report;
 use crate::source::Located;
 use std::fmt;
 
+/// An inclusive numeric range a located value is checked against, reporting
+/// at the value's span with a generated or supplied help line.
 #[derive(Debug, Clone)]
 pub struct RangeConstraint<T> {
+    /// The smallest allowed value.
     pub min: T,
+    /// The largest allowed value.
     pub max: T,
+    /// A unit suffix for the generated message, such as "seconds".
     pub units: Option<&'static str>,
+    /// A help line that replaces the generated suggestion.
     pub help: Option<&'static str>,
 }
 
@@ -14,6 +20,7 @@ impl<T> RangeConstraint<T>
 where
     T: PartialOrd + fmt::Display + Copy,
 {
+    /// A range with generated help and no units.
     pub const fn new(min: T, max: T) -> Self {
         Self {
             min,
@@ -23,6 +30,7 @@ where
         }
     }
 
+    /// A range whose messages name the unit, such as "seconds".
     pub const fn with_units(min: T, max: T, units: &'static str) -> Self {
         Self {
             min,

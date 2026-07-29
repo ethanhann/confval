@@ -30,17 +30,32 @@ pub enum EmitError {
     /// A name has no representation in the target format, such as a
     /// non-identifier attribute or block name in HCL. TOML quotes any key, so
     /// this arises only for HCL.
-    UnrepresentableName { name: String, path: String },
+    UnrepresentableName {
+        /// The name that cannot be spelled.
+        name: String,
+        /// The dotted path of the enclosing level, empty at the root.
+        path: String,
+    },
     /// A `ValueKind::Other`, a value the neutral model could not represent such
     /// as an HCL template or a TOML datetime, so there is no literal to emit.
     /// The label is the model's noun for it.
-    UnrepresentableValue { label: &'static str, path: String },
+    UnrepresentableValue {
+        /// The model's noun for the value, such as "datetime".
+        label: &'static str,
+        /// The dotted path of the field holding the value.
+        path: String,
+    },
     /// A name used at one level in a way the target format cannot spell twice:
     /// two values under one name in either format, a value next to a block in
     /// TOML, or any repetition inside an inline table or object. Emitting
     /// would silently lose one of the uses, so emit refuses. Populate never
     /// produces these, so they arise only for a parsed or hand-built `Fields`.
-    ConflictingName { name: String, path: String },
+    ConflictingName {
+        /// The name with conflicting uses.
+        name: String,
+        /// The dotted path of the enclosing level, empty at the root.
+        path: String,
+    },
 }
 
 /// The location suffix for an emit error message, empty at the document root.

@@ -57,6 +57,7 @@ struct Layer {
 }
 
 impl Assembly {
+    /// An assembly with no layers yet.
     pub fn new() -> Self {
         Self::default()
     }
