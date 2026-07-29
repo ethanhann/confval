@@ -36,6 +36,11 @@ keyword_enum!(pub LimitMode, {
 impl Validate for ServerSpec {
     fn validate(&self, report: &mut Report) {
         PORT.check_located(&self.port, "port", report);
+    }
+}
+
+impl Validate for LimitsSpec {
+    fn validate(&self, report: &mut Report) {
         LimitMode::keyword_set().check_located(&self.mode, "mode", report);
     }
 }

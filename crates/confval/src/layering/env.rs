@@ -15,6 +15,10 @@ use crate::source::{SourceMap, Span};
 /// it carries a real span. The value is emitted as an unparsed literal for the
 /// leaf parsers to coerce.
 ///
+/// Prefix matching is case-sensitive and byte-exact, so write the prefix as
+/// the variables begin, including its trailing underscore. An empty prefix
+/// selects every variable in the process environment.
+///
 /// A prefix that matches nothing returns an empty level that contributes
 /// nothing to a merge. The provider has no syntax-error failure mode, so it
 /// returns `Some` and never `None`.

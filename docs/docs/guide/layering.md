@@ -112,6 +112,10 @@ With the prefix `APP_`, variables map to fields like this:
 - `APP_PORT=8080` sets `port`.
 - `APP_SERVER__MAX_BODY_MB=16` sets `server.max_body_mb`.
 
+Prefix matching is case-sensitive and byte-exact, so `app_port` does not match the prefix `APP_`.
+Write the prefix exactly as the variables begin, including its trailing underscore.
+An empty prefix selects every variable in the process environment.
+
 ## Command Line Arguments
 
 `cli_fields` reads flags in the `--key=value` form.

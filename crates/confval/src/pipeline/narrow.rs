@@ -106,7 +106,7 @@ where
                 .error(format!("unknown keyword: {}", value.value))
                 .at(value.span)
                 .help(
-                    "This value was not checked against a keyword set, or the keyword set and its enum disagree.",
+                    "the value was not checked against a keyword set, or the set and its enum disagree",
                 )
                 .emit();
             None
