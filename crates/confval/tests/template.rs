@@ -180,6 +180,154 @@ fn a_template_parses_back_to_the_populated_spec() {
     );
 }
 
+/// Widget assembly settings.
+#[derive(confval::Spec, PartialEq, Debug)]
+#[confval(derive_default)]
+struct WidgetSpec {
+    #[confval(default = 16)]
+    max_weight: Located<i64>,
+}
+
+impl Validate for WidgetSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[derive(confval::Spec, PartialEq, Debug)]
+struct MachineSpec {
+    #[confval(nested, default)]
+    widget: Located<WidgetSpec>,
+    /// The fallback widget.
+    #[confval(nested, default)]
+    backup: Located<WidgetSpec>,
+    /// This rustdoc must lose to the attribute.
+    #[confval(nested, default, doc = "The override widget.")]
+    gizmo: Located<WidgetSpec>,
+}
+
+impl Validate for MachineSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+fn machine() -> MachineSpec {
+    MachineSpec {
+        widget: Located::detached(WidgetSpec::default()),
+        backup: Located::detached(WidgetSpec::default()),
+        gizmo: Located::detached(WidgetSpec::default()),
+    }
+}
+
+#[test]
+fn a_struct_doc_annotates_a_block_whose_field_has_no_doc() {
+    // Arrange
+    // `widget` carries no doc of its own, so the block's comment falls back to
+    // the `///` on `WidgetSpec` itself.
+    let spec = machine();
+
+    // Act
+    let fields = spec.to_template();
+
+    // Assert
+    assert_eq!(
+        fields.get("widget").unwrap().doc.as_deref(),
+        Some("Widget assembly settings.")
+    );
+    let toml = emit_toml(&fields).expect("emit toml");
+    let hcl = emit_hcl(&fields).expect("emit hcl");
+    assert!(
+        toml.contains("# Widget assembly settings.\n[widget]"),
+        "got:\n{toml}"
+    );
+    assert!(
+        hcl.contains("# Widget assembly settings.\nwidget {"),
+        "got:\n{hcl}"
+    );
+}
+
+#[test]
+fn a_field_doc_wins_over_the_struct_doc() {
+    // Arrange
+    let spec = machine();
+
+    // Act
+    let fields = spec.to_template();
+
+    // Assert
+    assert_eq!(
+        fields.get("backup").unwrap().doc.as_deref(),
+        Some("The fallback widget.")
+    );
+}
+
+#[test]
+fn a_doc_attribute_wins_over_the_field_and_struct_docs() {
+    // Arrange
+    let spec = machine();
+
+    // Act
+    let fields = spec.to_template();
+
+    // Assert
+    assert_eq!(
+        fields.get("gizmo").unwrap().doc.as_deref(),
+        Some("The override widget.")
+    );
+}
+
+#[test]
+fn a_struct_doc_never_reaches_to_fields() {
+    // Arrange
+    let spec = machine();
+
+    // Act
+    let fields = spec.to_fields();
+
+    // Assert
+    let toml = emit_toml(&fields).expect("emit toml");
+    let hcl = emit_hcl(&fields).expect("emit hcl");
+    assert!(!toml.contains('#'), "toml had a comment:\n{toml}");
+    assert!(!hcl.contains('#'), "hcl had a comment:\n{hcl}");
+}
+
+#[derive(confval::Spec, PartialEq, Debug)]
+struct FleetSpec {
+    #[confval(nested)]
+    widget: Vec<Located<WidgetSpec>>,
+}
+
+impl Validate for FleetSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_struct_doc_annotates_repeated_blocks_like_a_field_doc_would() {
+    // Arrange
+    // The fallback follows the field-doc behavior for lists: HCL annotates
+    // every repeated block, and TOML annotates the array of tables once.
+    let spec = FleetSpec {
+        widget: vec![
+            Located::detached(WidgetSpec::default()),
+            Located::detached(WidgetSpec::default()),
+        ],
+    };
+
+    // Act
+    let fields = spec.to_template();
+
+    // Assert
+    let hcl = emit_hcl(&fields).expect("emit hcl");
+    let toml = emit_toml(&fields).expect("emit toml");
+    assert_eq!(
+        hcl.matches("# Widget assembly settings.").count(),
+        2,
+        "got:\n{hcl}"
+    );
+    assert_eq!(
+        toml.matches("# Widget assembly settings.").count(),
+        1,
+        "got:\n{toml}"
+    );
+}
+
 #[derive(confval::Spec, PartialEq, Debug)]
 struct DocShapes {
     /// First line.

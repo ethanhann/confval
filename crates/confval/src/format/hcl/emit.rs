@@ -18,7 +18,9 @@ use hcl_edit::structure::{Attribute, Block, Body, Structure};
 /// builds an `hcl-edit` `Body` by structure and returns its text, dropping the
 /// comments and layout the neutral model never held. A nested struct emits as a
 /// block, a repeated block emits once per element, and a non-identifier object
-/// key is quoted. It fails on a non-identifier attribute or block name, which
+/// key is quoted. Values emit before blocks at each level, each group in
+/// declaration order, with a blank line above every block that follows another
+/// structure. It fails on a non-identifier attribute or block name, which
 /// HCL cannot spell, on a [`ValueKind::Other`], on two same-named values at one
 /// level, which HCL rejects as duplicate attributes, and on any repeated name
 /// inside an object. Those arise only when you emit a parsed or hand-built
@@ -35,6 +37,12 @@ pub fn emit_hcl(fields: &Fields) -> Result<String, EmitError> {
 /// body carries a suffix of the block's own indent, which `hcl-edit` writes just
 /// before the closing brace, so the brace lines up with the opener. Without the
 /// suffix the brace would sit at column zero.
+///
+/// Values emit before blocks at each level, each group in declaration order,
+/// and a blank line separates every block from the structure above it. This is
+/// the Terraform layout convention, and it matches the order TOML is forced
+/// into by its syntax, where a bare key after a table header would belong to
+/// that table.
 fn emit_body(fields: &Fields, level: usize, path: &str) -> Result<Body, EmitError> {
     // HCL repeats blocks freely and spells a value next to a block, but it
     // rejects a duplicate attribute, and hcl-edit would keep only the first.
@@ -46,7 +54,13 @@ fn emit_body(fields: &Fields, level: usize, path: &str) -> Result<Body, EmitErro
     }
     let indent = "  ".repeat(level);
     let mut body = Body::new();
-    for field in fields.iter() {
+    let values = fields
+        .iter()
+        .filter(|field| matches!(field.kind, FieldKind::Value(_)));
+    let blocks = fields
+        .iter()
+        .filter(|field| matches!(field.kind, FieldKind::Block(_)));
+    for (index, field) in values.chain(blocks).enumerate() {
         // The prefix carries the field's doc comment, if any, above its
         // indentation, so the comment aligns with the field it documents.
         let prefix = hcl_comment_prefix(&field.doc, &indent);
@@ -61,6 +75,11 @@ fn emit_body(fields: &Fields, level: usize, path: &str) -> Result<Body, EmitErro
             FieldKind::Block(inner) => {
                 let child = child_path(path, &field.name);
                 let mut block = Block::new(ident_of(&field.name, path)?);
+                let prefix = if index == 0 {
+                    prefix
+                } else {
+                    format!("\n{prefix}")
+                };
                 block.decor_mut().set_prefix(prefix);
                 let mut inner_body = emit_body(inner, level + 1, &child)?;
                 inner_body.decor_mut().set_suffix(indent.clone());
@@ -276,12 +295,148 @@ mod tests {
         let text = emit_hcl(&fields).unwrap();
 
         // Assert
-        // The block body is indented one level, and the closing brace lines up
-        // with the opener.
+        // The block body is indented one level, the closing brace lines up
+        // with the opener, and a blank line separates the block from the
+        // attribute above it.
         assert_eq!(
             text,
-            "hostname = \"api\"\nport = 8080\nlimits {\n  max_body_mb = 16\n}\n"
+            "hostname = \"api\"\nport = 8080\n\nlimits {\n  max_body_mb = 16\n}\n"
         );
+    }
+
+    #[test]
+    fn emit_hcl_starts_a_leading_block_without_a_blank_line() {
+        // Arrange
+        // The blank line separates a block from what precedes it. A block that
+        // opens the document, or opens its parent's body, has nothing above it.
+        let inner = Fields::detached(vec![Field::detached_block(
+            "burst",
+            Fields::detached(vec![scalar("rate", Scalar::Int(100))]),
+        )]);
+        let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "limits {\n  burst {\n    rate = 100\n  }\n}\n");
+    }
+
+    #[test]
+    fn emit_hcl_separates_consecutive_blocks_with_a_blank_line() {
+        // Arrange
+        let block = |port: i64| {
+            Field::detached_block(
+                "service",
+                Fields::detached(vec![scalar("port", Scalar::Int(port))]),
+            )
+        };
+        let fields = Fields::detached(vec![block(1), block(2)]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            text,
+            "service {\n  port = 1\n}\n\nservice {\n  port = 2\n}\n"
+        );
+    }
+
+    #[test]
+    fn emit_hcl_separates_a_nested_block_from_a_preceding_attribute() {
+        // Arrange
+        let inner = Fields::detached(vec![
+            scalar("mode", Scalar::String("log".to_string())),
+            Field::detached_block(
+                "burst",
+                Fields::detached(vec![scalar("rate", Scalar::Int(100))]),
+            ),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        // The blank line carries no indentation, and the nested block keeps its
+        // own indent after it.
+        assert_eq!(
+            text,
+            "limits {\n  mode = \"log\"\n\n  burst {\n    rate = 100\n  }\n}\n"
+        );
+    }
+
+    #[test]
+    fn emit_hcl_orders_values_before_blocks() {
+        // Arrange
+        // A value declared after a block still emits above it, matching the
+        // Terraform convention and the order TOML is forced into by its syntax.
+        let fields = Fields::detached(vec![
+            Field::detached_block(
+                "sprocket",
+                Fields::detached(vec![scalar("max_height", Scalar::Int(32))]),
+            ),
+            scalar("max_weight", Scalar::Int(16)),
+            Field::detached_block(
+                "sprocket2",
+                Fields::detached(vec![scalar("max_height", Scalar::Int(32))]),
+            ),
+        ]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            text,
+            "max_weight = 16\n\nsprocket {\n  max_height = 32\n}\n\nsprocket2 {\n  max_height = 32\n}\n"
+        );
+    }
+
+    #[test]
+    fn emit_hcl_keeps_repeated_block_order_across_an_interleaved_value() {
+        // Arrange
+        // Repeated blocks are list elements, so the partition must keep their
+        // relative order while the value moves above them.
+        let block = |port: i64| {
+            Field::detached_block(
+                "service",
+                Fields::detached(vec![scalar("port", Scalar::Int(port))]),
+            )
+        };
+        let fields = Fields::detached(vec![
+            block(1),
+            scalar("name", Scalar::String("x".to_string())),
+            block(2),
+        ]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            text,
+            "name = \"x\"\n\nservice {\n  port = 1\n}\n\nservice {\n  port = 2\n}\n"
+        );
+    }
+
+    #[test]
+    fn emit_hcl_puts_the_blank_line_above_a_blocks_doc_comment() {
+        // Arrange
+        // The comment belongs to the block, so the separating blank line goes
+        // above the comment, not between the comment and the block.
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(1)),
+            Field::detached_block("limits", Fields::detached(vec![]))
+                .with_doc(Some("Request limits.".to_string())),
+        ]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port = 1\n\n# Request limits.\nlimits {\n}\n");
     }
 
     #[test]

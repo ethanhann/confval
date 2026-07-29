@@ -17,7 +17,7 @@
 //! its own types rather than reusing `common`, so the output shows only the
 //! write path.
 //!
-//! Run with: cargo run -p confval --example templates --features derive,color,toml
+//! Run with: cargo run -p confval --example templates --features derive,color,toml,toml
 
 use confval::format::{FieldKind, Fields, Scalar, Value, ValueKind};
 use confval::prelude::*;
@@ -37,6 +37,9 @@ struct ServerSpec {
     /// Request size and mode limits.
     #[confval(nested, default)]
     limits: Option<Located<LimitsSpec>>,
+
+    #[confval(nested, default)]
+    widget: Located<WidgetSpec>,
 }
 
 impl Validate for ServerSpec {
@@ -55,6 +58,41 @@ struct LimitsSpec {
 }
 
 impl Validate for LimitsSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// Widget assembly settings. The `widget` field embedding this spec has no doc
+/// of its own, so the template renders this struct-level comment above the
+/// block.
+#[derive(confval::Spec)]
+#[confval(derive_default)]
+struct WidgetSpec {
+    /// The primary sprocket. A field doc wins over the struct doc on
+    /// `SprocketSpec`.
+    #[confval(nested, default)]
+    primary_sprocket: Located<SprocketSpec>,
+
+    #[confval(default = 16)]
+    max_weight: Located<i64>,
+
+    #[confval(nested, default)]
+    secondary_sprocket: Located<SprocketSpec>,
+}
+
+impl Validate for WidgetSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A sprocket's dimensions. The `sprocket2` field has no doc, so its block
+/// falls back to this comment.
+#[derive(confval::Spec)]
+#[confval(derive_default)]
+struct SprocketSpec {
+    #[confval(default = 32)]
+    max_height: Located<i64>,
+}
+
+impl Validate for SprocketSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
@@ -78,16 +116,31 @@ fn main() -> Result<(), String> {
     // message only to satisfy the signature.
     let text = confval::format::toml::emit_toml(&fields).map_err(|error| error.to_string())?;
     println!();
-    println!("emitted TOML:");
+    println!("+ Emitted TOML:");
     print!("{text}");
 
-    // Emit an annotated template: the same configuration with each field's doc
+    // Emit an annotated TOML template.
+    // This is the same configuration as above, with each field's doc
     // comment rendered above it, harvested from the spec's `///` comments.
     let template =
         confval::format::toml::emit_toml(&spec.to_template()).map_err(|error| error.to_string())?;
     println!();
-    println!("emitted TOML template:");
+    println!("+ Emitted TOML template with annotations:");
     print!("{template}");
+
+    // Now, do the same for HCL - emit the raw template.
+    let text = confval::format::hcl::emit_hcl(&fields).map_err(|error| error.to_string())?;
+    println!();
+    println!("+ Emitted HCL:");
+    print!("{text}");
+
+    // Emit an annotated HCL template.
+    let template =
+        confval::format::hcl::emit_hcl(&spec.to_template()).map_err(|error| error.to_string())?;
+    println!();
+    println!("+ emitted HCL template with annotations:");
+    print!("{template}");
+
     Ok(())
 }
 

@@ -16,19 +16,26 @@ pub(crate) struct StructOptions {
     /// the derive to generate the `Default` impl from the fields' attribute
     /// defaults.
     pub(crate) derive_default: bool,
+    /// The doc comment `spec_doc` returns for this type, or `None`. Comes from
+    /// a struct-level `#[confval(doc = "...")]` if present, otherwise the
+    /// struct's `///` doc comments joined into one string. A parent's template
+    /// walk falls back to it for a block whose embedding field has no doc.
+    pub(crate) doc: Option<String>,
 }
 
 /// Reads a struct's `#[confval(...)]` attributes into [`StructOptions`].
 ///
-/// Recognizes `derive_default`. An unknown key is a compile error, so a typo
-/// like `#[confval(derive_defalt)]` is caught rather than ignored. The Config
-/// derive's own struct keys are unknown here, so a type that derives both `Spec`
-/// and `Config` is rejected. Separate spec and config types are the expected
-/// shape.
+/// Recognizes `derive_default` and `doc`. An unknown key is a compile error, so
+/// a typo like `#[confval(derive_defalt)]` is caught rather than ignored. The
+/// Config derive's own struct keys are unknown here, so a type that derives both
+/// `Spec` and `Config` is rejected. Separate spec and config types are the
+/// expected shape.
 pub(crate) fn parse_struct_options(input: &DeriveInput) -> syn::Result<StructOptions> {
     let mut options = StructOptions {
         derive_default: false,
+        doc: None,
     };
+    let mut confval_doc = None;
     for attr in &input.attrs {
         if !attr.path().is_ident("confval") {
             continue;
@@ -40,11 +47,21 @@ pub(crate) fn parse_struct_options(input: &DeriveInput) -> syn::Result<StructOpt
                 }
                 options.derive_default = true;
                 Ok(())
+            } else if meta.path.is_ident("doc") {
+                if confval_doc.is_some() {
+                    return Err(meta.error("duplicate confval attribute `doc`"));
+                }
+                let text: syn::LitStr = meta.value()?.parse()?;
+                confval_doc = Some(text.value());
+                Ok(())
             } else {
-                Err(meta.error("unknown confval attribute; expected `derive_default`"))
+                Err(meta.error("unknown confval attribute; expected `derive_default` or `doc`"))
             }
         })?;
     }
+    // A `#[confval(doc = "...")]` overrides the harvested `///` comment, the
+    // same precedence a field has.
+    options.doc = confval_doc.or_else(|| harvest_doc_comment(&input.attrs));
     Ok(options)
 }
 

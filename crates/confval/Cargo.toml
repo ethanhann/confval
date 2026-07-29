@@ -60,7 +60,7 @@ required-features = ["derive", "color", "toml", "layering"]
 
 [[example]]
 name = "templates"
-required-features = ["derive", "color", "toml"]
+required-features = ["derive", "color", "toml", "hcl"]
 
 [[test]]
 name = "compile_fail"

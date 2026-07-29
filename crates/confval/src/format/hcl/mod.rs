@@ -4,7 +4,7 @@
 //! the owned, format-neutral model in [`field`](crate::format::field). Once
 //! [`parse_hcl`] hands back a `Fields`, every span has been captured and no
 //! `hcl_edit` type escapes. The leaf parsers, the derive-generated walks, and
-//! the hand-written [`FromFields`] impls all work against the neutral model.
+//! the handwritten [`FromFields`] impls all work against the neutral model.
 //!
 //! The write path, [`emit_hcl`], lives in the sibling `emit` module.
 //!

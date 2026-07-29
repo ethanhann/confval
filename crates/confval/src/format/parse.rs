@@ -4,7 +4,7 @@
 //! [`Fields`](crate::format::field::Fields) tree, coerces it to a Rust type, and
 //! reports a diagnostic when the shape does not match. They name no format: the
 //! same parser runs whether the tree came from HCL, TOML, or a populated spec.
-//! `#[derive(Spec)]` calls them, and so does a hand-written
+//! `#[derive(Spec)]` calls them, and so does a handwritten
 //! [`FromFields`] impl.
 
 use super::field::{Field, FieldKind, FromFields, Scalar, Value, ValueKind};
