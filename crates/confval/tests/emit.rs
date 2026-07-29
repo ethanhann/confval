@@ -412,6 +412,13 @@ fn a_leaf_after_a_block_round_trips_in_both_formats() {
         port_at < table_at,
         "leaf must be hoisted above the table:\n{toml}"
     );
+    // HCL orders values before blocks, so both formats agree on the shape.
+    let hcl_port_at = hcl.find("port =").expect("port key in hcl");
+    let hcl_block_at = hcl.find("limits {").expect("limits block in hcl");
+    assert!(
+        hcl_port_at < hcl_block_at,
+        "leaf must precede the block:\n{hcl}"
+    );
     // Both formats preserve the leaf that follows the block.
     assert_eq!(from_toml.port.value, 8080);
     assert_eq!(from_hcl.port.value, 8080);
