@@ -24,7 +24,7 @@ examples:
     cargo run -q -p confval --features derive,color,toml --example issue_severity
     cargo run -q -p confval --features derive,color,toml --example validate_traversal
     cargo run -q -p confval --features derive,color,toml,layering --example layering
-    cargo run -q -p confval --features derive,color,toml --example templates
+    cargo run -q -p confval --features derive,color,toml,hcl --example templates
 
 validate-docs: check-doc-snippets check-doc-programs
     cargo doc --all-features --no-deps
