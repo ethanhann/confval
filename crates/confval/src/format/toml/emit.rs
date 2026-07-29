@@ -300,8 +300,10 @@ mod tests {
             scalar("x", Scalar::Int(1)),
             Field::detached_block("x", Fields::detached(vec![scalar("y", Scalar::Int(2))])),
         ]);
+
         // Act
         let result = emit_toml(&fields);
+
         // Assert
         assert_eq!(
             result,
@@ -323,8 +325,10 @@ mod tests {
             "obj",
             Value::detached(ValueKind::Map(pair)),
         )]);
+
         // Act
         let result = emit_toml(&fields);
+
         // Assert
         assert_eq!(
             result,
@@ -351,8 +355,10 @@ mod tests {
             Field::detached_value("svc", Value::detached(ValueKind::Seq(vec![map(1), map(2)])))
                 .with_doc(Some("A service entry.".to_string())),
         ]);
+
         // Act
         let text = emit_toml(&fields).unwrap();
+
         // Assert
         assert_eq!(
             text.matches("# A service entry.").count(),
@@ -372,8 +378,10 @@ mod tests {
             )
             .with_doc(Some("Request limits.".to_string())),
         ]);
+
         // Act
         let text = emit_toml(&fields).unwrap();
+
         // Assert
         assert!(text.starts_with("# Request limits.\n"), "got: {text:?}");
     }
@@ -393,8 +401,10 @@ mod tests {
             block(1),
             block(2).with_doc(Some("A service entry.".to_string())),
         ]);
+
         // Act
         let text = emit_toml(&fields).unwrap();
+
         // Assert
         assert_eq!(
             text.matches("# A service entry.").count(),
@@ -412,8 +422,10 @@ mod tests {
             scalar("x", Scalar::Int(1)),
             scalar("x", Scalar::Int(2)),
         ]);
+
         // Act
         let result = emit_toml(&fields);
+
         // Assert
         assert_eq!(
             result,
@@ -437,8 +449,10 @@ mod tests {
             "obj",
             Value::detached(ValueKind::Map(pair)),
         )]);
+
         // Act
         let result = emit_toml(&fields);
+
         // Assert
         assert_eq!(
             result,
@@ -459,8 +473,10 @@ mod tests {
                 Value::detached(ValueKind::Other("datetime")),
             )]),
         )]);
+
         // Act
         let result = emit_toml(&fields);
+
         // Assert
         let error = result.unwrap_err();
         assert_eq!(
@@ -474,6 +490,64 @@ mod tests {
             error.to_string(),
             "cannot emit datetime: the value has no representation in the model (at `limits.when`)"
         );
+    }
+
+    #[test]
+    fn emit_toml_round_trips_an_adversarial_string() {
+        // Arrange
+        // Escaping goes through toml_edit, so this guards the crate against a
+        // regression in how quotes, backslashes, line breaks, tabs, unicode,
+        // and control characters are spelled.
+        let hostile = "quote\" backslash\\ newline\n tab\t snowman\u{2603} del\u{7f} bel\u{7}";
+        let fields = Fields::detached(vec![scalar(
+            "greeting",
+            Scalar::String(hostile.to_string()),
+        )]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        let round = reparse(&text);
+        let mut report = Report::new();
+        let parsed = parse_string_field(round.get("greeting").unwrap(), &mut report).unwrap();
+        assert_eq!(parsed.value, hostile, "emitted: {text:?}");
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn emit_toml_quotes_a_key_that_needs_quoting() {
+        // Arrange
+        // A dotted bare key would read as nesting, so the key must be quoted.
+        let fields = Fields::detached(vec![scalar("a.b", Scalar::Int(1))]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert!(text.contains("\"a.b\""), "got: {text:?}");
+        let round = reparse(&text);
+        let mut report = Report::new();
+        let parsed = parse_int_field(round.get("a.b").unwrap(), &mut report).unwrap();
+        assert_eq!(parsed.value, 1);
+    }
+
+    #[test]
+    fn emit_toml_renders_a_doc_with_format_significant_characters() {
+        // Arrange
+        // `#`, brackets, and quotes are all meaningful TOML syntax, but inside
+        // a comment they are plain text and must stay verbatim.
+        let doc = "# not a nested comment [not.a.table] \"not a string\"";
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(1)).with_doc(Some(doc.to_string())),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert!(text.contains(&format!("# {doc}\n")), "got: {text:?}");
+        reparse(&text);
     }
 
     #[test]
@@ -511,8 +585,10 @@ mod tests {
                 Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
             ),
         ]);
+
         // Act
         let text = emit_toml(&fields).unwrap();
+
         // Assert
         assert_eq!(
             text,

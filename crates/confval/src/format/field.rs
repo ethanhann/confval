@@ -241,10 +241,12 @@ mod tests {
         let attribute = Field::detached_value("max_body_mb", value);
         let block = Field::detached_block("limits", Fields::detached(vec![]));
         let level = Fields::detached(vec![attribute.clone()]);
+
         // Act
         let attribute_detached = attribute.name_span.is_detached()
             && attribute.span.is_detached()
             && attribute.source == SourceId::DETACHED;
+
         // Assert
         assert!(attribute_detached);
         assert!(block.name_span.is_detached() && block.span.is_detached());

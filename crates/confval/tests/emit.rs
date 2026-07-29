@@ -123,9 +123,11 @@ fn toml_round_trips_a_populated_spec() {
     // Arrange
     let fields = sample().to_fields();
     let populated = populated_of(&fields);
+
     // Act
     let text = emit_toml(&fields).expect("emit toml");
     let reparsed = parse_toml_spec(&text);
+
     // Assert
     assert!(
         text.contains("[[service]]"),
@@ -144,9 +146,11 @@ fn hcl_round_trips_a_populated_spec() {
     // Arrange
     let fields = sample().to_fields();
     let populated = populated_of(&fields);
+
     // Act
     let text = emit_hcl(&fields).expect("emit hcl");
     let reparsed = parse_hcl_spec(&text);
+
     // Assert
     assert_eq!(
         text.matches("service {").count(),

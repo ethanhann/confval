@@ -29,6 +29,8 @@ struct All {
     bare_path: Located<PathBuf>,
     #[confval(default = "x".to_string())]
     opt_leaf_default: Option<Located<String>>,
+    #[confval(default)]
+    opt_leaf_bare: Option<Located<i64>>,
     opt_leaf: Option<Located<i64>>,
     #[confval(default)]
     list: Vec<Located<String>>,
@@ -54,6 +56,9 @@ fn main() {
         d.opt_leaf_default.as_ref().map(|v| v.value.as_str()),
         Some("x")
     );
+    // The least obvious row: a bare default on an optional leaf resolves to
+    // `Some` of the type's default, not `None`.
+    assert_eq!(d.opt_leaf_bare.as_ref().map(|v| v.value), Some(0));
     assert!(d.opt_leaf.is_none());
     assert!(d.list.is_empty());
     assert!(d.opt_list.is_none());

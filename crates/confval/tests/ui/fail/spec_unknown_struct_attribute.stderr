@@ -1,0 +1,5 @@
+error: unknown confval attribute; expected `derive_default`
+ --> tests/ui/fail/spec_unknown_struct_attribute.rs:6:11
+  |
+6 | #[confval(derive_defalt)]
+  |           ^^^^^^^^^^^^^

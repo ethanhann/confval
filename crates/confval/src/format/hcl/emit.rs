@@ -271,8 +271,10 @@ mod tests {
                 Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
             ),
         ]);
+
         // Act
         let text = emit_hcl(&fields).unwrap();
+
         // Assert
         // The block body is indented one level, and the closing brace lines up
         // with the opener.
@@ -419,8 +421,10 @@ mod tests {
             scalar("x", Scalar::Int(1)),
             scalar("x", Scalar::Int(2)),
         ]);
+
         // Act
         let result = emit_hcl(&fields);
+
         // Assert
         assert_eq!(
             result,
@@ -440,8 +444,10 @@ mod tests {
             scalar("x", Scalar::Int(1)),
             Field::detached_block("x", Fields::detached(vec![scalar("y", Scalar::Int(2))])),
         ]);
+
         // Act
         let text = emit_hcl(&fields).unwrap();
+
         // Assert
         assert!(text.contains("x = 1"), "got: {text:?}");
         assert!(text.contains("x {"), "got: {text:?}");
@@ -461,8 +467,10 @@ mod tests {
             "obj",
             Value::detached(ValueKind::Map(pair)),
         )]);
+
         // Act
         let result = emit_hcl(&fields);
+
         // Assert
         assert_eq!(
             result,
@@ -480,8 +488,10 @@ mod tests {
             "limits",
             Fields::detached(vec![scalar("rate", Scalar::Float(f64::NAN))]),
         )]);
+
         // Act
         let result = emit_hcl(&fields);
+
         // Assert
         assert_eq!(
             result,
@@ -539,6 +549,49 @@ mod tests {
             assert_eq!(parsed.value, expected, "emitted text: {text:?}");
             assert!(!report.has_issues());
         }
+    }
+
+    #[test]
+    fn emit_hcl_round_trips_an_adversarial_string() {
+        // Arrange
+        // Escaping goes through hcl-edit, so this guards the crate against a
+        // regression in how quotes, backslashes, line breaks, tabs, unicode,
+        // and control characters are spelled.
+        let hostile = "quote\" backslash\\ newline\n tab\t snowman\u{2603} del\u{7f} bel\u{7}";
+        let fields = Fields::detached(vec![scalar(
+            "greeting",
+            Scalar::String(hostile.to_string()),
+        )]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        let round = reparse(&text);
+        let mut report = Report::new();
+        let parsed = parse_string_field(round.get("greeting").unwrap(), &mut report).unwrap();
+        assert_eq!(parsed.value, hostile, "emitted: {text:?}");
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn emit_hcl_writes_an_empty_block_that_reparses() {
+        // Arrange
+        let fields = Fields::detached(vec![Field::detached_block(
+            "empty",
+            Fields::detached(vec![]),
+        )]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "empty {\n}\n");
+        let round = reparse(&text);
+        assert!(matches!(
+            round.get("empty").unwrap().kind,
+            FieldKind::Block(_)
+        ));
     }
 
     #[test]

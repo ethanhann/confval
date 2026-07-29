@@ -162,11 +162,13 @@ mod tests {
             &mut report,
         );
         let over = cli_fields(&mut sources, vec!["--port=2".to_string()], &mut report);
+
         // Act
         let server: Option<Server> = Assembly::new()
             .merge(base)
             .merge(over)
             .assemble(&mut report);
+
         // Assert
         let server = server.unwrap();
         assert_eq!(server.host, "filehost");
@@ -181,11 +183,13 @@ mod tests {
         let mut report = Report::new();
         let base = cli_fields(&mut sources, vec!["--host=only".to_string()], &mut report);
         let over = cli_fields(&mut sources, vec!["--port=8080".to_string()], &mut report);
+
         // Act
         let server: Option<Server> = Assembly::new()
             .merge(base)
             .merge(over)
             .assemble(&mut report);
+
         // Assert
         assert_eq!(server.unwrap().port, 8080);
     }
@@ -200,11 +204,13 @@ mod tests {
             vec!["--host=h".to_string(), "--port=1".to_string()],
             &mut report,
         );
+
         // Act: a provider that produced no tree is a `None` layer.
         let server: Option<Server> = Assembly::new()
             .merge(good)
             .merge(None)
             .assemble(&mut report);
+
         // Assert
         // The provider contract is report-then-None. This layer reported
         // nothing, so assemble supplies the fallback error rather than
@@ -223,11 +229,13 @@ mod tests {
         report
             .error("syntax error: the provider already reported")
             .emit();
+
         // Act
         let server: Option<Server> = Assembly::new()
             .merge(good)
             .merge(None)
             .assemble(&mut report);
+
         // Assert
         assert!(server.is_none());
         assert_eq!(report.issues().len(), 1);
@@ -237,8 +245,10 @@ mod tests {
     fn an_empty_assembly_reports_an_internal_error() {
         // Arrange
         let mut report = Report::new();
+
         // Act
         let server: Option<Server> = Assembly::new().assemble(&mut report);
+
         // Assert
         assert!(server.is_none());
         assert!(report.has_errors());
@@ -260,11 +270,13 @@ mod tests {
             vec!["--host=fallback".to_string()],
             &mut report,
         );
+
         // Act
         let server: Option<Server> = Assembly::new()
             .merge(base)
             .join(defaults)
             .assemble(&mut report);
+
         // Assert
         assert_eq!(server.unwrap().host, "primary");
     }

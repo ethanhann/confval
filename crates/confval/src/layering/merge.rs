@@ -327,8 +327,10 @@ mod tests {
         let base = level(A, sp(A, 0, 0), vec![scalar("port", Scalar::Int(1))]);
         let over = level(A, sp(A, 0, 0), vec![scalar("port", Scalar::Int(2))]);
         let mut report = Report::new();
+
         // Act
         let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         assert_eq!(scalar_of(merged.get("port").unwrap()), &Scalar::Int(2));
         assert!(!report.has_issues());
@@ -347,8 +349,10 @@ mod tests {
             ],
         );
         let mut report = Report::new();
+
         // Act
         let merged = combine(base, over, Verb::Join, &mut report);
+
         // Assert
         assert_eq!(scalar_of(merged.get("port").unwrap()), &Scalar::Int(1));
         assert_eq!(
@@ -374,8 +378,10 @@ mod tests {
             )],
         );
         let mut report = Report::new();
+
         // Act
         let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         let FieldKind::Block(server) = &merged.get("server").unwrap().kind else {
             panic!("expected a block");
@@ -402,8 +408,10 @@ mod tests {
             )],
         );
         let mut report = Report::new();
+
         // Act
         let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         let FieldKind::Block(server) = &merged.get("server").unwrap().kind else {
             panic!("expected the base block spelling to survive");
@@ -426,8 +434,10 @@ mod tests {
             vec![seq("allow", vec![Scalar::String("b".to_string())])],
         );
         let mut report = Report::new();
+
         // Act
         let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         let FieldKind::Value(Value {
             kind: ValueKind::Seq(elements),
@@ -445,8 +455,10 @@ mod tests {
         let base = level(A, sp(A, 0, 0), vec![scalar("port", Scalar::Int(1))]);
         let over = level(A, sp(A, 0, 0), vec![block("port", vec![])]);
         let mut report = Report::new();
+
         // Act
         let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         assert_eq!(
             report.issues()[0].message,
@@ -470,8 +482,10 @@ mod tests {
         let base = level(A, sp(A, 0, 0), vec![base_field]);
         let over = level(A, sp(A, 0, 0), vec![over_field]);
         let mut report = Report::new();
+
         // Act
         let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         let field = merged.get("port").unwrap();
         assert_eq!(scalar_of(field), &Scalar::Int(2));
@@ -490,8 +504,10 @@ mod tests {
         );
         let over = level(A, sp(A, 0, 0), vec![scalar("server", Scalar::Int(1))]);
         let mut report = Report::new();
+
         // Act
         let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         assert!(report.has_errors());
         assert_eq!(
@@ -523,8 +539,10 @@ mod tests {
             ],
         );
         let mut report = Report::new();
+
         // Act
         let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         assert_eq!(merged.iter().count(), 3);
         assert!(!report.has_issues());
@@ -536,8 +554,10 @@ mod tests {
         let base = level(A, sp(A, 3, 7), vec![scalar("port", Scalar::Int(1))]);
         let over = level(B, sp(B, 9, 9), vec![scalar("host", Scalar::Int(2))]);
         let mut report = Report::new();
+
         // Act
         let merged = combine(base, over, Verb::Merge, &mut report);
+
         // Assert
         assert_eq!(merged.source(), A);
         assert_eq!(merged.enclosing(), sp(A, 3, 7));

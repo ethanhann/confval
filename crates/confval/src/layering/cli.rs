@@ -96,8 +96,10 @@ mod tests {
         // Arrange
         let mut sources = SourceMap::new();
         let mut report = Report::new();
+
         // Act
         let fields = cli_fields(&mut sources, args(&["--limits.mode=log"]), &mut report).unwrap();
+
         // Assert
         let FieldKind::Block(limits) = &fields.get("limits").unwrap().kind else {
             panic!("expected a nested block");
@@ -110,8 +112,10 @@ mod tests {
         // Arrange
         let mut sources = SourceMap::new();
         let mut report = Report::new();
+
         // Act
         let fields = cli_fields(&mut sources, args(&["--port=8080"]), &mut report).unwrap();
+
         // Assert
         assert_eq!(unparsed(fields.get("port").unwrap()), "8080");
         assert!(!report.has_issues());
@@ -124,8 +128,10 @@ mod tests {
         // token warns rather than configuring nothing silently.
         let mut sources = SourceMap::new();
         let mut report = Report::new();
+
         // Act
         let fields = cli_fields(&mut sources, args(&["--port", "8080"]), &mut report).unwrap();
+
         // Assert
         assert_eq!(fields.iter().count(), 0);
         assert!(report.has_issues());
@@ -141,8 +147,10 @@ mod tests {
         // Arrange
         let mut sources = SourceMap::new();
         let mut report = Report::new();
+
         // Act
         let fields = cli_fields(&mut sources, args(&["--", "--port=1"]), &mut report).unwrap();
+
         // Assert
         assert_eq!(unparsed(fields.get("port").unwrap()), "1");
         assert!(!report.has_issues());
@@ -153,8 +161,10 @@ mod tests {
         // Arrange
         let mut sources = SourceMap::new();
         let mut report = Report::new();
+
         // Act
         let _ = cli_fields(&mut sources, args(&["--limits..mode=log"]), &mut report);
+
         // Assert
         assert!(report.has_errors());
         let issue = &report.issues()[0];
@@ -171,6 +181,7 @@ mod tests {
         // Arrange
         let mut sources = SourceMap::new();
         let mut report = Report::new();
+
         // Act
         let fields = cli_fields(
             &mut sources,
@@ -178,6 +189,7 @@ mod tests {
             &mut report,
         )
         .unwrap();
+
         // Assert
         assert_eq!(fields.iter().count(), 1);
         assert_eq!(unparsed(fields.get("port").unwrap()), "1");

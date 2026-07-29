@@ -44,6 +44,7 @@ impl Validate for LimitsSpec {
 #[test]
 fn file_env_and_cli_layers_assemble_with_call_order_precedence() {
     let _guard = ENV_LOCK.lock().unwrap();
+
     // Arrange
     // The file is the base, the environment overrides it, the command line
     // overrides that, and a joined defaults file fills what is still missing.
@@ -100,6 +101,7 @@ mode = "enforce"
 #[test]
 fn a_bad_env_value_reports_a_type_mismatch_at_the_variable() {
     let _guard = ENV_LOCK.lock().unwrap();
+
     // Arrange
     // The layering guide documents that `APP_PORT=high` for an integer field
     // reports `expected integer, found string` at the variable itself.

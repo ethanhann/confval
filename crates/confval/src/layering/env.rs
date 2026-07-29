@@ -128,6 +128,7 @@ mod tests {
         // Arrange
         let mut sources = SourceMap::new();
         let mut report = Report::new();
+
         // Act
         let fields = from_vars(
             &mut sources,
@@ -136,6 +137,7 @@ mod tests {
             &mut report,
         )
         .unwrap();
+
         // Assert
         assert_eq!(unparsed(fields.get("port").unwrap()), "8080");
         assert!(!report.has_issues());
@@ -146,6 +148,7 @@ mod tests {
         // Arrange
         let mut sources = SourceMap::new();
         let mut report = Report::new();
+
         // Act
         let fields = from_vars(
             &mut sources,
@@ -154,6 +157,7 @@ mod tests {
             &mut report,
         )
         .unwrap();
+
         // Assert
         let FieldKind::Block(server) = &fields.get("server").unwrap().kind else {
             panic!("expected a nested block");
@@ -166,6 +170,7 @@ mod tests {
         // Arrange
         let mut sources = SourceMap::new();
         let mut report = Report::new();
+
         // Act
         let fields = from_vars(
             &mut sources,
@@ -174,6 +179,7 @@ mod tests {
             &mut report,
         )
         .unwrap();
+
         // Assert
         assert!(fields.get("port").is_none());
         assert_eq!(fields.iter().count(), 0);
@@ -184,6 +190,7 @@ mod tests {
         // Arrange
         let mut sources = SourceMap::new();
         let mut report = Report::new();
+
         // Act
         let _ = from_vars(
             &mut sources,
@@ -191,6 +198,7 @@ mod tests {
             vars(&[("APP_SERVER__", "x")]),
             &mut report,
         );
+
         // Assert
         assert!(report.has_errors());
         let issue = &report.issues()[0];
@@ -203,6 +211,7 @@ mod tests {
     #[test]
     fn a_non_utf8_variable_outside_the_prefix_is_skipped() {
         use std::os::unix::ffi::OsStringExt;
+
         // Arrange
         // The process environment can hold arbitrary bytes. A variable outside
         // the prefix must not panic the provider or pollute the report.
@@ -218,8 +227,10 @@ mod tests {
                 std::ffi::OsString::from("x"),
             ),
         ];
+
         // Act
         let fields = from_os_vars(&mut sources, "APP_", os_vars, &mut report).unwrap();
+
         // Assert
         assert_eq!(unparsed(fields.get("port").unwrap()), "8080");
         assert_eq!(fields.iter().count(), 1);
@@ -230,6 +241,7 @@ mod tests {
     #[test]
     fn a_non_utf8_variable_under_the_prefix_is_reported() {
         use std::os::unix::ffi::OsStringExt;
+
         // Arrange
         // A prefixed name with invalid bytes and a prefixed name whose value
         // has invalid bytes are both operator mistakes worth a diagnostic.
@@ -245,8 +257,10 @@ mod tests {
                 std::ffi::OsString::from_vec(vec![0xfe, 0xfd]),
             ),
         ];
+
         // Act
         let fields = from_os_vars(&mut sources, "APP_", os_vars, &mut report).unwrap();
+
         // Assert
         assert_eq!(fields.iter().count(), 0);
         assert_eq!(report.issues().len(), 2);
@@ -268,6 +282,7 @@ mod tests {
         // Arrange
         let mut sources = SourceMap::new();
         let mut report = Report::new();
+
         // Act
         let fields = from_vars(
             &mut sources,
@@ -276,6 +291,7 @@ mod tests {
             &mut report,
         )
         .unwrap();
+
         // Assert
         let field = fields.get("port").unwrap();
         assert_eq!(sources.get(field.source).unwrap().name, "env:APP_PORT");

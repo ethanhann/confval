@@ -1,0 +1,11 @@
+error: no rules expected `}`
+ --> tests/ui/fail/keyword_enum_zero_variants.rs:5:23
+  |
+5 | keyword_enum!(Empty, {});
+  |                       ^ no rules expected this token in macro call
+  |
+note: while trying to match meta-variable `$variant:ident`
+ --> src/pipeline/keyword.rs
+  |
+  |         { $($(#[$variant_meta:meta])* $variant:ident => $kw:literal),+ $(,)? }
+  |                                       ^^^^^^^^^^^^^^
