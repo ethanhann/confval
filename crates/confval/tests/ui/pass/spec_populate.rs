@@ -49,7 +49,7 @@ impl Validate for All {
 
 // A three-level chain of marked blocks, so a filled block that itself carries a
 // marked absent block is exercised. This guards the recursion the milestone is
-// built on, not just a one-level fill.
+// built on rather than a one-level fill.
 #[derive(confval::Spec, PartialEq, Debug)]
 #[confval(derive_default)]
 struct DeepLeaf {

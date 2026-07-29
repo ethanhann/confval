@@ -36,7 +36,7 @@ pub fn emit_toml(fields: &Fields) -> Result<String, EmitError> {
 /// A name whose uses at one level TOML cannot spell side by side. Repeated
 /// blocks group into an array of tables, so a name repeated only by blocks is
 /// fine. Any other repetition, two values or a value next to a block, would
-/// silently overwrite one of them, and emit refuses instead.
+/// silently overwrite one of them. Emit refuses instead.
 fn conflicting_name(fields: &Fields) -> Option<&str> {
     fields.iter().find_map(|field| {
         let group = fields.iter().filter(|other| other.name == field.name);
@@ -50,8 +50,8 @@ fn conflicting_name(fields: &Fields) -> Option<&str> {
     })
 }
 
-/// A name repeated at all inside an inline table, where nothing can repeat,
-/// not even blocks, which have no array-of-tables spelling there.
+/// Any name repeated inside an inline table, where nothing can repeat, not
+/// even blocks, which have no array-of-tables spelling there.
 fn repeated_inline_name(fields: &Fields) -> Option<&str> {
     fields.iter().find_map(|field| {
         let count = fields

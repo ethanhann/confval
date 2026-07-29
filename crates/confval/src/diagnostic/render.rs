@@ -373,7 +373,7 @@ mod tests {
     fn render_pretty_underlines_the_span() {
         let (sources, id) = one_source();
         let mut report = Report::new();
-        // Span of "99999" on line 1, columns 8-12.
+        // Span of "99999" on line 1, columns 8 to 12.
         report
             .error("port out of range")
             .at(Span::new(id, 7, 12))

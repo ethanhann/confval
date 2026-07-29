@@ -55,10 +55,10 @@ narrow_fns!(i64_to_u64, opt_i64_to_u64, u64);
 narrow_fns!(i64_to_usize, opt_i64_to_usize, usize);
 
 /// Widen a located `i64` to `f64`. This is infallible (the `report` argument is
-/// unused), but it lives here so a `#[confval(lower(with = ...))]` attribute,
-/// which cannot hold a bare `as` cast, has a function to name. Values above
-/// 2^53 lose integer precision, which is harmless for the ratios and rates this
-/// is used for.
+/// unused), but it is defined here so a `#[confval(lower(with = ...))]`
+/// attribute, which cannot hold a bare `as` cast, has a function to name.
+/// Values above 2^53 lose integer precision, which is harmless for the ratios
+/// and rates this is used for.
 pub fn i64_to_f64(value: &Located<i64>, _report: &mut Report) -> Option<f64> {
     Some(value.value as f64)
 }

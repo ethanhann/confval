@@ -10,8 +10,8 @@
 //! impls.
 //!
 //! The model is deliberately owned (no borrow of the format's AST). Config
-//! files are small, so the one copy out of the parse tree costs nothing and
-//! buys a hard severance from any one format's node types.
+//! files are small, so the one copy out of the parse tree is cheap and removes
+//! every dependence on one format's node types.
 
 use crate::diagnostic::Report;
 use crate::source::{SourceId, Span};
@@ -253,7 +253,7 @@ pub trait ToFields {
     /// walk renders it above a block embedding this spec when the embedding
     /// field carries no doc of its own, so a spec documented once at its
     /// definition annotates every such site. Defaults to `None`, so a
-    /// hand-written impl opts in rather than breaks.
+    /// handwritten impl opts in rather than breaks.
     fn spec_doc(&self) -> Option<String> {
         None
     }

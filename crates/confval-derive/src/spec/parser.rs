@@ -147,8 +147,8 @@ pub(crate) fn field_parser(
             } else {
                 // A non-optional nested field is a `Located<S>`. With
                 // `#[confval(default)]` an absent block is filled with
-                // `S::default()` and is not reported as missing; without it,
-                // absence is a missing-field error. Either way a
+                // `S::default()` and is not reported as missing. Without the
+                // attribute, absence is a missing-field error. Either way a
                 // present-but-failed child is replaced with a detached default so
                 // the parent and its siblings still validate. The child's
                 // structural error is already in the report, so the lowering gate
@@ -203,7 +203,7 @@ fn leaf_parser(leaf: &Leaf) -> TokenStream2 {
 /// The generated after-the-walk check that reports a required field as missing.
 ///
 /// `seen` is the boolean local the match arm flips to `true` when it parses the
-/// field. If the walk finished without ever setting it, the field was absent
+/// field. If the walk finished without setting it, the field was absent
 /// and an error is reported against the enclosing block.
 fn seen_missing_check(field_name: &str, seen: &Ident) -> TokenStream2 {
     quote! {

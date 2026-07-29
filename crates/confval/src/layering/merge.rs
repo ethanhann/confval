@@ -495,8 +495,9 @@ mod tests {
     #[test]
     fn repeated_blocks_against_a_scalar_report_a_conflict() {
         // Arrange
-        // The group arm used to skip the kind check, so a scalar override
-        // silently replaced a repeated block group.
+        // A scalar override against a repeated block group must report a
+        // conflict rather than replace the group, which pins the kind check
+        // in the group arm.
         let base = level(
             A,
             sp(A, 0, 0),

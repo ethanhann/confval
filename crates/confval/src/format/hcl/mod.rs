@@ -51,7 +51,7 @@ pub fn parse_hcl_fields(sources: &SourceMap, id: SourceId, report: &mut Report) 
     // i64 and then negates, which overflows. Catch a panic at this one boundary
     // so a malformed file yields a diagnostic rather than aborting the host
     // program. The global panic hook is left in place, so a caught panic may
-    // still print one line to stderr, and a concurrent panic on another thread is
+    // still print one line to stderr. A concurrent panic on another thread is
     // unaffected. The upstream fix is
     // https://github.com/martinohmann/hcl-rs/pull/549. The
     // `upstream_still_panics_on_i64_min_remove_workarounds_when_this_fails` test

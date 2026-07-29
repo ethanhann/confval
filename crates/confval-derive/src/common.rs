@@ -11,7 +11,7 @@ use syn::Type;
 /// Peels one named wrapper off a type.
 ///
 /// If `ty` is written as `Name<Inner>` with exactly one type inside the angle
-/// brackets, returns `Inner`; otherwise returns `None`. Calling
+/// brackets, returns `Inner`. Otherwise it returns `None`. Calling
 /// `unwrap_generic(ty, "Option")` on `Option<Located<String>>` yields
 /// `Located<String>`. The derives chain these calls to walk down through the
 /// `Option` / `Vec` / `Located` layers a field type is built from.

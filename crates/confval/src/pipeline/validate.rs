@@ -22,8 +22,9 @@ use core::ops::ControlFlow;
 ///
 /// [`validate`](Validate::validate) holds the rules for one spec type's own
 /// fields and nothing else.
-/// Implement it.
-/// In normal use, do not call it.
+/// Implement it, but in normal use let
+/// [`validate_all`](Validate::validate_all) call it rather than calling it
+/// directly.
 ///
 /// [`validate_all`](Validate::validate_all) is the entry point.
 /// It runs `validate` on this type and then descends into every
@@ -41,15 +42,15 @@ use core::ops::ControlFlow;
 ///     }
 /// }
 ///
-/// // Called once, at the top of the pipeline. Reaches LimitsSpec on its own.
+/// // Called once, at the top of the pipeline. It validates LimitsSpec
+/// // without a separate call.
 /// spec.validate_all(&mut report);
 /// ```
 pub trait Validate {
     /// The rules for this type's own fields.
     ///
-    /// Implement this.
-    /// Nested children are reached by
-    /// [`validate_all`](Validate::validate_all).
+    /// Implement this and let [`validate_all`](Validate::validate_all) reach
+    /// the nested children.
     /// A `validate` impl that calls a child's validator by hand reports that
     /// child's issues twice.
     fn validate(&self, report: &mut Report);

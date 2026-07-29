@@ -60,7 +60,7 @@ impl Report {
             .any(|issue| issue.severity == Severity::Warning)
     }
 
-    /// Whether anything was recorded at all.
+    /// Whether anything was recorded.
     pub fn has_issues(&self) -> bool {
         !self.issues.is_empty()
     }

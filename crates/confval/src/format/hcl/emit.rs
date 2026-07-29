@@ -36,7 +36,7 @@ pub fn emit_hcl(fields: &Fields) -> Result<String, EmitError> {
 /// Each structure is prefixed with `level` steps of two spaces. A block's inner
 /// body carries a suffix of the block's own indent, which `hcl-edit` writes just
 /// before the closing brace, so the brace lines up with the opener. Without the
-/// suffix the brace would sit at column zero.
+/// suffix the brace would be at column zero.
 ///
 /// Values emit before blocks at each level, each group in declaration order,
 /// and a blank line separates every block from the structure above it. This is
@@ -93,7 +93,7 @@ fn emit_body(fields: &Fields, level: usize, path: &str) -> Result<Body, EmitErro
 
 /// The decor prefix for a field: its doc comment as `# line` comments, each at
 /// the field's indentation, followed by the field's own indent. With no doc it
-/// is just the indent.
+/// is the indent alone.
 fn hcl_comment_prefix(doc: &Option<String>, indent: &str) -> String {
     match doc {
         Some(text) => {
@@ -145,7 +145,7 @@ fn duplicate_attribute_name(fields: &Fields) -> Option<&str> {
     })
 }
 
-/// A name repeated at all inside an object, which is a map with unique keys.
+/// Any name repeated inside an object, which is a map with unique keys.
 fn repeated_object_name(fields: &Fields) -> Option<&str> {
     fields.iter().find_map(|field| {
         let count = fields

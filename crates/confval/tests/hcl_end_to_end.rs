@@ -92,7 +92,7 @@ fn check_range(value: &Located<i64>, min: i64, max: i64, name: &str, report: &mu
     }
 }
 
-/// Entity validation: runs after parsing on the Located values, so spans
+/// Entity validation runs after parsing on the Located values, so spans
 /// survive without the parser's involvement.
 fn validate_server_spec(spec: &ServerSpec, report: &mut Report) {
     check_range(&spec.port, 1, 65535, "port", report);
@@ -124,7 +124,7 @@ struct ServerConfig {
     tls: Option<TlsConfig>,
     #[confval(nested)]
     limits: LimitsConfig,
-    // Lowers from the optional `retry` spec field; an absent block becomes
+    // Lowers from the optional `retry` spec field. An absent block becomes
     // `RetrySpec::default()` rather than a missing-field error.
     #[confval(nested, default)]
     retry: RetryConfig,

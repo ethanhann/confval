@@ -170,8 +170,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     //
     // `ValidateNested` is the generated traversal. The second half of the
     // bound is what makes `validate_all` reachable on the spec. A spec with a
-    // handwritten `FromFields` has to write that impl too. How its children
-    // are validated becomes a question it must answer.
+    // handwritten `FromFields` has to write that impl too.
     let where_clause = quote! {
         where #spec_type: ::confval::pipeline::Validate + ::confval::pipeline::ValidateNested
     };
@@ -182,8 +181,8 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 spec: &#spec_type,
                 report: &mut ::confval::diagnostic::Report,
             ) -> ::core::option::Option<Self> {
-                // Exhaustive destructure, no rest pattern: a Spec field
-                // consumed by nothing fails compilation here.
+                // The destructure is exhaustive with no rest pattern, so a
+                // Spec field consumed by nothing fails compilation here.
                 let #spec_type { #(#consumed,)* #(#ignored)* } = spec;
                 ::core::option::Option::Some(Self {
                     #(#constructors)*

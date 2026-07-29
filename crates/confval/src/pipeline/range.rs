@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn nan_is_rejected() {
-        // NaN passes neither `< min` nor `> max`; it must still be rejected.
+        // NaN passes neither `< min` nor `> max`. It must still be rejected.
         let report = check_f64(0.0, 1.0, f64::NAN);
         assert!(report.has_errors());
         assert_eq!(report.issues()[0].message, "ratio must be a number");

@@ -128,7 +128,7 @@ fn main() -> Result<(), String> {
     println!("+ Emitted TOML template with annotations:");
     print!("{template}");
 
-    // Now, do the same for HCL - emit the raw template.
+    // Emit the plain HCL from the same populated model.
     let text = confval::format::hcl::emit_hcl(&fields).map_err(|error| error.to_string())?;
     println!();
     println!("+ Emitted HCL:");
