@@ -57,6 +57,32 @@ listening on 127.0.0.1:8080 with 8 workers
 limits: max_body_mb=16 mode=enforce
 ```
 
+## kdl
+
+The KDL example feeds a valid document, prints the lowered config, and emits the populated spec back to canonical KDL.
+
+```shell
+cargo run -q -p confval --example kdl --features derive,color,kdl
+```
+
+The run passes validation, prints the runtime values, and shows the write path:
+
+```shell
+listening on 127.0.0.1:8080 with 8 workers
+limits: max_body_mb=16 mode=log
+
++ Emitted KDL:
+hostname "127.0.0.1"
+port 8080
+workers 8
+tls #false
+
+limits {
+  max_body_mb 16
+  mode "log"
+}
+```
+
 ## issue_severity
 
 The issue_severity example shows a warning.

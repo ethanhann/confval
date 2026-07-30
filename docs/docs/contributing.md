@@ -39,7 +39,7 @@ These design decisions should be adhered to.
 
 ### The core has no required dependencies
 
-serde, owo-colors, hcl-edit, toml_edit, and the derive macros are each behind a feature flag.
+serde, owo-colors, hcl-edit, toml_edit, kdl, and the derive macros are each behind a feature flag.
  
 confval aims to stay free of required dependencies.
 Put any new dependency behind a feature flag.
@@ -55,7 +55,7 @@ on `source`.
 | `confval::source`     | `Located`, `Span`, `SourceId`, `Source`, `SourceMap` (the "where")                          |
 | `confval::diagnostic` | `Report`, `Issue`, `IssueBuilder`, `Severity`, the renderers (the "what")                   |
 | `confval::pipeline`   | `Lower`, `LowerAuto`, `Validate`, `narrow`, `RangeConstraint`, `KeywordSet` (the transform) |
-| `confval::format`     | the neutral field model (`field`) and the frontends (`hcl`, `toml`)                         |
+| `confval::format`     | the neutral field model (`field`) and the frontends (`hcl`, `kdl`, `toml`)                  |
 | `confval::prelude`    | a glob re-export of the common imports across those layers                                  |
 
 `use confval::prelude::*;` pulls the everyday names (`Located`, `Span`, `Report`, `Lower`, `Validate`, `narrow`,

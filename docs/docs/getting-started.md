@@ -37,11 +37,12 @@ cargo add confval --features "hcl,derive"
 | `color`    | off     | `owo-colors`     | `render_pretty` with ANSI color                                                          |
 | `hcl`      | off     | `hcl-edit`       | The `confval::format::hcl` frontend                                                      |
 | `toml`     | off     | `toml_edit`      | The `confval::format::toml` frontend                                                     |
+| `kdl`      | off     | `kdl`            | The `confval::format::kdl` frontend                                                      |
 | `derive`   | off     | `confval-derive` | `#[derive(Spec)]` and `#[derive(Config)]` (format-neutral)                               |
 | `layering` | off     | nothing          | The `confval::layering` module for assembling from a file, environment, and command line |
 
 Frontends (that define the configuration format) are independent opt-ins.
-Pick `hcl` or `toml` for the format you want.
+Pick `hcl`, `toml`, or `kdl` for the format you want.
 The `derive` feature emits the format-neutral `FromFields`, so it brings in no parser on its own.
 The `layering` feature adds the [layering](./guide/layering.md) module, which merges several sources into one configuration.
 It pulls in no external crate.
@@ -209,5 +210,5 @@ The `has_errors` check stops the run before lowering, and all three come back re
 
 ## Running the examples
 
-The program above ships as the `hcl` and `toml` examples in `crates/confval/examples/`, alongside examples for warnings, validation traversal, layering, and templates.
+The program above ships as the `hcl`, `toml`, and `kdl` examples in `crates/confval/examples/`, alongside examples for warnings, validation traversal, layering, and templates.
 See [Examples](./examples.md) for each run command and the output it prints.

@@ -58,7 +58,7 @@ let spec: ServerSpec = parse_toml(&sources, id, &mut report).unwrap();
 let template = emit_toml(&spec.to_template())?;
 ```
 
-`emit_hcl` renders the same model as HCL.
+`emit_hcl` renders the same model as HCL, and `emit_kdl` renders it as KDL with `//` comments.
 A comment is indented to line up with the field it documents, so a comment inside a block is at the block's indentation:
 
 ```hcl

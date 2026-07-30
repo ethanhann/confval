@@ -221,6 +221,7 @@ To parse, call the frontend for the format you enabled with the appropriate feat
 |-------------------------------------|---------|-------------|
 | `confval::format::hcl::parse_hcl`   | `hcl`   | `hcl-edit`  |
 | `confval::format::toml::parse_toml` | `toml`  | `toml_edit` |
+| `confval::format::kdl::parse_kdl`   | `kdl`   | `kdl`       |
 
 Each takes a `SourceMap`, a `SourceId`, and a `&mut Report`, and returns your spec as an `Option`.
 
@@ -235,9 +236,25 @@ A block, `bind { port = 8080 }`, and an attribute set to an object, `bind = { po
 TOML lines up with this: a `[table]` is a block, an inline `{ ... }` is an object, and an array of tables (`[[x]]`) is a
 repeating block, so a `Vec` of nested structs reads from it the same way it reads from an HCL list of objects.
 
+KDL spells the same shapes with nodes, and it parses with the KDL 2.0 grammar alone.
+A children block, `bind { port 8080 }`, and properties on one node, `bind port=8080`, are the same nested structure.
+A list is repeated arguments on one node, `allow "a" "b"`, or repeated same-named nodes, and a bare node is an empty
+list, the only spelling KDL has for one.
+A repeated node is a list when the field is a list and a duplicate error when it is not.
+An argument on a node that also has properties or children is an error, because the model has no block labels.
+A bare node where a single value is expected reports `expected string, found array`, because the bare spelling means an
+empty list.
+
+A list field also accepts a single string as a one-element list, in every format.
+KDL forces the question, because it has no array literal and spells a one-element list as a single value, and the
+answer is uniform so the same configuration means the same thing whichever frontend read it.
+
 :::note
-`hcl-edit` rejects duplicate attribute keys while parsing, so a repeated attribute is a syntax error.
+`hcl-edit` rejects duplicate attribute keys while parsing, so a repeated attribute is a syntax error, and TOML rejects
+a duplicate key the same way.
 A repeated block parses, and confval reports it with a related span pointing at the first occurrence.
+A repeated KDL value node reaches the same rule: a list field accumulates the occurrences, and a single-value field
+reports the repeat with the related span.
 :::
 
 ## Writing parsers by hand
