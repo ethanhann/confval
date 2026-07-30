@@ -80,9 +80,9 @@ fn repeated_inline_name(fields: &Fields) -> Option<&str> {
 /// commented entry can spell the `#[header.key]` line of a nested block.
 /// Returns the commented-out text still pending at the level's end. TOML has
 /// no per-table trailing position, so the caller attaches it before the next
-/// structure in document order, and text pending at the top attaches to the
-/// document's trailing slot, which is where TOML's grammar reads it as
-/// belonging to the earlier table.
+/// structure in document order. Text pending at the top attaches to the
+/// document's trailing slot. TOML's grammar reads both positions as belonging
+/// to the earlier table.
 fn emit_table(
     fields: &Fields,
     table: &mut Table,
@@ -164,7 +164,7 @@ fn emit_table(
                     pending = sub_pending;
                 } else {
                     // The comment renders once, above the first array-of-tables
-                    // element, and each element's pending text attaches before
+                    // element. Each element's pending text attaches before
                     // the next element's header.
                     let mut array = ArrayOfTables::new();
                     for (index, inner) in blocks.into_iter().enumerate() {

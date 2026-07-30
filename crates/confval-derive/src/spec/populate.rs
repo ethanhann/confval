@@ -178,8 +178,8 @@ pub(crate) fn field_emit(
                 let doc = nested_doc(quote! { &__child.value });
                 // The template shows an absent unmarked block as a commented
                 // empty block. Its contents need an instance the field cannot
-                // provide, so the entry shows existence and the doc falls back
-                // to the type's own, read without an instance.
+                // provide, so the entry shows existence alone. The doc falls
+                // back to the type's own, read without an instance.
                 let absent = if annotate {
                     let absent_doc = absent_block_doc(options, spec_ty);
                     quote! {
@@ -207,8 +207,7 @@ pub(crate) fn field_emit(
             let doc = nested_doc(quote! { &__child.value });
             // The hint for an empty list is the model's nested-list shape, a
             // sequence of one empty map, so each emitter renders its own
-            // repeated-block spelling and TOML can tell it from a single
-            // block.
+            // repeated-block spelling. TOML can tell it from a single block.
             let absent = if annotate {
                 let absent_doc = absent_block_doc(options, spec_ty);
                 quote! {

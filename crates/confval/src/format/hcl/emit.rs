@@ -122,8 +122,8 @@ fn emit_body(fields: &Fields, level: usize, path: &str) -> Result<(Body, String)
 /// The commented-out spelling of one field: its doc comment in the spaced
 /// form, then every rendered line behind a spaceless `#`. The entry renders
 /// through the same body builder an active field uses, so the two spellings
-/// cannot drift, and the nested-list shape, a non-empty sequence of maps,
-/// spells its repeated-block form so the repetition stays visible.
+/// cannot drift. The nested-list shape, a non-empty sequence of maps, spells
+/// its repeated-block form, so the repetition stays visible.
 fn commented_text(field: &Field, level: usize, path: &str) -> Result<String, EmitError> {
     let indent = "  ".repeat(level);
     let mut mini = Vec::new();

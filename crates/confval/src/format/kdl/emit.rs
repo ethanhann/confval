@@ -116,8 +116,8 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
 }
 
 /// Appends the slashdash to each node's leading decor, after its doc comment
-/// and indent, so `/-` sits directly before the name and uncommenting is
-/// deleting two characters.
+/// and indent, so `/-` sits directly before the name. Uncommenting is
+/// deleting those two characters.
 fn slashdash(nodes: &mut [KdlNode]) {
     for node in nodes {
         if let Some(format) = node.format_mut() {

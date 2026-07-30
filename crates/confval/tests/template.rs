@@ -404,8 +404,8 @@ fn the_template_walk_emits_commented_fields_for_every_hidden_shape() {
         .map(|field| field.name.as_str())
         .collect();
     assert_eq!(commented, vec!["pid_file", "extra", "allow", "tls", "svc"]);
-    // Each carries its doc, and the empty nested list falls back to the
-    // repeated type's own doc.
+    // Each carries its doc. The empty nested list falls back to the repeated
+    // type's own doc.
     let by_name = |name: &str| {
         fields
             .iter()

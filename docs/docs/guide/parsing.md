@@ -306,6 +306,11 @@ pub trait FromFields: Sized {
 }
 ```
 
+A `Fields` built by `to_template` can also hold commented-out entries, fields whose `commented` flag is set.
+Such a field reads as absent.
+`Fields::get` and `Fields::has` skip one for you.
+If you iterate with `Fields::iter`, check the flag and skip the field the way the generated walk does.
+
 An implementation parses every field before deciding what to return.
 Parsing all of them first keeps one bad field from hiding the problems in the others.
 

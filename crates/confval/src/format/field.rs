@@ -231,7 +231,7 @@ impl Fields {
     }
 
     /// The first active field with the name, or `None`. A commented field
-    /// reads as absent, so name lookup skips it and only
+    /// reads as absent, so name lookup skips it. Only
     /// [`iter`](Fields::iter) exposes one, which is what the emitters and the
     /// generated walk consume.
     pub fn get(&self, name: &str) -> Option<&Field> {
