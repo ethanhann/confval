@@ -21,6 +21,7 @@ color = ["dep:owo-colors"]
 # tldr; pick `hcl` and/or `toml` for the format(s) you actually parse.
 hcl = ["dep:hcl-edit"]
 toml = ["dep:toml_edit"]
+kdl = ["dep:kdl"]
 derive = ["dep:confval-derive"]
 # Assemble one configuration from several layered sources. Combines file
 # providers with env and CLI by precedence. Pulls in no external crate.
@@ -32,6 +33,7 @@ serde_json = { workspace = true, optional = true }
 owo-colors = { workspace = true, optional = true }
 hcl-edit = { workspace = true, optional = true }
 toml_edit = { workspace = true, optional = true }
+kdl = { workspace = true, optional = true }
 confval-derive = { version = "=0.6.1", path = "../confval-derive", optional = true }
 
 [dev-dependencies]
@@ -62,6 +64,10 @@ required-features = ["derive", "color", "toml", "layering"]
 name = "templates"
 required-features = ["derive", "color", "toml", "hcl"]
 
+[[example]]
+name = "kdl"
+required-features = ["derive", "color", "kdl"]
+
 [[test]]
 name = "compile_fail"
 required-features = ["derive"]
@@ -69,6 +75,14 @@ required-features = ["derive"]
 [[test]]
 name = "hcl_end_to_end"
 required-features = ["derive", "hcl"]
+
+[[test]]
+name = "kdl_end_to_end"
+required-features = ["derive", "kdl"]
+
+[[test]]
+name = "repeated_values"
+required-features = ["derive"]
 
 [[test]]
 name = "emit"

@@ -1,0 +1,171 @@
+//! Guards the span fidelity the `confval::format::kdl` adapter depends on. The
+//! adapter needs kdl-rs to expose byte-accurate spans for node names, argument
+//! entries, property entries, nodes, and children documents, plus byte offsets
+//! on syntax diagnostics. If a kdl upgrade breaks any of these, error
+//! attribution breaks with it.
+
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![cfg(feature = "kdl")]
+
+use kdl::KdlDocument;
+
+const INPUT: &str = r#"server {
+  hostname "example.com"
+  port 8080
+  daemon #true
+
+  tls cert="cert.pem" {
+    key "key.pem"
+  }
+
+  allow "10.0.0.0/8" "not a cidr"
+}
+"#;
+
+fn parse() -> KdlDocument {
+    KdlDocument::parse_v2(INPUT).unwrap()
+}
+
+/// Slices `INPUT` at a kdl-rs span. A macro rather than a function, because
+/// the span type belongs to miette, which is not a direct dependency.
+macro_rules! slice {
+    ($span:expr) => {{
+        let span = $span;
+        &INPUT[span.offset()..span.offset() + span.len()]
+    }};
+}
+
+#[test]
+fn node_name_spans_are_byte_accurate() {
+    // Arrange
+    let document = parse();
+
+    // Act
+    let server = document.nodes().first().unwrap();
+
+    // Assert
+    assert_eq!(slice!(server.name().span()), "server");
+}
+
+#[test]
+fn argument_entry_spans_cover_the_value_text() {
+    // Arrange
+    let document = parse();
+    let server = document.nodes().first().unwrap();
+    let children = server.children().unwrap();
+
+    // Act
+    let hostname = children
+        .nodes()
+        .iter()
+        .find(|node| node.name().value() == "hostname")
+        .unwrap();
+
+    // Assert
+    assert_eq!(slice!(hostname.entries()[0].span()), "\"example.com\"");
+}
+
+#[test]
+fn property_entry_spans_cover_name_and_value_together() {
+    // Arrange
+    // The property value has no span of its own, so the frontend accepts the
+    // entry span, which starts at the property name.
+    let document = parse();
+    let server = document.nodes().first().unwrap();
+    let children = server.children().unwrap();
+
+    // Act
+    let tls = children
+        .nodes()
+        .iter()
+        .find(|node| node.name().value() == "tls")
+        .unwrap();
+
+    // Assert
+    let cert = &tls.entries()[0];
+    assert_eq!(slice!(cert.span()), "cert=\"cert.pem\"");
+    assert_eq!(slice!(cert.name().unwrap().span()), "cert");
+}
+
+#[test]
+fn list_arguments_have_individual_entry_spans() {
+    // Arrange
+    let document = parse();
+    let server = document.nodes().first().unwrap();
+    let children = server.children().unwrap();
+
+    // Act
+    let allow = children
+        .nodes()
+        .iter()
+        .find(|node| node.name().value() == "allow")
+        .unwrap();
+
+    // Assert
+    let texts: Vec<&str> = allow
+        .entries()
+        .iter()
+        .map(|entry| slice!(entry.span()))
+        .collect();
+    assert_eq!(texts, vec!["\"10.0.0.0/8\"", "\"not a cidr\""]);
+}
+
+#[test]
+fn node_spans_cover_the_whole_node() {
+    // Arrange
+    let document = parse();
+
+    // Act
+    let server = document.nodes().first().unwrap();
+
+    // Assert
+    let text = slice!(server.span());
+    assert!(text.starts_with("server {"), "got: {text:?}");
+    assert!(text.trim_end().ends_with('}'), "got: {text:?}");
+}
+
+#[test]
+fn children_document_spans_sit_inside_the_braces() {
+    // Arrange
+    let document = parse();
+    let server = document.nodes().first().unwrap();
+
+    // Act
+    let children = server.children().unwrap();
+
+    // Assert
+    let span = children.span();
+    let open = INPUT.find('{').unwrap();
+    let close = INPUT.rfind('}').unwrap();
+    assert!(
+        span.offset() > open,
+        "children span starts at {}",
+        span.offset()
+    );
+    assert!(span.offset() + span.len() <= close + 1);
+}
+
+#[test]
+fn diagnostic_spans_are_byte_offsets_that_slice_cleanly() {
+    // Arrange
+    // The multibyte euro sign sits before the offending token, so a
+    // char-counted offset would land inside it and panic on slicing. The
+    // diagnostic span field's own documentation says chars while the parser
+    // emits bytes, and this pins the byte behavior.
+    let input = "cost \"€\"\nport = 8080\n";
+
+    // Act
+    let error = KdlDocument::parse_v2(input).unwrap_err();
+
+    // Assert
+    assert!(!error.diagnostics.is_empty());
+    for diagnostic in &error.diagnostics {
+        let start = diagnostic.span.offset();
+        let end = start + diagnostic.span.len();
+        assert!(end <= input.len(), "span {start}..{end} exceeds the input");
+        assert!(
+            input.is_char_boundary(start) && input.is_char_boundary(end),
+            "span {start}..{end} is not on byte-accurate char boundaries"
+        );
+    }
+}
