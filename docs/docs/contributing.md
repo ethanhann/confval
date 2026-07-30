@@ -35,7 +35,7 @@ These design decisions should be adhered to.
 
 - Parsing produces a format-neutral field model.
 - A frontend converts one syntax into that model.
-- HCL and TOML ship today, each behind its own feature, and a new format is another frontend over the same model.
+- HCL, TOML, and KDL ship today, each behind its own feature, and a new format is another frontend over the same model.
 
 ### The core has no required dependencies
 

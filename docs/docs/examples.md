@@ -5,7 +5,7 @@ sidebar_position: 4
 # Examples
 
 The crate ships six runnable examples in `crates/confval/examples/`.
-`hcl` and `toml` define the same types and differ only in the format they read.
+`hcl`, `toml`, and `kdl` define the same types and differ only in the format they read.
 The rest demonstrate one feature each.
 Each section below gives the run command and the output it prints.
 
@@ -59,13 +59,14 @@ limits: max_body_mb=16 mode=enforce
 
 ## kdl
 
-The KDL example feeds a valid document, prints the lowered config, and emits the populated spec back to canonical KDL.
+The KDL example renders the diagnostics for a failing variant to stderr, then feeds a valid document, prints the lowered config, and emits the populated spec back to canonical KDL.
 
 ```shell
 cargo run -q -p confval --example kdl --features derive,color,kdl
 ```
 
-The run passes validation, prints the runtime values, and shows the write path:
+The failing variant reports its problems the way the `hcl` example does, with spans into the KDL source.
+The valid run then passes validation, prints the runtime values, and shows the write path:
 
 ```shell
 listening on 127.0.0.1:8080 with 8 workers

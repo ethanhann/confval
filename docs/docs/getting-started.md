@@ -52,7 +52,7 @@ It pulls in no external crate.
 This example parses an HCL document, validates it, checks the report for errors, and lowers the validated spec into a runtime config.
 
 The crate ships the same program as multiple runnable examples.
-`hcl.rs` and `toml.rs` each supply a source document and one parse call, and both pull everything after parsing from a shared `common/mod.rs`.
+`hcl.rs`, `toml.rs`, and `kdl.rs` each supply a source document and one parse call, and all three pull everything after parsing from a shared `common/mod.rs`.
 
 Read through it once for the overall shape.
 The section after it maps each part to the guide page that covers it in depth.

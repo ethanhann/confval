@@ -236,10 +236,27 @@ A block, `bind { port = 8080 }`, and an attribute set to an object, `bind = { po
 TOML lines up with this: a `[table]` is a block, an inline `{ ... }` is an object, and an array of tables (`[[x]]`) is a
 repeating block, so a `Vec` of nested structs reads from it the same way it reads from an HCL list of objects.
 
-KDL spells the same shapes with nodes, and it parses with the KDL 2.0 grammar alone.
+KDL spells the same shapes with nodes.
+It parses with the KDL 2.0 grammar alone.
 A children block, `bind { port 8080 }`, and properties on one node, `bind port=8080`, are the same nested structure.
 A list is repeated arguments on one node, `allow "a" "b"`, or repeated same-named nodes, and a bare node is an empty
 list, the only spelling KDL has for one.
+
+For example, this document fills the same spec the HCL and TOML snippets above fill:
+
+```kdl
+hostname "127.0.0.1"
+port 8080
+allow "10.0.0.0/8" "192.168.0.0/16"
+
+bind {
+  port 8080
+}
+```
+
+```rust
+let spec: Option<ServerSpec> = confval::format::kdl::parse_kdl(&sources, id, &mut report);
+```
 A repeated node is a list when the field is a list and a duplicate error when it is not.
 An argument on a node that also has properties or children is an error, because the model has no block labels.
 A bare node where a single value is expected reports `expected string, found array`, because the bare spelling means an
