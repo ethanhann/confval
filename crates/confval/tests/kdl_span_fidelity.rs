@@ -146,19 +146,30 @@ fn children_document_spans_sit_inside_the_braces() {
 }
 
 #[test]
-fn diagnostic_spans_are_byte_offsets_that_slice_cleanly() {
+fn diagnostic_spans_are_byte_offsets() {
     // Arrange
-    // The multibyte euro sign sits before the offending token, so a
-    // char-counted offset would land inside it and panic on slicing. The
+    // The three-byte euro sign sits before the offending token, so a byte
+    // offset for the `=` is 16 where a char count would say 14. The
     // diagnostic span field's own documentation says chars while the parser
-    // emits bytes, and this pins the byte behavior.
+    // emits bytes, and pinning the exact offset makes a kdl upgrade that
+    // resolves the discrepancy the other way fail loudly.
     let input = "cost \"€\"\nport = 8080\n";
 
     // Act
     let error = KdlDocument::parse_v2(input).unwrap_err();
 
     // Assert
-    assert!(!error.diagnostics.is_empty());
+    let first = &error.diagnostics[0];
+    assert_eq!(
+        first.span.offset(),
+        16,
+        "diagnostics: {:?}",
+        error.diagnostics
+    );
+    assert_eq!(
+        &input[first.span.offset()..first.span.offset() + first.span.len()],
+        "="
+    );
     for diagnostic in &error.diagnostics {
         let start = diagnostic.span.offset();
         let end = start + diagnostic.span.len();

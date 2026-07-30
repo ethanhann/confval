@@ -218,6 +218,95 @@ fn a_repeated_scalar_reports_a_duplicate_pointing_at_the_first() {
 }
 
 #[test]
+fn an_interleaved_repeated_node_list_still_accumulates() {
+    // Arrange
+    // A field between the two occurrences must not split the list.
+    let input = r#"hostname "127.0.0.1"
+allow "10.0.0.0/8"
+port 8080
+daemon #false
+allow "192.168.0.0/16"
+"#;
+
+    // Act
+    let (_, report, config) = load(input);
+
+    // Assert
+    assert!(!report.has_issues(), "issues: {:?}", report.issues());
+    assert_eq!(config.unwrap().allow, vec!["10.0.0.0/8", "192.168.0.0/16"]);
+}
+
+#[test]
+fn a_duplicate_property_reports_like_a_repeated_scalar() {
+    // Arrange
+    // kdl-rs keeps both entries of a duplicated property, so the pair reaches
+    // the walk as two same-named fields and the single-value report fires.
+    let input = r#"hostname "127.0.0.1"
+port 8080
+daemon #false
+tls cert="a.pem" cert="b.pem" key="k.pem"
+"#;
+    let mut sources = SourceMap::new();
+    let mut report = Report::new();
+    let id = sources.add("server.kdl", input);
+
+    // Act
+    let spec = parse_kdl::<ServerSpec>(&sources, id, &mut report);
+
+    // Assert
+    let spec = spec.expect("first occurrence should win");
+    let tls = spec.tls.expect("tls should parse");
+    assert_eq!(tls.value.cert.value, "a.pem");
+    let issue = report
+        .issues()
+        .iter()
+        .find(|issue| issue.message == "duplicate field: cert")
+        .expect("the duplicate property must be reported");
+    let second = issue.span.unwrap();
+    assert_eq!(
+        &input[second.start as usize..second.end as usize],
+        "cert=\"b.pem\""
+    );
+}
+
+#[test]
+fn emit_alone_inverts_parse_for_the_kdl_only_spellings() {
+    // Arrange
+    // The repeated-node list and the property block are shapes populate never
+    // produces, so this pins that emit inverts parse without populate in the
+    // loop.
+    let source = r#"hostname "127.0.0.1"
+port 8080
+daemon #false
+allow "10.0.0.0/8"
+allow "192.168.0.0/16"
+tls cert="cert.pem" key="key.pem"
+"#;
+    let mut sources = SourceMap::new();
+    let mut report = Report::new();
+    let id = sources.add("in.kdl", source);
+    let fields = confval::format::kdl::parse_kdl_fields(&sources, id, &mut report).unwrap();
+    assert!(!report.has_issues(), "issues: {:?}", report.issues());
+
+    // Act
+    let text = emit_kdl(&fields).expect("emit kdl");
+
+    // Assert
+    let mut emitted_sources = SourceMap::new();
+    let emitted_id = emitted_sources.add("out.kdl", text.clone());
+    let mut emitted_report = Report::new();
+    let from_emitted: ServerSpec =
+        parse_kdl(&emitted_sources, emitted_id, &mut emitted_report).unwrap();
+    assert!(
+        !emitted_report.has_issues(),
+        "emitted text should reparse cleanly, got: {text}"
+    );
+    let mut original_report = Report::new();
+    let from_original: ServerSpec = parse_kdl(&sources, id, &mut original_report).unwrap();
+    assert_eq!(from_emitted, from_original, "emitted text: {text}");
+}
+
+#[test]
 fn a_property_spelled_block_parses_like_a_children_block() {
     // Arrange
     let input = r#"hostname "127.0.0.1"
