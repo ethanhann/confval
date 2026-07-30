@@ -51,7 +51,7 @@ pub(crate) fn field_ctor(
         FieldShape::OptionalWrappedStringList | FieldShape::Nested { optional: true, .. } => {
             Ok(quote! { #ident: ::core::option::Option::None, })
         }
-        FieldShape::NestedList => Ok(quote! { #ident: ::std::vec::Vec::new(), }),
+        FieldShape::NestedList { .. } => Ok(quote! { #ident: ::std::vec::Vec::new(), }),
     }
 }
 

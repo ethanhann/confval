@@ -61,6 +61,27 @@ pub(crate) fn field_emit(
         FieldShape::Leaf { leaf, optional } => {
             if *optional {
                 let scalar = leaf_scalar(leaf, &quote! { __value });
+                // The template shows an absent optional leaf as a commented
+                // entry: the attribute default when one exists, a type-shaped
+                // zero value otherwise, with the doc comment above it.
+                let absent = if annotate {
+                    let placeholder = options.default_value().unwrap_or_else(|| zero_value(leaf));
+                    let placeholder_scalar = leaf_scalar(leaf, &quote! { __placeholder });
+                    quote! {
+                        else {
+                            let __placeholder =
+                                ::confval::source::Located::detached(#placeholder);
+                            __items.push(::confval::format::Field::detached_value(
+                                #name,
+                                ::confval::format::Value::detached(
+                                    ::confval::format::ValueKind::Scalar(#placeholder_scalar),
+                                ),
+                            )#doc.as_commented());
+                        }
+                    }
+                } else {
+                    quote! {}
+                };
                 quote! {
                     if let ::core::option::Option::Some(__value) = &self.#ident {
                         __items.push(::confval::format::Field::detached_value(
@@ -69,7 +90,7 @@ pub(crate) fn field_emit(
                                 ::confval::format::ValueKind::Scalar(#scalar),
                             ),
                         )#doc);
-                    }
+                    } #absent
                 }
             } else {
                 let scalar = leaf_scalar(leaf, &quote! { self.#ident });
@@ -96,6 +117,20 @@ pub(crate) fn field_emit(
         }
         FieldShape::OptionalWrappedStringList => {
             let element = string_element();
+            let absent = if annotate {
+                quote! {
+                    else {
+                        __items.push(::confval::format::Field::detached_value(
+                            #name,
+                            ::confval::format::Value::detached(::confval::format::ValueKind::Seq(
+                                ::std::vec::Vec::new(),
+                            )),
+                        )#doc.as_commented());
+                    }
+                }
+            } else {
+                quote! {}
+            };
             quote! {
                 if let ::core::option::Option::Some(__list) = &self.#ident {
                     __items.push(::confval::format::Field::detached_value(
@@ -104,7 +139,7 @@ pub(crate) fn field_emit(
                             __list.value.iter().map(#element).collect(),
                         )),
                     )#doc);
-                }
+                } #absent
             }
         }
         FieldShape::Nested { optional, spec_ty } => {
@@ -141,18 +176,60 @@ pub(crate) fn field_emit(
                 }
             } else {
                 let doc = nested_doc(quote! { &__child.value });
+                // The template shows an absent unmarked block as a commented
+                // empty block. Its contents need an instance the field cannot
+                // provide, so the entry shows existence and the doc falls back
+                // to the type's own, read without an instance.
+                let absent = if annotate {
+                    let absent_doc = absent_block_doc(options, spec_ty);
+                    quote! {
+                        else {
+                            __items.push(::confval::format::Field::detached_block(
+                                #name,
+                                ::confval::format::Fields::detached(::std::vec::Vec::new()),
+                            )#absent_doc.as_commented());
+                        }
+                    }
+                } else {
+                    quote! {}
+                };
                 quote! {
                     if let ::core::option::Option::Some(__child) = &self.#ident {
                         __items.push(::confval::format::Field::detached_block(
                             #name,
                             ::confval::format::ToFields::#recurse(&__child.value),
                         )#doc);
-                    }
+                    } #absent
                 }
             }
         }
-        FieldShape::NestedList => {
+        FieldShape::NestedList { spec_ty } => {
             let doc = nested_doc(quote! { &__child.value });
+            // The hint for an empty list is the model's nested-list shape, a
+            // sequence of one empty map, so each emitter renders its own
+            // repeated-block spelling and TOML can tell it from a single
+            // block.
+            let absent = if annotate {
+                let absent_doc = absent_block_doc(options, spec_ty);
+                quote! {
+                    if self.#ident.is_empty() {
+                        __items.push(::confval::format::Field::detached_value(
+                            #name,
+                            ::confval::format::Value::detached(::confval::format::ValueKind::Seq(
+                                ::std::vec::Vec::from([::confval::format::Value::detached(
+                                    ::confval::format::ValueKind::Map(
+                                        ::confval::format::Fields::detached(
+                                            ::std::vec::Vec::new(),
+                                        ),
+                                    ),
+                                )]),
+                            )),
+                        )#absent_doc.as_commented());
+                    }
+                }
+            } else {
+                quote! {}
+            };
             quote! {
                 for __child in &self.#ident {
                     __items.push(::confval::format::Field::detached_block(
@@ -160,8 +237,33 @@ pub(crate) fn field_emit(
                         ::confval::format::ToFields::#recurse(&__child.value),
                     )#doc);
                 }
+                #absent
             }
         }
+    }
+}
+
+/// The doc tokens for a commented entry that has no instance to ask: the
+/// field's own doc, or the type's doc read through `type_doc`.
+fn absent_block_doc(options: &FieldOptions, spec_ty: &syn::Type) -> TokenStream2 {
+    match &options.doc {
+        Some(text) => quote! { .with_doc(::core::option::Option::Some(#text.to_string())) },
+        None => quote! {
+            .with_doc(<#spec_ty as ::confval::format::ToFields>::type_doc())
+        },
+    }
+}
+
+/// The placeholder a commented entry shows for a leaf with no attribute
+/// default: a type-shaped zero value the operator overwrites when
+/// uncommenting.
+fn zero_value(leaf: &Leaf) -> TokenStream2 {
+    match leaf {
+        Leaf::String => quote! { ::std::string::String::new() },
+        Leaf::Int => quote! { 0i64 },
+        Leaf::Float => quote! { 0.0f64 },
+        Leaf::Bool => quote! { false },
+        Leaf::PathBuf => quote! { ::std::path::PathBuf::new() },
     }
 }
 
@@ -183,6 +285,10 @@ pub(crate) fn to_fields_impl(
     let spec_doc_impl = spec_doc.as_ref().map(|text| {
         quote! {
             fn spec_doc(&self) -> ::core::option::Option<::std::string::String> {
+                ::core::option::Option::Some(#text.to_string())
+            }
+
+            fn type_doc() -> ::core::option::Option<::std::string::String> {
                 ::core::option::Option::Some(#text.to_string())
             }
         }

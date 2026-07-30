@@ -142,6 +142,11 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 #(#slot_decls)*
 
                 for __field in fields.iter() {
+                    // A commented field reads as absent, so it is skipped
+                    // before the name match and never reported as unknown.
+                    if __field.commented {
+                        continue;
+                    }
                     match __field.name.as_str() {
                         #(#match_arms)*
                         _ => ::confval::format::report_unknown_field(__field, report),
