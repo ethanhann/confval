@@ -124,11 +124,24 @@ pub fn parse_bool_field(field: &Field, report: &mut Report) -> Option<Located<bo
 /// element is reported at that element, not at the whole list. Every invalid
 /// element is reported. If any element is invalid, the field is treated as
 /// missing.
+///
+/// A lone string is accepted as a one-element list, because a format with no
+/// array literal, KDL, spells a one-element list as a single value, and
+/// [`parse_struct_list_field`] already accepts a single block the same way. A
+/// lone [`Scalar::Unparsed`], the kind the environment and command line
+/// providers produce, stays a mismatch, so a single variable cannot set a list
+/// until an indexed convention exists for the rest of one.
 pub fn parse_string_list_field(
     field: &Field,
     report: &mut Report,
 ) -> Option<Located<Vec<Located<String>>>> {
     let value = expect_value(field, "array of strings", report)?;
+    if let ValueKind::Scalar(Scalar::String(string)) = &value.kind {
+        return Some(Located::new(
+            vec![Located::new(string.clone(), value.span)],
+            value.span,
+        ));
+    }
     let ValueKind::Seq(elements) = &value.kind else {
         report_type_mismatch(value, "array of strings", report);
         return None;
@@ -205,6 +218,44 @@ pub fn parse_struct_list_field<S: FromFields>(
     }
 }
 
+/// Appends one occurrence of a string-list field into `slot`, so a name
+/// repeated at one level accumulates into one list in document order rather
+/// than overwriting. The stored span stays the first occurrence's. An invalid
+/// occurrence is reported by [`parse_string_list_field`] and contributes
+/// nothing.
+pub fn parse_string_list_occurrence(
+    slot: &mut Option<Located<Vec<Located<String>>>>,
+    field: &Field,
+    report: &mut Report,
+) {
+    let Some(parsed) = parse_string_list_field(field, report) else {
+        return;
+    };
+    match slot {
+        Some(existing) => existing.value.extend(parsed.value),
+        None => *slot = Some(parsed),
+    }
+}
+
+/// Tracks a single-occurrence field. The first call records the field's span
+/// and returns `true`, so the caller parses the occurrence. A later call
+/// reports a duplicate pointing back at the first and returns `false`. The
+/// first occurrence wins, so parsing continues with a value.
+pub fn first_occurrence(
+    seen: &mut Option<Span>,
+    name: &str,
+    field: &Field,
+    report: &mut Report,
+) -> bool {
+    if let Some(first) = *seen {
+        report_duplicate_field(name, field.span, first, report);
+        false
+    } else {
+        *seen = Some(field.span);
+        true
+    }
+}
+
 /// Parses a single-occurrence nested structure into `slot`, tracking the first
 /// occurrence in `seen` so a repeated one is reported as a duplicate pointing
 /// back at the first. The first occurrence wins.
@@ -215,10 +266,7 @@ pub fn parse_single_struct<S: FromFields>(
     field: &Field,
     report: &mut Report,
 ) {
-    if let Some(first) = *seen {
-        report_duplicate_field(name, field.span, first, report);
-    } else {
-        *seen = Some(field.span);
+    if first_occurrence(seen, name, field, report) {
         *slot = parse_struct_field(field, report);
     }
 }
@@ -405,6 +453,111 @@ mod tests {
         assert_eq!(list.value.len(), 2);
         assert_eq!(list.value[0].value, "a");
         assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn string_list_field_widens_a_lone_string_to_one_element() {
+        // Arrange
+        let field = scalar_field("allow", Scalar::String("10.0.0.0/8".to_string()));
+        let mut report = Report::new();
+
+        // Act
+        let list = parse_string_list_field(&field, &mut report);
+
+        // Assert
+        let list = list.expect("a lone string should widen");
+        assert_eq!(list.value.len(), 1);
+        assert_eq!(list.value[0].value, "10.0.0.0/8");
+        assert_eq!(list.value[0].span, span(0, 10));
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn string_list_field_keeps_a_lone_unparsed_a_mismatch() {
+        // Arrange
+        // The env and CLI providers yield Unparsed, and a single variable must
+        // not set a list until an indexed convention exists.
+        let field = scalar_field("allow", Scalar::Unparsed("10.0.0.0/8".to_string()));
+        let mut report = Report::new();
+
+        // Act
+        let list = parse_string_list_field(&field, &mut report);
+
+        // Assert
+        assert!(list.is_none());
+        assert_eq!(
+            report.issues()[0].message,
+            "expected array of strings, found string"
+        );
+    }
+
+    #[test]
+    fn string_list_field_keeps_other_lone_scalars_a_mismatch() {
+        // Arrange
+        let field = scalar_field("allow", Scalar::Int(1));
+        let mut report = Report::new();
+
+        // Act
+        let list = parse_string_list_field(&field, &mut report);
+
+        // Assert
+        assert!(list.is_none());
+        assert_eq!(
+            report.issues()[0].message,
+            "expected array of strings, found number"
+        );
+    }
+
+    #[test]
+    fn string_list_occurrences_accumulate_and_keep_the_first_span() {
+        // Arrange
+        let first = seq_field(
+            "allow",
+            vec![ValueKind::Scalar(Scalar::String("a".to_string()))],
+        );
+        let second = scalar_field("allow", Scalar::String("b".to_string()));
+        let mut slot = None;
+        let mut report = Report::new();
+
+        // Act
+        parse_string_list_occurrence(&mut slot, &first, &mut report);
+        parse_string_list_occurrence(&mut slot, &second, &mut report);
+
+        // Assert
+        let list = slot.expect("occurrences should accumulate");
+        let values: Vec<&str> = list
+            .value
+            .iter()
+            .map(|element| element.value.as_str())
+            .collect();
+        assert_eq!(values, vec!["a", "b"]);
+        assert_eq!(list.span, span(0, 10));
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn first_occurrence_reports_the_repeat_and_keeps_the_first() {
+        // Arrange
+        let first = scalar_field("port", Scalar::Int(1));
+        let mut second = scalar_field("port", Scalar::Int(2));
+        second.span = span(20, 24);
+        let mut seen = None;
+        let mut report = Report::new();
+
+        // Act
+        let take_first = first_occurrence(&mut seen, "port", &first, &mut report);
+        let take_second = first_occurrence(&mut seen, "port", &second, &mut report);
+
+        // Assert
+        assert!(take_first);
+        assert!(!take_second);
+        assert_eq!(report.issues().len(), 1);
+        assert_eq!(report.issues()[0].message, "duplicate field: port");
+        assert_eq!(report.issues()[0].span, Some(span(20, 24)));
+        assert_eq!(
+            report.issues()[0].related[0],
+            (span(0, 10), "first declared here".to_string())
+        );
     }
 
     #[test]

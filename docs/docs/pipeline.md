@@ -15,7 +15,7 @@ The approach is inspired by ["Parse, don't validate"](https://lexi-lambda.github
 
 ### 1. Parse (structural)
 
-A frontend (`parse_hcl` or `parse_toml`) builds the neutral `Fields`, runs `FromFields`, and reports shape problems.
+A frontend (`parse_hcl`, `parse_toml`, or `parse_kdl`) builds the neutral `Fields`, runs `FromFields`, and reports shape problems.
 
 Unknown fields, wrong types, missing required fields, and duplicate blocks are reported with spans.
 Parsing continues across inputs.
@@ -181,7 +181,7 @@ messages.
 ## Runnable examples
 
 End-to-end examples ship in `crates/confval/examples/`.
-`hcl.rs` and `toml.rs` each hold a source document and one parse call.
+`hcl.rs`, `toml.rs`, and `kdl.rs` each hold a source document and one parse call.
 Everything after parsing lives in `common/mod.rs`: the spec types, the validators, the config types, and the lowering
 functions.
 Both examples share that file verbatim.

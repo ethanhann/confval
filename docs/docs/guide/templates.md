@@ -59,6 +59,14 @@ let template = emit_toml(&spec.to_template())?;
 ```
 
 `emit_hcl` renders the same model as HCL.
+`emit_kdl` renders it as KDL, with each comment as a `//` line above its node:
+
+```rust
+use confval::format::kdl::{emit_kdl, parse_kdl};
+
+let spec: ServerSpec = parse_kdl(&sources, id, &mut report).unwrap();
+let template = emit_kdl(&spec.to_template())?;
+```
 A comment is indented to line up with the field it documents, so a comment inside a block is at the block's indentation:
 
 ```hcl
@@ -82,7 +90,7 @@ limits {
 TOML content is flat, so in a TOML template every comment is at column zero.
 
 Emit writes canonical text rather than rewriting a file a person authored.
-It drops the comments and layout the field model never held, and it writes a nested struct as a `[table]` in TOML or a block in HCL.
+It drops the comments and layout the field model never held, and it writes a nested struct as a `[table]` in TOML, a block in HCL, or a children node in KDL.
 
 ## Writing the Comments
 
@@ -179,7 +187,7 @@ A spec that holds neither emits to HCL without failing.
 
 Emit can also fail on a `Fields` that a frontend parsed rather than populated, because a parsed model can carry a name or a value the target format cannot spell.
 A value with no representation, such as a TOML datetime, fails in any format.
-A name that is not a valid identifier fails when you emit HCL, which has no way to quote it, while TOML quotes it without trouble.
+A name that is not a valid identifier fails when you emit HCL, which has no way to quote it, while TOML and KDL quote it without trouble.
 HCL also spells a value and a block side by side under one name.
 A TOML key names one thing, so `emit_toml` refuses that pair rather than silently dropping one of the two.
 A name used twice for plain values has no spelling in either format, so both emitters refuse it as well.
