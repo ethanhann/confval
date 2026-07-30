@@ -65,10 +65,16 @@ pub(crate) fn combine(base: Fields, incoming: Fields, verb: Verb, report: &mut R
 }
 
 /// Partitions a level into same-named groups, keeping first-appearance order
-/// within and across groups.
+/// within and across groups. A commented field reads as absent, so it is
+/// dropped here, participates in no conflict, and never appears in assembled
+/// output.
 fn grouped(fields: Fields) -> Vec<(String, Vec<Field>)> {
     let mut groups: Vec<(String, Vec<Field>)> = Vec::new();
-    for field in fields.into_items() {
+    for field in fields
+        .into_items()
+        .into_iter()
+        .filter(|field| !field.commented)
+    {
         match groups.iter_mut().find(|(name, _)| *name == field.name) {
             Some((_, group)) => group.push(field),
             None => {
@@ -134,6 +140,9 @@ impl Shell {
             source: self.source,
             doc: self.doc,
             kind,
+            // Commented fields are dropped before the merge, so a rewrapped
+            // field is always active.
+            commented: false,
         }
     }
 }
@@ -153,6 +162,7 @@ fn split_structural(field: Field) -> Split {
         source,
         doc,
         kind,
+        commented,
     } = field;
     let (spelling, inner) = match kind {
         FieldKind::Block(inner) => (Spelling::Block, inner),
@@ -168,6 +178,7 @@ fn split_structural(field: Field) -> Split {
                 source,
                 doc,
                 kind,
+                commented,
             });
         }
     };
@@ -253,6 +264,7 @@ mod tests {
             span: sp(A, 0, 0),
             source: A,
             doc: None,
+            commented: false,
             kind: FieldKind::Value(Value {
                 span: sp(A, 0, 0),
                 kind: ValueKind::Scalar(value),
@@ -274,6 +286,7 @@ mod tests {
             span: sp(A, 0, 0),
             source: A,
             doc: None,
+            commented: false,
             kind: FieldKind::Value(Value {
                 span: sp(A, 0, 0),
                 kind: ValueKind::Seq(elements),
@@ -288,6 +301,7 @@ mod tests {
             span: sp(A, 0, 0),
             source: A,
             doc: None,
+            commented: false,
             kind: FieldKind::Block(Fields::new(A, sp(A, 0, 0), items)),
         }
     }
@@ -299,6 +313,7 @@ mod tests {
             span: sp(A, 0, 0),
             source: A,
             doc: None,
+            commented: false,
             kind: FieldKind::Value(Value {
                 span: sp(A, 0, 0),
                 kind: ValueKind::Map(Fields::new(A, sp(A, 0, 0), items)),
@@ -319,6 +334,37 @@ mod tests {
             panic!("expected a scalar field");
         };
         scalar
+    }
+
+    #[test]
+    fn merge_drops_a_commented_field_without_a_conflict() {
+        // Arrange
+        // A commented field reads as absent, so a template placeholder layered
+        // by mistake neither conflicts with an active value nor survives into
+        // the assembled output.
+        let base = level(
+            A,
+            sp(A, 0, 0),
+            vec![
+                scalar("port", Scalar::Int(1)),
+                scalar("pid_file", Scalar::Int(9)).as_commented(),
+            ],
+        );
+        let over = level(
+            A,
+            sp(A, 0, 0),
+            vec![scalar("port", Scalar::Int(2)).as_commented()],
+        );
+        let mut report = Report::new();
+
+        // Act
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
+        // Assert
+        assert_eq!(scalar_of(merged.get("port").unwrap()), &Scalar::Int(1));
+        assert!(merged.iter().all(|field| !field.commented));
+        assert!(merged.iter().all(|field| field.name != "pid_file"));
+        assert!(!report.has_issues(), "issues: {:?}", report.issues());
     }
 
     #[test]

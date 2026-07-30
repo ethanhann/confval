@@ -49,15 +49,36 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
         let FieldKind::Value(_) = &field.kind else {
             continue;
         };
+        let child = child_path(path, &field.name);
+        // A commented field renders through the same paths as an active one
+        // and gains the slashdash, KDL's own disabled-node spelling, which the
+        // parser reads and discards. It joins no group, so it never blocks an
+        // active field's emission.
+        if field.commented {
+            let before = nodes.len();
+            emit_value_field(
+                &mut nodes,
+                field,
+                field.doc.as_deref(),
+                level,
+                &indent,
+                &child,
+            )?;
+            slashdash(&mut nodes[before..]);
+            continue;
+        }
         if grouped.iter().any(|name| *name == field.name) {
             continue;
         }
         grouped.push(&field.name);
         let group: Vec<&Field> = fields
             .iter()
-            .filter(|other| other.name == field.name && matches!(other.kind, FieldKind::Value(_)))
+            .filter(|other| {
+                !other.commented
+                    && other.name == field.name
+                    && matches!(other.kind, FieldKind::Value(_))
+            })
             .collect();
-        let child = child_path(path, &field.name);
         // Only one comment can render above the grouped node, so the group
         // takes the first doc any member carries.
         let doc = group.iter().find_map(|member| member.doc.as_deref());
@@ -84,11 +105,25 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
             block_leading(field.doc.as_deref(), &indent, !nodes.is_empty()),
         );
         attach_children(&mut node, emit_document(inner, level + 1, &child)?, &indent);
+        if field.commented {
+            slashdash(&mut std::slice::from_mut(&mut node)[..]);
+        }
         nodes.push(node);
     }
     let mut document = KdlDocument::new();
     *document.nodes_mut() = nodes;
     Ok(document)
+}
+
+/// Appends the slashdash to each node's leading decor, after its doc comment
+/// and indent, so `/-` sits directly before the name and uncommenting is
+/// deleting two characters.
+fn slashdash(nodes: &mut [KdlNode]) {
+    for node in nodes {
+        if let Some(format) = node.format_mut() {
+            format.leading.push_str("/-");
+        }
+    }
 }
 
 /// Emits one unrepeated value field: a scalar or sequence node, a children
@@ -406,6 +441,120 @@ mod tests {
             report.issues()
         );
         fields
+    }
+
+    #[test]
+    fn emit_kdl_writes_a_commented_leaf_as_a_slashdash_node() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port 8080\n/-pid_file \"\"\n");
+    }
+
+    #[test]
+    fn emit_kdl_renders_a_doc_above_its_commented_entry() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("pid_file", Scalar::String(String::new()))
+                .with_doc(Some("The PID file path.".to_string()))
+                .as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port 8080\n// The PID file path.\n/-pid_file \"\"\n");
+    }
+
+    #[test]
+    fn emit_kdl_writes_a_commented_empty_block_as_a_slashdash_node() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port 8080\n\n/-tls {\n}\n");
+    }
+
+    #[test]
+    fn emit_kdl_writes_a_commented_list_hint_as_a_slashdash_node() {
+        // Arrange
+        let hint = Value::detached(ValueKind::Seq(vec![Value::detached(ValueKind::Map(
+            Fields::detached(vec![]),
+        ))]));
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            Field::detached_value("svc", hint).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port 8080\n\n/-svc {\n}\n");
+    }
+
+    #[test]
+    fn emit_kdl_indents_a_commented_entry_inside_a_block() {
+        // Arrange
+        let inner = Fields::detached(vec![
+            scalar("mode", Scalar::String("log".to_string())),
+            scalar("rate", Scalar::Int(0)).as_commented(),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "limits {\n  mode \"log\"\n  /-rate 0\n}\n");
+    }
+
+    #[test]
+    fn emit_kdl_excludes_commented_fields_from_grouping() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("x", Scalar::Int(1)),
+            scalar("x", Scalar::Int(2)).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "x 1\n/-x 2\n");
+    }
+
+    #[test]
+    fn emit_kdl_reparses_a_commented_template_to_the_active_fields_alone() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+            Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        let round = reparse(&text);
+        let names: Vec<&str> = round.iter().map(|field| field.name.as_str()).collect();
+        assert_eq!(names, vec!["port"]);
     }
 
     #[test]

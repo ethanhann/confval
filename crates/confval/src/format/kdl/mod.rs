@@ -181,6 +181,7 @@ fn field_of_node(node: &KdlNode, source: SourceId, report: &mut Report) -> Field
         source,
         kind,
         doc: None,
+        commented: false,
     }
 }
 
@@ -219,6 +220,7 @@ fn field_of_property(entry: &KdlEntry, source: SourceId) -> Option<Field> {
         source,
         kind: FieldKind::Value(value_of_entry(entry, source)),
         doc: None,
+        commented: false,
     })
 }
 

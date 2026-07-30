@@ -122,6 +122,7 @@ fn fields_of_body(
                 source,
                 kind: FieldKind::Value(value_of_expr(&attr.value, text, source, report)),
                 doc: None,
+                commented: false,
             }),
             Structure::Block(block) => {
                 let block_span = span_of(block, source);
@@ -138,6 +139,7 @@ fn fields_of_body(
                         report,
                     )),
                     doc: None,
+                    commented: false,
                 });
             }
         }
@@ -178,6 +180,7 @@ fn fields_of_object(
             source,
             kind: FieldKind::Value(value),
             doc: None,
+            commented: false,
         });
     }
     Fields::new(source, enclosing, items)

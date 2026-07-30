@@ -151,6 +151,7 @@ fn field_of_item(
         source,
         kind,
         doc: None,
+        commented: false,
     }
 }
 
@@ -207,6 +208,7 @@ fn fields_of_inline_table(
             source,
             kind: FieldKind::Value(value),
             doc: None,
+            commented: false,
         });
     }
     Fields::new(source, enclosing, items)
