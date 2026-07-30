@@ -348,6 +348,22 @@ mod tests {
     }
 
     #[test]
+    fn a_bare_node_where_a_scalar_is_expected_reports_found_array() {
+        // Arrange
+        // The natural typo of a forgotten value maps to an empty sequence, so
+        // the operator-visible text names an array.
+        let input = "hostname\n";
+
+        // Act
+        let (_, fields) = parse(input);
+
+        // Assert
+        let mut report = Report::new();
+        assert!(parse_string_field(fields.get("hostname").unwrap(), &mut report).is_none());
+        assert_eq!(report.issues()[0].message, "expected string, found array");
+    }
+
+    #[test]
     fn an_empty_children_block_is_an_empty_block() {
         // Arrange
         let input = "tls {\n}\n";

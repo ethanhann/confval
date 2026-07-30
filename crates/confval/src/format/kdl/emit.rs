@@ -64,7 +64,7 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
         if group.len() == 1 {
             emit_value_field(&mut nodes, field, doc, level, &indent, &child)?;
         } else {
-            let mut node = node_with(&field.name, leading(doc, &indent, !nodes.is_empty()));
+            let mut node = node_with(&field.name, leading(doc, &indent));
             for member in &group {
                 let FieldKind::Value(value) = &member.kind else {
                     continue;
@@ -106,13 +106,13 @@ fn emit_value_field(
     };
     match &value.kind {
         ValueKind::Scalar(scalar) => {
-            let mut node = node_with(&field.name, leading(doc, indent, !nodes.is_empty()));
+            let mut node = node_with(&field.name, leading(doc, indent));
             node.entries_mut().push(scalar_entry(scalar));
             nodes.push(node);
         }
         ValueKind::Seq(elements) => match classify_sequence(elements, path)? {
             Sequence::Scalars(scalars) => {
-                let mut node = node_with(&field.name, leading(doc, indent, !nodes.is_empty()));
+                let mut node = node_with(&field.name, leading(doc, indent));
                 for scalar in scalars {
                     node.entries_mut().push(scalar_entry(scalar));
                 }
@@ -216,11 +216,14 @@ fn push_grouped_arguments(node: &mut KdlNode, value: &Value, path: &str) -> Resu
     }
 }
 
-/// A node with its leading decor set and a newline terminator. The name
-/// renders bare when it is a plain identifier and quoted otherwise, which
-/// kdl-rs decides, so every name is representable.
+/// A node with its leading decor set and a newline terminator. The name's
+/// spelling is set here rather than left to kdl-rs, whose writer would pass a
+/// banned code point through raw, so every name reparses.
 fn node_with(name: &str, leading: String) -> KdlNode {
     let mut node = KdlNode::new(name);
+    if !is_plain_name(name) {
+        node.name_mut().set_repr(quoted(name));
+    }
     node.set_format(KdlNodeFormat {
         leading,
         terminator: "\n".to_string(),
@@ -229,9 +232,21 @@ fn node_with(name: &str, leading: String) -> KdlNode {
     node
 }
 
+/// Whether a name spells bare. The check is narrower than KDL's own identifier
+/// grammar, so a borderline name quotes rather than risking a spelling the
+/// parser reads differently.
+fn is_plain_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
 /// The leading decor for a value node: its doc comment as `// line` comments,
 /// each at the node's indentation, followed by the indent itself.
-fn leading(doc: Option<&str>, indent: &str, _follows: bool) -> String {
+fn leading(doc: Option<&str>, indent: &str) -> String {
     let mut out = String::new();
     if let Some(text) = doc {
         for line in comment_lines(text) {
@@ -256,7 +271,7 @@ fn block_leading(doc: Option<&str>, indent: &str, follows: bool) -> String {
     if follows {
         out.push('\n');
     }
-    out.push_str(&leading(doc, indent, follows));
+    out.push_str(&leading(doc, indent));
     out
 }
 
@@ -295,8 +310,8 @@ fn scalar_entry(scalar: &Scalar) -> KdlEntry {
 }
 
 /// The quoted spelling of a string, with the escapes KDL 2.0 defines and a
-/// unicode escape for any other control character, so an adversarial string
-/// still reparses.
+/// unicode escape for every code point its grammar bans from literal text, so
+/// an adversarial string still reparses.
 fn quoted(string: &str) -> String {
     let mut out = String::with_capacity(string.len() + 2);
     out.push('"');
@@ -311,7 +326,7 @@ fn quoted(string: &str) -> String {
             '\t' => out.push_str("\\t"),
             '\u{08}' => out.push_str("\\b"),
             '\u{0C}' => out.push_str("\\f"),
-            character if character.is_control() => {
+            character if character.is_control() || is_banned_in_text(character) => {
                 out.push_str(&format!("\\u{{{:x}}}", character as u32));
             }
             character => out.push(character),
@@ -319,6 +334,22 @@ fn quoted(string: &str) -> String {
     }
     out.push('"');
     out
+}
+
+/// Whether KDL 2.0 bans the code point from appearing literally in its text:
+/// the direction marks, the bidi controls, the zero-width no-break space, and
+/// the two line separators it treats as newlines, which end a single-line
+/// string early.
+fn is_banned_in_text(character: char) -> bool {
+    matches!(
+        character,
+        '\u{200E}' | '\u{200F}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2066}'..='\u{2069}'
+            | '\u{FEFF}'
+            | '\u{2028}'
+            | '\u{2029}'
+    )
 }
 
 /// A float's literal: the shortest round-trip text for a finite value, which
@@ -701,8 +732,11 @@ mod tests {
         // Arrange
         // Escaping is this module's own, so this guards the quoted spelling
         // against quotes, backslashes, line breaks, tabs, unicode, and control
-        // characters.
-        let hostile = "quote\" backslash\\ newline\n tab\t snowman\u{2603} del\u{7f} bel\u{7}";
+        // characters, plus the code points KDL 2.0 bans from its text: the
+        // bidi controls, the direction marks, the zero-width no-break space,
+        // and the two line separators it treats as newlines.
+        let hostile = "quote\" backslash\\ newline\n tab\t snowman\u{2603} del\u{7f} bel\u{7} \
+                       ls\u{2028} ps\u{2029} rlo\u{202e} lri\u{2066} mark\u{200e} bom\u{feff}";
         let fields = Fields::detached(vec![scalar(
             "greeting",
             Scalar::String(hostile.to_string()),
@@ -731,6 +765,21 @@ mod tests {
 
         // Assert
         assert_eq!(text, "mode \"enforce\"\n");
+    }
+
+    #[test]
+    fn emit_kdl_escapes_a_banned_code_point_in_a_node_name() {
+        // Arrange
+        // KDL bans the bidi controls from its text entirely, so a name
+        // carrying one must spell it as an escape to reparse.
+        let fields = Fields::detached(vec![scalar("k\u{202e}ey", Scalar::Int(1))]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        let round = reparse(&text);
+        assert!(round.get("k\u{202e}ey").is_some(), "emitted: {text:?}");
     }
 
     #[test]
@@ -771,6 +820,32 @@ mod tests {
         assert_eq!(
             text,
             "// The port.\nport 1\n\n// Request limits.\nlimits {\n  // Max body size.\n  max_body_mb 16\n}\n"
+        );
+        reparse(&text);
+    }
+
+    #[test]
+    fn emit_kdl_renders_a_doc_comment_once_per_repeated_block() {
+        // Arrange
+        // The template walk attaches the doc to every element of a nested
+        // list, so each repeated node carries its own comment.
+        let block = |port: i64| {
+            Field::detached_block(
+                "service",
+                Fields::detached(vec![scalar("port", Scalar::Int(port))]),
+            )
+            .with_doc(Some("A service definition.".to_string()))
+        };
+        let fields = Fields::detached(vec![block(1), block(2)]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            text.matches("// A service definition.").count(),
+            2,
+            "got:\n{text}"
         );
         reparse(&text);
     }
