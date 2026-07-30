@@ -68,7 +68,7 @@ fn location(path: &str) -> String {
 }
 
 /// The dotted path of a field under `path`, which is empty at the root.
-#[cfg(any(feature = "toml", feature = "hcl"))]
+#[cfg(any(feature = "toml", feature = "hcl", feature = "kdl"))]
 pub(crate) fn child_path(path: &str, name: &str) -> String {
     if path.is_empty() {
         name.to_string()
@@ -115,7 +115,7 @@ impl std::error::Error for EmitError {}
 /// becomes its own line, so a stray carriage return reads as the break it stands
 /// for. A control character other than tab is dropped, because HCL ends a comment
 /// at a bare carriage return and TOML rejects a non-printable one.
-#[cfg(any(feature = "toml", feature = "hcl"))]
+#[cfg(any(feature = "toml", feature = "hcl", feature = "kdl"))]
 pub(crate) fn comment_lines(doc: &str) -> Vec<String> {
     doc.replace("\r\n", "\n")
         .replace('\r', "\n")

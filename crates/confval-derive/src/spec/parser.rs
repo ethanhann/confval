@@ -54,12 +54,27 @@ pub(crate) fn field_parser(
     match shape {
         FieldShape::Leaf { leaf, optional } => {
             let parser = leaf_parser(leaf);
-            out.slot_decls
-                .push(quote! { let mut #slot = ::core::option::Option::None; });
+            // Every leaf is single-occurrence. The walk parses the first
+            // occurrence and reports a repeat as a duplicate pointing back at
+            // it, so a repeated scalar is never silently overwritten. The seen
+            // span doubles as the presence marker for the missing-field check.
+            let seen = format_ident!("__{}_seen", ident);
+            out.slot_decls.push(quote! {
+                let mut #slot = ::core::option::Option::None;
+                let mut #seen: ::core::option::Option<::confval::source::Span> =
+                    ::core::option::Option::None;
+            });
+            out.match_arms.push(quote! {
+                #field_name => {
+                    if ::confval::format::first_occurrence(
+                        &mut #seen, #field_name, __field, report,
+                    ) {
+                        #slot = #parser;
+                    }
+                }
+            });
             match (options.default_value(), optional) {
                 (Some(expr), true) => {
-                    out.match_arms
-                        .push(quote! { #field_name => #slot = #parser, });
                     out.constructors.push(quote! {
                         #ident: #slot.or_else(|| ::core::option::Option::Some(
                             ::confval::source::Located::detached(#expr),
@@ -67,8 +82,6 @@ pub(crate) fn field_parser(
                     });
                 }
                 (Some(expr), false) => {
-                    out.match_arms
-                        .push(quote! { #field_name => #slot = #parser, });
                     out.constructors.push(quote! {
                         #ident: #slot.unwrap_or_else(
                             || ::confval::source::Located::detached(#expr),
@@ -76,20 +89,9 @@ pub(crate) fn field_parser(
                     });
                 }
                 (None, true) => {
-                    out.match_arms
-                        .push(quote! { #field_name => #slot = #parser, });
                     out.constructors.push(quote! { #ident: #slot, });
                 }
                 (None, false) => {
-                    // Required, no default: track presence in the same single
-                    // pass that parses, so a present-but-failed field is not also
-                    // reported as missing, without an O(fields) `Fields::has`
-                    // rescan.
-                    let seen = format_ident!("__{}_seen", ident);
-                    out.slot_decls.push(quote! { let mut #seen = false; });
-                    out.match_arms.push(quote! {
-                        #field_name => { #seen = true; #slot = #parser; }
-                    });
                     out.missing_checks
                         .push(seen_missing_check(&field_name, &seen));
                     out.constructors.push(quote! { #ident: #slot?, });
@@ -97,23 +99,31 @@ pub(crate) fn field_parser(
             }
         }
         FieldShape::BareStringList => {
+            // A string list accumulates same-named occurrences in document
+            // order, so the repeated-node list spelling keeps every element.
             out.slot_decls
                 .push(quote! { let mut #slot = ::core::option::Option::None; });
             if options.default.is_some() {
                 out.match_arms.push(quote! {
-                    #field_name => #slot =
-                        ::confval::format::parse_string_list_field(__field, report),
+                    #field_name => ::confval::format::parse_string_list_occurrence(
+                        &mut #slot, __field, report,
+                    ),
                 });
                 out.constructors.push(quote! {
                     #ident: #slot.map(|__list| __list.value).unwrap_or_default(),
                 });
             } else {
                 let seen = format_ident!("__{}_seen", ident);
-                out.slot_decls.push(quote! { let mut #seen = false; });
+                out.slot_decls.push(quote! {
+                    let mut #seen: ::core::option::Option<::confval::source::Span> =
+                        ::core::option::Option::None;
+                });
                 out.match_arms.push(quote! {
                     #field_name => {
-                        #seen = true;
-                        #slot = ::confval::format::parse_string_list_field(__field, report);
+                        #seen = #seen.or(::core::option::Option::Some(__field.span));
+                        ::confval::format::parse_string_list_occurrence(
+                            &mut #slot, __field, report,
+                        );
                     }
                 });
                 out.missing_checks
@@ -125,8 +135,9 @@ pub(crate) fn field_parser(
             out.slot_decls
                 .push(quote! { let mut #slot = ::core::option::Option::None; });
             out.match_arms.push(quote! {
-                #field_name => #slot =
-                    ::confval::format::parse_string_list_field(__field, report),
+                #field_name => ::confval::format::parse_string_list_occurrence(
+                    &mut #slot, __field, report,
+                ),
             });
             out.constructors.push(quote! { #ident: #slot, });
         }
@@ -202,12 +213,12 @@ fn leaf_parser(leaf: &Leaf) -> TokenStream2 {
 
 /// The generated after-the-walk check that reports a required field as missing.
 ///
-/// `seen` is the boolean local the match arm flips to `true` when it parses the
+/// `seen` is the span local the match arm fills when it first parses the
 /// field. If the walk finished without setting it, the field was absent
 /// and an error is reported against the enclosing block.
 fn seen_missing_check(field_name: &str, seen: &Ident) -> TokenStream2 {
     quote! {
-        if !#seen {
+        if #seen.is_none() {
             ::confval::format::report_missing_field(#field_name, fields.enclosing(), report);
         }
     }

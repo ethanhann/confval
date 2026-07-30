@@ -6,5 +6,7 @@ pub mod parse;
 pub use parse::*;
 #[cfg(feature = "hcl")]
 pub mod hcl;
+#[cfg(feature = "kdl")]
+pub mod kdl;
 #[cfg(feature = "toml")]
 pub mod toml;
