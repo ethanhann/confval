@@ -18,7 +18,7 @@ serde = ["dep:serde", "dep:serde_json"]
 color = ["dep:owo-colors"]
 # Format frontends are independent opt-ins.
 # The derive macro emits the format-neutral `FromFields`, so `derive` needs no frontend.
-# tldr; pick `hcl` and/or `toml` for the format(s) you actually parse.
+# tldr; pick `hcl`, `toml`, and/or `kdl` for the format(s) you actually parse.
 hcl = ["dep:hcl-edit"]
 toml = ["dep:toml_edit"]
 kdl = ["dep:kdl"]
