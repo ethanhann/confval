@@ -157,7 +157,7 @@ Each shape renders a placeholder you overwrite when uncommenting:
 - An optional leaf with no default shows a zero value for its type, the empty string, `0`, `0.0`, or `false`.
 - An optional string list shows an empty list.
 - An unmarked optional block shows an empty block, because filling its contents needs an instance only the marker provides.
-- An empty repeated block shows one empty element, spelled so the repetition stays visible.
+- An empty repeated block shows one empty element. TOML's array-of-tables spelling keeps the repetition visible, and HCL and KDL show a single block.
 
 The spelling is each format's own.
 TOML and HCL prefix every line with a spaceless `#`, so an entry stays distinguishable from a `# ` doc comment.
@@ -168,6 +168,14 @@ Uncommenting is deleting that one character:
 #pid_file = ""
 
 #[[svc]]
+```
+
+```hcl
+# The PID file path.
+#pid_file = ""
+
+#svc {
+#}
 ```
 
 KDL uses its native slashdash, a disabled node the parser reads and discards.
