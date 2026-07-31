@@ -13,7 +13,10 @@
 //! populate signal that fills it here.
 //!
 //! `emit_toml` serializes the populated model to text, and `to_template` adds
-//! the doc comment above each field for the annotated form. The example defines
+//! the doc comment above each field for the annotated form.
+//! The unset optional `pid_file` stays out of the plain dump and renders in
+//! the template as a commented-out entry, `#pid_file = ""`, with its doc
+//! above it. The example defines
 //! its own types rather than reusing `common`, so the output shows only the
 //! write path.
 //!
@@ -34,6 +37,9 @@ struct ServerSpec {
     /// Whether TLS is enabled.
     #[confval(default = false)]
     tls: Located<bool>,
+    /// The PID file path. Left unset here, so the template renders it as a
+    /// commented-out entry rather than hiding it.
+    pid_file: Option<Located<String>>,
     /// Request size and mode limits.
     #[confval(nested, default)]
     limits: Option<Located<LimitsSpec>>,
