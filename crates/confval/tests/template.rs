@@ -367,6 +367,12 @@ struct HiddenShapes {
     extra: Option<Located<i64>>,
     /// Allowed CIDRs.
     allow: Option<Located<Vec<Located<String>>>>,
+    /// The sampling ratio.
+    ratio: Option<Located<f64>>,
+    /// Whether verbose output is on.
+    verbose: Option<Located<bool>>,
+    /// The log file path.
+    log_path: Option<Located<std::path::PathBuf>>,
     /// TLS settings.
     #[confval(nested)]
     tls: Option<Located<WidgetSpec>>,
@@ -384,6 +390,9 @@ fn hidden() -> HiddenShapes {
         pid_file: None,
         extra: None,
         allow: None,
+        ratio: None,
+        verbose: None,
+        log_path: None,
         tls: None,
         svc: vec![],
     }
@@ -403,7 +412,12 @@ fn the_template_walk_emits_commented_fields_for_every_hidden_shape() {
         .filter(|field| field.commented)
         .map(|field| field.name.as_str())
         .collect();
-    assert_eq!(commented, vec!["pid_file", "extra", "allow", "tls", "svc"]);
+    assert_eq!(
+        commented,
+        vec![
+            "pid_file", "extra", "allow", "ratio", "verbose", "log_path", "tls", "svc"
+        ]
+    );
     // Each carries its doc. The empty nested list falls back to the repeated
     // type's own doc.
     let by_name = |name: &str| {
@@ -438,6 +452,9 @@ fn a_template_renders_every_hidden_shape_as_a_commented_entry() {
         "# The PID file path.\n#pid_file = \"\"",
         "#extra = 4",
         "#allow = []",
+        "#ratio = 0.0",
+        "#verbose = false",
+        "#log_path = \"\"",
         "#[tls]",
         "#[[svc]]",
     ] {
@@ -447,6 +464,9 @@ fn a_template_renders_every_hidden_shape_as_a_commented_entry() {
         "# The PID file path.\n#pid_file = \"\"",
         "#extra = 4",
         "#allow = []",
+        "#ratio = 0.0",
+        "#verbose = false",
+        "#log_path = \"\"",
         "#tls {",
         "#svc {",
     ] {
