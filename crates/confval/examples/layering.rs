@@ -73,7 +73,8 @@ workers = 8
     let spec = spec.ok_or("a source produced no tree (see the report)")?;
 
     validate_and_gate(&spec, &sources, &mut report);
-    let config = ServerConfig::lower(&spec, &mut report).ok_or("validated config lowers")?;
+    let config =
+        ServerConfig::lower(&spec, &mut report).ok_or("lowering failed despite a clean report")?;
 
     print!("{}", config);
     println!("tls: {}", config.tls);
