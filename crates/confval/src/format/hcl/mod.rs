@@ -29,6 +29,7 @@ use crate::source::{SourceId, SourceMap, Span};
 use hcl_edit::expr::{Expression, Object, ObjectKey};
 use hcl_edit::structure::{Body, Structure};
 
+mod commented;
 mod emit;
 pub use emit::emit_hcl;
 

@@ -4,9 +4,10 @@
 //! builds an `hcl-edit` `Body` by structure, indents each nesting level, and
 //! renders the doc comments an annotated template carries.
 
+use super::commented::commented_text;
 use crate::format::EmitError;
 use crate::format::emit::{child_path, comment_lines};
-use crate::format::field::{Field, FieldKind, Fields, Scalar, Value, ValueKind};
+use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 use hcl_edit::Decorate;
 use hcl_edit::Ident;
 use hcl_edit::expr::{Array, Expression, Object, ObjectKey, ObjectValue};
@@ -57,7 +58,11 @@ pub fn emit_hcl(fields: &Fields) -> Result<String, EmitError> {
 /// end. The caller attaches the pending text as the enclosing body's decor
 /// suffix, so it renders before the closing brace, or at the document's end at
 /// the root.
-fn emit_body(fields: &Fields, level: usize, path: &str) -> Result<(Body, String), EmitError> {
+pub(super) fn emit_body(
+    fields: &Fields,
+    level: usize,
+    path: &str,
+) -> Result<(Body, String), EmitError> {
     // HCL repeats blocks freely and spells a value next to a block, but it
     // rejects a duplicate attribute, and hcl-edit would keep only the first.
     if let Some(name) = duplicate_attribute_name(fields) {
@@ -117,69 +122,6 @@ fn emit_body(fields: &Fields, level: usize, path: &str) -> Result<(Body, String)
         emitted += 1;
     }
     Ok((body, pending))
-}
-
-/// The commented-out spelling of one field: its doc comment in the spaced
-/// form, then every rendered line behind a spaceless `#`. The entry renders
-/// through the same body builder an active field uses, so the two spellings
-/// cannot drift. The nested-list shape, a non-empty sequence of maps, spells
-/// its repeated-block form, so the repetition stays visible.
-fn commented_text(field: &Field, level: usize, path: &str) -> Result<String, EmitError> {
-    let indent = "  ".repeat(level);
-    let mut mini = Vec::new();
-    let mut block_shaped = matches!(field.kind, FieldKind::Block(_));
-    match &field.kind {
-        FieldKind::Value(Value {
-            kind: ValueKind::Seq(elements),
-            ..
-        }) if !elements.is_empty()
-            && elements
-                .iter()
-                .all(|element| matches!(element.kind, ValueKind::Map(_))) =>
-        {
-            block_shaped = true;
-            for element in elements {
-                if let ValueKind::Map(inner) = &element.kind {
-                    mini.push(Field::detached_block(&field.name, inner.clone()));
-                }
-            }
-        }
-        _ => {
-            let mut plain = field.clone();
-            plain.commented = false;
-            plain.doc = None;
-            mini.push(plain);
-        }
-    }
-    let (body, _) = emit_body(&Fields::detached(mini), level, path)?;
-    let mut out = String::new();
-    if block_shaped {
-        out.push('\n');
-    }
-    if let Some(doc) = &field.doc {
-        for line in comment_lines(doc) {
-            out.push_str(&indent);
-            if line.is_empty() {
-                out.push_str("#\n");
-            } else {
-                out.push_str("# ");
-                out.push_str(&line);
-                out.push('\n');
-            }
-        }
-    }
-    for line in body.to_string().lines() {
-        // A blank line between the mini body's own blocks stays blank rather
-        // than becoming a bare `#`.
-        if line.is_empty() {
-            out.push('\n');
-        } else {
-            out.push('#');
-            out.push_str(line);
-            out.push('\n');
-        }
-    }
-    Ok(out)
 }
 
 /// The decor prefix for a field: its doc comment as `# line` comments, each at
@@ -491,6 +433,38 @@ mod tests {
             text,
             "#pid_file = \"\"\n# Request limits.\nlimits {\n  max_body_mb = 16\n}\n"
         );
+    }
+
+    #[test]
+    fn emit_hcl_renders_adjacent_commented_entries_in_order() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("a", Scalar::Int(1)).as_commented(),
+            scalar("b", Scalar::Int(2)).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port = 8080\n#a = 1\n#b = 2\n");
+    }
+
+    #[test]
+    fn emit_hcl_renders_an_all_commented_block_inside_its_braces() {
+        // Arrange
+        let fields = Fields::detached(vec![Field::detached_block(
+            "limits",
+            Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
+        )]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "limits {\n#  max_body_mb = 16\n}\n");
+        reparse(&text);
     }
 
     #[test]

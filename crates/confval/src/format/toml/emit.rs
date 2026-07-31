@@ -4,6 +4,7 @@
 //! builds a `toml_edit` document by structure and renders it, filling in the
 //! doc comments an annotated template carries.
 
+use super::commented::{child_header, commented_block_text, commented_value_text};
 use crate::format::EmitError;
 use crate::format::emit::{child_path, comment_lines};
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
@@ -97,7 +98,18 @@ fn emit_table(
     }
     let mut pending = String::new();
     let mut grouped: HashSet<&str> = HashSet::new();
-    for field in fields.iter() {
+    // toml_edit renders every value of a table above its subtables, whatever
+    // the insertion order, so commented text walks the same values-then-blocks
+    // partition. A commented entry then lands in the region its active twin
+    // would render in, and uncommenting cannot bind a value into the wrong
+    // table.
+    let values = fields
+        .iter()
+        .filter(|field| matches!(field.kind, FieldKind::Value(_)));
+    let blocks = fields
+        .iter()
+        .filter(|field| matches!(field.kind, FieldKind::Block(_)));
+    for field in values.chain(blocks) {
         match &field.kind {
             FieldKind::Value(value) => {
                 let child = child_path(path, &field.name);
@@ -212,98 +224,13 @@ fn block_prefix(pending: &mut String, doc: Option<&str>) -> Option<String> {
     }
 }
 
-/// The quoted dotted header for a level under `header`, empty at the root.
-fn child_header(header: &str, name: &str) -> String {
-    let key = toml_edit::Key::new(name).to_string();
-    let key = key.trim();
-    if header.is_empty() {
-        key.to_string()
-    } else {
-        format!("{header}.{key}")
-    }
-}
-
-/// The commented-out spelling of one value field: its doc comment in the
-/// spaced form, then the entry behind a spaceless `#`. The nested-list shape,
-/// a non-empty sequence of maps, spells its repeated-block form so the
-/// repetition stays visible.
-fn commented_value_text(
-    field: &crate::format::field::Field,
+/// Maps one neutral value to a table item: a scalar, an inline array, an inline
+/// table, or a `[[array of tables]]` for a non-empty sequence of maps.
+pub(super) fn item_of_value(
     value: &Value,
     path: &str,
     header: &str,
-) -> Result<String, EmitError> {
-    if let ValueKind::Seq(elements) = &value.kind
-        && !elements.is_empty()
-        && elements
-            .iter()
-            .all(|element| matches!(element.kind, ValueKind::Map(_)))
-    {
-        let mut out = String::from("\n");
-        if let Some(doc) = &field.doc {
-            out.push_str(&toml_comment(doc));
-        }
-        let sub_header = child_header(header, &field.name);
-        for element in elements {
-            let ValueKind::Map(inner) = &element.kind else {
-                continue;
-            };
-            out.push_str(&format!("#[[{sub_header}]]\n"));
-            out.push_str(&commented_level_text(inner, path, &sub_header)?);
-        }
-        return Ok(out);
-    }
-    let mut out = String::new();
-    if let Some(doc) = &field.doc {
-        out.push_str(&toml_comment(doc));
-    }
-    let (item, _) = item_of_value(value, path, header)?;
-    let key = toml_edit::Key::new(&field.name).to_string();
-    out.push_str(&format!("#{} = {}\n", key.trim(), item.to_string().trim()));
-    Ok(out)
-}
-
-/// The commented-out spelling of one block field: its doc comment, the
-/// `#[header]` line, and the level's contents behind the same prefix.
-fn commented_block_text(
-    field: &crate::format::field::Field,
-    inner: &Fields,
-    path: &str,
-    header: &str,
-) -> Result<String, EmitError> {
-    let mut out = String::from("\n");
-    if let Some(doc) = &field.doc {
-        out.push_str(&toml_comment(doc));
-    }
-    let sub_header = child_header(header, &field.name);
-    out.push_str(&format!("#[{sub_header}]\n"));
-    out.push_str(&commented_level_text(inner, path, &sub_header)?);
-    Ok(out)
-}
-
-/// The commented-out lines of a level's contents, values first and blocks
-/// after, matching the active partition.
-fn commented_level_text(fields: &Fields, path: &str, header: &str) -> Result<String, EmitError> {
-    let mut values = String::new();
-    let mut blocks = String::new();
-    for field in fields.iter() {
-        let child = child_path(path, &field.name);
-        match &field.kind {
-            FieldKind::Value(value) => {
-                values.push_str(&commented_value_text(field, value, &child, header)?);
-            }
-            FieldKind::Block(inner) => {
-                blocks.push_str(&commented_block_text(field, inner, &child, header)?);
-            }
-        }
-    }
-    values.push_str(&blocks);
-    Ok(values)
-}
-
-/// Maps one neutral value to a table item: a scalar, an inline array, an inline
-/// table, or a `[[array of tables]]` for a non-empty sequence of maps.
-fn item_of_value(value: &Value, path: &str, header: &str) -> Result<(Item, String), EmitError> {
+) -> Result<(Item, String), EmitError> {
     match &value.kind {
         ValueKind::Scalar(scalar) => Ok((Item::Value(toml_value_of_scalar(scalar)), String::new())),
         ValueKind::Seq(elements) => {
@@ -394,7 +321,7 @@ fn toml_inline_of(fields: &Fields, path: &str) -> Result<InlineTable, EmitError>
 /// with a trailing newline so the field follows on its own line. A blank line
 /// renders as a bare `#` with no trailing space. TOML content is flat, so the
 /// comment carries no indentation.
-fn toml_comment(doc: &str) -> String {
+pub(super) fn toml_comment(doc: &str) -> String {
     let mut out = String::new();
     for line in comment_lines(doc) {
         if line.is_empty() {
@@ -860,6 +787,60 @@ mod tests {
 
         // Assert
         assert_eq!(text, "[limits]\n#max_body_mb = 16\n");
+    }
+
+    #[test]
+    fn emit_toml_renders_a_commented_block_after_the_values_it_precedes() {
+        // Arrange
+        // toml_edit renders values above tables, so a commented block declared
+        // first must still land in the block region. An uncommented `[tls]`
+        // above `port` would capture the value into the wrong table.
+        let fields = Fields::detached(vec![
+            Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
+            scalar("port", Scalar::Int(8080)),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port = 8080\n\n#[tls]\n");
+    }
+
+    #[test]
+    fn emit_toml_renders_a_commented_value_in_the_value_region() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            Field::detached_block(
+                "limits",
+                Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
+            ),
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "#pid_file = \"\"\n\n[limits]\nmax_body_mb = 16\n");
+    }
+
+    #[test]
+    fn emit_toml_prefixes_every_line_of_a_commented_multiline_string() {
+        // Arrange
+        // TOML spells a string with line breaks as a multiline literal, and a
+        // bare continuation line would break the template's own reparse.
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("motd", Scalar::String("a\nb".to_string())).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port = 8080\n#motd = \"\"\"\n#a\n#b\"\"\"\n");
+        reparse(&text);
     }
 
     #[test]

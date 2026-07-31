@@ -67,13 +67,16 @@ pub(crate) fn combine(base: Fields, incoming: Fields, verb: Verb, report: &mut R
 /// Partitions a level into same-named groups, keeping first-appearance order
 /// within and across groups. A commented field reads as absent, so it is
 /// dropped here, participates in no conflict, and never appears in assembled
-/// output.
+/// output. The drop reaches into each kept field's inner levels, because a
+/// repeated-block group appends without recursing and would otherwise carry
+/// a nested commented field through whole.
 fn grouped(fields: Fields) -> Vec<(String, Vec<Field>)> {
     let mut groups: Vec<(String, Vec<Field>)> = Vec::new();
     for field in fields
         .into_items()
         .into_iter()
         .filter(|field| !field.commented)
+        .map(without_commented)
     {
         match groups.iter_mut().find(|(name, _)| *name == field.name) {
             Some((_, group)) => group.push(field),
@@ -84,6 +87,50 @@ fn grouped(fields: Fields) -> Vec<(String, Vec<Field>)> {
         }
     }
     groups
+}
+
+/// Strips commented fields from every level inside `field`, through blocks,
+/// maps, and sequence elements.
+fn without_commented(mut field: Field) -> Field {
+    fn strip_fields(fields: Fields) -> Fields {
+        let source = fields.source();
+        let enclosing = fields.enclosing();
+        let items = fields
+            .into_items()
+            .into_iter()
+            .filter(|field| !field.commented)
+            .map(without_commented)
+            .collect();
+        Fields::new(source, enclosing, items)
+    }
+    fn strip_value(value: &mut Value) {
+        match &mut value.kind {
+            ValueKind::Map(inner) => {
+                let taken = std::mem::replace(
+                    inner,
+                    Fields::new(SourceId::DETACHED, Span::detached(), Vec::new()),
+                );
+                *inner = strip_fields(taken);
+            }
+            ValueKind::Seq(elements) => {
+                for element in elements {
+                    strip_value(element);
+                }
+            }
+            ValueKind::Scalar(_) | ValueKind::Other(_) => {}
+        }
+    }
+    match &mut field.kind {
+        FieldKind::Block(inner) => {
+            let taken = std::mem::replace(
+                inner,
+                Fields::new(SourceId::DETACHED, Span::detached(), Vec::new()),
+            );
+            *inner = strip_fields(taken);
+        }
+        FieldKind::Value(value) => strip_value(value),
+    }
+    field
 }
 
 fn combine_field(acc: Field, incoming: Field, verb: Verb, report: &mut Report) -> Field {
@@ -334,6 +381,48 @@ mod tests {
             panic!("expected a scalar field");
         };
         scalar
+    }
+
+    #[test]
+    fn merge_strips_commented_fields_inside_an_appended_group() {
+        // Arrange
+        // A repeated-block group appends without recursing, so the strip must
+        // reach the inner levels the append never merges.
+        let base = level(
+            A,
+            sp(A, 0, 0),
+            vec![
+                block(
+                    "service",
+                    vec![
+                        scalar("port", Scalar::Int(1)),
+                        scalar("rate", Scalar::Int(0)).as_commented(),
+                    ],
+                ),
+                block("service", vec![scalar("port", Scalar::Int(2))]),
+            ],
+        );
+        let over = level(A, sp(A, 0, 0), vec![]);
+        let mut report = Report::new();
+
+        // Act
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
+        // Assert
+        fn assert_none_commented(fields: &Fields) {
+            for field in fields.iter() {
+                assert!(!field.commented, "commented field survived: {}", field.name);
+                if let FieldKind::Block(inner) = &field.kind {
+                    assert_none_commented(inner);
+                }
+            }
+        }
+        assert_none_commented(&merged);
+        let FieldKind::Block(first) = &merged.iter().next().unwrap().kind else {
+            panic!("service should stay a block");
+        };
+        assert!(first.iter().all(|field| field.name != "rate"));
+        assert!(!report.has_issues(), "issues: {:?}", report.issues());
     }
 
     #[test]

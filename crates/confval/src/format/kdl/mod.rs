@@ -38,6 +38,7 @@ use crate::source::{SourceId, SourceMap, Span};
 use kdl::{KdlDocument, KdlEntry, KdlIdentifier, KdlNode, KdlValue};
 
 mod emit;
+mod text;
 pub use emit::emit_kdl;
 
 /// Parses one registered source into the neutral [`Fields`] tree.

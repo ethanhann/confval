@@ -1,6 +1,6 @@
 //! The format-neutral field model.
 //!
-//! Every concrete format (HCL today, TOML next) parses its own syntax tree and
+//! Every concrete format (HCL, TOML, KDL) parses its own syntax tree and
 //! then lowers it into the owned types defined here: a [`Fields`] is one
 //! structural level (a body, a table, an inline object), each [`Field`] is one
 //! named entry, and a [`Value`] is the data behind it. Once a frontend has
