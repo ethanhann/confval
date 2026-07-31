@@ -13,20 +13,21 @@
 //! populate signal that fills it here.
 //!
 //! `emit_toml` serializes the populated model to text, and `to_template` adds
-//! the doc comment above each field for the annotated form.
-//! The unset optional `pid_file` stays out of the plain dump and renders in
-//! the template as a commented-out entry, `#pid_file = ""`, with its doc
-//! above it. The example defines
-//! its own types rather than reusing `common`, so the output shows only the
-//! write path.
+//! the doc comment above each field for the annotated form. The unset optional
+//! `pid_file` stays out of the plain dump and renders in the template as a
+//! commented-out entry, `#pid_file = ""`, with its doc above it. The example
+//! defines its own types rather than reusing `common`, so the output shows
+//! only the write path. The `doc_fallback` example covers where a block's
+//! template comment comes from when the field has no doc of its own.
 //!
-//! Run with: cargo run -p confval --example templates --features derive,color,toml,toml
+//! Run with: cargo run -p confval --example templates --features derive,color,toml,hcl
 
-use confval::format::{FieldKind, Fields, Scalar, Value, ValueKind};
 use confval::prelude::*;
 
 #[derive(confval::Spec)]
 struct ServerSpec {
+    // The attribute form and a `///` comment are equivalent. Every other field
+    // here uses the `///` form.
     #[confval(doc = "The address the server binds to.")]
     hostname: Located<String>,
     /// The port the server listens on.
@@ -43,9 +44,6 @@ struct ServerSpec {
     /// Request size and mode limits.
     #[confval(nested, default)]
     limits: Option<Located<LimitsSpec>>,
-
-    #[confval(nested, default)]
-    widget: Located<WidgetSpec>,
 }
 
 impl Validate for ServerSpec {
@@ -67,41 +65,6 @@ impl Validate for LimitsSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
-/// Widget assembly settings. The `widget` field embedding this spec has no doc
-/// of its own, so the template renders this struct-level comment above the
-/// block.
-#[derive(confval::Spec)]
-#[confval(derive_default)]
-struct WidgetSpec {
-    /// The primary sprocket. A field doc wins over the struct doc on
-    /// `SprocketSpec`.
-    #[confval(nested, default)]
-    primary_sprocket: Located<SprocketSpec>,
-
-    #[confval(default = 16)]
-    max_weight: Located<i64>,
-
-    #[confval(nested, default)]
-    secondary_sprocket: Located<SprocketSpec>,
-}
-
-impl Validate for WidgetSpec {
-    fn validate(&self, _report: &mut Report) {}
-}
-
-/// A sprocket's dimensions. The `sprocket2` field has no doc, so its block
-/// falls back to this comment.
-#[derive(confval::Spec)]
-#[confval(derive_default)]
-struct SprocketSpec {
-    #[confval(default = 32)]
-    max_height: Located<i64>,
-}
-
-impl Validate for SprocketSpec {
-    fn validate(&self, _report: &mut Report) {}
-}
-
 fn main() -> Result<(), String> {
     let input = "hostname = \"127.0.0.1\"\nport = 8080\n";
 
@@ -114,14 +77,10 @@ fn main() -> Result<(), String> {
 
     let fields = spec.to_fields();
 
-    println!("populated field model:");
-    print_fields(&fields, 0);
-
     // Emit the populated model back to TOML text, the write path's second half.
     // Emitting a populated spec to TOML never fails, so the error maps to a
     // message only to satisfy the signature.
     let text = confval::format::toml::emit_toml(&fields).map_err(|error| error.to_string())?;
-    println!();
     println!("+ Emitted TOML:");
     print!("{text}");
 
@@ -144,48 +103,8 @@ fn main() -> Result<(), String> {
     let template =
         confval::format::hcl::emit_hcl(&spec.to_template()).map_err(|error| error.to_string())?;
     println!();
-    println!("+ emitted HCL template with annotations:");
+    println!("+ Emitted HCL template with annotations:");
     print!("{template}");
 
     Ok(())
-}
-
-/// Prints a field level as indented `name = value` lines and `name { ... }`
-/// blocks, so the filled `limits` block is visible in the output.
-fn print_fields(fields: &Fields, depth: usize) {
-    let indent = "  ".repeat(depth);
-    for field in fields.iter() {
-        match &field.kind {
-            FieldKind::Block(inner) => {
-                println!("{indent}{} {{", field.name);
-                print_fields(inner, depth + 1);
-                println!("{indent}}}");
-            }
-            FieldKind::Value(value) => {
-                println!("{indent}{} = {}", field.name, render_value(value));
-            }
-        }
-    }
-}
-
-fn render_value(value: &Value) -> String {
-    match &value.kind {
-        ValueKind::Scalar(scalar) => render_scalar(scalar),
-        ValueKind::Seq(elements) => {
-            let rendered: Vec<String> = elements.iter().map(render_value).collect();
-            format!("[{}]", rendered.join(", "))
-        }
-        ValueKind::Map(_) => "{ ... }".to_string(),
-        ValueKind::Other(label) => label.to_string(),
-    }
-}
-
-fn render_scalar(scalar: &Scalar) -> String {
-    match scalar {
-        Scalar::String(text) => format!("{text:?}"),
-        Scalar::Int(number) => number.to_string(),
-        Scalar::Float(number) => number.to_string(),
-        Scalar::Bool(flag) => flag.to_string(),
-        Scalar::Unparsed(text) => format!("{text:?}"),
-    }
 }
