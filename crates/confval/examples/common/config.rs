@@ -14,6 +14,8 @@ pub struct ServerConfig {
     // Only the layering example reads this, to show a bool coerced from a flag.
     #[allow(dead_code)]
     pub tls: bool,
+    #[confval(lower(from = allow, with = allow_to_vec))]
+    pub allow: Vec<String>,
     // The spec field is `Option<Located<LimitsSpec>>`. With `default` an absent
     // block lowers `LimitsSpec::default()` instead of producing a missing-field
     // error, and the runtime field stays non-optional.
@@ -37,6 +39,10 @@ fn workers_to_usize(value: &Located<i64>, _report: &mut Report) -> Option<usize>
     Some(value.value as usize)
 }
 
+fn allow_to_vec(value: &[Located<String>], _report: &mut Report) -> Option<Vec<String>> {
+    Some(value.iter().map(|entry| entry.value.clone()).collect())
+}
+
 /// This is for demo purposes, to see what the values are in the examples' output.
 impl Display for ServerConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
@@ -45,6 +51,9 @@ impl Display for ServerConfig {
             "listening on {}:{} with {} workers",
             self.hostname, self.port, self.workers
         )?;
+        if !self.allow.is_empty() {
+            writeln!(f, "allow: {}", self.allow.join(", "))?;
+        }
         writeln!(
             f,
             "limits: max_body_mb={} mode={}",
