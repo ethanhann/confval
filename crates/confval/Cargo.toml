@@ -68,6 +68,18 @@ required-features = ["derive", "color", "toml", "hcl"]
 name = "kdl"
 required-features = ["derive", "color", "kdl"]
 
+[[example]]
+name = "doc_fallback"
+required-features = ["derive", "toml"]
+
+[[example]]
+name = "json_diagnostics"
+required-features = ["derive", "serde", "toml"]
+
+[[example]]
+name = "narrow"
+required-features = ["derive", "color", "toml"]
+
 [[test]]
 name = "compile_fail"
 required-features = ["derive"]
