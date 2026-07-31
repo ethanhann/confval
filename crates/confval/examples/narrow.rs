@@ -3,8 +3,13 @@
 //!
 //! Each helper slots directly into `#[confval(lower(from = ..., with = ...))]`.
 //! The config below narrows a port to `u16`, a connection count to `u32`,
-//! converts two second counts to `Duration`, and widens a sampling knob to
-//! `f64`. The optional variants pass an absent field through as `None`.
+//! converts a shutdown second count to `Duration`, and widens a sampling knob
+//! to `f64`. The optional `request_timeout_secs` is absent from both inputs,
+//! and its `opt_` helper passes the absence through as `None`.
+//!
+//! The module also ships `i64_to_u64` and `i64_to_usize`, plus an `opt_`
+//! variant of each integer width, all sharing the shape shown here. The
+//! shared `common` config lowers its worker count through `i64_to_usize`.
 //!
 //! The helpers are also the checked backstop behind the error gate. Lowering
 //! only runs on a clean report, so a value that does not fit its runtime width

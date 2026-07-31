@@ -9,7 +9,7 @@ pub struct ServerConfig {
     pub hostname: String,
     #[confval(lower(from = port, with = narrow::i64_to_u16))]
     pub port: u16,
-    #[confval(lower(from = workers, with = workers_to_usize))]
+    #[confval(lower(from = workers, with = narrow::i64_to_usize))]
     pub workers: usize,
     // Only the layering example reads this, to show a bool coerced from a flag.
     #[allow(dead_code)]
@@ -32,11 +32,6 @@ pub struct LimitsConfig {
     // `keyword_enum!` generates, so a keyword needs no handwritten converter.
     #[confval(lower(from = mode, with = narrow::keyword::<LimitMode>))]
     pub mode: LimitMode,
-}
-
-fn workers_to_usize(value: &Located<i64>, _report: &mut Report) -> Option<usize> {
-    // Safe: the range was validated and lowering only runs on a clean report.
-    Some(value.value as usize)
 }
 
 fn allow_to_vec(value: &[Located<String>], _report: &mut Report) -> Option<Vec<String>> {

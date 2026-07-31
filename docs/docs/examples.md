@@ -87,7 +87,8 @@ The KDL example renders the diagnostics for a failing variant to stderr, then fe
 cargo run -q -p confval --example kdl --features derive,color,kdl
 ```
 
-The failing variant reports its problems the way the `hcl` example does, with spans into the KDL source.
+The failing variant renders its report the same way, with spans into the KDL source.
+The list-element error and the related-span warning render in the `hcl` example's report.
 The valid run then passes validation, prints the runtime values, and shows the write path:
 
 ```shell
@@ -317,12 +318,13 @@ Each issue carries its resolved source name, line, and column alongside the raw 
 ## narrow
 
 The narrow example shows the ready-made narrowing helpers that convert spec integers to the widths a runtime type needs.
+It exercises five of them, and the remaining integer widths and their `opt_` variants share the same shape.
 
 ```shell
 cargo run -q -p confval --example narrow --features derive,color,toml
 ```
 
-The valid run narrows a port to `u16`, a connection count to `u32`, converts second counts to `Duration`, and passes an absent optional field through as `None`.
+The valid run narrows a port to `u16`, a connection count to `u32`, converts a shutdown second count to `Duration`, and passes the absent optional timeout through as `None`.
 The failing run shows a helper reporting an out-of-range value at its span instead of truncating it:
 
 ```shell
