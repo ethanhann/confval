@@ -16,16 +16,19 @@ lint:
 # Test everything
 validate: format lint test validate-docs examples
 
-# Run examples. The hcl one exits nonzero by design (it renders a failing config), so its line is failure-tolerant.
+# Run examples
 examples:
     echo "Running crate examples..."
-    -cargo run -q -p confval --features derive,color,hcl --example hcl
+    cargo run -q -p confval --features derive,color,hcl --example hcl
     cargo run -q -p confval --features derive,color,toml --example toml
     cargo run -q -p confval --features derive,color,toml --example issue_severity
     cargo run -q -p confval --features derive,color,toml --example validate_traversal
     cargo run -q -p confval --features derive,color,toml,layering --example layering
     cargo run -q -p confval --features derive,color,toml,hcl --example templates
     cargo run -q -p confval --features derive,color,kdl --example kdl
+    cargo run -q -p confval --features derive,toml --example doc_fallback
+    cargo run -q -p confval --features derive,serde,toml --example json_diagnostics
+    cargo run -q -p confval --features derive,color,toml --example narrow
 
 validate-docs: check-doc-snippets check-doc-programs
     cargo doc --all-features --no-deps

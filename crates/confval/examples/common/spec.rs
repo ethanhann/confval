@@ -18,6 +18,10 @@ pub struct ServerSpec {
     pub workers: Located<i64>,
     #[confval(default = false)]
     pub tls: Located<bool>,
+    // A list field. The bare `default` reads an absent list as empty. Each
+    // element keeps its own span, so a bad entry is reported at that entry.
+    #[confval(default)]
+    pub allow: Vec<Located<String>>,
     // Optional in the source. When the block is omitted, the spec keeps it
     // `None`, so a spec dump stays source-faithful. The config side fills the
     // default at lowering time.
@@ -59,6 +63,27 @@ impl Validate for ServerSpec {
                 .warning("hostname set to listen on every available network device")
                 .at(self.hostname.span)
                 .help("This might be undesired.")
+                .emit();
+        }
+
+        for entry in &self.allow {
+            if entry.value.is_empty() {
+                report
+                    .error("allow entries must not be empty")
+                    .at(entry.span)
+                    .help("Remove the entry or set it to a network, e.g. \"10.0.0.0/8\".")
+                    .emit();
+            }
+        }
+
+        // A cross-field rule: the primary span points at the port, and the
+        // related span points at the setting that makes the port suspect.
+        if self.tls.value && self.port.value == 80 {
+            report
+                .warning("tls is enabled on port 80, which conventionally serves plaintext HTTP")
+                .at(self.port.span)
+                .related(self.tls.span, "tls is enabled here")
+                .help("Serve TLS on port 443 or another port.")
                 .emit();
         }
     }

@@ -16,8 +16,7 @@
 
 mod common;
 
-use crate::common::validate_and_gate;
-use common::{ServerConfig, ServerSpec};
+use common::{ServerConfig, ServerSpec, validate_and_gate};
 use confval::format::ToFields;
 use confval::prelude::*;
 
@@ -54,6 +53,7 @@ fn main() -> Result<(), String> {
     let input = r#"hostname "127.0.0.1"
 port 8080
 workers 8
+allow "10.0.0.0/8" "192.168.0.0/16"
 
 limits {
   mode "log"
@@ -73,7 +73,8 @@ limits {
     validate_and_gate(&spec, &sources, &mut report);
 
     // Lower to the runtime config
-    let config = ServerConfig::lower(&spec, &mut report).ok_or("validated config lowers")?;
+    let config =
+        ServerConfig::lower(&spec, &mut report).ok_or("lowering failed despite a clean report")?;
     println!("{}", config);
 
     // Emit the populated spec back to canonical KDL, the write path.
