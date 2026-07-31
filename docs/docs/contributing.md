@@ -44,6 +44,11 @@ serde, owo-colors, hcl-edit, toml_edit, kdl, and the derive macros are each behi
 confval aims to stay free of required dependencies.
 Put any new dependency behind a feature flag.
 
+## Examples
+
+The [Examples](./examples.md) page quotes each example's run command and its literal output.
+If you change an example, or a type in `examples/common/` that the format examples share, rerun the affected examples and update that page to match.
+
 ## Crate layout
 
 confval is organized into four layers, each a module, plus a prelude.
