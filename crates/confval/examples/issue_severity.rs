@@ -13,8 +13,7 @@
 
 mod common;
 
-use crate::common::validate_and_gate;
-use common::{ServerConfig, ServerSpec};
+use common::{ServerConfig, ServerSpec, validate_and_gate};
 use confval::prelude::*;
 
 fn main() -> Result<(), String> {
@@ -37,7 +36,8 @@ workers = 8
     validate_and_gate(&spec, &sources, &mut report);
 
     // Lower
-    let config = ServerConfig::lower(&spec, &mut report).ok_or("validated config lowers")?;
+    let config =
+        ServerConfig::lower(&spec, &mut report).ok_or("lowering failed despite a clean report")?;
 
     // Print results
     println!("{}", config);
