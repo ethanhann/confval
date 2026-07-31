@@ -4,8 +4,6 @@ sidebar_position: 6
 
 # Templates
 
-## Concept Overview
-
 A spec type already encodes the whole configuration surface.
 It names every field, holds every default, and carries the doc comment you wrote on each field.
 Once you have a spec, you can run [parsing](./parsing.md) backward and turn it into a configuration file.

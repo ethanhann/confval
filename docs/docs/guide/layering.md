@@ -4,8 +4,6 @@ sidebar_position: 5
 
 # Layering
 
-## Introduction
-
 When an application reads its configuration, the values may come from more than one place.
 A file holds the defaults that ship with the project, environment variables set the values a deployment needs, and command line flags override a value for a single run.
 Layering combines these sources into one configuration, applying them in order so that a value from a later source overrides the same value from an earlier one.
