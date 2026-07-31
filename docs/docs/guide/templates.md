@@ -135,16 +135,58 @@ mode = "enforce"
 
 ## What Gets Filled
 
-Populate emits a field only when there is a value to show, and the rules follow from what the parser leaves in the spec:
+Populate emits an active field only when there is a value to show, and the rules follow from what the parser leaves in the spec:
 
 - A required field is always present, so it is always emitted.
 - A leaf with an attribute default is emitted with that default, because parsing already filled it when the source omitted the field.
-- An optional field that has no default and that the source left unset is omitted, because there is nothing to show.
-- A repeated block is emitted once per element, and an empty list emits nothing.
+- A repeated block is emitted once per element.
 - An optional block is filled only when you mark it, which the next section covers.
 
 A block that is present is populated in turn, so a block you wrote but left partial gains its own absent defaults.
 A block that is filled is populated to full depth, so one call at the root resolves a nested tree of defaults all the way down.
+
+## Commented-Out Entries
+
+An absent optional field still exists in the spec.
+A template that hid it would leave you unaware the setting is available.
+`to_template` renders each one as a commented-out entry instead, with its doc comment above it, so the template documents every field the spec accepts while activating only the ones that carry a value.
+`to_fields`, the plain dump, emits no commented entries.
+
+Each shape renders a placeholder you overwrite when uncommenting:
+
+- An optional leaf with no default shows a zero value for its type, the empty string, `0`, `0.0`, or `false`.
+- An optional string list shows an empty list.
+- An unmarked optional block shows an empty block, because filling its contents needs an instance only the marker provides.
+- An empty repeated block shows one empty element. TOML's array-of-tables spelling keeps the repetition visible, and HCL and KDL show a single block.
+
+The spelling is each format's own.
+TOML and HCL prefix every line with a spaceless `#`, so an entry stays distinguishable from a `# ` doc comment.
+Uncommenting is deleting that one character:
+
+```toml
+# The PID file path.
+#pid_file = ""
+
+#[[svc]]
+```
+
+```hcl
+# The PID file path.
+#pid_file = ""
+
+#svc {
+#}
+```
+
+KDL uses its native slashdash, a disabled node the parser reads and discards.
+Uncommenting is deleting the `/-`:
+
+```kdl
+// The PID file path.
+/-pid_file ""
+```
+
+A commented entry is invisible to every parser, so a template parses to the same configuration with or without its commented entries.
 
 ## Marking Optional Blocks
 

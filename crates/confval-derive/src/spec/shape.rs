@@ -33,7 +33,9 @@ pub(crate) enum FieldShape {
     /// because a `syn::Type` is large and would otherwise bloat every variant.
     Nested { optional: bool, spec_ty: Box<Type> },
     /// A repeated nested sub-struct, `Vec<Located<S>>` (zero or more blocks).
-    NestedList,
+    /// `spec_ty` is the element type `S`, captured so the template walk can
+    /// read `S`'s own doc for the commented entry an empty list renders.
+    NestedList { spec_ty: Box<Type> },
 }
 
 /// The scalar leaf types confval knows how to parse directly.
@@ -71,8 +73,10 @@ pub(crate) fn classify(field: &Field, nested: bool) -> syn::Result<FieldShape> {
                     "nested lists are zero-or-more already; drop the Option",
                 ));
             }
-            if unwrap_generic(vec_inner, "Located").is_some() {
-                return Ok(FieldShape::NestedList);
+            if let Some(spec_ty) = unwrap_generic(vec_inner, "Located") {
+                return Ok(FieldShape::NestedList {
+                    spec_ty: Box::new(spec_ty.clone()),
+                });
             }
             return Err(syn::Error::new(
                 ty.span(),

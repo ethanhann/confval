@@ -91,6 +91,7 @@ fn node_to_field(source: SourceId, name: String, node: Node) -> Field {
                 kind: ValueKind::Scalar(Scalar::Unparsed(leaf.raw)),
             }),
             doc: None,
+            commented: false,
         },
         Node::Branch(sub) => Field {
             name,
@@ -99,6 +100,7 @@ fn node_to_field(source: SourceId, name: String, node: Node) -> Field {
             source,
             kind: FieldKind::Block(to_fields(source, sub)),
             doc: None,
+            commented: false,
         },
     }
 }

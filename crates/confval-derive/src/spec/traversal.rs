@@ -34,7 +34,7 @@ pub(crate) fn nested_visit(shape: &FieldShape, ident: &Ident) -> Option<TokenStr
                 ::confval::pipeline::Validate::validate_all(&__child.value, report);
             }
         }),
-        FieldShape::NestedList => Some(quote! {
+        FieldShape::NestedList { .. } => Some(quote! {
             for __child in &self.#ident {
                 ::confval::pipeline::Validate::validate_all(&__child.value, report);
             }

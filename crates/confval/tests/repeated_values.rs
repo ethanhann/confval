@@ -26,6 +26,7 @@ fn scalar_field(source: SourceId, name: &str, scalar: Scalar, at: u32) -> Field 
         span: span(source, at, at + 10),
         source,
         doc: None,
+        commented: false,
         kind: FieldKind::Value(Value {
             span: span(source, at, at + 10),
             kind: ValueKind::Scalar(scalar),
@@ -47,6 +48,7 @@ fn seq_field(source: SourceId, name: &str, elements: Vec<Scalar>, at: u32) -> Fi
         span: span(source, at, at + 10),
         source,
         doc: None,
+        commented: false,
         kind: FieldKind::Value(Value {
             span: span(source, at, at + 10),
             kind: ValueKind::Seq(values),
@@ -93,6 +95,47 @@ struct WrappedListSpec {
 
 impl Validate for WrappedListSpec {
     fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_commented_field_reads_as_absent_to_the_walk() {
+    // Arrange
+    let source = source();
+    let fields = level(
+        source,
+        vec![scalar_field(source, "port", Scalar::Int(9090), 0).as_commented()],
+    );
+    let mut report = Report::new();
+
+    // Act
+    let spec = SingleSpec::from_fields(&fields, &mut report);
+
+    // Assert
+    // The commented placeholder never activates the field, so the level reads
+    // as missing the required value.
+    assert!(spec.is_none());
+    assert_eq!(report.issues()[0].message, "missing required field: port");
+}
+
+#[test]
+fn a_commented_unknown_name_reports_nothing() {
+    // Arrange
+    let source = source();
+    let fields = level(
+        source,
+        vec![
+            scalar_field(source, "port", Scalar::Int(8080), 0),
+            scalar_field(source, "hostnme", Scalar::Int(1), 20).as_commented(),
+        ],
+    );
+    let mut report = Report::new();
+
+    // Act
+    let spec = SingleSpec::from_fields(&fields, &mut report);
+
+    // Assert
+    assert_eq!(spec.expect("the active field parses").port.value, 8080);
+    assert!(!report.has_issues(), "issues: {:?}", report.issues());
 }
 
 #[test]

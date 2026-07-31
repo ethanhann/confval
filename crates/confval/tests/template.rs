@@ -347,6 +347,194 @@ fn a_struct_doc_annotates_repeated_blocks_like_a_field_doc_would() {
     );
 }
 
+/// A repeated service entry.
+#[derive(confval::Spec, PartialEq, Debug)]
+struct SvcSpec {
+    port: Located<i64>,
+}
+
+impl Validate for SvcSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[derive(confval::Spec, PartialEq, Debug)]
+struct HiddenShapes {
+    port: Located<i64>,
+    /// The PID file path.
+    pid_file: Option<Located<String>>,
+    /// Extra workers beyond the base pool.
+    #[confval(default = 4)]
+    extra: Option<Located<i64>>,
+    /// Allowed CIDRs.
+    allow: Option<Located<Vec<Located<String>>>>,
+    /// The sampling ratio.
+    ratio: Option<Located<f64>>,
+    /// Whether verbose output is on.
+    verbose: Option<Located<bool>>,
+    /// The log file path.
+    log_path: Option<Located<std::path::PathBuf>>,
+    /// TLS settings.
+    #[confval(nested)]
+    tls: Option<Located<WidgetSpec>>,
+    #[confval(nested)]
+    svc: Vec<Located<SvcSpec>>,
+}
+
+impl Validate for HiddenShapes {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+fn hidden() -> HiddenShapes {
+    HiddenShapes {
+        port: Located::detached(8080),
+        pid_file: None,
+        extra: None,
+        allow: None,
+        ratio: None,
+        verbose: None,
+        log_path: None,
+        tls: None,
+        svc: vec![],
+    }
+}
+
+#[test]
+fn the_template_walk_emits_commented_fields_for_every_hidden_shape() {
+    // Arrange
+    let spec = hidden();
+
+    // Act
+    let fields = spec.to_template();
+
+    // Assert
+    let commented: Vec<&str> = fields
+        .iter()
+        .filter(|field| field.commented)
+        .map(|field| field.name.as_str())
+        .collect();
+    assert_eq!(
+        commented,
+        vec![
+            "pid_file", "extra", "allow", "ratio", "verbose", "log_path", "tls", "svc"
+        ]
+    );
+    // Each carries its doc. The empty nested list falls back to the repeated
+    // type's own doc.
+    let by_name = |name: &str| {
+        fields
+            .iter()
+            .find(|field| field.name == name && field.commented)
+            .unwrap()
+    };
+    assert_eq!(
+        by_name("pid_file").doc.as_deref(),
+        Some("The PID file path.")
+    );
+    assert_eq!(
+        by_name("svc").doc.as_deref(),
+        Some("A repeated service entry.")
+    );
+    // The name lookup treats them as absent.
+    assert!(fields.get("pid_file").is_none());
+}
+
+#[test]
+fn a_template_renders_every_hidden_shape_as_a_commented_entry() {
+    // Arrange
+    let spec = hidden();
+
+    // Act
+    let toml = emit_toml(&spec.to_template()).expect("emit toml");
+    let hcl = emit_hcl(&spec.to_template()).expect("emit hcl");
+
+    // Assert
+    for needle in [
+        "# The PID file path.\n#pid_file = \"\"",
+        "#extra = 4",
+        "#allow = []",
+        "#ratio = 0.0",
+        "#verbose = false",
+        "#log_path = \"\"",
+        "#[tls]",
+        "#[[svc]]",
+    ] {
+        assert!(toml.contains(needle), "missing {needle:?} in:\n{toml}");
+    }
+    for needle in [
+        "# The PID file path.\n#pid_file = \"\"",
+        "#extra = 4",
+        "#allow = []",
+        "#ratio = 0.0",
+        "#verbose = false",
+        "#log_path = \"\"",
+        "#tls {",
+        "#svc {",
+    ] {
+        assert!(hcl.contains(needle), "missing {needle:?} in:\n{hcl}");
+    }
+}
+
+#[test]
+fn a_commented_template_reparses_to_the_same_spec_as_the_plain_dump() {
+    // Arrange
+    let spec = hidden();
+    let expected = {
+        let mut report = Report::new();
+        HiddenShapes::from_fields(&spec.to_fields(), &mut report).expect("plain dump parses")
+    };
+
+    // Act
+    let toml = emit_toml(&spec.to_template()).expect("emit toml");
+    let hcl = emit_hcl(&spec.to_template()).expect("emit hcl");
+
+    // Assert
+    // The commented entries are invisible to both parsers, so the template
+    // means the same configuration as the dump without them.
+    let mut sources = SourceMap::new();
+    let toml_id = sources.add("t.toml", toml.clone());
+    let hcl_id = sources.add("t.hcl", hcl.clone());
+    let mut report = Report::new();
+    let from_toml: HiddenShapes = parse_toml(&sources, toml_id, &mut report)
+        .unwrap_or_else(|| panic!("template toml should parse: {toml}\n{:?}", report.issues()));
+    assert!(!report.has_issues(), "toml issues: {:?}", report.issues());
+    let from_hcl: HiddenShapes = parse_hcl(&sources, hcl_id, &mut report)
+        .unwrap_or_else(|| panic!("template hcl should parse: {hcl}\n{:?}", report.issues()));
+    assert!(!report.has_issues(), "hcl issues: {:?}", report.issues());
+    assert_eq!(from_toml, expected);
+    assert_eq!(from_hcl, expected);
+}
+
+#[test]
+fn a_template_field_model_parses_the_same_as_its_rendered_text() {
+    // Arrange
+    let spec = hidden();
+
+    // Act
+    let mut report = Report::new();
+    let from_model = HiddenShapes::from_fields(&spec.to_template(), &mut report)
+        .expect("the walk skips commented fields");
+
+    // Assert
+    assert!(!report.has_issues(), "issues: {:?}", report.issues());
+    let mut plain_report = Report::new();
+    let from_plain =
+        HiddenShapes::from_fields(&spec.to_fields(), &mut plain_report).expect("plain parses");
+    assert_eq!(from_model, from_plain);
+}
+
+#[test]
+fn the_plain_walk_emits_no_commented_fields() {
+    // Arrange
+    let spec = hidden();
+
+    // Act
+    let fields = spec.to_fields();
+
+    // Assert
+    assert!(fields.iter().all(|field| !field.commented));
+    assert!(fields.iter().all(|field| field.name != "pid_file"));
+}
+
 #[derive(confval::Spec, PartialEq, Debug)]
 struct DocShapes {
     /// First line.

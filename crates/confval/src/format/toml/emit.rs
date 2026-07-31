@@ -4,6 +4,7 @@
 //! builds a `toml_edit` document by structure and renders it, filling in the
 //! doc comments an annotated template carries.
 
+use super::commented::{child_header, commented_block_text, commented_value_text};
 use crate::format::EmitError;
 use crate::format::emit::{child_path, comment_lines};
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
@@ -23,7 +24,10 @@ use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Val
 /// for a parsed or hand-built `Fields`.
 pub fn emit_toml(fields: &Fields) -> Result<String, EmitError> {
     let mut document = DocumentMut::new();
-    emit_table(fields, document.as_table_mut(), "")?;
+    let pending = emit_table(fields, document.as_table_mut(), "", "")?;
+    if !pending.is_empty() {
+        document.set_trailing(pending);
+    }
     let text = document.to_string();
     // A doc-commented section carries a leading blank line to separate it from
     // what precedes it. At the top of the document nothing precedes it.
@@ -33,120 +37,202 @@ pub fn emit_toml(fields: &Fields) -> Result<String, EmitError> {
     }
 }
 
-/// A name whose uses at one level TOML cannot spell side by side. Repeated
-/// blocks group into an array of tables, so a name repeated only by blocks is
-/// fine. Any other repetition, two values or a value next to a block, would
-/// silently overwrite one of them. Emit refuses instead.
+/// A name whose active uses at one level TOML cannot spell side by side.
+/// Repeated blocks group into an array of tables, so a name repeated only by
+/// blocks is fine. Any other repetition, two values or a value next to a
+/// block, would silently overwrite one of them. Emit refuses instead. A
+/// commented field is comment text, so it conflicts with nothing.
 fn conflicting_name(fields: &Fields) -> Option<&str> {
-    fields.iter().find_map(|field| {
-        let group = fields.iter().filter(|other| other.name == field.name);
-        let mut count = 0;
-        let mut all_blocks = true;
-        for other in group {
-            count += 1;
-            all_blocks &= matches!(other.kind, FieldKind::Block(_));
-        }
-        (count > 1 && !all_blocks).then_some(field.name.as_str())
-    })
+    fields
+        .iter()
+        .filter(|field| !field.commented)
+        .find_map(|field| {
+            let group = fields
+                .iter()
+                .filter(|other| !other.commented && other.name == field.name);
+            let mut count = 0;
+            let mut all_blocks = true;
+            for other in group {
+                count += 1;
+                all_blocks &= matches!(other.kind, FieldKind::Block(_));
+            }
+            (count > 1 && !all_blocks).then_some(field.name.as_str())
+        })
 }
 
-/// Any name repeated inside an inline table, where nothing can repeat, not
-/// even blocks, which have no array-of-tables spelling there.
+/// Any active name repeated inside an inline table, where nothing can repeat,
+/// not even blocks, which have no array-of-tables spelling there.
 fn repeated_inline_name(fields: &Fields) -> Option<&str> {
-    fields.iter().find_map(|field| {
-        let count = fields
-            .iter()
-            .filter(|other| other.name == field.name)
-            .count();
-        (count > 1).then_some(field.name.as_str())
-    })
+    fields
+        .iter()
+        .filter(|field| !field.commented)
+        .find_map(|field| {
+            let count = fields
+                .iter()
+                .filter(|other| !other.commented && other.name == field.name)
+                .count();
+            (count > 1).then_some(field.name.as_str())
+        })
 }
 
 /// Fills a `toml_edit` table from a neutral level.
-fn emit_table(fields: &Fields, table: &mut Table, path: &str) -> Result<(), EmitError> {
+///
+/// `header` is the quoted dotted header of this level, empty at the root, so a
+/// commented entry can spell the `#[header.key]` line of a nested block.
+/// Returns the commented-out text still pending at the level's end. TOML has
+/// no per-table trailing position, so the caller attaches it before the next
+/// structure in document order. Text pending at the top attaches to the
+/// document's trailing slot. TOML's grammar reads both positions as belonging
+/// to the earlier table.
+fn emit_table(
+    fields: &Fields,
+    table: &mut Table,
+    path: &str,
+    header: &str,
+) -> Result<String, EmitError> {
     if let Some(name) = conflicting_name(fields) {
         return Err(EmitError::ConflictingName {
             name: name.to_string(),
             path: path.to_string(),
         });
     }
+    let mut pending = String::new();
     let mut grouped: HashSet<&str> = HashSet::new();
-    for field in fields.iter() {
+    // toml_edit renders every value of a table above its subtables, whatever
+    // the insertion order, so commented text walks the same values-then-blocks
+    // partition. A commented entry then lands in the region its active twin
+    // would render in, and uncommenting cannot bind a value into the wrong
+    // table.
+    let values = fields
+        .iter()
+        .filter(|field| matches!(field.kind, FieldKind::Value(_)));
+    let blocks = fields
+        .iter()
+        .filter(|field| matches!(field.kind, FieldKind::Block(_)));
+    for field in values.chain(blocks) {
         match &field.kind {
             FieldKind::Value(value) => {
                 let child = child_path(path, &field.name);
-                let mut item = item_of_value(value, &child)?;
+                if field.commented {
+                    pending.push_str(&commented_value_text(field, value, &child, header)?);
+                    continue;
+                }
+                let (mut item, inner_pending) =
+                    item_of_value(value, &child, &child_header(header, &field.name))?;
                 // An array of tables renders its key once per `[[element]]`,
                 // so a comment on the key would repeat. It goes above the
                 // first element instead, like the block path's grouped form.
                 if let Item::ArrayOfTables(array) = &mut item {
-                    if let (Some(doc), Some(first)) = (&field.doc, array.iter_mut().next()) {
-                        first.decor_mut().set_prefix(toml_block_comment(doc));
+                    let prefix = block_prefix(&mut pending, field.doc.as_deref());
+                    if let (Some(prefix), Some(first)) = (prefix, array.iter_mut().next()) {
+                        first.decor_mut().set_prefix(prefix);
                     }
                     table.insert(&field.name, item);
                 } else {
                     table.insert(&field.name, item);
-                    if let Some(doc) = &field.doc
-                        && let Some(mut entry) = table.get_key_value_mut(&field.name)
+                    let prefix = value_prefix(&mut pending, field.doc.as_deref());
+                    if let (Some(prefix), Some(mut entry)) =
+                        (prefix, table.get_key_value_mut(&field.name))
                     {
-                        entry.0.leaf_decor_mut().set_prefix(toml_comment(doc));
+                        entry.0.leaf_decor_mut().set_prefix(prefix);
                     }
                 }
+                pending.push_str(&inner_pending);
             }
-            FieldKind::Block(_) => {
-                // Group same-named blocks by name across the level, so a
-                // non-consecutive repeat is kept rather than overwritten.
+            FieldKind::Block(inner) => {
+                let child = child_path(path, &field.name);
+                if field.commented {
+                    pending.push_str(&commented_block_text(field, inner, &child, header)?);
+                    continue;
+                }
+                // Group same-named active blocks by name across the level, so
+                // a non-consecutive repeat is kept rather than overwritten.
                 if !grouped.insert(field.name.as_str()) {
                     continue;
                 }
                 let blocks: Vec<&Fields> = fields
                     .iter()
                     .filter_map(|other| match &other.kind {
-                        FieldKind::Block(inner) if other.name == field.name => Some(inner),
+                        FieldKind::Block(inner) if other.name == field.name && !other.commented => {
+                            Some(inner)
+                        }
                         _ => None,
                     })
                     .collect();
                 // Only one comment can render above the group, so the group
-                // takes the first doc any element carries.
+                // takes the first doc any active element carries.
                 let doc = fields
                     .iter()
-                    .filter(|other| other.name == field.name)
+                    .filter(|other| other.name == field.name && !other.commented)
                     .find_map(|other| other.doc.as_deref());
-                let child = child_path(path, &field.name);
+                let sub_header = child_header(header, &field.name);
                 if blocks.len() == 1 {
                     let mut subtable = Table::new();
-                    emit_table(blocks[0], &mut subtable, &child)?;
-                    if let Some(doc) = doc {
-                        subtable.decor_mut().set_prefix(toml_block_comment(doc));
+                    let sub_pending = emit_table(blocks[0], &mut subtable, &child, &sub_header)?;
+                    if let Some(prefix) = block_prefix(&mut pending, doc) {
+                        subtable.decor_mut().set_prefix(prefix);
                     }
                     table.insert(&field.name, Item::Table(subtable));
+                    pending = sub_pending;
                 } else {
                     // The comment renders once, above the first array-of-tables
-                    // element.
+                    // element. Each element's pending text attaches before
+                    // the next element's header.
                     let mut array = ArrayOfTables::new();
                     for (index, inner) in blocks.into_iter().enumerate() {
                         let mut subtable = Table::new();
-                        emit_table(inner, &mut subtable, &child)?;
-                        if index == 0
-                            && let Some(doc) = doc
-                        {
-                            subtable.decor_mut().set_prefix(toml_block_comment(doc));
+                        let sub_pending = emit_table(inner, &mut subtable, &child, &sub_header)?;
+                        let doc = (index == 0).then_some(doc).flatten();
+                        if let Some(prefix) = block_prefix(&mut pending, doc) {
+                            subtable.decor_mut().set_prefix(prefix);
                         }
                         array.push(subtable);
+                        pending = sub_pending;
                     }
                     table.insert(&field.name, Item::ArrayOfTables(array));
                 }
             }
         }
     }
-    Ok(())
+    Ok(pending)
+}
+
+/// The decor prefix for an active value: any pending commented text first,
+/// then the value's doc comment. `None` leaves the default decor untouched.
+fn value_prefix(pending: &mut String, doc: Option<&str>) -> Option<String> {
+    let pending = std::mem::take(pending);
+    match (pending.is_empty(), doc) {
+        (true, None) => None,
+        (_, doc) => Some(format!(
+            "{pending}{}",
+            doc.map(toml_comment).unwrap_or_default()
+        )),
+    }
+}
+
+/// The decor prefix for a `[table]` or `[[array of tables]]` element: any
+/// pending commented text first, then the blank line and doc comment the plain
+/// dump has. `None` leaves toml_edit's default header spacing untouched.
+fn block_prefix(pending: &mut String, doc: Option<&str>) -> Option<String> {
+    let pending = std::mem::take(pending);
+    match (pending.is_empty(), doc) {
+        (true, None) => None,
+        (_, doc) => Some(format!(
+            "{pending}\n{}",
+            doc.map(toml_comment).unwrap_or_default()
+        )),
+    }
 }
 
 /// Maps one neutral value to a table item: a scalar, an inline array, an inline
 /// table, or a `[[array of tables]]` for a non-empty sequence of maps.
-fn item_of_value(value: &Value, path: &str) -> Result<Item, EmitError> {
+pub(super) fn item_of_value(
+    value: &Value,
+    path: &str,
+    header: &str,
+) -> Result<(Item, String), EmitError> {
     match &value.kind {
-        ValueKind::Scalar(scalar) => Ok(Item::Value(toml_value_of_scalar(scalar))),
+        ValueKind::Scalar(scalar) => Ok((Item::Value(toml_value_of_scalar(scalar)), String::new())),
         ValueKind::Seq(elements) => {
             if !elements.is_empty()
                 && elements
@@ -154,23 +240,32 @@ fn item_of_value(value: &Value, path: &str) -> Result<Item, EmitError> {
                     .all(|element| matches!(element.kind, ValueKind::Map(_)))
             {
                 let mut array = ArrayOfTables::new();
+                let mut pending = String::new();
                 for element in elements {
                     if let ValueKind::Map(inner) = &element.kind {
                         let mut subtable = Table::new();
-                        emit_table(inner, &mut subtable, path)?;
+                        let sub_pending = emit_table(inner, &mut subtable, path, header)?;
+                        if !pending.is_empty() {
+                            subtable
+                                .decor_mut()
+                                .set_prefix(format!("{}\n", std::mem::take(&mut pending)));
+                        }
                         array.push(subtable);
+                        pending = sub_pending;
                     }
                 }
-                Ok(Item::ArrayOfTables(array))
+                Ok((Item::ArrayOfTables(array), pending))
             } else {
-                Ok(Item::Value(TomlValue::Array(toml_array_of(
-                    elements, path,
-                )?)))
+                Ok((
+                    Item::Value(TomlValue::Array(toml_array_of(elements, path)?)),
+                    String::new(),
+                ))
             }
         }
-        ValueKind::Map(inner) => Ok(Item::Value(TomlValue::InlineTable(toml_inline_of(
-            inner, path,
-        )?))),
+        ValueKind::Map(inner) => Ok((
+            Item::Value(TomlValue::InlineTable(toml_inline_of(inner, path)?)),
+            String::new(),
+        )),
         ValueKind::Other(label) => Err(EmitError::UnrepresentableValue {
             label,
             path: path.to_string(),
@@ -209,7 +304,9 @@ fn toml_inline_of(fields: &Fields, path: &str) -> Result<InlineTable, EmitError>
         });
     }
     let mut inline = InlineTable::new();
-    for field in fields.iter() {
+    // An inline table has no comment spelling, and a commented field reads as
+    // absent, so it renders nothing here.
+    for field in fields.iter().filter(|field| !field.commented) {
         let child = child_path(path, &field.name);
         let value = match &field.kind {
             FieldKind::Value(value) => toml_value_of(value, &child)?,
@@ -224,7 +321,7 @@ fn toml_inline_of(fields: &Fields, path: &str) -> Result<InlineTable, EmitError>
 /// with a trailing newline so the field follows on its own line. A blank line
 /// renders as a bare `#` with no trailing space. TOML content is flat, so the
 /// comment carries no indentation.
-fn toml_comment(doc: &str) -> String {
+pub(super) fn toml_comment(doc: &str) -> String {
     let mut out = String::new();
     for line in comment_lines(doc) {
         if line.is_empty() {
@@ -236,12 +333,6 @@ fn toml_comment(doc: &str) -> String {
         }
     }
     out
-}
-
-/// The comment prefix for a `[table]` or a `[[array of tables]]`, with a leading
-/// blank line so a commented section keeps the spacing the plain dump has.
-fn toml_block_comment(doc: &str) -> String {
-    format!("\n{}", toml_comment(doc))
 }
 
 fn toml_value_of_scalar(scalar: &Scalar) -> TomlValue {
@@ -572,6 +663,256 @@ mod tests {
             }
             assert!(!report.has_issues());
         }
+    }
+
+    #[test]
+    fn emit_toml_writes_a_commented_leaf_after_the_active_values() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port = 8080\n#pid_file = \"\"\n");
+    }
+
+    #[test]
+    fn emit_toml_writes_a_commented_leaf_before_an_active_value() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+            scalar("port", Scalar::Int(8080)),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "#pid_file = \"\"\nport = 8080\n");
+    }
+
+    #[test]
+    fn emit_toml_renders_a_doc_above_its_commented_entry() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("pid_file", Scalar::String(String::new()))
+                .with_doc(Some("The PID file path.".to_string()))
+                .as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            text,
+            "port = 8080\n# The PID file path.\n#pid_file = \"\"\n"
+        );
+    }
+
+    #[test]
+    fn emit_toml_writes_a_commented_empty_block_as_a_commented_header() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port = 8080\n\n#[tls]\n");
+    }
+
+    #[test]
+    fn emit_toml_writes_a_commented_list_hint_as_an_array_of_tables_header() {
+        // Arrange
+        // The nested-list shape, a sequence of one empty map, spells the
+        // repetition where a single block would not.
+        let hint = Value::detached(ValueKind::Seq(vec![Value::detached(ValueKind::Map(
+            Fields::detached(vec![]),
+        ))]));
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            Field::detached_value("svc", hint).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port = 8080\n\n#[[svc]]\n");
+    }
+
+    #[test]
+    fn emit_toml_attaches_a_commented_entry_above_a_doc_commented_table() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+            Field::detached_block(
+                "limits",
+                Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
+            )
+            .with_doc(Some("Request limits.".to_string())),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        // The commented entry renders first, then the blank line and doc the
+        // table carries.
+        assert_eq!(
+            text,
+            "#pid_file = \"\"\n\n# Request limits.\n[limits]\nmax_body_mb = 16\n"
+        );
+    }
+
+    #[test]
+    fn emit_toml_renders_an_all_commented_table_after_its_header() {
+        // Arrange
+        let fields = Fields::detached(vec![Field::detached_block(
+            "limits",
+            Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
+        )]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "[limits]\n#max_body_mb = 16\n");
+    }
+
+    #[test]
+    fn emit_toml_renders_a_commented_block_after_the_values_it_precedes() {
+        // Arrange
+        // toml_edit renders values above tables, so a commented block declared
+        // first must still land in the block region. An uncommented `[tls]`
+        // above `port` would capture the value into the wrong table.
+        let fields = Fields::detached(vec![
+            Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
+            scalar("port", Scalar::Int(8080)),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port = 8080\n\n#[tls]\n");
+    }
+
+    #[test]
+    fn emit_toml_renders_a_commented_value_in_the_value_region() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            Field::detached_block(
+                "limits",
+                Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
+            ),
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "#pid_file = \"\"\n\n[limits]\nmax_body_mb = 16\n");
+    }
+
+    #[test]
+    fn emit_toml_prefixes_every_line_of_a_commented_multiline_string() {
+        // Arrange
+        // TOML spells a string with line breaks as a multiline literal, and a
+        // bare continuation line would break the template's own reparse.
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("motd", Scalar::String("a\nb".to_string())).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port = 8080\n#motd = \"\"\"\n#a\n#b\"\"\"\n");
+        reparse(&text);
+    }
+
+    #[test]
+    fn emit_toml_renders_adjacent_commented_entries_in_order() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("a", Scalar::Int(1)).as_commented(),
+            scalar("b", Scalar::Int(2)).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port = 8080\n#a = 1\n#b = 2\n");
+    }
+
+    #[test]
+    fn emit_toml_drops_a_commented_field_inside_an_inline_table() {
+        // Arrange
+        // An inline table has no comment spelling, and the field reads as
+        // absent.
+        let map = Fields::detached(vec![
+            scalar("cert", Scalar::String("a.pem".to_string())),
+            scalar("key", Scalar::String(String::new())).as_commented(),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_value(
+            "tls",
+            Value::detached(ValueKind::Map(map)),
+        )]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "tls = { cert = \"a.pem\" }\n");
+    }
+
+    #[test]
+    fn emit_toml_excludes_commented_fields_from_the_conflict_checks() {
+        // Arrange
+        // The commented placeholder must never block an active field's
+        // emission.
+        let fields = Fields::detached(vec![
+            scalar("x", Scalar::Int(1)),
+            scalar("x", Scalar::Int(2)).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "x = 1\n#x = 2\n");
+    }
+
+    #[test]
+    fn emit_toml_reparses_a_commented_template_to_the_active_fields_alone() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+            Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        let round = reparse(&text);
+        let names: Vec<&str> = round.iter().map(|field| field.name.as_str()).collect();
+        assert_eq!(names, vec!["port"]);
     }
 
     #[test]

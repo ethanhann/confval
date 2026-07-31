@@ -4,12 +4,11 @@
 //! builds a kdl-rs document by structure, sets each node's decor by hand, and
 //! renders the doc comments an annotated template carries.
 
+use super::text::{is_plain_name, quoted, scalar_entry};
 use crate::format::EmitError;
 use crate::format::emit::{child_path, comment_lines};
 use crate::format::field::{Field, FieldKind, Fields, Scalar, Value, ValueKind};
-use kdl::{
-    KdlDocument, KdlDocumentFormat, KdlEntry, KdlEntryFormat, KdlNode, KdlNodeFormat, KdlValue,
-};
+use kdl::{KdlDocument, KdlDocumentFormat, KdlNode, KdlNodeFormat};
 
 /// Serializes a [`Fields`] tree to canonical KDL text.
 ///
@@ -49,15 +48,36 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
         let FieldKind::Value(_) = &field.kind else {
             continue;
         };
+        let child = child_path(path, &field.name);
+        // A commented field renders through the same paths as an active one
+        // and gains the slashdash, KDL's own disabled-node spelling, which the
+        // parser reads and discards. It joins no group, so it never blocks an
+        // active field's emission.
+        if field.commented {
+            let before = nodes.len();
+            emit_value_field(
+                &mut nodes,
+                field,
+                field.doc.as_deref(),
+                level,
+                &indent,
+                &child,
+            )?;
+            slashdash(&mut nodes[before..]);
+            continue;
+        }
         if grouped.iter().any(|name| *name == field.name) {
             continue;
         }
         grouped.push(&field.name);
         let group: Vec<&Field> = fields
             .iter()
-            .filter(|other| other.name == field.name && matches!(other.kind, FieldKind::Value(_)))
+            .filter(|other| {
+                !other.commented
+                    && other.name == field.name
+                    && matches!(other.kind, FieldKind::Value(_))
+            })
             .collect();
-        let child = child_path(path, &field.name);
         // Only one comment can render above the grouped node, so the group
         // takes the first doc any member carries.
         let doc = group.iter().find_map(|member| member.doc.as_deref());
@@ -84,11 +104,25 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
             block_leading(field.doc.as_deref(), &indent, !nodes.is_empty()),
         );
         attach_children(&mut node, emit_document(inner, level + 1, &child)?, &indent);
+        if field.commented {
+            slashdash(&mut std::slice::from_mut(&mut node)[..]);
+        }
         nodes.push(node);
     }
     let mut document = KdlDocument::new();
     *document.nodes_mut() = nodes;
     Ok(document)
+}
+
+/// Appends the slashdash to each node's leading decor, after its doc comment
+/// and indent, so `/-` sits directly before the name. Uncommenting is
+/// deleting those two characters.
+fn slashdash(nodes: &mut [KdlNode]) {
+    for node in nodes {
+        if let Some(format) = node.format_mut() {
+            format.leading.push_str("/-");
+        }
+    }
 }
 
 /// Emits one unrepeated value field: a scalar or sequence node, a children
@@ -232,18 +266,6 @@ fn node_with(name: &str, leading: String) -> KdlNode {
     node
 }
 
-/// Whether a name spells bare. The check is narrower than KDL's own identifier
-/// grammar, so a borderline name quotes rather than risking a spelling the
-/// parser reads differently.
-fn is_plain_name(name: &str) -> bool {
-    let mut chars = name.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    (first.is_ascii_alphabetic() || first == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-}
-
 /// The leading decor for a value node: its doc comment as `// line` comments,
 /// each at the node's indentation, followed by the indent itself.
 fn leading(doc: Option<&str>, indent: &str) -> String {
@@ -289,84 +311,6 @@ fn attach_children(node: &mut KdlNode, mut children: KdlDocument, indent: &str) 
     *node.children_mut() = Some(children);
 }
 
-/// One argument entry, with the canonical text set explicitly, because
-/// kdl-rs's own rendering spells an identifier-shaped string bare and the
-/// canonical form keeps every string quoted.
-fn scalar_entry(scalar: &Scalar) -> KdlEntry {
-    let (value, repr) = match scalar {
-        Scalar::String(string) => (KdlValue::String(string.clone()), quoted(string)),
-        Scalar::Int(int) => (KdlValue::Integer(i128::from(*int)), int.to_string()),
-        Scalar::Float(float) => (KdlValue::Float(*float), float_repr(*float)),
-        Scalar::Bool(boolean) => (KdlValue::Bool(*boolean), format!("#{boolean}")),
-        Scalar::Unparsed(raw) => (KdlValue::String(raw.clone()), quoted(raw)),
-    };
-    let mut entry = KdlEntry::new(value);
-    entry.set_format(KdlEntryFormat {
-        value_repr: repr,
-        leading: " ".to_string(),
-        ..KdlEntryFormat::default()
-    });
-    entry
-}
-
-/// The quoted spelling of a string, with the escapes KDL 2.0 defines and a
-/// unicode escape for every code point its grammar bans from literal text, so
-/// an adversarial string still reparses.
-fn quoted(string: &str) -> String {
-    let mut out = String::with_capacity(string.len() + 2);
-    out.push('"');
-    for character in string.chars() {
-        match character {
-            '\\' | '"' => {
-                out.push('\\');
-                out.push(character);
-            }
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{08}' => out.push_str("\\b"),
-            '\u{0C}' => out.push_str("\\f"),
-            character if character.is_control() || is_banned_in_text(character) => {
-                out.push_str(&format!("\\u{{{:x}}}", character as u32));
-            }
-            character => out.push(character),
-        }
-    }
-    out.push('"');
-    out
-}
-
-/// Whether KDL 2.0 bans the code point from appearing literally in its text:
-/// the direction marks, the bidi controls, the zero-width no-break space, and
-/// the two line separators it treats as newlines, which end a single-line
-/// string early.
-fn is_banned_in_text(character: char) -> bool {
-    matches!(
-        character,
-        '\u{200E}' | '\u{200F}'
-            | '\u{202A}'..='\u{202E}'
-            | '\u{2066}'..='\u{2069}'
-            | '\u{FEFF}'
-            | '\u{2028}'
-            | '\u{2029}'
-    )
-}
-
-/// A float's literal: the shortest round-trip text for a finite value, which
-/// always carries a decimal point or an exponent, and the KDL 2.0 keyword for
-/// a non-finite one.
-fn float_repr(float: f64) -> String {
-    if float == f64::INFINITY {
-        "#inf".to_string()
-    } else if float == f64::NEG_INFINITY {
-        "#-inf".to_string()
-    } else if float.is_nan() {
-        "#nan".to_string()
-    } else {
-        format!("{float:?}")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::parse_kdl_fields;
@@ -406,6 +350,156 @@ mod tests {
             report.issues()
         );
         fields
+    }
+
+    #[test]
+    fn emit_kdl_writes_a_commented_leaf_as_a_slashdash_node() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port 8080\n/-pid_file \"\"\n");
+    }
+
+    #[test]
+    fn emit_kdl_renders_a_doc_above_its_commented_entry() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("pid_file", Scalar::String(String::new()))
+                .with_doc(Some("The PID file path.".to_string()))
+                .as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port 8080\n// The PID file path.\n/-pid_file \"\"\n");
+    }
+
+    #[test]
+    fn emit_kdl_writes_a_commented_empty_block_as_a_slashdash_node() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port 8080\n\n/-tls {\n}\n");
+    }
+
+    #[test]
+    fn emit_kdl_writes_a_commented_list_hint_as_a_slashdash_node() {
+        // Arrange
+        let hint = Value::detached(ValueKind::Seq(vec![Value::detached(ValueKind::Map(
+            Fields::detached(vec![]),
+        ))]));
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            Field::detached_value("svc", hint).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port 8080\n\n/-svc {\n}\n");
+    }
+
+    #[test]
+    fn emit_kdl_indents_a_commented_entry_inside_a_block() {
+        // Arrange
+        let inner = Fields::detached(vec![
+            scalar("mode", Scalar::String("log".to_string())),
+            scalar("rate", Scalar::Int(0)).as_commented(),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "limits {\n  mode \"log\"\n  /-rate 0\n}\n");
+    }
+
+    #[test]
+    fn emit_kdl_renders_adjacent_commented_entries_in_order() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("a", Scalar::Int(1)).as_commented(),
+            scalar("b", Scalar::Int(2)).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "port 8080\n/-a 1\n/-b 2\n");
+    }
+
+    #[test]
+    fn emit_kdl_renders_an_all_commented_block_inside_its_braces() {
+        // Arrange
+        let fields = Fields::detached(vec![Field::detached_block(
+            "limits",
+            Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
+        )]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "limits {\n  /-max_body_mb 16\n}\n");
+        let round = reparse(&text);
+        let FieldKind::Block(inner) = &round.get("limits").unwrap().kind else {
+            panic!("limits should stay a block");
+        };
+        assert_eq!(inner.iter().count(), 0);
+    }
+
+    #[test]
+    fn emit_kdl_excludes_commented_fields_from_grouping() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("x", Scalar::Int(1)),
+            scalar("x", Scalar::Int(2)).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(text, "x 1\n/-x 2\n");
+    }
+
+    #[test]
+    fn emit_kdl_reparses_a_commented_template_to_the_active_fields_alone() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+            Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        let round = reparse(&text);
+        let names: Vec<&str> = round.iter().map(|field| field.name.as_str()).collect();
+        assert_eq!(names, vec!["port"]);
     }
 
     #[test]

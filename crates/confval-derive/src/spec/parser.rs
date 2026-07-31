@@ -178,7 +178,7 @@ pub(crate) fn field_parser(
                 });
             }
         }
-        FieldShape::NestedList => {
+        FieldShape::NestedList { .. } => {
             out.slot_decls
                 .push(quote! { let mut #slot = ::std::vec::Vec::new(); });
             out.match_arms.push(quote! {
@@ -252,7 +252,7 @@ pub(crate) fn reject_unsupported_default(
             optional: false, ..
         }
         | FieldShape::Nested { optional: true, .. } => default.is_none(),
-        FieldShape::NestedList | FieldShape::OptionalWrappedStringList => false,
+        FieldShape::NestedList { .. } | FieldShape::OptionalWrappedStringList => false,
     };
     if supported {
         return Ok(());

@@ -466,6 +466,33 @@ fn a_populated_spec_round_trips_through_emitted_kdl() {
 }
 
 #[test]
+fn a_template_renders_absent_optional_fields_as_slashdash_entries() {
+    // Arrange
+    let input = "hostname \"127.0.0.1\"\nport 8080\ndaemon #false\n";
+    let mut sources = SourceMap::new();
+    let mut report = Report::new();
+    let id = sources.add("server.kdl", input);
+    let spec: ServerSpec = parse_kdl(&sources, id, &mut report).unwrap();
+
+    // Act
+    let text = emit_kdl(&spec.to_template()).expect("emit kdl template");
+
+    // Assert
+    // The unset optional list is a bare slashdash node, and the unmarked
+    // optional block is a slashdash block.
+    assert!(text.contains("/-allow\n"), "got:\n{text}");
+    assert!(text.contains("/-tls {"), "got:\n{text}");
+    // The template still parses to the same spec.
+    let mut round_sources = SourceMap::new();
+    let round_id = round_sources.add("round.kdl", text.clone());
+    let mut round_report = Report::new();
+    let round: ServerSpec = parse_kdl(&round_sources, round_id, &mut round_report)
+        .unwrap_or_else(|| panic!("template should parse: {text}"));
+    assert!(round.allow.is_none());
+    assert!(round.tls.is_none());
+}
+
+#[test]
 fn a_template_renders_the_doc_chain_as_line_comments() {
     // Arrange
     let mut sources = SourceMap::new();

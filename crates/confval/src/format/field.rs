@@ -1,6 +1,6 @@
 //! The format-neutral field model.
 //!
-//! Every concrete format (HCL today, TOML next) parses its own syntax tree and
+//! Every concrete format (HCL, TOML, KDL) parses its own syntax tree and
 //! then lowers it into the owned types defined here: a [`Fields`] is one
 //! structural level (a body, a table, an inline object), each [`Field`] is one
 //! named entry, and a [`Value`] is the data behind it. Once a frontend has
@@ -88,6 +88,13 @@ pub struct Field {
     /// spec field's doc comment for `to_template`. A multi-line comment is one
     /// string with newline separators.
     pub doc: Option<String>,
+    /// Whether the field renders as a commented-out entry in template output.
+    /// Parsing never sets it. The template walk sets it for an absent optional
+    /// field, so the template shows the field without activating it. A
+    /// commented field reads as absent everywhere: the generated parse walk
+    /// skips it, [`Fields::get`] and [`Fields::has`] skip it, and the layering
+    /// merge drops it.
+    pub commented: bool,
 }
 
 /// Whether a field was written as an attribute (`name = value`) or as a block
@@ -138,6 +145,7 @@ impl Field {
             source: SourceId::DETACHED,
             kind: FieldKind::Value(value),
             doc: None,
+            commented: false,
         }
     }
 
@@ -151,6 +159,7 @@ impl Field {
             source: SourceId::DETACHED,
             kind: FieldKind::Block(fields),
             doc: None,
+            commented: false,
         }
     }
 
@@ -158,6 +167,13 @@ impl Field {
     /// the field without a comment.
     pub fn with_doc(mut self, doc: Option<String>) -> Self {
         self.doc = doc;
+        self
+    }
+
+    /// Marks the field as a commented-out entry, for the annotated-template
+    /// walk.
+    pub fn as_commented(mut self) -> Self {
+        self.commented = true;
         self
     }
 }
@@ -206,14 +222,22 @@ impl Fields {
         self.items
     }
 
-    /// Whether a field with the name exists at this level.
+    /// Whether an active field with the name exists at this level. A commented
+    /// field reads as absent, so name lookup skips it.
     pub fn has(&self, name: &str) -> bool {
-        self.items.iter().any(|field| field.name == name)
+        self.items
+            .iter()
+            .any(|field| field.name == name && !field.commented)
     }
 
-    /// The first field with the name, or `None`.
+    /// The first active field with the name, or `None`. A commented field
+    /// reads as absent, so name lookup skips it. Only
+    /// [`iter`](Fields::iter) exposes one, which is what the emitters and the
+    /// generated walk consume.
     pub fn get(&self, name: &str) -> Option<&Field> {
-        self.items.iter().find(|field| field.name == name)
+        self.items
+            .iter()
+            .find(|field| field.name == name && !field.commented)
     }
 }
 
@@ -257,11 +281,44 @@ pub trait ToFields {
     fn spec_doc(&self) -> Option<String> {
         None
     }
+
+    /// The same doc comment as [`spec_doc`](ToFields::spec_doc), readable
+    /// without an instance. The template walk uses it for the commented empty
+    /// block an absent optional nested field renders, where no instance exists
+    /// to ask. Defaults to `None`, so a handwritten impl opts in rather than
+    /// breaks.
+    fn type_doc() -> Option<String>
+    where
+        Self: Sized,
+    {
+        None
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn name_lookup_skips_a_commented_field() {
+        // Arrange
+        let commented = Field::detached_value(
+            "pid_file",
+            Value::detached(ValueKind::Scalar(Scalar::String(String::new()))),
+        )
+        .as_commented();
+        let level = Fields::detached(vec![commented]);
+
+        // Act
+        let by_get = level.get("pid_file");
+        let by_has = level.has("pid_file");
+
+        // Assert
+        // A commented field reads as absent, so only iteration exposes it.
+        assert!(by_get.is_none());
+        assert!(!by_has);
+        assert_eq!(level.iter().count(), 1);
+    }
 
     #[test]
     fn detached_constructors_carry_no_source_location() {

@@ -28,6 +28,7 @@ use crate::source::{SourceId, SourceMap, Span};
 use std::ops::Range;
 use toml_edit::{Document, InlineTable, Item, Table, Value as TomlValue};
 
+mod commented;
 mod emit;
 pub use emit::emit_toml;
 
@@ -151,6 +152,7 @@ fn field_of_item(
         source,
         kind,
         doc: None,
+        commented: false,
     }
 }
 
@@ -207,6 +209,7 @@ fn fields_of_inline_table(
             source,
             kind: FieldKind::Value(value),
             doc: None,
+            commented: false,
         });
     }
     Fields::new(source, enclosing, items)
