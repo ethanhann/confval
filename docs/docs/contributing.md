@@ -46,8 +46,9 @@ Put any new dependency behind a feature flag.
 
 ## Examples
 
-The [Examples](./examples.md) page quotes each example's run command and its literal output.
-If you change an example, or a type in `examples/common/` that the format examples share, rerun the affected examples and update that page to match.
+The [Examples](./examples.md) page lists each example's run command.
+If you add an example or change one's required features, update that page and the `examples` recipe to match.
+`just examples` prints every example's output for review.
 
 ## Crate layout
 
