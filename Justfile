@@ -29,6 +29,7 @@ examples:
     cargo run -q -p confval --features derive,toml --example doc_fallback
     cargo run -q -p confval --features derive,serde,toml --example json_diagnostics
     cargo run -q -p confval --features derive,color,toml --example narrow
+    cargo run -q -p confval --features derive,serde,toml --example representations
 
 validate-docs: check-doc-snippets check-doc-programs
     cargo doc --all-features --no-deps
