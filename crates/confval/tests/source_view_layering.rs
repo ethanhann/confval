@@ -33,36 +33,30 @@ fn an_env_only_value_appears_in_the_source_view_of_an_assembled_spec() {
     // The file sets the hostname, the environment sets the port, and nothing
     // sets workers, so its default fills detached. The source view should show
     // the file value and the environment value, and omit the default.
-    let base_text = "hostname = \"filehost\"\n";
+    let mut sources = SourceMap::new();
+    let mut report = Report::new();
+    let base = sources.add("server.toml", "hostname = \"filehost\"\n");
     // Sound: `ENV_LOCK` is held and no other test reads the environment.
     unsafe {
         std::env::set_var("CONFVAL_SOURCE_VIEW_TEST_PORT", "9090");
     }
-    let mut sources = SourceMap::new();
-    let mut report = Report::new();
-    let base = sources.add("server.toml", base_text);
-
-    // Act
-    let spec: ServerSpec = Assembly::new()
-        .merge(parse_toml_fields(&sources, base, &mut report))
-        .merge(env_fields(
-            &mut sources,
-            "CONFVAL_SOURCE_VIEW_TEST_",
-            &mut report,
-        ))
-        .assemble(&mut report)
-        .expect("assembles");
+    let from_file = parse_toml_fields(&sources, base, &mut report);
+    let from_env = env_fields(&mut sources, "CONFVAL_SOURCE_VIEW_TEST_", &mut report);
     unsafe {
         std::env::remove_var("CONFVAL_SOURCE_VIEW_TEST_PORT");
     }
-    let names: Vec<String> = spec
-        .to_source_fields()
-        .iter()
-        .map(|field| field.name.clone())
-        .collect();
-    let toml = emit_toml(&spec.to_source_fields()).expect("emit toml");
+
+    // Act
+    let spec: ServerSpec = Assembly::new()
+        .merge(from_file)
+        .merge(from_env)
+        .assemble(&mut report)
+        .expect("assembles");
 
     // Assert
+    let fields = spec.to_source_fields();
+    let names: Vec<String> = fields.iter().map(|field| field.name.clone()).collect();
+    let toml = emit_toml(&fields).expect("emit toml");
     assert_eq!(names, vec!["hostname", "port"]);
     assert!(toml.contains("hostname = \"filehost\""), "got:\n{toml}");
     assert!(toml.contains("port = 9090"), "got:\n{toml}");

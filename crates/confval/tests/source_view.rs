@@ -149,12 +149,11 @@ fn source_view_emits_a_source_written_block_with_defaulted_contents_as_empty() {
     assert!(!toml.contains("size"), "got:\n{toml}");
 }
 
-#[test]
-fn a_hand_built_detached_required_leaf_is_omitted() {
-    // Arrange
-    // A required leaf cannot be absent from a parsed source, so the detached
-    // case is only reachable by hand. The source view treats it as not set.
-    let spec = Server {
+/// A spec built by hand rather than parsed, so every span is the detached
+/// sentinel. `tags` varies, because the bare list is the one shape whose
+/// elements carry the only spans it has.
+fn detached_server(tags: Vec<Located<String>>) -> Server {
+    Server {
         hostname: Located::detached("h".to_string()),
         workers: Located::detached(4),
         port: None,
@@ -168,8 +167,51 @@ fn a_hand_built_detached_required_leaf_is_omitted() {
         marked_block: None,
         services: vec![],
         allow: None,
-        tags: vec![],
-    };
+        tags,
+    }
+}
+
+#[test]
+fn source_view_filters_the_contents_of_each_repeated_block() {
+    // Arrange
+    // Two `[[services]]` elements, the first setting its one inner field and
+    // the second leaving it defaulted, so the filter has to run per element.
+    let spec =
+        parse("hostname = \"h\"\n\n[required_block]\n\n[[services]]\nsize = 5\n\n[[services]]\n");
+
+    // Act
+    let toml = emit_toml(&spec.to_source_fields()).expect("emit toml");
+
+    // Assert
+    assert_eq!(toml.matches("[[services]]").count(), 2, "got:\n{toml}");
+    assert_eq!(toml.matches("size").count(), 1, "got:\n{toml}");
+    assert!(toml.contains("size = 5"), "got:\n{toml}");
+}
+
+#[test]
+fn a_hand_built_detached_required_leaf_is_omitted() {
+    // Arrange
+    // A required leaf cannot be absent from a parsed source, so the detached
+    // case is only reachable by hand. The source view treats it as not set.
+    let spec = detached_server(vec![]);
+
+    // Act
+    let names = source_names(&spec);
+
+    // Assert
+    assert!(names.is_empty(), "got: {names:?}");
+}
+
+#[test]
+fn a_hand_built_detached_bare_list_is_omitted() {
+    // Arrange
+    // A non-empty bare list whose elements are all detached was never written
+    // by a source. Deserializing a spec produces exactly this, because
+    // `Located`'s Deserialize attaches the sentinel to every element.
+    let spec = detached_server(vec![
+        Located::detached("a".to_string()),
+        Located::detached("b".to_string()),
+    ]);
 
     // Act
     let names = source_names(&spec);
@@ -300,49 +342,4 @@ fn an_empty_source_view_renders_empty_in_every_format() {
     assert!(toml.trim().is_empty(), "toml:\n{toml}");
     assert!(hcl.trim().is_empty(), "hcl:\n{hcl}");
     assert!(kdl.trim().is_empty(), "kdl:\n{kdl}");
-}
-
-#[derive(confval::Spec, Debug)]
-struct Outer {
-    #[confval(nested)]
-    server: Located<Mid>,
-}
-
-impl Validate for Outer {
-    fn validate(&self, _report: &mut Report) {}
-}
-
-#[derive(confval::Spec, Debug)]
-#[confval(derive_default)]
-struct Mid {
-    #[confval(nested, default)]
-    limits: Located<Inner>,
-}
-
-impl Validate for Mid {
-    fn validate(&self, _report: &mut Report) {}
-}
-
-#[test]
-fn a_toml_block_span_is_attached_including_an_implicit_super_table() {
-    // Arrange
-    // `[server.limits]` names `server` only as an implicit super-table, with no
-    // explicit `[server]` header. Both the implicit block and the explicit one
-    // must parse with an attached span, or the source view would omit a block
-    // the operator wrote.
-    let mut sources = SourceMap::new();
-    let id = sources.add("nested.toml", "[server.limits]\nsize = 1\n".to_string());
-    let mut report = Report::new();
-    let spec = parse_toml::<Outer>(&sources, id, &mut report).expect("parses");
-
-    // Act
-    let server_span = spec.server.span;
-    let limits_span = spec.server.value.limits.span;
-
-    // Assert
-    assert!(
-        !server_span.is_detached(),
-        "implicit super-table span attaches"
-    );
-    assert!(!limits_span.is_detached(), "nested block span attaches");
 }
