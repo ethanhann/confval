@@ -1,10 +1,14 @@
-//! `#[derive(Spec)]`'s write half: generating `impl ToFields`.
+//! `#[derive(Spec)]`'s populate half: the `to_fields` and `to_template` walks.
 //!
-//! `ToFields` is the counterpart of `FromFields` on the write path. It walks a
-//! spec instance and builds a populated `Fields`, filling every absent
-//! defaultable block and detaching every span. This module emits one fragment
-//! per field, read off the same `FieldShape` and `FieldOptions` the parser is
-//! built from, so the two halves cannot disagree about a field's shape.
+//! `ToFields` is the counterpart of `FromFields` on the write path. Both walks
+//! here read a spec instance and build a populated `Fields`, filling every
+//! absent defaultable block and detaching every span. This module emits one
+//! fragment per field, read off the same `FieldShape` and `FieldOptions` the
+//! parser is built from, so the two halves cannot disagree about a field's
+//! shape.
+//!
+//! The generated `impl ToFields` is assembled here as well. Its third walk,
+//! `to_source_fields`, comes from the `source_view` sibling module.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
@@ -266,10 +270,11 @@ fn zero_value(leaf: &Leaf) -> TokenStream2 {
     }
 }
 
-/// Assembles the field fragments into the generated `impl ToFields`, with both
-/// the plain `to_fields` walk and the annotated `to_template` walk. A struct
-/// with a doc comment also overrides `spec_doc`, the fallback a parent's
-/// template walk renders above a block whose embedding field has no doc.
+/// Assembles the field fragments into the generated `impl ToFields`: the plain
+/// `to_fields` walk, the source-only `to_source_fields` walk, and the annotated
+/// `to_template` walk. A struct with a doc comment also overrides `spec_doc`,
+/// the fallback a parent's template walk renders above a block whose embedding
+/// field has no doc.
 ///
 /// A struct with no fields declares the item vector without `mut`, so the
 /// generated impl carries no unused-mut warning under `-D warnings`.

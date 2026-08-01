@@ -112,7 +112,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         // template walk attaches the field's doc comment. The source walk emits
         // only the fields the source set, keyed on the attached span.
         to_fields_emits.push(field_emit(ident, &shape, &options, false));
-        to_source_emits.push(field_source_emit(ident, &shape, &options));
+        to_source_emits.push(field_source_emit(ident, &shape));
         to_template_emits.push(field_emit(ident, &shape, &options, true));
 
         // Emit the parsing fragments for this field, tailored to its shape, and
