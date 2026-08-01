@@ -4,14 +4,17 @@ sidebar_position: 7
 
 # Representations
 
-Sometimes you need to see what your service actually loaded, not only the file on disk.
-Three representations of one loaded spec answer three different questions.
+Sometimes you need to see what your service actually loaded, which may be different (or the same) as the file on disk.
+This is especially true when you are examining a running service's configuration state. 
 
-- The source view shows the configuration exactly as the operator wrote it, with no defaults applied. It answers what was set.
-- The populated view shows the configuration the service resolved to, with every default filled. It answers what the service chose for the fields the operator left out.
-- The runtime view shows the typed values the program runs on. It answers what is running.
+Three representations of one loaded spec are available:
+
+1. The source view shows the configuration exactly as the operator wrote it, with no defaults applied.
+2. The populated view shows the configuration the service resolved to, with every default filled.
+3. The runtime view shows the typed values the program uses.
 
 The `representations` example prints all three from one spec.
+
 Run it with:
 
 ```shell
