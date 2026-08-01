@@ -135,7 +135,7 @@ impl Value {
 
     /// A value carrying its source span. Used by the source-view walk
     /// `#[derive(Spec)]` generates, which preserves each value's location.
-    pub fn at(span: Span, kind: ValueKind) -> Self {
+    pub fn spanned(span: Span, kind: ValueKind) -> Self {
         Self { span, kind }
     }
 }
@@ -173,7 +173,7 @@ impl Field {
     /// the span. The name span is the detached sentinel, because a spec field
     /// name has no source location. Used by the source-view walk
     /// `#[derive(Spec)]` generates.
-    pub fn value_at(name: &str, span: Span, value: Value) -> Self {
+    pub fn spanned_value(name: &str, span: Span, value: Value) -> Self {
         Self {
             name: name.to_string(),
             name_span: Span::detached(),
@@ -188,7 +188,7 @@ impl Field {
     /// A block field carrying its source span, with the source taken from the
     /// span. The name span is the detached sentinel. Used by the source-view
     /// walk `#[derive(Spec)]` generates.
-    pub fn block_at(name: &str, span: Span, fields: Fields) -> Self {
+    pub fn spanned_block(name: &str, span: Span, fields: Fields) -> Self {
         Self {
             name: name.to_string(),
             name_span: Span::detached(),
@@ -295,9 +295,12 @@ pub trait FromFields: Sized {
 /// This is the write-path counterpart of [`FromFields`]. Parsing reads a
 /// [`Fields`] and builds a spec. Populate walks a spec and builds a [`Fields`],
 /// filling every default the source omitted, so it adds to the data rather than
-/// inverting the parse. `#[derive(Spec)]` generates it, and every value it
-/// produces carries a detached span because the data comes from the spec rather
-/// than a source file.
+/// inverting the parse. `#[derive(Spec)]` generates it.
+///
+/// The populated and template walks detach the span of every value they
+/// produce, because a filled default has no source location. The source walk,
+/// [`to_source_fields`](ToFields::to_source_fields), keeps the spans the spec
+/// holds, because it emits only fields a source wrote.
 pub trait ToFields {
     /// The populated field model with no comments.
     fn to_fields(&self) -> Fields;

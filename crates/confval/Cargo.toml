@@ -123,3 +123,7 @@ required-features = ["derive", "toml", "hcl", "kdl", "serde"]
 [[test]]
 name = "source_view_layering"
 required-features = ["derive", "toml", "layering"]
+
+[[test]]
+name = "toml_span_fidelity"
+required-features = ["derive", "toml"]
