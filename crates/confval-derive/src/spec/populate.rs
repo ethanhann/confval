@@ -1,10 +1,14 @@
-//! `#[derive(Spec)]`'s write half: generating `impl ToFields`.
+//! `#[derive(Spec)]`'s populate half: the `to_fields` and `to_template` walks.
 //!
-//! `ToFields` is the counterpart of `FromFields` on the write path. It walks a
-//! spec instance and builds a populated `Fields`, filling every absent
-//! defaultable block and detaching every span. This module emits one fragment
-//! per field, read off the same `FieldShape` and `FieldOptions` the parser is
-//! built from, so the two halves cannot disagree about a field's shape.
+//! `ToFields` is the counterpart of `FromFields` on the write path. Both walks
+//! here read a spec instance and build a populated `Fields`, filling every
+//! absent defaultable block and detaching every span. This module emits one
+//! fragment per field, read off the same `FieldShape` and `FieldOptions` the
+//! parser is built from, so the two halves cannot disagree about a field's
+//! shape.
+//!
+//! The generated `impl ToFields` is assembled here as well. Its third walk,
+//! `to_source_fields`, comes from the `source_view` sibling module.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
@@ -266,20 +270,23 @@ fn zero_value(leaf: &Leaf) -> TokenStream2 {
     }
 }
 
-/// Assembles the field fragments into the generated `impl ToFields`, with both
-/// the plain `to_fields` walk and the annotated `to_template` walk. A struct
-/// with a doc comment also overrides `spec_doc`, the fallback a parent's
-/// template walk renders above a block whose embedding field has no doc.
+/// Assembles the field fragments into the generated `impl ToFields`: the plain
+/// `to_fields` walk, the source-only `to_source_fields` walk, and the annotated
+/// `to_template` walk. A struct with a doc comment also overrides `spec_doc`,
+/// the fallback a parent's template walk renders above a block whose embedding
+/// field has no doc.
 ///
 /// A struct with no fields declares the item vector without `mut`, so the
 /// generated impl carries no unused-mut warning under `-D warnings`.
 pub(crate) fn to_fields_impl(
     name: &Ident,
     fields_emits: &[TokenStream2],
+    source_emits: &[TokenStream2],
     template_emits: &[TokenStream2],
     spec_doc: &Option<String>,
 ) -> TokenStream2 {
     let fields_decl = items_decl(fields_emits);
+    let source_decl = items_decl(source_emits);
     let template_decl = items_decl(template_emits);
     let spec_doc_impl = spec_doc.as_ref().map(|text| {
         quote! {
@@ -297,6 +304,12 @@ pub(crate) fn to_fields_impl(
             fn to_fields(&self) -> ::confval::format::Fields {
                 #fields_decl
                 #(#fields_emits)*
+                ::confval::format::Fields::detached(__items)
+            }
+
+            fn to_source_fields(&self) -> ::confval::format::Fields {
+                #source_decl
+                #(#source_emits)*
                 ::confval::format::Fields::detached(__items)
             }
 
@@ -326,7 +339,7 @@ fn items_decl(emits: &[TokenStream2]) -> TokenStream2 {
 /// scalar of its own, so it emits as a string through `to_string_lossy`, the
 /// one lossy leaf. An `HclInt` field is an `i64` alias, so it emits `Scalar::Int`
 /// with no conversion.
-fn leaf_scalar(leaf: &Leaf, located: &TokenStream2) -> TokenStream2 {
+pub(super) fn leaf_scalar(leaf: &Leaf, located: &TokenStream2) -> TokenStream2 {
     match leaf {
         Leaf::String => quote! { ::confval::format::Scalar::String(#located.value.clone()) },
         Leaf::Int => quote! { ::confval::format::Scalar::Int(#located.value) },

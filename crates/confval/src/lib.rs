@@ -24,6 +24,16 @@ pub mod source;
 pub use pipeline::keyword::KeywordSet;
 pub use pipeline::range::RangeConstraint;
 
+/// Implementation detail for the crate's macros. Not part of the public API,
+/// and exempt from semver. `keyword_enum!` reaches `serde` through this path so
+/// the generated impl is gated on confval's own `serde` feature rather than the
+/// caller's dependency graph.
+#[doc(hidden)]
+pub mod __private {
+    #[cfg(feature = "serde")]
+    pub use serde;
+}
+
 /// The common imports for defining and lowering specs.
 ///
 /// A single `use confval::prelude::*;` pulls the everyday names a spec module

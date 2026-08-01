@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Examples
 
-The crate ships ten runnable examples in `crates/confval/examples/`.
+The crate ships eleven runnable examples in `crates/confval/examples/`.
 `hcl`, `toml`, and `kdl` define the same types and differ only in the format they read.
 The rest demonstrate one feature each.
 Each section below gives the run command.
@@ -12,7 +12,7 @@ Each section below gives the run command.
 
 ## hcl
 
-The HCL example renders the diagnostics for a failing variant to stderr, then feeds a valid document and prints the lowered config.
+The `hcl` example renders the diagnostics for a failing variant to stderr, then feeds a valid document and prints the lowered config.
 
 ```shell
 cargo run -q -p confval --example hcl --features derive,color,hcl
@@ -20,7 +20,7 @@ cargo run -q -p confval --example hcl --features derive,color,hcl
 
 ## toml
 
-The TOML example feeds a valid document to show the lowered config.
+The `toml` example feeds a valid document to show the lowered config.
 
 ```shell
 cargo run -q -p confval --example toml --features derive,color,toml
@@ -28,7 +28,7 @@ cargo run -q -p confval --example toml --features derive,color,toml
 
 ## kdl
 
-The KDL example renders the diagnostics for a failing variant to stderr, then feeds a valid document, prints the lowered config, and emits the populated spec back to canonical KDL.
+The `kdl` example renders the diagnostics for a failing variant to stderr, then feeds a valid document, prints the lowered config, and emits the populated spec back to canonical KDL.
 
 ```shell
 cargo run -q -p confval --example kdl --features derive,color,kdl
@@ -36,7 +36,7 @@ cargo run -q -p confval --example kdl --features derive,color,kdl
 
 ## issue_severity
 
-The issue_severity example shows a warning.
+The `issue_severity` example illustrates the difference between a error and a warning.
 
 ```shell
 cargo run -q -p confval --example issue_severity --features derive,color,toml
@@ -44,7 +44,7 @@ cargo run -q -p confval --example issue_severity --features derive,color,toml
 
 ## validate_traversal
 
-The validate_traversal example shows what `validate_all` reaches.
+The `validate_traversal` example shows what `validate_all` reaches.
 
 ```shell
 cargo run -q -p confval --example validate_traversal --features derive,color,toml
@@ -52,7 +52,7 @@ cargo run -q -p confval --example validate_traversal --features derive,color,tom
 
 ## layering
 
-The layering example assembles one config from a base file, a joined defaults file, the environment, and the command line.
+The `layering` example assembles one config from a base file, a joined defaults file, the environment, and the command line.
 
 ```shell
 cargo run -q -p confval --example layering --features derive,color,toml,layering
@@ -62,7 +62,7 @@ See [Layering](./guide/layering.md) for how the sources merge and how environmen
 
 ## templates
 
-The templates example renders a spec back to configuration text.
+The `templates` example renders a spec back to configuration text.
 
 ```shell
 cargo run -q -p confval --example templates --features derive,color,toml,hcl
@@ -75,7 +75,7 @@ See [Templates](./guide/templates.md) for how `to_fields`, `to_template`, and th
 
 ## doc_fallback
 
-The doc_fallback example shows where a template block's comment comes from.
+The `doc_fallback` example shows where a template block's comment comes from.
 
 ```shell
 cargo run -q -p confval --example doc_fallback --features derive,toml
@@ -83,7 +83,7 @@ cargo run -q -p confval --example doc_fallback --features derive,toml
 
 ## json_diagnostics
 
-The json_diagnostics example renders a report as JSON for CI and tooling.
+The `json_diagnostics` example renders a report as JSON for CI and tooling.
 
 ```shell
 cargo run -q -p confval --example json_diagnostics --features derive,serde,toml
@@ -91,11 +91,19 @@ cargo run -q -p confval --example json_diagnostics --features derive,serde,toml
 
 ## narrow
 
-The narrow example shows the ready-made narrowing helpers that convert spec integers to the widths a runtime type needs.
+The `narrow` example shows the ready-made narrowing helpers that convert spec integers to the widths a runtime type needs.
 It exercises five of them, and the remaining integer widths and their `opt_` variants share the same shape.
 
 ```shell
 cargo run -q -p confval --example narrow --features derive,color,toml
+```
+
+## representations
+
+The `representations` example prints the three views of one loaded spec: the source view of what was set, the populated view after defaults, and the runtime view of the lowered values.
+
+```shell
+cargo run -q -p confval --example representations --features derive,serde,toml
 ```
 
 ## Additional Examples

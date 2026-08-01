@@ -132,6 +132,12 @@ impl Value {
             kind,
         }
     }
+
+    /// A value carrying its source span. Used by the source-view walk
+    /// `#[derive(Spec)]` generates, which preserves each value's location.
+    pub fn spanned(span: Span, kind: ValueKind) -> Self {
+        Self { span, kind }
+    }
 }
 
 impl Field {
@@ -157,6 +163,37 @@ impl Field {
             name_span: Span::detached(),
             span: Span::detached(),
             source: SourceId::DETACHED,
+            kind: FieldKind::Block(fields),
+            doc: None,
+            commented: false,
+        }
+    }
+
+    /// An attribute field carrying its source span, with the source taken from
+    /// the span. The name span is the detached sentinel, because a spec field
+    /// name has no source location. Used by the source-view walk
+    /// `#[derive(Spec)]` generates.
+    pub fn spanned_value(name: &str, span: Span, value: Value) -> Self {
+        Self {
+            name: name.to_string(),
+            name_span: Span::detached(),
+            span,
+            source: span.source,
+            kind: FieldKind::Value(value),
+            doc: None,
+            commented: false,
+        }
+    }
+
+    /// A block field carrying its source span, with the source taken from the
+    /// span. The name span is the detached sentinel. Used by the source-view
+    /// walk `#[derive(Spec)]` generates.
+    pub fn spanned_block(name: &str, span: Span, fields: Fields) -> Self {
+        Self {
+            name: name.to_string(),
+            name_span: Span::detached(),
+            span,
+            source: span.source,
             kind: FieldKind::Block(fields),
             doc: None,
             commented: false,
@@ -258,12 +295,29 @@ pub trait FromFields: Sized {
 /// This is the write-path counterpart of [`FromFields`]. Parsing reads a
 /// [`Fields`] and builds a spec. Populate walks a spec and builds a [`Fields`],
 /// filling every default the source omitted, so it adds to the data rather than
-/// inverting the parse. `#[derive(Spec)]` generates it, and every value it
-/// produces carries a detached span because the data comes from the spec rather
-/// than a source file.
+/// inverting the parse. `#[derive(Spec)]` generates it.
+///
+/// The populated and template walks detach the span of every value they
+/// produce, because a filled default has no source location. The source walk,
+/// [`to_source_fields`](ToFields::to_source_fields), keeps the spans the spec
+/// holds, because it emits only fields a source wrote.
 pub trait ToFields {
     /// The populated field model with no comments.
     fn to_fields(&self) -> Fields;
+
+    /// The source-view field model: only the fields the source actually set,
+    /// with defaults omitted. A field is included when its `Located` span is
+    /// attached, and a filled default, which carries the detached sentinel, is
+    /// omitted. Each included value keeps its real source span, so a
+    /// location-aware consumer can find where it was written. The name span and
+    /// the `Fields` container's own source and enclosing span stay detached,
+    /// because a spec supplies neither.
+    ///
+    /// This is required, not defaulted. No correct fallback exists: the
+    /// populated model would report filled defaults as operator-written, the
+    /// exact confusion this view removes, so a handwritten impl must answer the
+    /// question itself.
+    fn to_source_fields(&self) -> Fields;
 
     /// The populated field model with each field's doc comment attached, for an
     /// annotated template. Defaults to [`to_fields`](ToFields::to_fields), so an
