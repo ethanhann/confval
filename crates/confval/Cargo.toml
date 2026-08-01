@@ -80,6 +80,10 @@ required-features = ["derive", "serde", "toml"]
 name = "narrow"
 required-features = ["derive", "color", "toml"]
 
+[[example]]
+name = "representations"
+required-features = ["derive", "serde", "toml"]
+
 [[test]]
 name = "compile_fail"
 required-features = ["derive"]
@@ -111,3 +115,11 @@ required-features = ["derive", "toml", "layering"]
 [[test]]
 name = "validate_traversal"
 required-features = ["derive"]
+
+[[test]]
+name = "source_view"
+required-features = ["derive", "toml", "hcl", "kdl", "serde"]
+
+[[test]]
+name = "source_view_layering"
+required-features = ["derive", "toml", "layering"]

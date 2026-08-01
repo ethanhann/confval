@@ -104,7 +104,10 @@ const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
 /// - `keyword_set()`, a `KeywordSet` over `KEYWORDS` to call from a `Validate` impl,
 /// - `as_str`, the keyword for a variant,
 /// - `TryFrom<&str>`, accepting exactly the keywords,
-/// - `Display`, printing through `as_str`.
+/// - `Display`, printing through `as_str`,
+/// - `serde::Serialize` writing the keyword string, when confval's `serde`
+///   feature is enabled, so a serialized config spells `"log"` exactly as the
+///   config file does.
 ///
 /// The one artifact it does not generate is the `keyword_set().check_located(...)`
 /// call in your `Validate` impl. Once that call is in place, a value that fails
@@ -184,11 +187,40 @@ macro_rules! keyword_enum {
                 f.write_str(self.as_str())
             }
         }
+
+        $crate::__keyword_enum_serde!($name);
     };
     (@count) => { 0usize };
     (@count $head:ident $($tail:ident)*) => {
         1usize + $crate::keyword_enum!(@count $($tail)*)
     };
+}
+
+/// The serde half of [`keyword_enum!`], expanded through `$crate` so the
+/// condition is confval's own `serde` feature rather than the caller's.
+/// Serialization writes the keyword string, mirroring `Display`. There is no
+/// `Deserialize`, because parsing owns the read path.
+#[cfg(feature = "serde")]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __keyword_enum_serde {
+    ($name:ident) => {
+        impl $crate::__private::serde::Serialize for $name {
+            fn serialize<S: $crate::__private::serde::Serializer>(
+                &self,
+                serializer: S,
+            ) -> ::core::result::Result<S::Ok, S::Error> {
+                serializer.serialize_str(self.as_str())
+            }
+        }
+    };
+}
+
+#[cfg(not(feature = "serde"))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __keyword_enum_serde {
+    ($name:ident) => {};
 }
 
 #[cfg(test)]
@@ -358,6 +390,16 @@ mod tests {
             assert_eq!(variant.as_str(), keyword);
             assert_eq!(LimitMode::try_from(keyword), Ok(variant));
         }
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serialize_writes_the_keyword_not_the_variant_name() {
+        // Act
+        let json = serde_json::to_string(&LimitMode::Log).unwrap();
+
+        // Assert
+        assert_eq!(json, "\"log\"");
     }
 
     #[test]
