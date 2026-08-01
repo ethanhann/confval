@@ -19,12 +19,14 @@ mod options;
 mod parser;
 mod populate;
 mod shape;
+mod source_view;
 mod traversal;
 
 use options::{parse_options, parse_struct_options};
 use parser::{field_parser, reject_unsupported_default};
 use populate::{field_emit, to_fields_impl};
 use shape::classify;
+use source_view::field_source_emit;
 use traversal::{nested_visit, validate_nested_impl};
 
 use proc_macro2::TokenStream as TokenStream2;
@@ -81,9 +83,11 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     // `#[confval(derive_default)]` fills this with one fragment per field, used
     // to build the generated `Default` impl.
     let mut default_ctors = Vec::new();
-    // One fragment per field for each `ToFields` walk, the plain `to_fields`
-    // and the annotated `to_template`, always built.
+    // One fragment per field for each `ToFields` walk: the plain `to_fields`,
+    // the source-only `to_source_fields`, and the annotated `to_template`,
+    // always built.
     let mut to_fields_emits = Vec::new();
+    let mut to_source_emits = Vec::new();
     let mut to_template_emits = Vec::new();
 
     for field in &fields.named {
@@ -105,8 +109,10 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
         // The populate walks emit one fragment per field, read off the same
         // shape and options, so `ToFields` cannot drift from the parser. The
-        // template walk attaches the field's doc comment.
+        // template walk attaches the field's doc comment. The source walk emits
+        // only the fields the source set, keyed on the attached span.
         to_fields_emits.push(field_emit(ident, &shape, &options, false));
+        to_source_emits.push(field_source_emit(ident, &shape, &options));
         to_template_emits.push(field_emit(ident, &shape, &options, true));
 
         // Emit the parsing fragments for this field, tailored to its shape, and
@@ -127,6 +133,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let to_fields = to_fields_impl(
         name,
         &to_fields_emits,
+        &to_source_emits,
         &to_template_emits,
         &struct_options.doc,
     );
