@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Examples
 
-The crate ships ten runnable examples in `crates/confval/examples/`.
+The crate ships eleven runnable examples in `crates/confval/examples/`.
 `hcl`, `toml`, and `kdl` define the same types and differ only in the format they read.
 The rest demonstrate one feature each.
 Each section below gives the run command.
@@ -96,6 +96,14 @@ It exercises five of them, and the remaining integer widths and their `opt_` var
 
 ```shell
 cargo run -q -p confval --example narrow --features derive,color,toml
+```
+
+## representations
+
+The representations example prints the three views of one loaded spec: the source view of what was set, the populated view after defaults, and the runtime view of the lowered values.
+
+```shell
+cargo run -q -p confval --example representations --features derive,serde,toml
 ```
 
 ## Additional Examples
