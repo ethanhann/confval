@@ -5,11 +5,11 @@
 //! walk emits only the fields the source set and keeps their spans. One rule
 //! decides every shape: a value is emitted when its `Located` span is attached,
 //! and a filled default, which carries the detached sentinel, is omitted. Each
-//! emitted value and field carries its real span through the spanned
-//! constructors, so a location-aware consumer keeps the source positions. The
-//! name span and the level container stay detached, because a spec supplies
-//! neither. A bare string list holds no span of its own, so its elements decide
-//! it and it is emitted detached.
+//! emitted field is built detached and then located with `Field::at`, so a
+//! location-aware consumer keeps the source positions. The name span and the
+//! level container stay detached, because a spec supplies neither. A bare
+//! string list holds no span of its own, so its elements decide it and it is
+//! emitted detached.
 //!
 //! Fragments are read off the same `FieldShape` the parser and the populate
 //! walk are built from, so the three cannot disagree about a field's shape.
@@ -37,14 +37,12 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
                 quote! {
                     if let ::core::option::Option::Some(__value) = &self.#ident {
                         if !__value.span.is_detached() {
-                            __items.push(::confval::format::Field::spanned_value(
+                            __items.push(::confval::format::Field::detached_value(
                                 #name,
-                                __value.span,
-                                ::confval::format::Value::spanned(
-                                    __value.span,
+                                ::confval::format::Value::detached(
                                     ::confval::format::ValueKind::Scalar(#scalar),
                                 ),
-                            ));
+                            ).at(__value.span));
                         }
                     }
                 }
@@ -52,14 +50,12 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
                 let scalar = leaf_scalar(leaf, &quote! { self.#ident });
                 quote! {
                     if !self.#ident.span.is_detached() {
-                        __items.push(::confval::format::Field::spanned_value(
+                        __items.push(::confval::format::Field::detached_value(
                             #name,
-                            self.#ident.span,
-                            ::confval::format::Value::spanned(
-                                self.#ident.span,
+                            ::confval::format::Value::detached(
                                 ::confval::format::ValueKind::Scalar(#scalar),
                             ),
-                        ));
+                        ).at(self.#ident.span));
                     }
                 }
             }
@@ -92,22 +88,21 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
             }
         }
         // The wrapped list keeps its own span, so a source-written empty list
-        // survives while an absent field is omitted.
+        // survives while an absent field is omitted. `at` gives the list its
+        // wrapper span and leaves each element's own span alone.
         FieldShape::OptionalWrappedStringList => {
             let element = spanned_string_element();
             quote! {
                 if let ::core::option::Option::Some(__list) = &self.#ident {
                     if !__list.span.is_detached() {
-                        __items.push(::confval::format::Field::spanned_value(
+                        __items.push(::confval::format::Field::detached_value(
                             #name,
-                            __list.span,
-                            ::confval::format::Value::spanned(
-                                __list.span,
+                            ::confval::format::Value::detached(
                                 ::confval::format::ValueKind::Seq(
                                     __list.value.iter().map(#element).collect(),
                                 ),
                             ),
-                        ));
+                        ).at(__list.span));
                     }
                 }
             }
@@ -121,11 +116,10 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
         } => {
             quote! {
                 if !self.#ident.span.is_detached() {
-                    __items.push(::confval::format::Field::spanned_block(
+                    __items.push(::confval::format::Field::detached_block(
                         #name,
-                        self.#ident.span,
                         ::confval::format::ToFields::to_source_fields(&self.#ident.value),
-                    ));
+                    ).at(self.#ident.span));
                 }
             }
         }
@@ -136,11 +130,10 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
             quote! {
                 if let ::core::option::Option::Some(__child) = &self.#ident {
                     if !__child.span.is_detached() {
-                        __items.push(::confval::format::Field::spanned_block(
+                        __items.push(::confval::format::Field::detached_block(
                             #name,
-                            __child.span,
                             ::confval::format::ToFields::to_source_fields(&__child.value),
-                        ));
+                        ).at(__child.span));
                     }
                 }
             }
@@ -151,11 +144,10 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
             quote! {
                 for __child in &self.#ident {
                     if !__child.span.is_detached() {
-                        __items.push(::confval::format::Field::spanned_block(
+                        __items.push(::confval::format::Field::detached_block(
                             #name,
-                            __child.span,
                             ::confval::format::ToFields::to_source_fields(&__child.value),
-                        ));
+                        ).at(__child.span));
                     }
                 }
             }

@@ -196,18 +196,15 @@ pub(crate) fn field_parser(
 /// Picks the confval parse function for a leaf type.
 ///
 /// Returns a generated expression that parses the current field into an
-/// `Option<Located<T>>`. `PathBuf` has no parser of its own: it is read as a
-/// string and converted, so its arm wraps the string parser with a `map`.
+/// `Option<Located<T>>`. Each arm names the confval parser for that leaf, so a
+/// generated parser and a handwritten one read a field the same way.
 fn leaf_parser(leaf: &Leaf) -> TokenStream2 {
     match leaf {
         Leaf::String => quote! { ::confval::format::parse_string_field(__field, report) },
         Leaf::Int => quote! { ::confval::format::parse_int_field(__field, report) },
         Leaf::Float => quote! { ::confval::format::parse_float_field(__field, report) },
         Leaf::Bool => quote! { ::confval::format::parse_bool_field(__field, report) },
-        Leaf::PathBuf => quote! {
-            ::confval::format::parse_string_field(__field, report)
-                .map(|__value| __value.map(::std::path::PathBuf::from))
-        },
+        Leaf::PathBuf => quote! { ::confval::format::parse_path_field(__field, report) },
     }
 }
 
