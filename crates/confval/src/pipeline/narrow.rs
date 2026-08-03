@@ -114,9 +114,165 @@ where
     }
 }
 
+/// Lowers a list of validated keyword strings into a list of enum values,
+/// through [`keyword`] per element.
+///
+/// Every element that fails is reported before the function returns, so an
+/// operator sees all of them in one run. Any failure fails the whole list. That
+/// matches every other helper here, which reports and returns `None`. A caller
+/// that wants the elements that parsed calls [`keyword`] per element.
+///
+/// This is the bare `Vec<Located<String>>` shape. For the wrapped optional
+/// list, see [`opt_keyword_list`].
+pub fn keyword_list<T>(values: &[Located<String>], report: &mut Report) -> Option<Vec<T>>
+where
+    T: for<'a> TryFrom<&'a str>,
+{
+    let mut parsed = Vec::with_capacity(values.len());
+    let mut ok = true;
+    for value in values {
+        match keyword(value, report) {
+            Some(item) => parsed.push(item),
+            None => ok = false,
+        }
+    }
+    ok.then_some(parsed)
+}
+
+/// Optional-list variant of [`keyword_list`]: `None` in, `Some(None)` out. The
+/// outer `Option` is the failure channel.
+///
+/// The other `opt_` helpers differ from their plain forms by an `Option`. This
+/// one also unwraps a `Located`, because the wrapped list shape is
+/// `Option<Located<Vec<Located<String>>>>`. The two shapes come from the two
+/// list fields a spec can declare, a bare `Vec` and a wrapper that keeps the
+/// list's own span.
+pub fn opt_keyword_list<T>(
+    value: &Option<Located<Vec<Located<String>>>>,
+    report: &mut Report,
+) -> Option<Option<Vec<T>>>
+where
+    T: for<'a> TryFrom<&'a str>,
+{
+    match value {
+        Some(list) => keyword_list(&list.value, report).map(Some),
+        None => Some(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The lowering helpers need only the `TryFrom<&str>` that `keyword_enum!`
+    /// generates, so the fixture supplies that alone.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum Color {
+        Red,
+        Green,
+    }
+
+    impl TryFrom<&str> for Color {
+        type Error = ();
+
+        fn try_from(value: &str) -> Result<Self, Self::Error> {
+            match value {
+                "red" => Ok(Color::Red),
+                "green" => Ok(Color::Green),
+                _ => Err(()),
+            }
+        }
+    }
+
+    fn located(values: &[&str]) -> Vec<Located<String>> {
+        values
+            .iter()
+            .map(|value| Located::detached(value.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn keyword_list_lowers_every_element_in_order() {
+        // Arrange
+        let values = located(&["green", "red"]);
+        let mut report = Report::new();
+
+        // Act
+        let parsed = keyword_list::<Color>(&values, &mut report);
+
+        // Assert
+        assert_eq!(parsed, Some(vec![Color::Green, Color::Red]));
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn keyword_list_reports_every_bad_element_before_failing() {
+        // Arrange
+        let values = located(&["red", "mauve", "puce"]);
+        let mut report = Report::new();
+
+        // Act
+        let parsed = keyword_list::<Color>(&values, &mut report);
+
+        // Assert
+        assert_eq!(parsed, None);
+        assert_eq!(report.issues().len(), 2);
+        assert_eq!(report.issues()[0].message, "unknown keyword: mauve");
+        assert_eq!(report.issues()[1].message, "unknown keyword: puce");
+    }
+
+    #[test]
+    fn keyword_list_lowers_an_empty_list_to_an_empty_vec() {
+        // Arrange
+        let mut report = Report::new();
+
+        // Act
+        let parsed = keyword_list::<Color>(&[], &mut report);
+
+        // Assert
+        assert_eq!(parsed, Some(Vec::new()));
+    }
+
+    #[test]
+    fn opt_keyword_list_maps_an_absent_field_to_some_none() {
+        // Arrange
+        let absent = None;
+        let mut report = Report::new();
+
+        // Act
+        let parsed = opt_keyword_list::<Color>(&absent, &mut report);
+
+        // Assert
+        assert_eq!(parsed, Some(None));
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn opt_keyword_list_lowers_a_present_list() {
+        // Arrange
+        let present = Some(Located::detached(located(&["red"])));
+        let mut report = Report::new();
+
+        // Act
+        let parsed = opt_keyword_list::<Color>(&present, &mut report);
+
+        // Assert
+        assert_eq!(parsed, Some(Some(vec![Color::Red])));
+    }
+
+    #[test]
+    fn opt_keyword_list_fails_the_whole_field_on_a_bad_element() {
+        // Arrange
+        let present = Some(Located::detached(located(&["red", "mauve"])));
+        let mut report = Report::new();
+
+        // Act
+        let parsed = opt_keyword_list::<Color>(&present, &mut report);
+
+        // Assert
+        assert_eq!(parsed, None);
+        assert!(report.has_errors());
+    }
 
     #[test]
     fn in_range_value_narrows() {

@@ -4,9 +4,9 @@ sidebar_position: 4
 
 # Examples
 
-The crate ships eleven runnable examples in `crates/confval/examples/`.
+The crate ships twelve runnable examples in `crates/confval/examples/`.
 `hcl`, `toml`, and `kdl` define the same types and differ only in the format they read.
-The rest demonstrate one feature each.
+The rest demonstrate one feature each, except `handwritten`, which runs the whole pipeline over a spec written without the derive.
 Each section below gives the run command.
 `just examples` runs them all.
 
@@ -104,6 +104,16 @@ The `representations` example prints the three views of one loaded spec: the sou
 
 ```shell
 cargo run -q -p confval --example representations --features derive,serde,toml
+```
+
+## handwritten
+
+The handwritten example writes a spec without the derive, for a block whose `mode` field decides which fields the rest of the block has.
+Each level of its tree is written the other way from the level above: the root is handwritten, its children are derived, and the `tls` block inside a derived route is handwritten again.
+It prints the diagnostics, the runtime config, the populated and source views, the comments a handwritten node drops from a template, and the same model in HCL.
+
+```shell
+cargo run -q -p confval --example handwritten --features derive,color,toml,hcl
 ```
 
 ## Additional Examples

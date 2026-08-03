@@ -1,3 +1,5 @@
+pub mod builder;
+pub use builder::*;
 mod emit;
 pub use emit::EmitError;
 pub mod field;

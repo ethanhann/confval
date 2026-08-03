@@ -125,6 +125,18 @@ KeywordSet::new(&LOAD_BALANCING_STRATEGIES)
 Every keyword field reports the same way, so a wrong value in any closed-set field produces the same message shape and
 lists the allowed set.
 
+A list of keywords is checked with `check_each`, which reports each bad element at its own span:
+
+```rust
+LogEvent::keyword_set().check_each(&spec.events, "event", report);
+```
+
+Name the field in the singular, because the message describes one element.
+An operator who typos one entry reads `unknown event: reloded` under that entry rather than a message about the
+whole list.
+Both list shapes pass a slice, so a bare `Vec<Located<String>>` passes itself and a wrapped
+`Option<Located<Vec<Located<String>>>>` passes `&list.value`.
+
 ## keyword_enum!
 
 A closed-set field is otherwise declared three times.
