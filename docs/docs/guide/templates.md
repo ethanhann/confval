@@ -118,6 +118,8 @@ let text = emit_toml(&spec.to_fields())?;
 ```
 
 The two methods share one populated model and differ only in the comment lines, so the plain dump and the annotated template always describe the same configuration.
+A spec with a handwritten `ToFields` builds that model with `FieldsBuilder`, described in
+[Writing emitters by hand](./parsing.md#writing-emitters-by-hand).
 Because the model is the same `Fields` type parsing produces, anything that reads a parsed field model reads a populated one the same way.
 
 ```toml

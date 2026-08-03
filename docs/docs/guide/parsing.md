@@ -348,7 +348,7 @@ confval ships helpers so a handwritten parser reports exactly like the derive do
 
 Leaf parsers turn one `Field` into a `Located` value, reporting a typed error on mismatch:
 
-- `parse_string_field`, `parse_int_field` (i64), `parse_float_field`, `parse_bool_field`
+- `parse_string_field`, `parse_int_field` (i64), `parse_float_field`, `parse_bool_field`, `parse_path_field`
 - `parse_string_list_field` for arrays of strings
 
 Structural parsers recurse through `FromFields`:
@@ -360,3 +360,81 @@ Structural parsers recurse through `FromFields`:
 Reporting helpers keep messages uniform: `report_unknown_field`, `report_missing_field`, `report_duplicate_field`.
 Unknown fields are always errors.
 There is no lenient mode.
+
+## Writing emitters by hand
+
+A type with a handwritten `FromFields` needs a handwritten `ToFields` too, because the derive generates one only for the
+types it parses.
+`ToFields` has two required walks, and they differ per field.
+`to_fields` emits every field with its span detached, which is the populated view and the template.
+`to_source_fields` emits only the fields the source set, keeps their spans, and recurses into children with
+`to_source_fields` rather than `to_fields`, which is the [source view](./representations.md).
+
+Writing both by hand means writing the field list twice and reproducing that difference on every line.
+`FieldsBuilder` takes the walk as a parameter instead, so you list the fields once:
+
+```rust
+use confval::format::{Fields, FieldsBuilder, ToFields, Walk};
+
+impl Server {
+    fn build(&self, walk: Walk) -> Fields {
+        FieldsBuilder::new(walk)
+            .leaf("hostname", &self.hostname)
+            .leaf_opt("port", self.port.as_ref())
+            .string_list("tags", &self.tags)
+            .block("limits", &self.limits)
+            .finish()
+    }
+}
+
+impl ToFields for Server {
+    fn to_fields(&self) -> Fields {
+        self.build(Walk::Populated)
+    }
+
+    fn to_source_fields(&self) -> Fields {
+        self.build(Walk::Source)
+    }
+}
+```
+
+Each method takes the `Located` rather than the value inside it, so the builder has the span and can decide for itself
+what the walk needs.
+
+| Method | `Walk::Populated` | `Walk::Source` |
+|--------|-------------------|----------------|
+| `leaf`, `leaf_opt` | emits detached | emits with its span, or omits a detached one |
+| `string_list` | emits every element detached | emits the elements that carry a span, or omits the field |
+| `string_list_opt` | emits detached when present | emits when the wrapper carries a span, elements included |
+| `block`, `block_opt`, `block_list` | recurses with `to_fields` | recurses with `to_source_fields` when the block carries a span |
+| `literal_string` | emits detached | emits detached |
+
+`leaf` accepts the same types a derived spec field accepts: `String`, `i64`, `f64`, `bool`, and `PathBuf`.
+A path emits as a string, the one lossy conversion, matching what the derive generates.
+
+`literal_string` is for a field your impl supplies rather than reads, which is the discriminator on a tagged enum:
+
+```rust
+match self {
+    TlsSpec::Manual { cert, key } => builder
+        .literal_string("mode", "manual")
+        .leaf("cert", cert)
+        .leaf("key", key),
+    TlsSpec::Acme { domains } => builder
+        .literal_string("mode", "acme")
+        .string_list("domains", domains),
+};
+```
+
+Both walks emit it, because a source view that dropped the tag would not reparse.
+
+When you need a field the builder does not cover, build it directly with `Field::detached_value` or
+`Field::detached_block` and locate it with `at`:
+
+```rust
+let field = Field::detached_value(name, value).at(span);
+```
+
+`at` sets the field's span and its source, and gives an attribute's value the same span.
+A block's nested level keeps its own source and enclosing span, and a sequence's elements keep the spans they were built
+with.

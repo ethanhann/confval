@@ -98,3 +98,7 @@ The populated view and the source view read the same spec, but neither can produ
 The populate walk fills defaults and detaches every span, so it has no record of what the source set.
 The source walk reads the spec's spans directly, which is where the set-or-defaulted distinction lives.
 `to_source_fields` is therefore its own walk rather than a filter over the populated model, and it is a required method on `ToFields` because no default body could answer the question without reporting defaults as operator-written.
+
+A spec with a handwritten `ToFields` writes the source walk itself.
+Build it with `FieldsBuilder`, which takes the walk as a parameter and applies this rule per field, as
+[Writing emitters by hand](./parsing.md#writing-emitters-by-hand) describes.
