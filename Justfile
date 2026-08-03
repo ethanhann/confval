@@ -30,6 +30,7 @@ examples:
     cargo run -q -p confval --features derive,serde,toml --example json_diagnostics
     cargo run -q -p confval --features derive,color,toml --example narrow
     cargo run -q -p confval --features derive,serde,toml --example representations
+    cargo run -q -p confval --features derive,color,toml,hcl --example handwritten
 
 validate-docs: check-doc-snippets check-doc-programs
     cargo doc --all-features --no-deps
