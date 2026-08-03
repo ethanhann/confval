@@ -84,6 +84,10 @@ required-features = ["derive", "color", "toml"]
 name = "representations"
 required-features = ["derive", "serde", "toml"]
 
+[[example]]
+name = "handwritten"
+required-features = ["derive", "color", "toml", "hcl"]
+
 [[test]]
 name = "compile_fail"
 required-features = ["derive"]
