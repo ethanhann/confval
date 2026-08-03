@@ -449,12 +449,19 @@ match self {
 
 Both walks emit it, because a source view that dropped the tag would not reparse.
 
-When you need a field the builder does not cover, build it directly with `Field::detached_value` or
-`Field::detached_block` and locate it with `at`:
+The builder does not cover every shape a spec can hold, a string-keyed map among them.
+Build such a field directly with `Field::detached_value` or `Field::detached_block`.
+Locate it with `at` when it carries a span, then `push` it into the builder where it belongs:
 
 ```rust
 let field = Field::detached_value(name, value).at(span);
+builder.push(field);
 ```
+
+The walk does not reach a pushed field.
+You decide what it carries.
+On a source walk that includes deciding whether the source set it.
+The builder still shapes every other field of the type.
 
 `at` sets the field's span and its source.
 An attribute's value takes the same span.

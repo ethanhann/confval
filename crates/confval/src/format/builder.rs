@@ -282,6 +282,19 @@ impl FieldsBuilder {
         self
     }
 
+    /// Adds a field the builder does not shape, in the order it is called.
+    ///
+    /// A string-keyed map is one such shape. The walk does not reach a pushed
+    /// field. The caller decides what it carries. On a source walk that includes
+    /// deciding whether the source set it. Build the field with
+    /// [`Field::detached_value`](Field::detached_value) or
+    /// [`Field::detached_block`](Field::detached_block), and locate it with
+    /// [`at`](Field::at) when it carries a span.
+    pub fn push(&mut self, field: Field) -> &mut Self {
+        self.items.push(field);
+        self
+    }
+
     /// The finished level. The container itself is detached, because a spec
     /// supplies neither a source nor an enclosing span.
     pub fn finish(&mut self) -> Fields {
@@ -870,6 +883,33 @@ mod tests {
 
         // Assert
         assert_eq!(emitted, vec![vec!["mode"], vec!["mode"]]);
+    }
+
+    #[test]
+    fn a_pushed_field_lands_unchanged_in_call_order() {
+        // Arrange
+        // A map is the shape the builder does not name, so the caller builds the
+        // field and decides what it carries.
+        let map = Fields::detached(vec![Field::detached_value(
+            "a",
+            Value::detached(ValueKind::Scalar(Scalar::String("b".to_string()))),
+        )]);
+        let field = Field::detached_value("config", Value::detached(ValueKind::Map(map)));
+
+        // Act
+        let fields = FieldsBuilder::new(Walk::Source)
+            .leaf("name", &Located::new("h".to_string(), span_at(0, 3)))
+            .push(field)
+            .finish();
+
+        // Assert
+        assert_eq!(names(&fields), vec!["name", "config"]);
+        let pushed = fields.get("config").expect("config is present").clone();
+        assert!(pushed.span.is_detached(), "the walk does not reach it");
+        assert!(matches!(
+            &pushed.kind,
+            FieldKind::Value(value) if matches!(value.kind, ValueKind::Map(_))
+        ));
     }
 
     #[test]
