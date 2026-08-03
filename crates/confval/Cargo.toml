@@ -127,3 +127,7 @@ required-features = ["derive", "toml", "layering"]
 [[test]]
 name = "toml_span_fidelity"
 required-features = ["derive", "toml"]
+
+[[test]]
+name = "handwritten_parity"
+required-features = ["derive", "toml"]

@@ -10,6 +10,7 @@
 use super::field::{Field, FieldKind, FromFields, Scalar, Value, ValueKind};
 use crate::diagnostic::Report;
 use crate::source::{Located, Span};
+use std::path::PathBuf;
 
 fn describe(value: &Value) -> &'static str {
     match &value.kind {
@@ -118,6 +119,15 @@ pub fn parse_bool_field(field: &Field, report: &mut Report) -> Option<Located<bo
             None
         }
     }
+}
+
+/// Parses a path field, reading a string and converting it.
+///
+/// This is the conversion `#[derive(Spec)]` generates for a `Located<PathBuf>`
+/// field. Every format spells a path as a string, so anything that is not a
+/// string reports a type mismatch naming the string.
+pub fn parse_path_field(field: &Field, report: &mut Report) -> Option<Located<PathBuf>> {
+    parse_string_field(field, report).map(|value| value.map(PathBuf::from))
 }
 
 /// Parses an array-of-strings field with per-element spans, so an invalid
@@ -407,6 +417,36 @@ mod tests {
         let mut report = Report::new();
         let value = parse_bool_field(&scalar_field("daemon", Scalar::Bool(true)), &mut report);
         assert!(value.unwrap().value);
+    }
+
+    #[test]
+    fn path_field_parses_a_string_into_a_path() {
+        // Arrange
+        let field = scalar_field("pid_file", Scalar::String("/var/run/app.pid".to_string()));
+        let mut report = Report::new();
+
+        // Act
+        let value = parse_path_field(&field, &mut report);
+
+        // Assert
+        let value = value.expect("parses");
+        assert_eq!(value.value, PathBuf::from("/var/run/app.pid"));
+        assert_eq!(value.span, span(0, 10));
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn path_field_rejects_a_non_string() {
+        // Arrange
+        let field = scalar_field("pid_file", Scalar::Int(3));
+        let mut report = Report::new();
+
+        // Act
+        let value = parse_path_field(&field, &mut report);
+
+        // Assert
+        assert!(value.is_none());
+        assert!(report.has_errors());
     }
 
     #[test]

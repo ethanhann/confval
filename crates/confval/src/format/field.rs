@@ -169,37 +169,6 @@ impl Field {
         }
     }
 
-    /// An attribute field carrying its source span, with the source taken from
-    /// the span. The name span is the detached sentinel, because a spec field
-    /// name has no source location. Used by the source-view walk
-    /// `#[derive(Spec)]` generates.
-    pub fn spanned_value(name: &str, span: Span, value: Value) -> Self {
-        Self {
-            name: name.to_string(),
-            name_span: Span::detached(),
-            span,
-            source: span.source,
-            kind: FieldKind::Value(value),
-            doc: None,
-            commented: false,
-        }
-    }
-
-    /// A block field carrying its source span, with the source taken from the
-    /// span. The name span is the detached sentinel. Used by the source-view
-    /// walk `#[derive(Spec)]` generates.
-    pub fn spanned_block(name: &str, span: Span, fields: Fields) -> Self {
-        Self {
-            name: name.to_string(),
-            name_span: Span::detached(),
-            span,
-            source: span.source,
-            kind: FieldKind::Block(fields),
-            doc: None,
-            commented: false,
-        }
-    }
-
     /// Attaches a doc comment, for the annotated-template walk. `None` leaves
     /// the field without a comment.
     pub fn with_doc(mut self, doc: Option<String>) -> Self {
