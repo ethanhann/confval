@@ -56,10 +56,10 @@ impl<'a> KeywordSet<'a> {
     /// own span through [`check_located`](KeywordSet::check_located).
     ///
     /// `field` names one element rather than the list, so a list of events
-    /// reports `unknown event: befor_proxy` and points at the element the
+    /// reports `unknown event: reloded` and points at the element the
     /// operator typed. An empty list and an all-valid list report nothing.
     ///
-    /// Both list shapes reach this through a slice. A bare
+    /// Both list shapes pass a slice. A bare
     /// `Vec<Located<String>>` passes itself, and a wrapped
     /// `Option<Located<Vec<Located<String>>>>` passes `&list.value`.
     pub fn check_each(&self, values: &[Located<String>], field: &str, report: &mut Report) {

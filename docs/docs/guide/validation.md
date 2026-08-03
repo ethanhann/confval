@@ -132,9 +132,9 @@ LogEvent::keyword_set().check_each(&spec.events, "event", report);
 ```
 
 Name the field in the singular, because the message describes one element.
-An operator who typos one entry reads `unknown event: befor_proxy` under that entry rather than a message about the
+An operator who typos one entry reads `unknown event: reloded` under that entry rather than a message about the
 whole list.
-Both list shapes reach it through a slice, so a bare `Vec<Located<String>>` passes itself and a wrapped
+Both list shapes pass a slice, so a bare `Vec<Located<String>>` passes itself and a wrapped
 `Option<Located<Vec<Located<String>>>>` passes `&list.value`.
 
 ## keyword_enum!

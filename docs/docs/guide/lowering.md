@@ -65,10 +65,11 @@ The field was validated against the same set the `TryFrom` accepts, so the conve
 The helper reports at the value's span when the `keyword_set()` check was left out of the `Validate` impl, or when a hand-rolled keyword set and its enum disagree, a drift `keyword_enum!` rules out.
 
 `keyword_list::<T>` does the same for a list field, lowering a `Vec<Located<String>>` into a `Vec<T>`.
-Every element that fails is reported before the call returns, so an operator sees all of them in one run, and any failure fails the whole field.
+Every element that fails is reported before the call returns, so an operator sees all of them in one run.
+Any failure fails the whole field.
 `opt_keyword_list::<T>` takes the wrapped optional list, `Option<Located<Vec<Located<String>>>>`, and returns `Some(None)` for an absent field.
-It unwraps that wrapper as well as the `Option`, which the other `opt_` helpers do not, because the two list shapes a spec can declare differ by more than an `Option`.
-Validate a keyword list with [`check_each`](./validation.md#keywordset) so a bad element is reported as a keyword problem rather than through the lowering helper's defensive branch.
+It unwraps that wrapper as well as the `Option`, which the other `opt_` helpers do not, because the wrapped shape adds a `Located` around the list.
+Validate a keyword list with [`check_each`](./validation.md#keywordset) so a bad element is reported at its own span during validation rather than through the lowering helper's defensive branch.
 
 ```rust
 use confval::pipeline::narrow;

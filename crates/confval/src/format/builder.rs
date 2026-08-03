@@ -1,9 +1,9 @@
 //! Building a `Fields` by hand, one field at a time.
 //!
-//! `#[derive(Spec)]` generates both write walks. A spec with a handwritten
-//! [`FromFields`](super::FromFields), which is how the shapes the derive cannot
-//! express are written, implements [`ToFields`] by hand and has to reproduce
-//! two walks that differ per field. The populated walk emits every field and
+//! `#[derive(Spec)]` generates both write walks. The shapes it cannot express
+//! are written with a handwritten [`FromFields`](super::FromFields). Such a
+//! spec implements [`ToFields`] by hand, which means reproducing two walks that
+//! differ per field. The populated walk emits every field and
 //! detaches every span. The source walk omits a field whose span is detached,
 //! keeps the span of the fields it emits, and recurses into children with
 //! `to_source_fields` rather than `to_fields`.
@@ -11,14 +11,19 @@
 //! [`FieldsBuilder`] takes the walk as a parameter, so an impl lists its fields
 //! once and both walks read that one list. Each method takes the `Located`
 //! rather than the value inside it, so the builder holds the span and the
-//! attachment the walk needs, and the recursion picks itself.
+//! attachment each walk needs. The recursion into children follows the same
+//! walk.
 
 use super::field::{Field, FieldKind, Fields, Scalar, ToFields, Value, ValueKind};
 use crate::source::{Located, Span};
 use std::path::PathBuf;
 
 /// Which walk a [`FieldsBuilder`] is building.
+///
+/// Marked non-exhaustive, so a third walk stays a minor release rather than a
+/// break for a downstream match.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Walk {
     /// The `to_fields` walk: every field is emitted and every span is detached.
     Populated,
@@ -28,52 +33,56 @@ pub enum Walk {
 }
 
 mod sealed {
-    pub trait Sealed {}
+    use super::Scalar;
+
+    /// Carries the conversion so the public [`Leaf`](super::Leaf) trait has no
+    /// callable method. Without this split, every `String` and `i64` in a scope
+    /// that imports `Leaf` would gain a `.scalar()` only the builder calls.
+    pub trait Sealed {
+        fn scalar(&self) -> Scalar;
+    }
 }
 
 /// The scalar types a spec field holds.
 ///
-/// The list mirrors the leaf types `#[derive(Spec)]` accepts, so a handwritten
-/// impl and a derived one cannot disagree about what a leaf is. It is sealed,
-/// so adding a type stays an addition rather than a break for an outside impl.
+/// `String`, `i64`, `f64`, `bool`, and `PathBuf` implement it. The list mirrors
+/// the leaf types `#[derive(Spec)]` accepts, so a handwritten impl and a derived
+/// one cannot disagree about what a leaf is, and it can grow in a minor release.
+///
+/// The trait is sealed. No crate outside confval can implement it, so a leaf
+/// type added here breaks no code elsewhere.
 ///
 /// `PathBuf` emits as a string through `to_string_lossy`, the one lossy leaf,
 /// matching what the derive generates for a `Located<PathBuf>` field.
-pub trait Leaf: sealed::Sealed {
-    /// The scalar this value emits as.
-    fn scalar(&self) -> Scalar;
-}
+pub trait Leaf: sealed::Sealed {}
 
-impl sealed::Sealed for String {}
-impl Leaf for String {
+impl<T: sealed::Sealed> Leaf for T {}
+
+impl sealed::Sealed for String {
     fn scalar(&self) -> Scalar {
         Scalar::String(self.clone())
     }
 }
 
-impl sealed::Sealed for i64 {}
-impl Leaf for i64 {
+impl sealed::Sealed for i64 {
     fn scalar(&self) -> Scalar {
         Scalar::Int(*self)
     }
 }
 
-impl sealed::Sealed for f64 {}
-impl Leaf for f64 {
+impl sealed::Sealed for f64 {
     fn scalar(&self) -> Scalar {
         Scalar::Float(*self)
     }
 }
 
-impl sealed::Sealed for bool {}
-impl Leaf for bool {
+impl sealed::Sealed for bool {
     fn scalar(&self) -> Scalar {
         Scalar::Bool(*self)
     }
 }
 
-impl sealed::Sealed for PathBuf {}
-impl Leaf for PathBuf {
+impl sealed::Sealed for PathBuf {
     fn scalar(&self) -> Scalar {
         Scalar::String(self.to_string_lossy().into_owned())
     }
@@ -82,9 +91,9 @@ impl Leaf for PathBuf {
 /// One structural level under construction, for a handwritten [`ToFields`].
 ///
 /// Build it with the walk you are implementing, add one call per field, and
-/// finish. The walk decides what each method does with the span it is handed:
-/// the populated walk emits everything detached, and the source walk emits what
-/// a source set and keeps its location.
+/// finish. The walk decides what each method does with each span it is given.
+/// The populated walk emits everything detached. The source walk emits what a
+/// source set and keeps its location.
 ///
 /// ```rust
 /// use confval::format::{Fields, FieldsBuilder, ToFields, Walk};
@@ -131,7 +140,7 @@ impl FieldsBuilder {
     /// A required leaf. The populated walk emits it detached. The source walk
     /// emits it with its span, and omits it when the span is detached.
     pub fn leaf<T: Leaf>(&mut self, name: &str, value: &Located<T>) -> &mut Self {
-        self.push_scalar(name, value.span, value.value.scalar())
+        self.push_scalar(name, value.span, sealed::Sealed::scalar(&value.value))
     }
 
     /// An optional leaf. An absent field is omitted by both walks.
@@ -148,7 +157,7 @@ impl FieldsBuilder {
     /// The populated walk emits every element detached. The source walk emits
     /// the elements whose span is attached, each with its span, and omits the
     /// field when none survive. A list the source wrote empty is therefore
-    /// indistinguishable from an absent one, the limit this shape carries.
+    /// indistinguishable from an absent one.
     pub fn string_list(&mut self, name: &str, values: &[Located<String>]) -> &mut Self {
         let elements: Vec<Value> = match self.walk {
             Walk::Populated => values.iter().map(detached_element).collect(),
@@ -222,6 +231,33 @@ impl FieldsBuilder {
         }
     }
 
+    /// An optional nested block whose absence the populated walk fills from
+    /// `S::default()`, the counterpart of `#[confval(nested, default)]`.
+    ///
+    /// The populated walk emits the block either way, from the value when it is
+    /// present and from `S::default()` when it is not, so an operator reading
+    /// that view sees the values the program will run with. The source walk
+    /// omits an absent block, because a default is not something the source set.
+    ///
+    /// Use [`block_opt`](Self::block_opt) for an optional block with no default,
+    /// which both walks omit when it is absent.
+    pub fn block_opt_default<S: ToFields + Default>(
+        &mut self,
+        name: &str,
+        value: Option<&Located<S>>,
+    ) -> &mut Self {
+        match (self.walk, value) {
+            (_, Some(value)) => self.block(name, value),
+            (Walk::Populated, None) => {
+                let filled = S::default();
+                self.items
+                    .push(Field::detached_block(name, filled.to_fields()));
+                self
+            }
+            (Walk::Source, None) => self,
+        }
+    }
+
     /// A repeated nested block. Each element is emitted the way [`block`](Self::block)
     /// emits one, so the source walk skips an element whose span is detached.
     pub fn block_list<S: ToFields>(&mut self, name: &str, values: &[Located<S>]) -> &mut Self {
@@ -276,10 +312,10 @@ impl Field {
     /// The field's span and its source come from `span`. An attribute field's
     /// value takes the same span, because a spec field has one location that
     /// both halves of it report. A block field's nested level is left alone,
-    /// since its source and enclosing span belong to the level rather than to
+    /// because its source and enclosing span belong to the level rather than to
     /// the field naming it.
     ///
-    /// A sequence value takes the span as the whole list's location and its
+    /// A sequence value takes the span as the whole list's location. Its
     /// elements keep whatever spans they were built with.
     pub fn at(mut self, span: Span) -> Field {
         self.span = span;
@@ -315,10 +351,20 @@ mod tests {
         Span::new(SourceId(7), start, end)
     }
 
-    /// A child with one field, so a recursion that reads the wrong walk shows
-    /// up as a present or absent `size`.
+    /// A child with one field, so a recursion that reads the wrong walk leaves
+    /// `size` present or absent.
     struct Child {
         size: Located<i64>,
+    }
+
+    /// The fill `block_opt_default` uses for an absent block, matching what a
+    /// `#[confval(derive_default)]` child would supply.
+    impl Default for Child {
+        fn default() -> Self {
+            Child {
+                size: Located::detached(16),
+            }
+        }
     }
 
     impl ToFields for Child {
@@ -612,7 +658,7 @@ mod tests {
         // Arrange
         // The child's one field is detached, so the source walk drops it and the
         // populated walk keeps it. A recursion that read the wrong walk would
-        // show the child's field in the source view.
+        // leave the child's field in the source view.
         let child = Located::new(
             Child {
                 size: Located::detached(16),
@@ -667,6 +713,105 @@ mod tests {
             .finish();
         let source = FieldsBuilder::new(Walk::Source)
             .block_opt("limits", absent.as_ref())
+            .finish();
+
+        // Assert
+        assert!(names(&populated).is_empty());
+        assert!(names(&source).is_empty());
+    }
+
+    #[test]
+    fn the_populated_walk_fills_an_absent_defaulted_block() {
+        // Arrange
+        // This is the shape `#[confval(nested, default)]` marks, whose populated
+        // walk shows the values the program will run with.
+        let absent: Option<Located<Child>> = None;
+
+        // Act
+        let fields = FieldsBuilder::new(Walk::Populated)
+            .block_opt_default("limits", absent.as_ref())
+            .finish();
+
+        // Assert
+        assert_eq!(child_names(&fields), vec!["size"]);
+    }
+
+    #[test]
+    fn the_source_walk_omits_an_absent_defaulted_block() {
+        // Arrange
+        let absent: Option<Located<Child>> = None;
+
+        // Act
+        let fields = FieldsBuilder::new(Walk::Source)
+            .block_opt_default("limits", absent.as_ref())
+            .finish();
+
+        // Assert
+        assert!(
+            names(&fields).is_empty(),
+            "a default is not what a source set"
+        );
+    }
+
+    #[test]
+    fn a_present_defaulted_block_emits_its_own_value() {
+        // Arrange
+        let present = Located::new(
+            Child {
+                size: Located::new(3, span_at(0, 1)),
+            },
+            span_at(0, 12),
+        );
+
+        // Act
+        let fields = FieldsBuilder::new(Walk::Source)
+            .block_opt_default("limits", Some(&present))
+            .finish();
+
+        // Assert
+        assert_eq!(only(&fields).span, span_at(0, 12));
+        assert_eq!(child_names(&fields), vec!["size"]);
+    }
+
+    #[test]
+    fn the_populated_walk_emits_a_wrapped_list_detached() {
+        // Arrange
+        let list = Located::new(
+            vec![Located::new("a".to_string(), span_at(1, 4))],
+            span_at(0, 6),
+        );
+
+        // Act
+        let fields = FieldsBuilder::new(Walk::Populated)
+            .string_list_opt("allow", Some(&list))
+            .finish();
+
+        // Assert
+        let field = only(&fields);
+        assert!(field.span.is_detached());
+        match &field.kind {
+            FieldKind::Value(value) => {
+                assert!(value.span.is_detached());
+                match &value.kind {
+                    ValueKind::Seq(elements) => assert!(elements[0].span.is_detached()),
+                    other => panic!("expected a sequence, got {other:?}"),
+                }
+            }
+            other => panic!("expected a value, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_absent_wrapped_list_is_omitted_by_both_walks() {
+        // Arrange
+        let absent: Option<Located<Vec<Located<String>>>> = None;
+
+        // Act
+        let populated = FieldsBuilder::new(Walk::Populated)
+            .string_list_opt("allow", absent.as_ref())
+            .finish();
+        let source = FieldsBuilder::new(Walk::Source)
+            .string_list_opt("allow", absent.as_ref())
             .finish();
 
         // Assert

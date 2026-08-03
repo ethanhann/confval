@@ -65,7 +65,7 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
         // by a source, so it is dropped, and a list with nothing left is
         // omitted. The field and the sequence container are detached, because
         // no wrapper location exists. A source-written empty list is therefore
-        // indistinguishable from an absent one, the limit this shape carries.
+        // indistinguishable from an absent one.
         FieldShape::BareStringList => {
             let element = spanned_string_element();
             quote! {
@@ -89,7 +89,7 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
         }
         // The wrapped list keeps its own span, so a source-written empty list
         // survives while an absent field is omitted. `at` gives the list its
-        // wrapper span and leaves each element's own span alone.
+        // wrapper span and leaves each element's own span unchanged.
         FieldShape::OptionalWrappedStringList => {
             let element = spanned_string_element();
             quote! {

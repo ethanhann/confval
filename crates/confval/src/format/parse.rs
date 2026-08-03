@@ -124,8 +124,8 @@ pub fn parse_bool_field(field: &Field, report: &mut Report) -> Option<Located<bo
 /// Parses a path field, reading a string and converting it.
 ///
 /// This is the conversion `#[derive(Spec)]` generates for a `Located<PathBuf>`
-/// field. Every format spells a path as a string, so anything that is not a
-/// string reports a type mismatch naming the string.
+/// field. Every format spells a path as a string, so any other kind of value
+/// surfaces as a type mismatch.
 pub fn parse_path_field(field: &Field, report: &mut Report) -> Option<Located<PathBuf>> {
     parse_string_field(field, report).map(|value| value.map(PathBuf::from))
 }

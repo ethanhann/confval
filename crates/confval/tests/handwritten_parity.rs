@@ -2,10 +2,11 @@
 //! emits.
 //!
 //! One spec is written twice over the same fields, once with `#[derive(Spec)]`
-//! and once by hand. Both parse the same document, and both walks are compared:
-//! the rendered TOML, the field names, and the span attachment of every field
-//! and every list element. Each row of the builder's semantics table is a claim
-//! about generated code, so this is where the two are held to each other.
+//! and once by hand. Both parse the same document.
+//! The comparison covers the rendered TOML, the field names, and the span of
+//! every field, value, and list element. Each row of the builder's semantics
+//! table is a claim about generated code, so this test checks every row against
+//! what the derive emits.
 
 use confval::format::toml::{emit_toml, parse_toml};
 use confval::format::{
@@ -51,6 +52,10 @@ struct Derived {
     limits: Located<Child>,
     #[confval(nested)]
     extra: Option<Located<Child>>,
+    // The populate marker: an absent block is filled from `Child::default()` on
+    // the populated walk and omitted from the source view.
+    #[confval(nested, default)]
+    fallback: Option<Located<Child>>,
     #[confval(nested)]
     services: Vec<Located<Child>>,
 }
@@ -60,8 +65,8 @@ impl Validate for Derived {
 }
 
 /// The same fields, parsed and emitted by hand. The parse half uses the leaf
-/// helpers and the emit half uses the builder, which is the pair a spec with a
-/// shape the derive cannot express writes.
+/// helpers and the emit half uses the builder. A spec with a shape the derive
+/// cannot express writes that pair.
 #[derive(Debug)]
 struct Handwritten {
     name: Located<String>,
@@ -70,6 +75,7 @@ struct Handwritten {
     allow: Option<Located<Vec<Located<String>>>>,
     limits: Located<Child>,
     extra: Option<Located<Child>>,
+    fallback: Option<Located<Child>>,
     services: Vec<Located<Child>>,
 }
 
@@ -81,6 +87,7 @@ impl FromFields for Handwritten {
         let mut allow = None;
         let mut limits = None;
         let mut extra = None;
+        let mut fallback = None;
         let mut services = Vec::new();
 
         for field in fields.iter() {
@@ -91,6 +98,7 @@ impl FromFields for Handwritten {
                 "allow" => allow = parse_string_list_field(field, report),
                 "limits" => limits = parse_struct_field(field, report),
                 "extra" => extra = parse_struct_field(field, report),
+                "fallback" => fallback = parse_struct_field(field, report),
                 "services" => parse_struct_list_field(&mut services, field, report),
                 _ => report_unknown_field(field, report),
             }
@@ -110,6 +118,7 @@ impl FromFields for Handwritten {
             allow,
             limits: limits?,
             extra,
+            fallback,
             services,
         })
     }
@@ -124,6 +133,7 @@ impl Handwritten {
             .string_list_opt("allow", self.allow.as_ref())
             .block("limits", &self.limits)
             .block_opt("extra", self.extra.as_ref())
+            .block_opt_default("fallback", self.fallback.as_ref())
             .block_list("services", &self.services)
             .finish()
     }
@@ -153,20 +163,21 @@ fn parse_both() -> (Derived, Handwritten) {
 
 /// Every field and element location in one level, flattened depth first, so two
 /// models compare as one list rather than field by field.
-fn attachment(fields: &Fields) -> Vec<(String, bool)> {
+///
+/// The span itself is recorded rather than whether it is attached. Both models
+/// read one `SourceMap`, so a walk that carried the wrong location would differ
+/// here while a boolean would not notice.
+fn spans(fields: &Fields) -> Vec<(String, Span)> {
     let mut out = Vec::new();
     for field in fields.iter() {
-        out.push((field.name.clone(), !field.span.is_detached()));
+        out.push((field.name.clone(), field.span));
         match &field.kind {
-            FieldKind::Block(inner) => out.extend(attachment(inner)),
+            FieldKind::Block(inner) => out.extend(spans(inner)),
             FieldKind::Value(value) => {
-                out.push((format!("{}.value", field.name), !value.span.is_detached()));
+                out.push((format!("{}.value", field.name), value.span));
                 if let ValueKind::Seq(elements) = &value.kind {
                     for (index, element) in elements.iter().enumerate() {
-                        out.push((
-                            format!("{}[{index}]", field.name),
-                            !element.span.is_detached(),
-                        ));
+                        out.push((format!("{}[{index}]", field.name), element.span));
                     }
                 }
             }
@@ -207,13 +218,13 @@ fn the_populated_walks_agree_on_every_span() {
     let (derived, handwritten) = parse_both();
 
     // Act
-    let from_derive = attachment(&derived.to_fields());
+    let from_derive = spans(&derived.to_fields());
 
     // Assert
-    let by_hand = attachment(&handwritten.to_fields());
+    let by_hand = spans(&handwritten.to_fields());
     assert_eq!(from_derive, by_hand);
     assert!(
-        from_derive.iter().all(|(_, attached)| !attached),
+        from_derive.iter().all(|(_, span)| span.is_detached()),
         "the populated walk detaches everything: {from_derive:?}"
     );
 }
@@ -224,10 +235,10 @@ fn the_source_walks_agree_on_every_span() {
     let (derived, handwritten) = parse_both();
 
     // Act
-    let from_derive = attachment(&derived.to_source_fields());
+    let from_derive = spans(&derived.to_source_fields());
 
     // Assert
-    let by_hand = attachment(&handwritten.to_source_fields());
+    let by_hand = spans(&handwritten.to_source_fields());
     assert_eq!(from_derive, by_hand);
 }
 

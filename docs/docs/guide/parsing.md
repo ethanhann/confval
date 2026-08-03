@@ -357,18 +357,32 @@ Structural parsers recurse through `FromFields`:
 - `parse_single_struct`: like `parse_struct_field`, but reports duplicates when the field appears more than once
 - `parse_struct_list_field`: repeated blocks or a sequence of maps, collected into a `Vec`
 
+Occurrence helpers guard a field that may appear only once:
+
+- `first_occurrence`: records the first occurrence of a leaf field and reports a later one as a duplicate
+- `parse_single_struct`: the same guard around a nested block
+
+The derive wraps every leaf arm it generates in `first_occurrence`, so a derived spec reports a repeated field.
+A handwritten parser that assigns its slot directly takes the last value instead, with no diagnostic.
+KDL delivers a repeated scalar as separate fields, so the difference shows up in a real document.
+
 Reporting helpers keep messages uniform: `report_unknown_field`, `report_missing_field`, `report_duplicate_field`.
 Unknown fields are always errors.
 There is no lenient mode.
+
+The `handwritten` example calls these helpers against a tagged enum and a handwritten root.
+The test at `crates/confval/tests/handwritten_parity.rs` writes one spec both ways and asserts that the two write walks
+render the same text and agree on every span.
 
 ## Writing emitters by hand
 
 A type with a handwritten `FromFields` needs a handwritten `ToFields` too, because the derive generates one only for the
 types it parses.
-`ToFields` has two required walks, and they differ per field.
+`ToFields` has two required walks.
 `to_fields` emits every field with its span detached, which is the populated view and the template.
 `to_source_fields` emits only the fields the source set, keeps their spans, and recurses into children with
-`to_source_fields` rather than `to_fields`, which is the [source view](./representations.md).
+`to_source_fields` rather than `to_fields`.
+That output is the [source view](./representations.md).
 
 Writing both by hand means writing the field list twice and reproducing that difference on every line.
 `FieldsBuilder` takes the walk as a parameter instead, so you list the fields once:
@@ -398,8 +412,7 @@ impl ToFields for Server {
 }
 ```
 
-Each method takes the `Located` rather than the value inside it, so the builder has the span and can decide for itself
-what the walk needs.
+Each method takes the `Located` rather than the value inside it, so the builder has the span each walk needs.
 
 | Method | `Walk::Populated` | `Walk::Source` |
 |--------|-------------------|----------------|
@@ -407,12 +420,20 @@ what the walk needs.
 | `string_list` | emits every element detached | emits the elements that carry a span, or omits the field |
 | `string_list_opt` | emits detached when present | emits when the wrapper carries a span, elements included |
 | `block`, `block_opt`, `block_list` | recurses with `to_fields` | recurses with `to_source_fields` when the block carries a span |
+| `block_opt_default` | fills an absent block from `S::default()` | omits an absent block |
 | `literal_string` | emits detached | emits detached |
 
-`leaf` accepts the same types a derived spec field accepts: `String`, `i64`, `f64`, `bool`, and `PathBuf`.
+`block_opt_default` is the counterpart of `#[confval(nested, default)]`, whose populated walk shows the values the
+program will run with even for a block the operator never wrote.
+Use `block_opt` for an optional block with no default, which both walks omit when it is absent.
+
+`leaf` accepts the same types a derived spec field accepts, through the sealed `Leaf` trait: `String`, `i64`, `f64`,
+`bool`, and `PathBuf`.
+No crate outside confval implements it, so the list can grow in a minor release.
 A path emits as a string, the one lossy conversion, matching what the derive generates.
 
-`literal_string` is for a field your impl supplies rather than reads, which is the discriminator on a tagged enum:
+`literal_string` is for a field your impl supplies rather than reads.
+That field is the discriminator on a tagged enum:
 
 ```rust
 match self {
@@ -435,6 +456,22 @@ When you need a field the builder does not cover, build it directly with `Field:
 let field = Field::detached_value(name, value).at(span);
 ```
 
-`at` sets the field's span and its source, and gives an attribute's value the same span.
-A block's nested level keeps its own source and enclosing span, and a sequence's elements keep the spans they were built
-with.
+`at` sets the field's span and its source.
+An attribute's value takes the same span.
+A block's nested level keeps its own source and enclosing span.
+A sequence's elements keep the spans they were built with.
+
+A handwritten spec type also implements `Validate` and `ValidateNested`.
+`Validate` holds its rules.
+`ValidateNested` holds the descent into its children, the traversal the derive would have written from the struct
+definition.
+The `Self: ValidateNested` bound on `validate_all` makes omitting the traversal a compile error rather than a silently
+skipped subtree.
+A type in a required nested slot also needs `Default`, because the generated parser fills an absent block with it before
+reporting the block missing.
+
+`to_template` defaults to `to_fields` for a handwritten impl.
+That fallback recurses with `to_fields`, so doc comments stop at the first handwritten node and never reach anything
+below it.
+A derived block nested under a handwritten one renders without its comments.
+The `handwritten` example prints both sides of that boundary.

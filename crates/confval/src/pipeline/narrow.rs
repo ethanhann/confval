@@ -118,9 +118,9 @@ where
 /// through [`keyword`] per element.
 ///
 /// Every element that fails is reported before the function returns, so an
-/// operator sees all of them in one run. Any failure fails the whole list, the
-/// way every other helper here reports and returns `None`. A caller that wants
-/// the elements that parsed calls [`keyword`] per element itself.
+/// operator sees all of them in one run. Any failure fails the whole list. That
+/// matches every other helper here, which reports and returns `None`. A caller
+/// that wants the elements that parsed calls [`keyword`] per element.
 ///
 /// This is the bare `Vec<Located<String>>` shape. For the wrapped optional
 /// list, see [`opt_keyword_list`].
@@ -142,12 +142,11 @@ where
 /// Optional-list variant of [`keyword_list`]: `None` in, `Some(None)` out. The
 /// outer `Option` is the failure channel.
 ///
-/// This departs from the optional forms above, which differ from their plain
-/// forms by an `Option` and nothing else. The wrapped list shape is
-/// `Option<Located<Vec<Located<String>>>>`, so this also unwraps a `Located`
-/// that [`keyword_list`] never sees. The two shapes come from the two list
-/// fields a spec can declare, a bare `Vec` and a wrapper that keeps the list's
-/// own span.
+/// The other `opt_` helpers differ from their plain forms by an `Option`. This
+/// one also unwraps a `Located`, because the wrapped list shape is
+/// `Option<Located<Vec<Located<String>>>>`. The two shapes come from the two
+/// list fields a spec can declare, a bare `Vec` and a wrapper that keeps the
+/// list's own span.
 pub fn opt_keyword_list<T>(
     value: &Option<Located<Vec<Located<String>>>>,
     report: &mut Report,
