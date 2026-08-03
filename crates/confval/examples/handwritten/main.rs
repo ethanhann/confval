@@ -107,7 +107,7 @@ fn parse(label: &str, input: &str) -> Option<(SourceMap, ServiceSpec)> {
 }
 
 fn main() -> Result<(), String> {
-    println!("== Diagnostics ==");
+    println!("+ Diagnostics");
     println!("Three errors from three kinds of type, reported the same way.\n");
     parse("broken", BROKEN);
 
@@ -115,7 +115,7 @@ fn main() -> Result<(), String> {
         return Err("the good document should parse".to_string());
     };
 
-    println!("== Runtime ==");
+    println!("+ Runtime");
     println!("The Config derive lowers a handwritten root.");
     println!("A derived route lowers its tls field through a handwritten Lower impl.\n");
     let mut report = Report::new();
@@ -123,19 +123,19 @@ fn main() -> Result<(), String> {
         ServiceConfig::lower(&spec, &mut report).ok_or("lowering failed on a clean report")?;
     println!("{config:#?}\n");
 
-    println!("== Populated view ==");
+    println!("+ Populated view");
     println!("to_fields over the mixed tree. Every default is filled, whether");
     println!("the node that holds it was generated or written by hand.\n");
     let populated = emit_toml(&spec.to_fields()).map_err(|error| error.to_string())?;
     print!("{populated}");
 
-    println!("\n== Source view ==");
+    println!("\n+ Source view");
     println!("to_source_fields over the same tree. What the operator left out is");
     println!("dropped at every level, including inside the handwritten blocks.\n");
     let source = emit_toml(&spec.to_source_fields()).map_err(|error| error.to_string())?;
     print!("{source}");
 
-    println!("\n== Template comments ==");
+    println!("\n+ Template comments");
     println!("to_template defaults to to_fields for a handwritten impl.");
     println!("That fallback recurses with to_fields, so comments stop at the");
     println!("first handwritten node and never reach anything below it.");
@@ -150,7 +150,7 @@ fn main() -> Result<(), String> {
     let route_template = emit_toml(&route.to_template()).map_err(|error| error.to_string())?;
     print!("{route_template}");
 
-    println!("\n== Any format ==");
+    println!("\n+ Any format");
     println!("A handwritten ToFields feeds the same emitters as a generated one.\n");
     let hcl = emit_hcl(&spec.to_source_fields()).map_err(|error| error.to_string())?;
     print!("{hcl}");
