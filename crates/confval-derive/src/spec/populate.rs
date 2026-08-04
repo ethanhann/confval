@@ -7,8 +7,15 @@
 //! parser is built from, so the two halves cannot disagree about a field's
 //! shape.
 //!
-//! The generated `impl ToFields` is assembled here as well. Its third walk,
-//! `to_source_fields`, comes from the `source_view` sibling module.
+//! The two walks are one code path with an `annotate` flag, rather than two.
+//! The template walk is a set of deltas on the populated one: it recurses with
+//! `to_template`, attaches each field's doc, and renders an absent optional
+//! field as a commented entry. Generating them separately would mean writing
+//! every field shape twice, and the two copies could then disagree.
+//!
+//! The `impl ToFields` these fragments go into is assembled by the `to_fields`
+//! sibling module, which also takes the `to_source_fields` walk from
+//! `source_view`.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
@@ -267,68 +274,6 @@ fn zero_value(leaf: &Leaf) -> TokenStream2 {
         Leaf::Float => quote! { 0.0f64 },
         Leaf::Bool => quote! { false },
         Leaf::PathBuf => quote! { ::std::path::PathBuf::new() },
-    }
-}
-
-/// Assembles the field fragments into the generated `impl ToFields`: the plain
-/// `to_fields` walk, the source-only `to_source_fields` walk, and the annotated
-/// `to_template` walk. A struct with a doc comment also overrides `spec_doc`,
-/// the fallback a parent's template walk renders above a block whose embedding
-/// field has no doc.
-///
-/// A struct with no fields declares the item vector without `mut`, so the
-/// generated impl carries no unused-mut warning under `-D warnings`.
-pub(crate) fn to_fields_impl(
-    name: &Ident,
-    fields_emits: &[TokenStream2],
-    source_emits: &[TokenStream2],
-    template_emits: &[TokenStream2],
-    spec_doc: &Option<String>,
-) -> TokenStream2 {
-    let fields_decl = items_decl(fields_emits);
-    let source_decl = items_decl(source_emits);
-    let template_decl = items_decl(template_emits);
-    let spec_doc_impl = spec_doc.as_ref().map(|text| {
-        quote! {
-            fn spec_doc(&self) -> ::core::option::Option<::std::string::String> {
-                ::core::option::Option::Some(#text.to_string())
-            }
-
-            fn type_doc() -> ::core::option::Option<::std::string::String> {
-                ::core::option::Option::Some(#text.to_string())
-            }
-        }
-    });
-    quote! {
-        impl ::confval::format::ToFields for #name {
-            fn to_fields(&self) -> ::confval::format::Fields {
-                #fields_decl
-                #(#fields_emits)*
-                ::confval::format::Fields::detached(__items)
-            }
-
-            fn to_source_fields(&self) -> ::confval::format::Fields {
-                #source_decl
-                #(#source_emits)*
-                ::confval::format::Fields::detached(__items)
-            }
-
-            fn to_template(&self) -> ::confval::format::Fields {
-                #template_decl
-                #(#template_emits)*
-                ::confval::format::Fields::detached(__items)
-            }
-
-            #spec_doc_impl
-        }
-    }
-}
-
-fn items_decl(emits: &[TokenStream2]) -> TokenStream2 {
-    if emits.is_empty() {
-        quote! { let __items = ::std::vec::Vec::new(); }
-    } else {
-        quote! { let mut __items = ::std::vec::Vec::new(); }
     }
 }
 

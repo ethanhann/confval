@@ -20,13 +20,15 @@ mod parser;
 mod populate;
 mod shape;
 mod source_view;
+mod to_fields;
 mod traversal;
 
 use options::{parse_options, parse_struct_options};
 use parser::{field_parser, reject_unsupported_default};
-use populate::{field_emit, to_fields_impl};
+use populate::field_emit;
 use shape::classify;
 use source_view::field_source_emit;
+use to_fields::to_fields_impl;
 use traversal::{nested_visit, validate_nested_impl};
 
 use proc_macro2::TokenStream as TokenStream2;
