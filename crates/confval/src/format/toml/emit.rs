@@ -441,6 +441,112 @@ mod tests {
     }
 
     #[test]
+    fn emit_toml_writes_a_repeated_block_doc_above_the_first_element() {
+        // Arrange
+        // Two same-named block fields group into an array of tables, and the
+        // group's doc renders once, above the first element. This is the block
+        // path rather than the sequence-of-maps path, which reaches the same
+        // spelling through a value field.
+        let svc = |port: i64| {
+            Field::detached_block(
+                "svc",
+                Fields::detached(vec![scalar("port", Scalar::Int(port))]),
+            )
+        };
+        let fields = Fields::detached(vec![
+            svc(1).with_doc(Some("A service entry.".to_string())),
+            svc(2),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            text.matches("# A service entry.").count(),
+            1,
+            "got:\n{text}"
+        );
+        assert_eq!(text.matches("[[svc]]").count(), 2, "got:\n{text}");
+        let doc_at = text.find("# A service entry.").expect("the doc renders");
+        let first_header = text.find("[[svc]]").expect("the first header renders");
+        assert!(
+            doc_at < first_header,
+            "the doc belongs above the first element, got:\n{text}"
+        );
+        reparse(&text);
+    }
+
+    #[test]
+    fn emit_toml_attaches_a_pending_comment_above_the_next_array_element() {
+        // Arrange
+        // A commented-out entry inside an element renders as pending text that
+        // belongs above the following `[[element]]` header. With one element
+        // there is no following header, so the placement needs two.
+        let element = |port: i64| {
+            Value::detached(ValueKind::Map(Fields::detached_entries(vec![
+                scalar("port", Scalar::Int(port)).into(),
+                scalar("pid_file", Scalar::String(String::new()))
+                    .with_doc(Some("The PID file path.".to_string()))
+                    .as_commented(),
+            ])))
+        };
+        let fields = Fields::detached(vec![Field::detached_value(
+            "svc",
+            Value::detached(ValueKind::Seq(vec![element(1), element(2)])),
+        )]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        let commented = text.find("#pid_file").expect("the commented entry renders");
+        let first_header = text.find("[[svc]]").expect("the first header renders");
+        let second_header = text[first_header + 1..]
+            .find("[[svc]]")
+            .expect("the second header renders")
+            + first_header
+            + 1;
+        assert!(
+            first_header < commented && commented < second_header,
+            "the first element's commented entry sits between the two headers, got:\n{text}"
+        );
+        reparse(&text);
+    }
+
+    #[test]
+    fn emit_toml_orders_a_commented_level_values_before_blocks() {
+        // Arrange
+        // A commented block carries its own level, and that level walks
+        // values before blocks the way an active one does.
+        let inner = Fields::detached(vec![
+            Field::detached_block(
+                "retry",
+                Fields::detached(vec![scalar("attempts", Scalar::Int(3))]),
+            ),
+            scalar("mode", Scalar::String("log".to_string())),
+        ]);
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
+            Field::detached_block("limits", inner).as_commented(),
+        ]);
+
+        // Act
+        let text = emit_toml(&fields).unwrap();
+
+        // Assert
+        let value_line = text.find("#mode").expect("the commented value renders");
+        let block_line = text
+            .find("#[limits.retry]")
+            .expect("the commented block header renders");
+        assert!(
+            value_line < block_line,
+            "a commented level orders values before blocks, got:\n{text}"
+        );
+        assert!(text.contains("#attempts = 3"), "got:\n{text}");
+    }
+
+    #[test]
     fn emit_toml_writes_an_array_of_tables_doc_once() {
         // Arrange
         // The key of an array of tables renders once per `[[element]]`, so a
@@ -467,6 +573,17 @@ mod tests {
             "got:\n{text}"
         );
         assert_eq!(text.matches("[[svc]]").count(), 2, "got:\n{text}");
+        // Counting the comment does not say which element it sits above, and
+        // rendering it above the last would keep the count at one.
+        let doc_at = text.find("# A service entry.").expect("the doc renders");
+        let first_header = text.find("[[svc]]").expect("the first header renders");
+        let second_header = text[first_header + 1..]
+            .find("[[svc]]")
+            .expect("the second header renders")
+            + first_header
+            + 1;
+        assert!(doc_at < first_header, "the doc precedes the first element");
+        assert!(first_header < second_header);
     }
 
     #[test]

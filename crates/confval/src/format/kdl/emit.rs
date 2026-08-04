@@ -653,6 +653,53 @@ mod tests {
     }
 
     #[test]
+    fn emit_kdl_writes_a_sequence_of_maps_with_a_doc_and_nested_content() {
+        // Arrange
+        // Two elements are needed for either half of this. With one element a
+        // doc above the first and a doc above the last are the same line, and
+        // a nested level at the wrong depth still reparses. The inner block
+        // pins the child document's indentation.
+        let element = |port: i64| {
+            ValueKind::Map(Fields::detached(vec![
+                scalar("port", Scalar::Int(port)),
+                Field::detached_block(
+                    "retry",
+                    Fields::detached(vec![scalar("attempts", Scalar::Int(3))]),
+                ),
+            ]))
+        };
+        let fields = Fields::detached(vec![
+            Field::detached_value(
+                "svc",
+                Value::detached(ValueKind::Seq(vec![
+                    Value::detached(element(1)),
+                    Value::detached(element(2)),
+                ])),
+            )
+            .with_doc(Some("A service entry.".to_string())),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            text.matches("// A service entry.").count(),
+            1,
+            "got:\n{text}"
+        );
+        let doc_at = text.find("// A service entry.").expect("the doc renders");
+        let first_node = text.find("svc {").expect("the first node renders");
+        assert!(doc_at < first_node, "the doc precedes the first element");
+        // The element's own fields sit one level in, and the nested block's
+        // contents two, which is what the child document's level decides.
+        assert!(text.contains("\n  port 1"), "got:\n{text}");
+        assert!(text.contains("\n  retry {"), "got:\n{text}");
+        assert!(text.contains("\n    attempts 3"), "got:\n{text}");
+        reparse(&text);
+    }
+
+    #[test]
     fn emit_kdl_writes_a_sequence_of_maps_as_repeated_nodes() {
         // Arrange
         let map =

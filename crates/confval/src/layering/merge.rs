@@ -383,6 +383,43 @@ mod tests {
     }
 
     #[test]
+    fn a_repeated_object_group_against_a_repeated_block_group_is_no_conflict() {
+        // Arrange
+        // A repeated group is compared by kind rather than merged, and the two
+        // structural spellings are the same kind. An object written inline and
+        // a block written out must therefore agree, which is what stops a
+        // spelling difference from reading as a cross-source conflict.
+        let base = level(
+            A,
+            sp(A, 0, 0),
+            vec![
+                object("service", vec![scalar("port", Scalar::Int(1))]),
+                object("service", vec![scalar("port", Scalar::Int(2))]),
+            ],
+        );
+        let over = level(
+            A,
+            sp(A, 0, 0),
+            vec![
+                block("service", vec![scalar("port", Scalar::Int(3))]),
+                block("service", vec![scalar("port", Scalar::Int(4))]),
+            ],
+        );
+        let mut report = Report::new();
+
+        // Act
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
+        // Assert
+        assert!(
+            !report.has_issues(),
+            "an object group and a block group are both structural: {:?}",
+            report.issues()
+        );
+        assert_eq!(merged.iter().count(), 2);
+    }
+
+    #[test]
     fn merge_drops_a_commented_entry_nested_in_an_appended_group() {
         // Arrange
         // A repeated-block group appends without recursing, so this covers the

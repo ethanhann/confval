@@ -493,6 +493,37 @@ mod tests {
     }
 
     #[test]
+    fn the_spec_doc_defaults_answer_none_for_a_handwritten_impl() {
+        // Arrange
+        // `#[derive(Spec)]` overrides both methods whenever the struct carries
+        // a doc comment, so the defaults are reached only by a handwritten
+        // impl. One that declares no documentation must not acquire any, or a
+        // parent's template walk would render a comment nobody wrote.
+        struct Handwritten;
+
+        impl ToFields for Handwritten {
+            fn to_fields(&self) -> Fields {
+                Fields::detached(Vec::new())
+            }
+
+            fn to_source_fields(&self) -> Fields {
+                Fields::detached(Vec::new())
+            }
+        }
+
+        // Act
+        let from_instance = Handwritten.spec_doc();
+        let from_type = Handwritten::type_doc();
+
+        // Assert
+        assert_eq!(from_instance, None);
+        assert_eq!(from_type, None);
+        // The template walk defaults to the plain one, so an impl that
+        // harvests no comments emits none either.
+        assert_eq!(Handwritten.to_template().entries().count(), 0);
+    }
+
+    #[test]
     fn detached_constructors_carry_no_source_location() {
         // Arrange
         let value = Value::detached(ValueKind::Scalar(Scalar::Int(16)));
