@@ -7,6 +7,11 @@ test:
     cargo nextest run --workspace --all-features
     cargo test --locked --all-features --doc
 
+# Run unit tests with coverage, and output HTML
+test-with-coverage:
+    cargo llvm-cov nextest --workspace --exclude confval-derive --all-features --html --ignore-filename-regex 'tests/|examples/'
+    open target/llvm-cov/html/index.html
+
 format:
     cargo fmt
 
