@@ -13,6 +13,10 @@ format:
 lint:
     cargo clippy --all-targets --all-features -- -D warnings
 
+# Run mutation testing across the workspace. Configured in .cargo/mutants.toml.
+mutants:
+    cargo mutants
+
 # Test everything
 validate: format lint test validate-docs examples
 

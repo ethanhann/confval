@@ -10,6 +10,13 @@ Various just recipes are available, but these are the most useful:
 
 - `just docs`: run the docs site locally
 - `just validate`: Test everything (lint, unit tests, etc.)
+- `just mutants`: run mutation testing to find gaps the suite does not cover
+
+`just validate` is the gate a change has to pass.
+`just mutants` runs longer and is worth running when you add a module or change how one behaves.
+It builds the whole workspace once per mutant, so expect it to take a while.
+`confval-derive` has no tests of its own, which is why `.cargo/mutants.toml` sets `test_workspace`.
+Its behavior is covered by the integration and trybuild tests in the `confval` package.
 
 ## Design
 
