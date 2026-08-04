@@ -2,10 +2,20 @@
 
 Configuration parsing, validation, and lowering primitives for Rust.
 
-The [toml example](./crates/confval/examples/toml.rs) and [hcl example](./crates/confval/examples/hcl.rs) demonstrate
-how this crate is meant to be used.
+Configuration is parsed span-first, so every value carries the byte range it came from and every later check can point
+at the place in the file that caused it.
+The core knows no file format.
+A frontend converts one syntax into a format-neutral field model, and everything after parsing works against that model.
+
+The [toml example](./crates/confval/examples/toml.rs), [hcl example](./crates/confval/examples/hcl.rs), and
+[kdl example](./crates/confval/examples/kdl.rs) demonstrate how this crate is meant to be used.
+The three share every line after the parse call, which is what makes the pipeline format-neutral.
 The [layering example](./crates/confval/examples/layering.rs) assembles one configuration from a file, the environment,
 and the command line.
+The [templates example](./crates/confval/examples/templates.rs) runs the pipeline backward and writes an annotated
+configuration file from the spec types.
+Twelve examples ship in total, and the [Examples](https://ethanhann.com/confval/docs/examples) page lists what each one
+covers along with its run command.
 
 See the [confval documentation](https://ethanhann.com/confval/) for the full API overview.
 
