@@ -77,8 +77,9 @@ pub(super) fn emit_body(
     let mut body = Body::new();
     let mut pending = String::new();
     let mut emitted = 0usize;
-    for field in values_then_blocks(fields) {
-        if field.commented {
+    for entry in values_then_blocks(fields) {
+        let field = entry.field();
+        if entry.is_commented() {
             pending.push_str(&commented_text(field, level, path)?);
             continue;
         }
@@ -184,9 +185,9 @@ fn hcl_object_of(fields: &Fields, path: &str) -> Result<Object, EmitError> {
         });
     }
     let mut object = Object::new();
-    // An inline object has no comment spelling, and a commented field reads
-    // as absent, so it renders nothing here.
-    for field in fields.iter().filter(|field| !field.commented) {
+    // An inline object has no comment spelling, and `iter` yields no commented
+    // entry, so one renders nothing here.
+    for field in fields.iter() {
         let child = child_path(path, &field.name);
         let value = match &field.kind {
             FieldKind::Value(value) => hcl_expr_of(value, &child)?,
@@ -304,8 +305,8 @@ mod tests {
     #[test]
     fn emit_hcl_writes_a_commented_leaf_after_the_active_values() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
         ]);
 
@@ -319,8 +320,8 @@ mod tests {
     #[test]
     fn emit_hcl_renders_a_doc_above_its_commented_entry() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new()))
                 .with_doc(Some("The PID file path.".to_string()))
                 .as_commented(),
@@ -339,8 +340,8 @@ mod tests {
     #[test]
     fn emit_hcl_writes_a_commented_empty_block() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
         ]);
 
@@ -359,8 +360,8 @@ mod tests {
         let hint = Value::detached(ValueKind::Seq(vec![Value::detached(ValueKind::Map(
             Fields::detached(vec![]),
         ))]));
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             Field::detached_value("svc", hint).as_commented(),
         ]);
 
@@ -374,8 +375,8 @@ mod tests {
     #[test]
     fn emit_hcl_indents_a_commented_entry_inside_a_block() {
         // Arrange
-        let inner = Fields::detached(vec![
-            scalar("mode", Scalar::String("log".to_string())),
+        let inner = Fields::detached_entries(vec![
+            scalar("mode", Scalar::String("log".to_string())).into(),
             scalar("rate", Scalar::Int(0)).as_commented(),
         ]);
         let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
@@ -392,13 +393,14 @@ mod tests {
     #[test]
     fn emit_hcl_attaches_a_commented_entry_above_a_doc_commented_block() {
         // Arrange
-        let fields = Fields::detached(vec![
+        let fields = Fields::detached_entries(vec![
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
             Field::detached_block(
                 "limits",
                 Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
             )
-            .with_doc(Some("Request limits.".to_string())),
+            .with_doc(Some("Request limits.".to_string()))
+            .into(),
         ]);
 
         // Act
@@ -414,14 +416,15 @@ mod tests {
     #[test]
     fn emit_hcl_keeps_a_commented_entry_with_the_values_above_it() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
             Field::detached_block(
                 "limits",
                 Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
             )
-            .with_doc(Some("Request limits.".to_string())),
+            .with_doc(Some("Request limits.".to_string()))
+            .into(),
         ]);
 
         // Act
@@ -439,8 +442,8 @@ mod tests {
     #[test]
     fn emit_hcl_renders_adjacent_commented_entries_in_order() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("a", Scalar::Int(1)).as_commented(),
             scalar("b", Scalar::Int(2)).as_commented(),
         ]);
@@ -457,7 +460,7 @@ mod tests {
         // Arrange
         let fields = Fields::detached(vec![Field::detached_block(
             "limits",
-            Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
+            Fields::detached_entries(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
         )]);
 
         // Act
@@ -471,8 +474,8 @@ mod tests {
     #[test]
     fn emit_hcl_excludes_commented_fields_from_the_duplicate_check() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("x", Scalar::Int(1)),
+        let fields = Fields::detached_entries(vec![
+            scalar("x", Scalar::Int(1)).into(),
             scalar("x", Scalar::Int(2)).as_commented(),
         ]);
 
@@ -486,8 +489,8 @@ mod tests {
     #[test]
     fn emit_hcl_drops_a_commented_field_inside_an_object() {
         // Arrange
-        let map = Fields::detached(vec![
-            scalar("cert", Scalar::String("a.pem".to_string())),
+        let map = Fields::detached_entries(vec![
+            scalar("cert", Scalar::String("a.pem".to_string())).into(),
             scalar("key", Scalar::String(String::new())).as_commented(),
         ]);
         let fields = Fields::detached(vec![Field::detached_value(
@@ -506,8 +509,8 @@ mod tests {
     #[test]
     fn emit_hcl_reparses_a_commented_template_to_the_active_fields_alone() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
             Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
         ]);

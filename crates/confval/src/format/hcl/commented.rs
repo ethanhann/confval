@@ -38,7 +38,6 @@ pub(super) fn commented_text(field: &Field, level: usize, path: &str) -> Result<
         }
         _ => {
             let mut plain = field.clone();
-            plain.commented = false;
             plain.doc = None;
             mini.push(plain);
         }

@@ -75,8 +75,8 @@ pub enum ValueKind {
 /// [`parsed`](Field::parsed) on the read path, or with
 /// [`detached_value`](Field::detached_value) and
 /// [`detached_block`](Field::detached_block) on the write path, then attach
-/// what the shape needs through [`with_doc`](Field::with_doc),
-/// [`as_commented`](Field::as_commented), and [`at`](Field::at).
+/// what the shape needs through [`with_doc`](Field::with_doc) and
+/// [`at`](Field::at).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Field {
@@ -97,13 +97,48 @@ pub struct Field {
     /// spec field's doc comment for `to_template`. A multi-line comment is one
     /// string with newline separators.
     pub doc: Option<String>,
-    /// Whether the field renders as a commented-out entry in template output.
-    /// Parsing never sets it. The template walk sets it for an absent optional
-    /// field, so the template shows the field without activating it. A
-    /// commented field reads as absent everywhere: the generated parse walk
-    /// skips it, [`Fields::get`] and [`Fields::has`] skip it, and the layering
-    /// merge drops it.
-    pub commented: bool,
+}
+
+/// A field at a level, and whether a template renders it active or
+/// commented out.
+///
+/// Whether an entry is commented is a question about rendering, not about the
+/// configuration, so it lives here rather than on [`Field`]. Parsing produces
+/// only [`Active`](Entry::Active) entries. The template walk produces a
+/// [`Commented`](Entry::Commented) entry for an absent optional field, so a
+/// template shows the field without activating it.
+///
+/// Only the emitters read a commented entry, through
+/// [`entries`](Fields::entries). Every other reader goes through
+/// [`iter`](Fields::iter), [`get`](Fields::get), or [`has`](Fields::has), which
+/// yield active fields alone, so nothing on the read path has to know this
+/// distinction exists.
+#[derive(Debug, Clone)]
+pub enum Entry {
+    /// A field the configuration sets.
+    Active(Field),
+    /// A field a template shows behind its format's comment marker.
+    Commented(Field),
+}
+
+impl Entry {
+    /// The field, whether it is active or commented.
+    pub fn field(&self) -> &Field {
+        match self {
+            Entry::Active(field) | Entry::Commented(field) => field,
+        }
+    }
+
+    /// Whether a template renders this entry behind a comment marker.
+    pub fn is_commented(&self) -> bool {
+        matches!(self, Entry::Commented(_))
+    }
+}
+
+impl From<Field> for Entry {
+    fn from(field: Field) -> Self {
+        Entry::Active(field)
+    }
 }
 
 /// Whether a field was written as an attribute (`name = value`) or as a block
@@ -129,7 +164,7 @@ pub enum FieldKind {
 pub struct Fields {
     source: SourceId,
     enclosing: Span,
-    items: Vec<Field>,
+    items: Vec<Entry>,
 }
 
 impl Value {
@@ -157,9 +192,8 @@ impl Field {
     /// name alone, where an unknown-field error points, and `span` covers the
     /// name and the value together.
     ///
-    /// The doc comment and the commented-out marker belong to the write path,
-    /// so a parsed field carries neither. Parsing drops a source file's
-    /// comments, and nothing a source wrote is commented out.
+    /// The doc comment belongs to the write path, so a parsed field carries
+    /// none. Parsing drops a source file's comments.
     pub fn parsed(
         name: impl Into<String>,
         name_span: Span,
@@ -174,7 +208,6 @@ impl Field {
             source,
             kind,
             doc: None,
-            commented: false,
         }
     }
 
@@ -188,7 +221,6 @@ impl Field {
             source: SourceId::DETACHED,
             kind: FieldKind::Value(value),
             doc: None,
-            commented: false,
         }
     }
 
@@ -202,7 +234,6 @@ impl Field {
             source: SourceId::DETACHED,
             kind: FieldKind::Block(fields),
             doc: None,
-            commented: false,
         }
     }
 
@@ -213,11 +244,9 @@ impl Field {
         self
     }
 
-    /// Marks the field as a commented-out entry, for the annotated-template
-    /// walk.
-    pub fn as_commented(mut self) -> Self {
-        self.commented = true;
-        self
+    /// The commented-out entry for this field, for the annotated-template walk.
+    pub fn as_commented(self) -> Entry {
+        Entry::Commented(self)
     }
 
     /// Locates a constructed field.
@@ -244,6 +273,15 @@ impl Fields {
     /// A level read from `source`, with `enclosing` as the span
     /// missing-field errors point at.
     pub fn new(source: SourceId, enclosing: Span, items: Vec<Field>) -> Self {
+        Self::from_entries(
+            source,
+            enclosing,
+            items.into_iter().map(Entry::Active).collect(),
+        )
+    }
+
+    /// A level built from entries, so a template can carry commented ones.
+    pub fn from_entries(source: SourceId, enclosing: Span, items: Vec<Entry>) -> Self {
         Self {
             source,
             enclosing,
@@ -256,6 +294,12 @@ impl Fields {
     /// span are the detached sentinel. Used by the `ToFields` code
     /// `#[derive(Spec)]` generates.
     pub fn detached(items: Vec<Field>) -> Self {
+        Self::detached_entries(items.into_iter().map(Entry::Active).collect())
+    }
+
+    /// A detached level built from entries, the shape the template walk
+    /// produces.
+    pub fn detached_entries(items: Vec<Entry>) -> Self {
         Self {
             source: SourceId::DETACHED,
             enclosing: Span::detached(),
@@ -274,32 +318,43 @@ impl Fields {
         self.enclosing
     }
 
-    /// The fields in source order.
-    pub fn iter(&self) -> std::slice::Iter<'_, Field> {
+    /// The active fields in source order.
+    ///
+    /// A commented entry is a template's rendering of a field the
+    /// configuration does not set, so it is not a field this level has. Only
+    /// [`entries`](Fields::entries) exposes one.
+    pub fn iter(&self) -> impl Iterator<Item = &Field> {
+        self.items.iter().filter_map(|entry| match entry {
+            Entry::Active(field) => Some(field),
+            Entry::Commented(_) => None,
+        })
+    }
+
+    /// Every entry in source order, commented ones included. This is the
+    /// emitters' view, and the only one that sees a commented entry.
+    pub fn entries(&self) -> std::slice::Iter<'_, Entry> {
         self.items.iter()
     }
 
     #[cfg(feature = "layering")]
     pub(crate) fn into_items(self) -> Vec<Field> {
         self.items
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Entry::Active(field) => Some(field),
+                Entry::Commented(_) => None,
+            })
+            .collect()
     }
 
-    /// Whether an active field with the name exists at this level. A commented
-    /// field reads as absent, so name lookup skips it.
+    /// Whether a field with the name exists at this level.
     pub fn has(&self, name: &str) -> bool {
-        self.items
-            .iter()
-            .any(|field| field.name == name && !field.commented)
+        self.iter().any(|field| field.name == name)
     }
 
-    /// The first active field with the name, or `None`. A commented field
-    /// reads as absent, so name lookup skips it. Only
-    /// [`iter`](Fields::iter) exposes one, which is what the emitters and the
-    /// generated walk consume.
+    /// The first field with the name, or `None`.
     pub fn get(&self, name: &str) -> Option<&Field> {
-        self.items
-            .iter()
-            .find(|field| field.name == name && !field.commented)
+        self.iter().find(|field| field.name == name)
     }
 }
 
@@ -386,17 +441,18 @@ mod tests {
             Value::detached(ValueKind::Scalar(Scalar::String(String::new()))),
         )
         .as_commented();
-        let level = Fields::detached(vec![commented]);
+        let level = Fields::detached_entries(vec![commented]);
 
         // Act
         let by_get = level.get("pid_file");
         let by_has = level.has("pid_file");
 
         // Assert
-        // A commented field reads as absent, so only iteration exposes it.
+        // A commented entry reads as absent, so only `entries` exposes it.
         assert!(by_get.is_none());
         assert!(!by_has);
-        assert_eq!(level.iter().count(), 1);
+        assert_eq!(level.iter().count(), 0);
+        assert_eq!(level.entries().count(), 1);
     }
 
     #[test]

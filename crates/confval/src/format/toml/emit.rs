@@ -81,11 +81,12 @@ fn emit_table(
     // partition. A commented entry then lands in the region its active twin
     // would render in, and uncommenting cannot bind a value into the wrong
     // table.
-    for field in values_then_blocks(fields) {
+    for entry in values_then_blocks(fields) {
+        let field = entry.field();
         match &field.kind {
             FieldKind::Value(value) => {
                 let child = child_path(path, &field.name);
-                if field.commented {
+                if entry.is_commented() {
                     pending.push_str(&commented_value_text(field, value, &child, header)?);
                     continue;
                 }
@@ -113,29 +114,27 @@ fn emit_table(
             }
             FieldKind::Block(inner) => {
                 let child = child_path(path, &field.name);
-                if field.commented {
+                if entry.is_commented() {
                     pending.push_str(&commented_block_text(field, inner, &child, header)?);
                     continue;
                 }
-                // Group same-named active blocks by name across the level, so
-                // a non-consecutive repeat is kept rather than overwritten.
+                // Group same-named blocks by name across the level, so a
+                // non-consecutive repeat is kept rather than overwritten.
                 if !grouped.insert(field.name.as_str()) {
                     continue;
                 }
                 let blocks: Vec<&Fields> = fields
                     .iter()
                     .filter_map(|other| match &other.kind {
-                        FieldKind::Block(inner) if other.name == field.name && !other.commented => {
-                            Some(inner)
-                        }
+                        FieldKind::Block(inner) if other.name == field.name => Some(inner),
                         _ => None,
                     })
                     .collect();
                 // Only one comment can render above the group, so the group
-                // takes the first doc any active element carries.
+                // takes the first doc any element carries.
                 let doc = fields
                     .iter()
-                    .filter(|other| other.name == field.name && !other.commented)
+                    .filter(|other| other.name == field.name)
                     .find_map(|other| other.doc.as_deref());
                 let sub_header = child_header(header, &field.name);
                 if blocks.len() == 1 {
@@ -276,9 +275,9 @@ fn toml_inline_of(fields: &Fields, path: &str) -> Result<InlineTable, EmitError>
         });
     }
     let mut inline = InlineTable::new();
-    // An inline table has no comment spelling, and a commented field reads as
-    // absent, so it renders nothing here.
-    for field in fields.iter().filter(|field| !field.commented) {
+    // An inline table has no comment spelling, and `iter` yields no commented
+    // entry, so one renders nothing here.
+    for field in fields.iter() {
         let child = child_path(path, &field.name);
         let value = match &field.kind {
             FieldKind::Value(value) => toml_value_of(value, &child)?,
@@ -640,8 +639,8 @@ mod tests {
     #[test]
     fn emit_toml_writes_a_commented_leaf_after_the_active_values() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
         ]);
 
@@ -655,9 +654,9 @@ mod tests {
     #[test]
     fn emit_toml_writes_a_commented_leaf_before_an_active_value() {
         // Arrange
-        let fields = Fields::detached(vec![
+        let fields = Fields::detached_entries(vec![
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
-            scalar("port", Scalar::Int(8080)),
+            scalar("port", Scalar::Int(8080)).into(),
         ]);
 
         // Act
@@ -670,8 +669,8 @@ mod tests {
     #[test]
     fn emit_toml_renders_a_doc_above_its_commented_entry() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new()))
                 .with_doc(Some("The PID file path.".to_string()))
                 .as_commented(),
@@ -690,8 +689,8 @@ mod tests {
     #[test]
     fn emit_toml_writes_a_commented_empty_block_as_a_commented_header() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
         ]);
 
@@ -710,8 +709,8 @@ mod tests {
         let hint = Value::detached(ValueKind::Seq(vec![Value::detached(ValueKind::Map(
             Fields::detached(vec![]),
         ))]));
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             Field::detached_value("svc", hint).as_commented(),
         ]);
 
@@ -725,13 +724,14 @@ mod tests {
     #[test]
     fn emit_toml_attaches_a_commented_entry_above_a_doc_commented_table() {
         // Arrange
-        let fields = Fields::detached(vec![
+        let fields = Fields::detached_entries(vec![
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
             Field::detached_block(
                 "limits",
                 Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
             )
-            .with_doc(Some("Request limits.".to_string())),
+            .with_doc(Some("Request limits.".to_string()))
+            .into(),
         ]);
 
         // Act
@@ -751,7 +751,7 @@ mod tests {
         // Arrange
         let fields = Fields::detached(vec![Field::detached_block(
             "limits",
-            Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
+            Fields::detached_entries(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
         )]);
 
         // Act
@@ -767,9 +767,9 @@ mod tests {
         // toml_edit renders values above tables, so a commented block declared
         // first must still land in the block region. An uncommented `[tls]`
         // above `port` would capture the value into the wrong table.
-        let fields = Fields::detached(vec![
+        let fields = Fields::detached_entries(vec![
             Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
-            scalar("port", Scalar::Int(8080)),
+            scalar("port", Scalar::Int(8080)).into(),
         ]);
 
         // Act
@@ -782,11 +782,12 @@ mod tests {
     #[test]
     fn emit_toml_renders_a_commented_value_in_the_value_region() {
         // Arrange
-        let fields = Fields::detached(vec![
+        let fields = Fields::detached_entries(vec![
             Field::detached_block(
                 "limits",
                 Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
-            ),
+            )
+            .into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
         ]);
 
@@ -802,8 +803,8 @@ mod tests {
         // Arrange
         // TOML spells a string with line breaks as a multiline literal, and a
         // bare continuation line would break the template's own reparse.
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("motd", Scalar::String("a\nb".to_string())).as_commented(),
         ]);
 
@@ -818,8 +819,8 @@ mod tests {
     #[test]
     fn emit_toml_renders_adjacent_commented_entries_in_order() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("a", Scalar::Int(1)).as_commented(),
             scalar("b", Scalar::Int(2)).as_commented(),
         ]);
@@ -836,8 +837,8 @@ mod tests {
         // Arrange
         // An inline table has no comment spelling, and the field reads as
         // absent.
-        let map = Fields::detached(vec![
-            scalar("cert", Scalar::String("a.pem".to_string())),
+        let map = Fields::detached_entries(vec![
+            scalar("cert", Scalar::String("a.pem".to_string())).into(),
             scalar("key", Scalar::String(String::new())).as_commented(),
         ]);
         let fields = Fields::detached(vec![Field::detached_value(
@@ -857,8 +858,8 @@ mod tests {
         // Arrange
         // The commented placeholder must never block an active field's
         // emission.
-        let fields = Fields::detached(vec![
-            scalar("x", Scalar::Int(1)),
+        let fields = Fields::detached_entries(vec![
+            scalar("x", Scalar::Int(1)).into(),
             scalar("x", Scalar::Int(2)).as_commented(),
         ]);
 
@@ -872,8 +873,8 @@ mod tests {
     #[test]
     fn emit_toml_reparses_a_commented_template_to_the_active_fields_alone() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
             Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
         ]);

@@ -48,6 +48,14 @@ pub(crate) fn field_emit(
     } else {
         quote! { to_fields }
     };
+    // The template walk collects `Entry`, so an active field converts on its
+    // way in. A commented push already yields one. The plain and source walks
+    // collect `Field` and take no wrapper.
+    let wrap = if annotate {
+        quote! { .into() }
+    } else {
+        quote! {}
+    };
     // The comment to attach to each field, or nothing on the plain walk or for a
     // field with no doc. Appending an empty token leaves the field unchanged.
     let doc = match (annotate, &options.doc) {
@@ -100,7 +108,7 @@ pub(crate) fn field_emit(
                             ::confval::format::Value::detached(
                                 ::confval::format::ValueKind::Scalar(#scalar),
                             ),
-                        )#doc);
+                        )#doc #wrap);
                     } #absent
                 }
             } else {
@@ -111,7 +119,7 @@ pub(crate) fn field_emit(
                         ::confval::format::Value::detached(
                             ::confval::format::ValueKind::Scalar(#scalar),
                         ),
-                    )#doc);
+                    )#doc #wrap);
                 }
             }
         }
@@ -123,7 +131,7 @@ pub(crate) fn field_emit(
                     ::confval::format::Value::detached(::confval::format::ValueKind::Seq(
                         self.#ident.iter().map(#element).collect(),
                     )),
-                )#doc);
+                )#doc #wrap);
             }
         }
         FieldShape::OptionalWrappedStringList => {
@@ -149,7 +157,7 @@ pub(crate) fn field_emit(
                         ::confval::format::Value::detached(::confval::format::ValueKind::Seq(
                             __list.value.iter().map(#element).collect(),
                         )),
-                    )#doc);
+                    )#doc #wrap);
                 } #absent
             }
         }
@@ -160,7 +168,7 @@ pub(crate) fn field_emit(
                     __items.push(::confval::format::Field::detached_block(
                         #name,
                         ::confval::format::ToFields::#recurse(&self.#ident.value),
-                    )#doc);
+                    )#doc #wrap);
                 }
             } else if options.default.is_some() {
                 // The populate marker: fill an absent block from `S::default()`,
@@ -174,14 +182,14 @@ pub(crate) fn field_emit(
                             __items.push(::confval::format::Field::detached_block(
                                 #name,
                                 ::confval::format::ToFields::#recurse(&__child.value),
-                            )#child_doc);
+                            )#child_doc #wrap);
                         }
                         ::core::option::Option::None => {
                             let __filled: #spec_ty = ::core::default::Default::default();
                             __items.push(::confval::format::Field::detached_block(
                                 #name,
                                 ::confval::format::ToFields::#recurse(&__filled),
-                            )#filled_doc);
+                            )#filled_doc #wrap);
                         }
                     }
                 }
@@ -209,7 +217,7 @@ pub(crate) fn field_emit(
                         __items.push(::confval::format::Field::detached_block(
                             #name,
                             ::confval::format::ToFields::#recurse(&__child.value),
-                        )#doc);
+                        )#doc #wrap);
                     } #absent
                 }
             }
@@ -245,7 +253,7 @@ pub(crate) fn field_emit(
                     __items.push(::confval::format::Field::detached_block(
                         #name,
                         ::confval::format::ToFields::#recurse(&__child.value),
-                    )#doc);
+                    )#doc #wrap);
                 }
                 #absent
             }

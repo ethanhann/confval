@@ -44,16 +44,17 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
     let indent = "  ".repeat(level);
     let mut nodes: Vec<KdlNode> = Vec::new();
     let mut grouped: Vec<&str> = Vec::new();
-    for field in fields.iter() {
+    for entry in fields.entries() {
+        let field = entry.field();
         let FieldKind::Value(_) = &field.kind else {
             continue;
         };
         let child = child_path(path, &field.name);
-        // A commented field renders through the same paths as an active one
+        // A commented entry renders through the same paths as an active one
         // and gains the slashdash, KDL's own disabled-node spelling, which the
         // parser reads and discards. It joins no group, so it never blocks an
         // active field's emission.
-        if field.commented {
+        if entry.is_commented() {
             let before = nodes.len();
             emit_value_field(
                 &mut nodes,
@@ -72,11 +73,7 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
         grouped.push(&field.name);
         let group: Vec<&Field> = fields
             .iter()
-            .filter(|other| {
-                !other.commented
-                    && other.name == field.name
-                    && matches!(other.kind, FieldKind::Value(_))
-            })
+            .filter(|other| other.name == field.name && matches!(other.kind, FieldKind::Value(_)))
             .collect();
         // Only one comment can render above the grouped node, so the group
         // takes the first doc any member carries.
@@ -94,7 +91,8 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
             nodes.push(node);
         }
     }
-    for field in fields.iter() {
+    for entry in fields.entries() {
+        let field = entry.field();
         let FieldKind::Block(inner) = &field.kind else {
             continue;
         };
@@ -104,7 +102,7 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
             kdl_block_prefix(field.doc.as_deref(), &indent, !nodes.is_empty()),
         );
         attach_children(&mut node, emit_document(inner, level + 1, &child)?, &indent);
-        if field.commented {
+        if entry.is_commented() {
             slashdash(&mut std::slice::from_mut(&mut node)[..]);
         }
         nodes.push(node);
@@ -360,8 +358,8 @@ mod tests {
     #[test]
     fn emit_kdl_writes_a_commented_leaf_as_a_slashdash_node() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
         ]);
 
@@ -375,8 +373,8 @@ mod tests {
     #[test]
     fn emit_kdl_renders_a_doc_above_its_commented_entry() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new()))
                 .with_doc(Some("The PID file path.".to_string()))
                 .as_commented(),
@@ -392,8 +390,8 @@ mod tests {
     #[test]
     fn emit_kdl_writes_a_commented_empty_block_as_a_slashdash_node() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
         ]);
 
@@ -410,8 +408,8 @@ mod tests {
         let hint = Value::detached(ValueKind::Seq(vec![Value::detached(ValueKind::Map(
             Fields::detached(vec![]),
         ))]));
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             Field::detached_value("svc", hint).as_commented(),
         ]);
 
@@ -425,8 +423,8 @@ mod tests {
     #[test]
     fn emit_kdl_indents_a_commented_entry_inside_a_block() {
         // Arrange
-        let inner = Fields::detached(vec![
-            scalar("mode", Scalar::String("log".to_string())),
+        let inner = Fields::detached_entries(vec![
+            scalar("mode", Scalar::String("log".to_string())).into(),
             scalar("rate", Scalar::Int(0)).as_commented(),
         ]);
         let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
@@ -441,8 +439,8 @@ mod tests {
     #[test]
     fn emit_kdl_renders_adjacent_commented_entries_in_order() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("a", Scalar::Int(1)).as_commented(),
             scalar("b", Scalar::Int(2)).as_commented(),
         ]);
@@ -459,7 +457,7 @@ mod tests {
         // Arrange
         let fields = Fields::detached(vec![Field::detached_block(
             "limits",
-            Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
+            Fields::detached_entries(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
         )]);
 
         // Act
@@ -477,8 +475,8 @@ mod tests {
     #[test]
     fn emit_kdl_excludes_commented_fields_from_grouping() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("x", Scalar::Int(1)),
+        let fields = Fields::detached_entries(vec![
+            scalar("x", Scalar::Int(1)).into(),
             scalar("x", Scalar::Int(2)).as_commented(),
         ]);
 
@@ -492,8 +490,8 @@ mod tests {
     #[test]
     fn emit_kdl_reparses_a_commented_template_to_the_active_fields_alone() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
             Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
         ]);

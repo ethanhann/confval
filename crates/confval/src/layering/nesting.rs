@@ -81,27 +81,23 @@ fn to_fields(source: SourceId, tree: BTreeMap<String, Node>) -> Fields {
 
 fn node_to_field(source: SourceId, name: String, node: Node) -> Field {
     match node {
-        Node::Leaf(leaf) => Field {
+        Node::Leaf(leaf) => Field::parsed(
             name,
-            name_span: leaf.span,
-            span: leaf.span,
-            source: leaf.source,
-            kind: FieldKind::Value(Value {
+            leaf.span,
+            leaf.span,
+            leaf.source,
+            FieldKind::Value(Value {
                 span: leaf.span,
                 kind: ValueKind::Scalar(Scalar::Unparsed(leaf.raw)),
             }),
-            doc: None,
-            commented: false,
-        },
-        Node::Branch(sub) => Field {
+        ),
+        Node::Branch(sub) => Field::parsed(
             name,
-            name_span: Span::new(source, 0, 0),
-            span: Span::new(source, 0, 0),
+            Span::new(source, 0, 0),
+            Span::new(source, 0, 0),
             source,
-            kind: FieldKind::Block(to_fields(source, sub)),
-            doc: None,
-            commented: false,
-        },
+            FieldKind::Block(to_fields(source, sub)),
+        ),
     }
 }
 

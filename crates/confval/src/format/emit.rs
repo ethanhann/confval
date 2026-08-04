@@ -18,7 +18,7 @@
 //! those leaves as strings.
 
 #[cfg(any(feature = "toml", feature = "hcl"))]
-use super::field::{Field, FieldKind, Fields};
+use super::field::{Entry, Field, FieldKind, Fields};
 use std::fmt::{self, Display, Formatter};
 
 /// Why a `Fields` could not be emitted to a format.
@@ -86,41 +86,42 @@ pub(crate) fn child_path(path: &str, name: &str) -> String {
 /// TOML's syntax forces the same order, because a bare key written after a
 /// table header would belong to that table. The two therefore agree, and one
 /// walk serves both.
+///
+/// This yields entries rather than fields, because an emitter renders the
+/// commented ones too and places each in the region its active twin would
+/// occupy.
 #[cfg(any(feature = "toml", feature = "hcl"))]
-pub(crate) fn values_then_blocks(fields: &Fields) -> impl Iterator<Item = &Field> {
+pub(crate) fn values_then_blocks(fields: &Fields) -> impl Iterator<Item = &Entry> {
     let values = fields
-        .iter()
-        .filter(|field| matches!(field.kind, FieldKind::Value(_)));
+        .entries()
+        .filter(|entry| matches!(entry.field().kind, FieldKind::Value(_)));
     let blocks = fields
-        .iter()
-        .filter(|field| matches!(field.kind, FieldKind::Block(_)));
+        .entries()
+        .filter(|entry| matches!(entry.field().kind, FieldKind::Block(_)));
     values.chain(blocks)
 }
 
-/// The first active name at this level whose same-named group `rejects`.
+/// The first name at this level whose same-named group `rejects`.
 ///
 /// Each format refuses some repetition it cannot spell, and the formats differ
-/// only in which groups they refuse. `rejects` receives the active fields
-/// sharing one name, in declaration order. A commented field is comment text,
-/// so it joins no group and conflicts with nothing.
+/// only in which groups they refuse. `rejects` receives the fields sharing one
+/// name, in declaration order. A commented entry is comment text, so it never
+/// reaches here and conflicts with nothing.
 #[cfg(any(feature = "toml", feature = "hcl"))]
 pub(crate) fn first_conflicting_name(
     fields: &Fields,
     rejects: impl Fn(&[&Field]) -> bool,
 ) -> Option<&str> {
-    fields
-        .iter()
-        .filter(|field| !field.commented)
-        .find_map(|field| {
-            let group: Vec<&Field> = fields
-                .iter()
-                .filter(|other| !other.commented && other.name == field.name)
-                .collect();
-            rejects(&group).then_some(field.name.as_str())
-        })
+    fields.iter().find_map(|field| {
+        let group: Vec<&Field> = fields
+            .iter()
+            .filter(|other| other.name == field.name)
+            .collect();
+        rejects(&group).then_some(field.name.as_str())
+    })
 }
 
-/// Any active name repeated at a level with unique keys, an HCL object or a
+/// Any name repeated at a level with unique keys, an HCL object or a
 /// TOML inline table, where no spelling carries a repetition.
 #[cfg(any(feature = "toml", feature = "hcl"))]
 pub(crate) fn repeated_name(fields: &Fields) -> Option<&str> {

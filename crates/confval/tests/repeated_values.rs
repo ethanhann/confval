@@ -4,7 +4,7 @@
 //! resolution lives in the generated walk, so a hand-built `Fields` exercises
 //! it with no frontend in the loop, pinning the behavior for every format.
 
-use confval::format::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
+use confval::format::{Entry, Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
 use confval::prelude::*;
 use confval::source::SourceId;
 
@@ -56,6 +56,10 @@ fn level(source: SourceId, items: Vec<Field>) -> Fields {
     Fields::new(source, span(source, 0, 100), items)
 }
 
+fn entry_level(source: SourceId, items: Vec<Entry>) -> Fields {
+    Fields::from_entries(source, span(source, 0, 100), items)
+}
+
 #[derive(confval::Spec, PartialEq, Debug)]
 struct SingleSpec {
     port: Located<i64>,
@@ -97,7 +101,7 @@ impl Validate for WrappedListSpec {
 fn a_commented_field_reads_as_absent_to_the_walk() {
     // Arrange
     let source = source();
-    let fields = level(
+    let fields = entry_level(
         source,
         vec![scalar_field(source, "port", Scalar::Int(9090), 0).as_commented()],
     );
@@ -117,10 +121,10 @@ fn a_commented_field_reads_as_absent_to_the_walk() {
 fn a_commented_unknown_name_reports_nothing() {
     // Arrange
     let source = source();
-    let fields = level(
+    let fields = entry_level(
         source,
         vec![
-            scalar_field(source, "port", Scalar::Int(8080), 0),
+            scalar_field(source, "port", Scalar::Int(8080), 0).into(),
             scalar_field(source, "hostnme", Scalar::Int(1), 20).as_commented(),
         ],
     );

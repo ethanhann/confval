@@ -57,7 +57,7 @@ pub(crate) fn to_fields_impl(
             fn to_template(&self) -> ::confval::format::Fields {
                 #template_decl
                 #(#template_emits)*
-                ::confval::format::Fields::detached(__items)
+                ::confval::format::Fields::detached_entries(__items)
             }
 
             #spec_doc_impl

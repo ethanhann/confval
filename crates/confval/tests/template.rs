@@ -408,9 +408,9 @@ fn the_template_walk_emits_commented_fields_for_every_hidden_shape() {
 
     // Assert
     let commented: Vec<&str> = fields
-        .iter()
-        .filter(|field| field.commented)
-        .map(|field| field.name.as_str())
+        .entries()
+        .filter(|entry| entry.is_commented())
+        .map(|entry| entry.field().name.as_str())
         .collect();
     assert_eq!(
         commented,
@@ -422,9 +422,10 @@ fn the_template_walk_emits_commented_fields_for_every_hidden_shape() {
     // type's own doc.
     let by_name = |name: &str| {
         fields
-            .iter()
-            .find(|field| field.name == name && field.commented)
+            .entries()
+            .find(|entry| entry.field().name == name && entry.is_commented())
             .unwrap()
+            .field()
     };
     assert_eq!(
         by_name("pid_file").doc.as_deref(),
@@ -531,7 +532,7 @@ fn the_plain_walk_emits_no_commented_fields() {
     let fields = spec.to_fields();
 
     // Assert
-    assert!(fields.iter().all(|field| !field.commented));
+    assert!(fields.entries().all(|entry| !entry.is_commented()));
     assert!(fields.iter().all(|field| field.name != "pid_file"));
 }
 

@@ -65,19 +65,15 @@ pub(crate) fn combine(base: Fields, incoming: Fields, verb: Verb, report: &mut R
 }
 
 /// Partitions a level into same-named groups, keeping first-appearance order
-/// within and across groups. A commented field reads as absent, so it is
-/// dropped here, participates in no conflict, and never appears in assembled
-/// output. The drop reaches into each kept field's inner levels, because a
-/// repeated-block group appends without recursing and would otherwise carry
-/// a nested commented field through whole.
+/// within and across groups.
+///
+/// `into_items` yields the active fields alone, so a commented entry at this
+/// level joins no group and conflicts with nothing. The nested levels need
+/// [`without_commented`], because a repeated-block group is appended whole
+/// rather than merged, so nothing else would reach inside it.
 fn grouped(fields: Fields) -> Vec<(String, Vec<Field>)> {
     let mut groups: Vec<(String, Vec<Field>)> = Vec::new();
-    for field in fields
-        .into_items()
-        .into_iter()
-        .filter(|field| !field.commented)
-        .map(without_commented)
-    {
+    for field in fields.into_items().into_iter().map(without_commented) {
         match groups.iter_mut().find(|(name, _)| *name == field.name) {
             Some((_, group)) => group.push(field),
             None => {
@@ -89,8 +85,13 @@ fn grouped(fields: Fields) -> Vec<(String, Vec<Field>)> {
     groups
 }
 
-/// Strips commented fields from every level inside `field`, through blocks,
+/// Drops commented entries from every level inside `field`, through blocks,
 /// maps, and sequence elements.
+///
+/// `Fields::into_items` drops them one level at a time, which covers every
+/// level the merge itself recurses into. A repeated-block group is appended
+/// without recursing, so its inner levels reach assembled output only through
+/// this walk.
 fn without_commented(mut field: Field) -> Field {
     fn strip_fields(fields: Fields) -> Fields {
         let source = fields.source();
@@ -98,7 +99,6 @@ fn without_commented(mut field: Field) -> Field {
         let items = fields
             .into_items()
             .into_iter()
-            .filter(|field| !field.commented)
             .map(without_commented)
             .collect();
         Fields::new(source, enclosing, items)
@@ -187,9 +187,6 @@ impl Shell {
             source: self.source,
             doc: self.doc,
             kind,
-            // Commented fields are dropped before the merge, so a rewrapped
-            // field is always active.
-            commented: false,
         }
     }
 }
@@ -209,7 +206,6 @@ fn split_structural(field: Field) -> Split {
         source,
         doc,
         kind,
-        commented,
     } = field;
     let (spelling, inner) = match kind {
         FieldKind::Block(inner) => (Spelling::Block, inner),
@@ -225,7 +221,6 @@ fn split_structural(field: Field) -> Split {
                 source,
                 doc,
                 kind,
-                commented,
             });
         }
     };
@@ -294,7 +289,7 @@ fn kind_label(field: &Field) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::format::Scalar;
+    use crate::format::{Entry, Scalar};
     use crate::source::{SourceId, Span};
 
     const A: SourceId = SourceId(0);
@@ -311,7 +306,6 @@ mod tests {
             span: sp(A, 0, 0),
             source: A,
             doc: None,
-            commented: false,
             kind: FieldKind::Value(Value {
                 span: sp(A, 0, 0),
                 kind: ValueKind::Scalar(value),
@@ -333,7 +327,6 @@ mod tests {
             span: sp(A, 0, 0),
             source: A,
             doc: None,
-            commented: false,
             kind: FieldKind::Value(Value {
                 span: sp(A, 0, 0),
                 kind: ValueKind::Seq(elements),
@@ -348,7 +341,6 @@ mod tests {
             span: sp(A, 0, 0),
             source: A,
             doc: None,
-            commented: false,
             kind: FieldKind::Block(Fields::new(A, sp(A, 0, 0), items)),
         }
     }
@@ -360,12 +352,19 @@ mod tests {
             span: sp(A, 0, 0),
             source: A,
             doc: None,
-            commented: false,
             kind: FieldKind::Value(Value {
                 span: sp(A, 0, 0),
                 kind: ValueKind::Map(Fields::new(A, sp(A, 0, 0), items)),
             }),
         }
+    }
+
+    fn entry_level(source: SourceId, enclosing: Span, items: Vec<Entry>) -> Fields {
+        Fields::from_entries(source, enclosing, items)
+    }
+
+    fn entry_block(name: &str, items: Vec<Entry>) -> Field {
+        Field::detached_block(name, Fields::from_entries(A, sp(A, 0, 0), items))
     }
 
     fn level(source: SourceId, enclosing: Span, items: Vec<Field>) -> Fields {
@@ -384,18 +383,18 @@ mod tests {
     }
 
     #[test]
-    fn merge_strips_commented_fields_inside_an_appended_group() {
+    fn merge_drops_a_commented_entry_nested_in_an_appended_group() {
         // Arrange
-        // A repeated-block group appends without recursing, so the strip must
-        // reach the inner levels the append never merges.
+        // A repeated-block group appends without recursing, so this covers the
+        // inner levels the append never merges.
         let base = level(
             A,
             sp(A, 0, 0),
             vec![
-                block(
+                entry_block(
                     "service",
                     vec![
-                        scalar("port", Scalar::Int(1)),
+                        scalar("port", Scalar::Int(1)).into(),
                         scalar("rate", Scalar::Int(0)).as_commented(),
                     ],
                 ),
@@ -409,15 +408,19 @@ mod tests {
         let merged = combine(base, over, Verb::Merge, &mut report);
 
         // Assert
-        fn assert_none_commented(fields: &Fields) {
-            for field in fields.iter() {
-                assert!(!field.commented, "commented field survived: {}", field.name);
-                if let FieldKind::Block(inner) = &field.kind {
-                    assert_none_commented(inner);
+        fn assert_no_commented_entry(fields: &Fields) {
+            for entry in fields.entries() {
+                assert!(
+                    !entry.is_commented(),
+                    "commented entry survived: {}",
+                    entry.field().name
+                );
+                if let FieldKind::Block(inner) = &entry.field().kind {
+                    assert_no_commented_entry(inner);
                 }
             }
         }
-        assert_none_commented(&merged);
+        assert_no_commented_entry(&merged);
         let FieldKind::Block(first) = &merged.iter().next().unwrap().kind else {
             panic!("service should stay a block");
         };
@@ -431,15 +434,15 @@ mod tests {
         // A commented field reads as absent, so a template placeholder layered
         // by mistake neither conflicts with an active value nor survives into
         // the assembled output.
-        let base = level(
+        let base = entry_level(
             A,
             sp(A, 0, 0),
             vec![
-                scalar("port", Scalar::Int(1)),
+                scalar("port", Scalar::Int(1)).into(),
                 scalar("pid_file", Scalar::Int(9)).as_commented(),
             ],
         );
-        let over = level(
+        let over = entry_level(
             A,
             sp(A, 0, 0),
             vec![scalar("port", Scalar::Int(2)).as_commented()],
@@ -451,7 +454,7 @@ mod tests {
 
         // Assert
         assert_eq!(scalar_of(merged.get("port").unwrap()), &Scalar::Int(1));
-        assert!(merged.iter().all(|field| !field.commented));
+        assert!(merged.entries().all(|entry| !entry.is_commented()));
         assert!(merged.iter().all(|field| field.name != "pid_file"));
         assert!(!report.has_issues(), "issues: {:?}", report.issues());
     }

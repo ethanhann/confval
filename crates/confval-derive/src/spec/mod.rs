@@ -150,12 +150,10 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
             ) -> ::core::option::Option<Self> {
                 #(#slot_decls)*
 
+                // `iter` yields the fields a configuration sets. A commented
+                // entry is a template's rendering of one it does not, so the
+                // walk never sees it and never reports it as unknown.
                 for __field in fields.iter() {
-                    // A commented field reads as absent, so it is skipped
-                    // before the name match and never reported as unknown.
-                    if __field.commented {
-                        continue;
-                    }
                     match __field.name.as_str() {
                         #(#match_arms)*
                         _ => ::confval::format::report_unknown_field(__field, report),
