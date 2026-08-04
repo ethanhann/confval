@@ -113,24 +113,20 @@ impl FromFields for TlsSpec {
 
 impl TlsSpec {
     fn build(&self, walk: Walk) -> Fields {
-        let mut fields = FieldsBuilder::new(walk);
+        let fields = FieldsBuilder::new(walk);
         // The tag has no `Located` behind it, because the variant carries it.
         // Both walks emit it: a source view without the tag would not reparse.
         match self {
-            TlsSpec::Manual { cert, key } => {
-                fields
-                    .literal_string("mode", "manual")
-                    .leaf("cert", cert)
-                    .leaf("key", key);
-            }
-            TlsSpec::Acme { domains, challenge } => {
-                fields
-                    .literal_string("mode", "acme")
-                    .string_list("domains", domains)
-                    .leaf("challenge", challenge);
-            }
+            TlsSpec::Manual { cert, key } => fields
+                .literal_string("mode", "manual")
+                .leaf("cert", cert)
+                .leaf("key", key),
+            TlsSpec::Acme { domains, challenge } => fields
+                .literal_string("mode", "acme")
+                .string_list("domains", domains)
+                .leaf("challenge", challenge),
         }
-        fields.finish()
+        .finish()
     }
 }
 
