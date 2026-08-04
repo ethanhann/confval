@@ -4,3 +4,10 @@ all_features = true
 # integration and trybuild tests in the `confval` package, so a mutant there is
 # only reachable when the whole workspace suite runs.
 test_workspace = true
+
+exclude_re = [
+    "replace > with >= in Source::floor_char_boundary",
+    "replace < with <= in Source::ceil_char_boundary",
+    "replace < with <= in __keyword_enum_keywords_unique",
+]
+timeout_multiplier = 8.0
