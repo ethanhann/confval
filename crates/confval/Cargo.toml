@@ -121,6 +121,10 @@ name = "validate_traversal"
 required-features = ["derive"]
 
 [[test]]
+name = "lower_auto"
+required-features = ["derive"]
+
+[[test]]
 name = "source_view"
 required-features = ["derive", "toml", "hcl", "kdl", "serde"]
 

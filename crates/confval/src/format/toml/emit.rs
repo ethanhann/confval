@@ -402,6 +402,45 @@ mod tests {
     }
 
     #[test]
+    fn emit_toml_writes_an_inline_table_with_several_distinct_keys() {
+        // Arrange
+        // An inline table admits no repetition at all, so the scan guarding it
+        // must still accept a level whose keys are simply distinct. A nested
+        // inline table covers the recursion.
+        let inner = Fields::detached(vec![
+            scalar("ca", Scalar::String("ca.pem".to_string())),
+            scalar("verify", Scalar::Bool(true)),
+        ]);
+        let map = Fields::detached(vec![
+            scalar("cert", Scalar::String("a.pem".to_string())),
+            scalar("key", Scalar::String("a.key".to_string())),
+            Field::detached_value("trust", Value::detached(ValueKind::Map(inner))),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_value(
+            "tls",
+            Value::detached(ValueKind::Seq(vec![Value::detached(ValueKind::Map(map))])),
+        )]);
+
+        // Act
+        let text = emit_toml(&fields).expect("distinct keys are not a conflict");
+
+        // Assert
+        let round = reparse(&text);
+        let FieldKind::Value(value) = &round.get("tls").unwrap().kind else {
+            panic!("tls should be an attribute");
+        };
+        let ValueKind::Seq(elements) = &value.kind else {
+            panic!("tls should be a sequence");
+        };
+        let ValueKind::Map(table) = &elements[0].kind else {
+            panic!("the element should be a table");
+        };
+        let names: Vec<&str> = table.iter().map(|field| field.name.as_str()).collect();
+        assert_eq!(names, vec!["cert", "key", "trust"]);
+        assert!(table.get("trust").is_some());
+    }
+
+    #[test]
     fn emit_toml_writes_an_array_of_tables_doc_once() {
         // Arrange
         // The key of an array of tables renders once per `[[element]]`, so a

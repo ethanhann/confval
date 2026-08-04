@@ -386,6 +386,56 @@ mod tests {
         assert!(out.contains("^^^^^"), "got: {out}");
     }
 
+    /// Strips ANSI escapes so an assertion can read the rendered text itself.
+    /// The `color` feature wraps the gutter and the carets, and the indent
+    /// between them is plain.
+    fn without_ansi(text: &str) -> String {
+        let mut out = String::new();
+        let mut chars = text.chars();
+        while let Some(character) = chars.next() {
+            if character != '\u{1b}' {
+                out.push(character);
+                continue;
+            }
+            for escape in chars.by_ref() {
+                if escape == 'm' {
+                    break;
+                }
+            }
+        }
+        out
+    }
+
+    #[cfg(feature = "color")]
+    #[test]
+    fn render_pretty_aligns_the_underline_under_its_span() {
+        // Arrange
+        // The span covers "99999" at columns 8 to 12, so the carets sit seven
+        // columns in. Asserting the caret run alone would pass for any indent.
+        let (sources, id) = one_source();
+        let mut report = Report::new();
+        report
+            .error("port out of range")
+            .at(Span::new(id, 7, 12))
+            .emit();
+        let mut out = String::new();
+
+        // Act
+        report.render_pretty(&sources, &mut out).unwrap();
+
+        // Assert
+        let plain = without_ansi(&out);
+        let underline = plain
+            .lines()
+            .find(|line| line.contains('^'))
+            .expect("a caret line is rendered");
+        let after_gutter = underline
+            .rsplit_once('|')
+            .expect("the caret line carries a gutter")
+            .1;
+        assert_eq!(after_gutter, " ".repeat(8) + "^^^^^");
+    }
+
     #[cfg(feature = "color")]
     #[test]
     fn render_pretty_span_inside_multibyte_char_does_not_panic() {

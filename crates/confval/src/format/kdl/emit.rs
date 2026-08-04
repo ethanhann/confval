@@ -880,6 +880,30 @@ mod tests {
     }
 
     #[test]
+    fn emit_kdl_quotes_a_name_whose_first_character_bars_it() {
+        // Arrange
+        // KDL's bare-name grammar turns on the first character, so a name that
+        // is otherwise identifier-shaped still has to quote when it opens with
+        // a digit. Emitting it bare produces text the parser rejects.
+        let fields = Fields::detached(vec![
+            scalar("9lives", Scalar::Int(9)),
+            scalar("_ok", Scalar::Int(1)),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert!(text.contains("\"9lives\""), "got: {text}");
+        // A leading underscore is a legal opener, so it stays bare and the two
+        // cases cannot both be satisfied by quoting everything.
+        assert!(text.contains("\n_ok 1"), "got: {text}");
+        let round = reparse(&text);
+        assert!(round.get("9lives").is_some());
+        assert!(round.get("_ok").is_some());
+    }
+
+    #[test]
     fn emit_kdl_quotes_a_non_identifier_node_name() {
         // Arrange
         let fields = Fields::detached(vec![scalar("weird key", Scalar::Int(1))]);

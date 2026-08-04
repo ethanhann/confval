@@ -456,6 +456,43 @@ mod tests {
     }
 
     #[test]
+    fn name_lookup_answers_each_name_at_a_mixed_level() {
+        // Arrange
+        // Three shapes at one level: an active field, a commented entry with a
+        // name nothing else uses, and a commented entry shadowing the active
+        // name. A lookup that ignored the name, or that inverted the match,
+        // would answer at least one of these wrongly.
+        let int = |value: i64| Value::detached(ValueKind::Scalar(Scalar::Int(value)));
+        let active = Field::detached_value("port", int(8080));
+        let commented_only = Field::detached_value("pid_file", int(0)).as_commented();
+        let shadowing = Field::detached_value("port", int(1)).as_commented();
+        let level = Fields::detached_entries(vec![active.into(), commented_only, shadowing]);
+
+        // Act
+        let answers = [
+            level.has("port"),
+            level.has("pid_file"),
+            level.has("hostname"),
+        ];
+
+        // Assert
+        assert_eq!(answers, [true, false, false]);
+        // `get` answers the same way and hands back the active field, not the
+        // commented entry that shares its name.
+        assert!(level.get("pid_file").is_none());
+        assert!(level.get("hostname").is_none());
+        let found = level.get("port").expect("the active field is present");
+        let FieldKind::Value(Value {
+            kind: ValueKind::Scalar(Scalar::Int(port)),
+            ..
+        }) = &found.kind
+        else {
+            panic!("port should be an integer attribute");
+        };
+        assert_eq!(*port, 8080);
+    }
+
+    #[test]
     fn detached_constructors_carry_no_source_location() {
         // Arrange
         let value = Value::detached(ValueKind::Scalar(Scalar::Int(16)));

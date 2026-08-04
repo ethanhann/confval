@@ -747,6 +747,49 @@ mod tests {
     }
 
     #[test]
+    fn emit_hcl_writes_an_object_with_several_distinct_keys() {
+        // Arrange
+        // The duplicate scan runs over every object, so a level with more than
+        // one distinct key is the case that must be accepted rather than
+        // refused. Two keys and a nested object cover the recursion as well.
+        let inner = Fields::detached(vec![
+            scalar("ca", Scalar::String("ca.pem".to_string())),
+            scalar("verify", Scalar::Bool(true)),
+        ]);
+        let map = Fields::detached(vec![
+            scalar("cert", Scalar::String("a.pem".to_string())),
+            scalar("key", Scalar::String("a.key".to_string())),
+            Field::detached_value("trust", Value::detached(ValueKind::Map(inner))),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_value(
+            "tls",
+            Value::detached(ValueKind::Map(map)),
+        )]);
+
+        // Act
+        let text = emit_hcl(&fields).expect("distinct keys are not a conflict");
+
+        // Assert
+        let round = reparse(&text);
+        let FieldKind::Value(value) = &round.get("tls").unwrap().kind else {
+            panic!("tls should be an attribute");
+        };
+        let ValueKind::Map(object) = &value.kind else {
+            panic!("tls should be an object");
+        };
+        let names: Vec<&str> = object.iter().map(|field| field.name.as_str()).collect();
+        assert_eq!(names, vec!["cert", "key", "trust"]);
+        let FieldKind::Value(trust) = &object.get("trust").unwrap().kind else {
+            panic!("trust should be an attribute");
+        };
+        let ValueKind::Map(nested) = &trust.kind else {
+            panic!("trust should be an object");
+        };
+        let nested_names: Vec<&str> = nested.iter().map(|field| field.name.as_str()).collect();
+        assert_eq!(nested_names, vec!["ca", "verify"]);
+    }
+
+    #[test]
     fn emit_hcl_quotes_a_non_identifier_object_key() {
         let map = Fields::detached(vec![scalar("a b", Scalar::Int(1))]);
         let fields = Fields::detached(vec![Field::detached_value(
