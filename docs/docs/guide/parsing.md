@@ -357,10 +357,11 @@ Structural parsers recurse through `FromFields`:
 - `parse_single_struct`: like `parse_struct_field`, but reports duplicates when the field appears more than once
 - `parse_struct_list_field`: repeated blocks or a sequence of maps, collected into a `Vec`
 
-Occurrence helpers guard a field that may appear only once:
+Occurrence helpers decide what a repeated field means:
 
 - `first_occurrence`: records the first occurrence of a leaf field and reports a later one as a duplicate
 - `parse_single_struct`: the same guard around a nested block
+- `parse_string_list_occurrence`: accumulates a list field's occurrences into one list, in document order
 
 The derive wraps every leaf arm it generates in `first_occurrence`, so a derived spec reports a repeated field.
 A handwritten parser that assigns its slot directly takes the last value instead, with no diagnostic.
