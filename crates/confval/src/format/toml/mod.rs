@@ -145,15 +145,13 @@ fn field_of_item(
             kind: ValueKind::Other("value"),
         })
     };
-    Field {
-        name: name.to_string(),
+    Field::parsed(
+        name,
         name_span,
-        span: entry_span(name_span, value_span),
+        entry_span(name_span, value_span),
         source,
         kind,
-        doc: None,
-        commented: false,
-    }
+    )
 }
 
 /// Converts one TOML value into a neutral [`Value`], recursing through arrays
@@ -202,15 +200,13 @@ fn fields_of_inline_table(
         );
         let value = value_of_value(value, source, report);
         let span = entry_span(name_span, value.span);
-        items.push(Field {
-            name: name.to_string(),
+        items.push(Field::parsed(
+            name,
             name_span,
             span,
             source,
-            kind: FieldKind::Value(value),
-            doc: None,
-            commented: false,
-        });
+            FieldKind::Value(value),
+        ));
     }
     Fields::new(source, enclosing, items)
 }

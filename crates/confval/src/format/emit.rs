@@ -17,6 +17,8 @@
 //! its type was never decided, so a typed reparse of the emitted file reads
 //! those leaves as strings.
 
+#[cfg(any(feature = "toml", feature = "hcl"))]
+use super::field::{Field, FieldKind, Fields};
 use std::fmt::{self, Display, Formatter};
 
 /// Why a `Fields` could not be emitted to a format.
@@ -77,6 +79,54 @@ pub(crate) fn child_path(path: &str, name: &str) -> String {
     }
 }
 
+/// A level's fields in emit order: every value, then every block, each group in
+/// declaration order.
+///
+/// HCL follows the Terraform convention of arguments before nested blocks.
+/// TOML's syntax forces the same order, because a bare key written after a
+/// table header would belong to that table. The two therefore agree, and one
+/// walk serves both.
+#[cfg(any(feature = "toml", feature = "hcl"))]
+pub(crate) fn values_then_blocks(fields: &Fields) -> impl Iterator<Item = &Field> {
+    let values = fields
+        .iter()
+        .filter(|field| matches!(field.kind, FieldKind::Value(_)));
+    let blocks = fields
+        .iter()
+        .filter(|field| matches!(field.kind, FieldKind::Block(_)));
+    values.chain(blocks)
+}
+
+/// The first active name at this level whose same-named group `rejects`.
+///
+/// Each format refuses some repetition it cannot spell, and the formats differ
+/// only in which groups they refuse. `rejects` receives the active fields
+/// sharing one name, in declaration order. A commented field is comment text,
+/// so it joins no group and conflicts with nothing.
+#[cfg(any(feature = "toml", feature = "hcl"))]
+pub(crate) fn first_conflicting_name(
+    fields: &Fields,
+    rejects: impl Fn(&[&Field]) -> bool,
+) -> Option<&str> {
+    fields
+        .iter()
+        .filter(|field| !field.commented)
+        .find_map(|field| {
+            let group: Vec<&Field> = fields
+                .iter()
+                .filter(|other| !other.commented && other.name == field.name)
+                .collect();
+            rejects(&group).then_some(field.name.as_str())
+        })
+}
+
+/// Any active name repeated at a level with unique keys, an HCL object or a
+/// TOML inline table, where no spelling carries a repetition.
+#[cfg(any(feature = "toml", feature = "hcl"))]
+pub(crate) fn repeated_name(fields: &Fields) -> Option<&str> {
+    first_conflicting_name(fields, |group| group.len() > 1)
+}
+
 impl Display for EmitError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -107,14 +157,17 @@ impl Display for EmitError {
 
 impl std::error::Error for EmitError {}
 
-/// Splits a doc comment into the lines to render as `#` comments, so a doc from
-/// any source is safe to emit into either format.
+/// Splits a doc comment into the lines each format renders as its own comment,
+/// so a doc from any source is safe to emit into any of them.
 ///
 /// A `///` comment is already clean, but a `#[confval(doc = "...")]` override or
 /// a hand-built `with_doc` can carry any character. Each line-break variant
 /// becomes its own line, so a stray carriage return reads as the break it stands
 /// for. A control character other than tab is dropped, because HCL ends a comment
-/// at a bare carriage return and TOML rejects a non-printable one.
+/// at a bare carriage return, TOML rejects a non-printable one, and KDL bans
+/// several from its text.
+///
+/// The caller supplies the marker. HCL and TOML write `#` and KDL writes `//`.
 #[cfg(any(feature = "toml", feature = "hcl", feature = "kdl"))]
 pub(crate) fn comment_lines(doc: &str) -> Vec<String> {
     doc.replace("\r\n", "\n")

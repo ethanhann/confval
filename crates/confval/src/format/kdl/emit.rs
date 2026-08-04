@@ -84,7 +84,7 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
         if group.len() == 1 {
             emit_value_field(&mut nodes, field, doc, level, &indent, &child)?;
         } else {
-            let mut node = node_with(&field.name, leading(doc, &indent));
+            let mut node = node_with(&field.name, kdl_comment_prefix(doc, &indent));
             for member in &group {
                 let FieldKind::Value(value) = &member.kind else {
                     continue;
@@ -101,7 +101,7 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
         let child = child_path(path, &field.name);
         let mut node = node_with(
             &field.name,
-            block_leading(field.doc.as_deref(), &indent, !nodes.is_empty()),
+            kdl_block_prefix(field.doc.as_deref(), &indent, !nodes.is_empty()),
         );
         attach_children(&mut node, emit_document(inner, level + 1, &child)?, &indent);
         if field.commented {
@@ -140,13 +140,13 @@ fn emit_value_field(
     };
     match &value.kind {
         ValueKind::Scalar(scalar) => {
-            let mut node = node_with(&field.name, leading(doc, indent));
+            let mut node = node_with(&field.name, kdl_comment_prefix(doc, indent));
             node.entries_mut().push(scalar_entry(scalar));
             nodes.push(node);
         }
         ValueKind::Seq(elements) => match classify_sequence(elements, path)? {
             Sequence::Scalars(scalars) => {
-                let mut node = node_with(&field.name, leading(doc, indent));
+                let mut node = node_with(&field.name, kdl_comment_prefix(doc, indent));
                 for scalar in scalars {
                     node.entries_mut().push(scalar_entry(scalar));
                 }
@@ -155,15 +155,20 @@ fn emit_value_field(
             Sequence::Maps(maps) => {
                 for (index, inner) in maps.into_iter().enumerate() {
                     let doc = if index == 0 { doc } else { None };
-                    let mut node =
-                        node_with(&field.name, block_leading(doc, indent, !nodes.is_empty()));
+                    let mut node = node_with(
+                        &field.name,
+                        kdl_block_prefix(doc, indent, !nodes.is_empty()),
+                    );
                     attach_children(&mut node, emit_document(inner, level + 1, path)?, indent);
                     nodes.push(node);
                 }
             }
         },
         ValueKind::Map(inner) => {
-            let mut node = node_with(&field.name, block_leading(doc, indent, !nodes.is_empty()));
+            let mut node = node_with(
+                &field.name,
+                kdl_block_prefix(doc, indent, !nodes.is_empty()),
+            );
             attach_children(&mut node, emit_document(inner, level + 1, path)?, indent);
             nodes.push(node);
         }
@@ -268,7 +273,7 @@ fn node_with(name: &str, leading: String) -> KdlNode {
 
 /// The leading decor for a value node: its doc comment as `// line` comments,
 /// each at the node's indentation, followed by the indent itself.
-fn leading(doc: Option<&str>, indent: &str) -> String {
+fn kdl_comment_prefix(doc: Option<&str>, indent: &str) -> String {
     let mut out = String::new();
     if let Some(text) = doc {
         for line in comment_lines(text) {
@@ -288,12 +293,12 @@ fn leading(doc: Option<&str>, indent: &str) -> String {
 
 /// The leading decor for a block node: a blank line when the node follows
 /// another structure at its level, then the doc comment and indent.
-fn block_leading(doc: Option<&str>, indent: &str, follows: bool) -> String {
+fn kdl_block_prefix(doc: Option<&str>, indent: &str, follows: bool) -> String {
     let mut out = String::new();
     if follows {
         out.push('\n');
     }
-    out.push_str(&leading(doc, indent));
+    out.push_str(&kdl_comment_prefix(doc, indent));
     out
 }
 

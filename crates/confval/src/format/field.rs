@@ -69,7 +69,16 @@ pub enum ValueKind {
 }
 
 /// One named entry at a structural level: an attribute, a block, or a table.
+///
+/// Marked non-exhaustive, so a field added here stays a minor release rather
+/// than a break for a frontend outside this crate. Build one with
+/// [`parsed`](Field::parsed) on the read path, or with
+/// [`detached_value`](Field::detached_value) and
+/// [`detached_block`](Field::detached_block) on the write path, then attach
+/// what the shape needs through [`with_doc`](Field::with_doc),
+/// [`as_commented`](Field::as_commented), and [`at`](Field::at).
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Field {
     /// The field's name as written in the source.
     pub name: String,
@@ -141,6 +150,34 @@ impl Value {
 }
 
 impl Field {
+    /// A field read from a source, at the spans the frontend captured.
+    ///
+    /// This is the constructor a format frontend builds its fields with.
+    /// `source` is the source the field was read from, `name_span` covers the
+    /// name alone, where an unknown-field error points, and `span` covers the
+    /// name and the value together.
+    ///
+    /// The doc comment and the commented-out marker belong to the write path,
+    /// so a parsed field carries neither. Parsing drops a source file's
+    /// comments, and nothing a source wrote is commented out.
+    pub fn parsed(
+        name: impl Into<String>,
+        name_span: Span,
+        span: Span,
+        source: SourceId,
+        kind: FieldKind,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            name_span,
+            span,
+            source,
+            kind,
+            doc: None,
+            commented: false,
+        }
+    }
+
     /// An attribute field with no source location, carrying a populated value.
     /// The name, name span, and field span are all the detached sentinel.
     pub fn detached_value(name: &str, value: Value) -> Self {
@@ -180,6 +217,25 @@ impl Field {
     /// walk.
     pub fn as_commented(mut self) -> Self {
         self.commented = true;
+        self
+    }
+
+    /// Locates a constructed field.
+    ///
+    /// The field's span and its source come from `span`. An attribute field's
+    /// value takes the same span, because a spec field has one location that
+    /// both halves of it report. A block field's nested level is left alone,
+    /// because its source and enclosing span belong to the level rather than to
+    /// the field naming it.
+    ///
+    /// A sequence value takes the span as the whole list's location. Its
+    /// elements keep whatever spans they were built with.
+    pub fn at(mut self, span: Span) -> Self {
+        self.span = span;
+        self.source = span.source;
+        if let FieldKind::Value(value) = &mut self.kind {
+            value.span = span;
+        }
         self
     }
 }

@@ -175,15 +175,7 @@ fn field_of_node(node: &KdlNode, source: SourceId, report: &mut Report) -> Field
         };
         FieldKind::Block(Fields::new(source, enclosing, items))
     };
-    Field {
-        name: node.name().value().to_string(),
-        name_span,
-        span: node_span,
-        source,
-        kind,
-        doc: None,
-        commented: false,
-    }
+    Field::parsed(node.name().value(), name_span, node_span, source, kind)
 }
 
 /// The value of a node that carries only arguments: a bare node is an empty
@@ -214,15 +206,13 @@ fn value_of_arguments(arguments: &[&KdlEntry], node_span: Span, source: SourceId
 fn field_of_property(entry: &KdlEntry, source: SourceId) -> Option<Field> {
     let name: &KdlIdentifier = entry.name()?;
     let entry_span = span_of!(entry, source);
-    Some(Field {
-        name: name.value().to_string(),
-        name_span: span_of!(name, source),
-        span: entry_span,
+    Some(Field::parsed(
+        name.value(),
+        span_of!(name, source),
+        entry_span,
         source,
-        kind: FieldKind::Value(value_of_entry(entry, source)),
-        doc: None,
-        commented: false,
-    })
+        FieldKind::Value(value_of_entry(entry, source)),
+    ))
 }
 
 /// Converts one entry's value into a neutral [`Value`]. Anything the model has

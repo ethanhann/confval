@@ -14,7 +14,7 @@
 //! attachment each walk needs. The recursion into children follows the same
 //! walk.
 
-use super::field::{Field, FieldKind, Fields, Scalar, ToFields, Value, ValueKind};
+use super::field::{Field, Fields, Scalar, ToFields, Value, ValueKind};
 use crate::source::{Located, Span};
 use std::path::PathBuf;
 
@@ -139,12 +139,12 @@ impl FieldsBuilder {
 
     /// A required leaf. The populated walk emits it detached. The source walk
     /// emits it with its span, and omits it when the span is detached.
-    pub fn leaf<T: Leaf>(&mut self, name: &str, value: &Located<T>) -> &mut Self {
+    pub fn leaf<T: Leaf>(self, name: &str, value: &Located<T>) -> Self {
         self.push_scalar(name, value.span, sealed::Sealed::scalar(&value.value))
     }
 
     /// An optional leaf. An absent field is omitted by both walks.
-    pub fn leaf_opt<T: Leaf>(&mut self, name: &str, value: Option<&Located<T>>) -> &mut Self {
+    pub fn leaf_opt<T: Leaf>(self, name: &str, value: Option<&Located<T>>) -> Self {
         match value {
             Some(value) => self.leaf(name, value),
             None => self,
@@ -158,7 +158,7 @@ impl FieldsBuilder {
     /// the elements whose span is attached, each with its span, and omits the
     /// field when none survive. A list the source wrote empty is therefore
     /// indistinguishable from an absent one.
-    pub fn string_list(&mut self, name: &str, values: &[Located<String>]) -> &mut Self {
+    pub fn string_list(mut self, name: &str, values: &[Located<String>]) -> Self {
         let elements: Vec<Value> = match self.walk {
             Walk::Populated => values.iter().map(detached_element).collect(),
             Walk::Source => values
@@ -181,10 +181,10 @@ impl FieldsBuilder {
     /// it when the wrapper span is attached, carrying that span and each
     /// element's own, so a list the source wrote empty survives.
     pub fn string_list_opt(
-        &mut self,
+        mut self,
         name: &str,
         value: Option<&Located<Vec<Located<String>>>>,
-    ) -> &mut Self {
+    ) -> Self {
         let Some(list) = value else {
             return self;
         };
@@ -206,7 +206,7 @@ impl FieldsBuilder {
     /// A required nested block. The populated walk recurses with `to_fields`.
     /// The source walk recurses with `to_source_fields` and carries the block's
     /// span, and omits the block when that span is detached.
-    pub fn block<S: ToFields>(&mut self, name: &str, value: &Located<S>) -> &mut Self {
+    pub fn block<S: ToFields>(mut self, name: &str, value: &Located<S>) -> Self {
         match self.walk {
             Walk::Populated => {
                 self.items
@@ -224,7 +224,7 @@ impl FieldsBuilder {
     }
 
     /// An optional nested block. An absent block is omitted by both walks.
-    pub fn block_opt<S: ToFields>(&mut self, name: &str, value: Option<&Located<S>>) -> &mut Self {
+    pub fn block_opt<S: ToFields>(self, name: &str, value: Option<&Located<S>>) -> Self {
         match value {
             Some(value) => self.block(name, value),
             None => self,
@@ -242,10 +242,10 @@ impl FieldsBuilder {
     /// Use [`block_opt`](Self::block_opt) for an optional block with no default,
     /// which both walks omit when it is absent.
     pub fn block_opt_default<S: ToFields + Default>(
-        &mut self,
+        mut self,
         name: &str,
         value: Option<&Located<S>>,
-    ) -> &mut Self {
+    ) -> Self {
         match (self.walk, value) {
             (_, Some(value)) => self.block(name, value),
             (Walk::Populated, None) => {
@@ -260,9 +260,9 @@ impl FieldsBuilder {
 
     /// A repeated nested block. Each element is emitted the way [`block`](Self::block)
     /// emits one, so the source walk skips an element whose span is detached.
-    pub fn block_list<S: ToFields>(&mut self, name: &str, values: &[Located<S>]) -> &mut Self {
+    pub fn block_list<S: ToFields>(mut self, name: &str, values: &[Located<S>]) -> Self {
         for value in values {
-            self.block(name, value);
+            self = self.block(name, value);
         }
         self
     }
@@ -274,7 +274,7 @@ impl FieldsBuilder {
     /// Both walks emit it. A source view that dropped the tag would not
     /// reparse, so the tag is part of what the source set even when the spec
     /// type kept no span for it.
-    pub fn literal_string(&mut self, name: &str, value: &str) -> &mut Self {
+    pub fn literal_string(mut self, name: &str, value: &str) -> Self {
         self.items.push(Field::detached_value(
             name,
             Value::detached(ValueKind::Scalar(Scalar::String(value.to_string()))),
@@ -290,18 +290,21 @@ impl FieldsBuilder {
     /// [`Field::detached_value`](Field::detached_value) or
     /// [`Field::detached_block`](Field::detached_block), and locate it with
     /// [`at`](Field::at) when it carries a span.
-    pub fn push(&mut self, field: Field) -> &mut Self {
+    pub fn push(mut self, field: Field) -> Self {
         self.items.push(field);
         self
     }
 
     /// The finished level. The container itself is detached, because a spec
     /// supplies neither a source nor an enclosing span.
-    pub fn finish(&mut self) -> Fields {
-        Fields::detached(std::mem::take(&mut self.items))
+    ///
+    /// This consumes the builder, so a second call is a compile error rather
+    /// than an empty level.
+    pub fn finish(self) -> Fields {
+        Fields::detached(self.items)
     }
 
-    fn push_scalar(&mut self, name: &str, span: Span, scalar: Scalar) -> &mut Self {
+    fn push_scalar(mut self, name: &str, span: Span, scalar: Scalar) -> Self {
         let kind = ValueKind::Scalar(scalar);
         match self.walk {
             Walk::Populated => {
@@ -314,27 +317,6 @@ impl FieldsBuilder {
                         .push(Field::detached_value(name, Value::detached(kind)).at(span));
                 }
             }
-        }
-        self
-    }
-}
-
-impl Field {
-    /// Locates a constructed field.
-    ///
-    /// The field's span and its source come from `span`. An attribute field's
-    /// value takes the same span, because a spec field has one location that
-    /// both halves of it report. A block field's nested level is left alone,
-    /// because its source and enclosing span belong to the level rather than to
-    /// the field naming it.
-    ///
-    /// A sequence value takes the span as the whole list's location. Its
-    /// elements keep whatever spans they were built with.
-    pub fn at(mut self, span: Span) -> Field {
-        self.span = span;
-        self.source = span.source;
-        if let FieldKind::Value(value) = &mut self.kind {
-            value.span = span;
         }
         self
     }
@@ -358,6 +340,7 @@ fn spanned_element(element: &Located<String>) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::format::field::FieldKind;
     use crate::source::SourceId;
 
     fn span_at(start: u32, end: u32) -> Span {

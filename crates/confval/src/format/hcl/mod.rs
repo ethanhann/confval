@@ -116,32 +116,28 @@ fn fields_of_body(
     let mut items = Vec::new();
     for structure in body.iter() {
         match structure {
-            Structure::Attribute(attr) => items.push(Field {
-                name: attr.key.value().as_str().to_string(),
-                name_span: span_of(&attr.key, source),
-                span: span_of(attr, source),
+            Structure::Attribute(attr) => items.push(Field::parsed(
+                attr.key.value().as_str(),
+                span_of(&attr.key, source),
+                span_of(attr, source),
                 source,
-                kind: FieldKind::Value(value_of_expr(&attr.value, text, source, report)),
-                doc: None,
-                commented: false,
-            }),
+                FieldKind::Value(value_of_expr(&attr.value, text, source, report)),
+            )),
             Structure::Block(block) => {
                 let block_span = span_of(block, source);
-                items.push(Field {
-                    name: block.ident.value().as_str().to_string(),
-                    name_span: span_of(&block.ident, source),
-                    span: block_span,
+                items.push(Field::parsed(
+                    block.ident.value().as_str(),
+                    span_of(&block.ident, source),
+                    block_span,
                     source,
-                    kind: FieldKind::Block(fields_of_body(
+                    FieldKind::Block(fields_of_body(
                         &block.body,
                         block_span,
                         text,
                         source,
                         report,
                     )),
-                    doc: None,
-                    commented: false,
-                });
+                ));
             }
         }
     }
@@ -174,15 +170,13 @@ fn fields_of_object(
         };
         let name_span = span_of(key, source);
         let value = value_of_expr(value.expr(), text, source, report);
-        items.push(Field {
-            name: name.to_string(),
+        items.push(Field::parsed(
+            name,
             name_span,
-            span: Span::merge(name_span, value.span),
+            Span::merge(name_span, value.span),
             source,
-            kind: FieldKind::Value(value),
-            doc: None,
-            commented: false,
-        });
+            FieldKind::Value(value),
+        ));
     }
     Fields::new(source, enclosing, items)
 }

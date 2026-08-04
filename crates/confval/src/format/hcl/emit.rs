@@ -6,7 +6,9 @@
 
 use super::commented::commented_text;
 use crate::format::EmitError;
-use crate::format::emit::{child_path, comment_lines};
+use crate::format::emit::{
+    child_path, comment_lines, first_conflicting_name, repeated_name, values_then_blocks,
+};
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 use hcl_edit::Decorate;
 use hcl_edit::Ident;
@@ -75,13 +77,7 @@ pub(super) fn emit_body(
     let mut body = Body::new();
     let mut pending = String::new();
     let mut emitted = 0usize;
-    let values = fields
-        .iter()
-        .filter(|field| matches!(field.kind, FieldKind::Value(_)));
-    let blocks = fields
-        .iter()
-        .filter(|field| matches!(field.kind, FieldKind::Block(_)));
-    for field in values.chain(blocks) {
+    for field in values_then_blocks(fields) {
         if field.commented {
             pending.push_str(&commented_text(field, level, path)?);
             continue;
@@ -89,28 +85,29 @@ pub(super) fn emit_body(
         // The prefix carries any pending commented text, then the field's doc
         // comment above its indentation, so the comment aligns with the field
         // it documents.
-        let prefix = format!(
-            "{}{}",
-            std::mem::take(&mut pending),
-            hcl_comment_prefix(&field.doc, &indent)
-        );
+        let pending_text = std::mem::take(&mut pending);
+        let doc_prefix = hcl_comment_prefix(&field.doc, &indent);
         match &field.kind {
             FieldKind::Value(value) => {
                 let child = child_path(path, &field.name);
                 let mut attribute =
                     Attribute::new(ident_of(&field.name, path)?, hcl_expr_of(value, &child)?);
-                attribute.decor_mut().set_prefix(prefix);
+                attribute
+                    .decor_mut()
+                    .set_prefix(format!("{pending_text}{doc_prefix}"));
                 body.push(Structure::Attribute(attribute));
             }
             FieldKind::Block(inner) => {
                 let child = child_path(path, &field.name);
                 let mut block = Block::new(ident_of(&field.name, path)?);
-                let prefix = if emitted == 0 {
-                    prefix
-                } else {
-                    format!("\n{prefix}")
-                };
-                block.decor_mut().set_prefix(prefix);
+                // The blank line separates the block from the structure above
+                // it, so it follows any pending commented text rather than
+                // preceding it. A commented entry belongs to the value group it
+                // was written after, the way TOML and KDL render it.
+                let separator = if emitted == 0 { "" } else { "\n" };
+                block
+                    .decor_mut()
+                    .set_prefix(format!("{pending_text}{separator}{doc_prefix}"));
                 let (mut inner_body, inner_pending) = emit_body(inner, level + 1, &child)?;
                 inner_body
                     .decor_mut()
@@ -167,41 +164,20 @@ fn hcl_expr_of(value: &Value, path: &str) -> Result<Expression, EmitError> {
 }
 
 /// A name used by more than one active value field at one level, which HCL
-/// cannot spell as duplicate attributes. A commented field is comment text,
-/// so it conflicts with nothing.
+/// cannot spell as duplicate attributes. HCL repeats blocks freely, so only the
+/// value fields in a group count.
 fn duplicate_attribute_name(fields: &Fields) -> Option<&str> {
-    fields
-        .iter()
-        .filter(|field| !field.commented)
-        .find_map(|field| {
-            let values = fields
-                .iter()
-                .filter(|other| {
-                    !other.commented
-                        && other.name == field.name
-                        && matches!(other.kind, FieldKind::Value(_))
-                })
-                .count();
-            (values > 1).then_some(field.name.as_str())
-        })
-}
-
-/// Any active name repeated inside an object, which is a map with unique keys.
-fn repeated_object_name(fields: &Fields) -> Option<&str> {
-    fields
-        .iter()
-        .filter(|field| !field.commented)
-        .find_map(|field| {
-            let count = fields
-                .iter()
-                .filter(|other| !other.commented && other.name == field.name)
-                .count();
-            (count > 1).then_some(field.name.as_str())
-        })
+    first_conflicting_name(fields, |group| {
+        group
+            .iter()
+            .filter(|field| matches!(field.kind, FieldKind::Value(_)))
+            .count()
+            > 1
+    })
 }
 
 fn hcl_object_of(fields: &Fields, path: &str) -> Result<Object, EmitError> {
-    if let Some(name) = repeated_object_name(fields) {
+    if let Some(name) = repeated_name(fields) {
         return Err(EmitError::ConflictingName {
             name: name.to_string(),
             path: path.to_string(),
@@ -408,9 +384,9 @@ mod tests {
         let text = emit_hcl(&fields).unwrap();
 
         // Assert
-        // The commented line keeps the level's indent behind the prefix, so
-        // uncommenting restores the aligned entry.
-        assert_eq!(text, "limits {\n  mode = \"log\"\n#  rate = 0\n}\n");
+        // The marker follows the level's indent, so the entry lines up with the
+        // body around it and uncommenting restores the aligned entry.
+        assert_eq!(text, "limits {\n  mode = \"log\"\n  #rate = 0\n}\n");
     }
 
     #[test]
@@ -432,6 +408,31 @@ mod tests {
         assert_eq!(
             text,
             "#pid_file = \"\"\n# Request limits.\nlimits {\n  max_body_mb = 16\n}\n"
+        );
+    }
+
+    #[test]
+    fn emit_hcl_keeps_a_commented_entry_with_the_values_above_it() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(8080)),
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+            Field::detached_block(
+                "limits",
+                Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
+            )
+            .with_doc(Some("Request limits.".to_string())),
+        ]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        // The blank line separates the block from the value group, so the
+        // commented entry stays with the values it belongs to.
+        assert_eq!(
+            text,
+            "port = 8080\n#pid_file = \"\"\n\n# Request limits.\nlimits {\n  max_body_mb = 16\n}\n"
         );
     }
 
@@ -463,7 +464,7 @@ mod tests {
         let text = emit_hcl(&fields).unwrap();
 
         // Assert
-        assert_eq!(text, "limits {\n#  max_body_mb = 16\n}\n");
+        assert_eq!(text, "limits {\n  #max_body_mb = 16\n}\n");
         reparse(&text);
     }
 

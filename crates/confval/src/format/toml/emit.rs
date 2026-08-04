@@ -6,7 +6,9 @@
 
 use super::commented::{child_header, commented_block_text, commented_value_text};
 use crate::format::EmitError;
-use crate::format::emit::{child_path, comment_lines};
+use crate::format::emit::{
+    child_path, comment_lines, first_conflicting_name, repeated_name, values_then_blocks,
+};
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 use std::collections::HashSet;
 use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Value as TomlValue};
@@ -43,36 +45,12 @@ pub fn emit_toml(fields: &Fields) -> Result<String, EmitError> {
 /// block, would silently overwrite one of them. Emit refuses instead. A
 /// commented field is comment text, so it conflicts with nothing.
 fn conflicting_name(fields: &Fields) -> Option<&str> {
-    fields
-        .iter()
-        .filter(|field| !field.commented)
-        .find_map(|field| {
-            let group = fields
+    first_conflicting_name(fields, |group| {
+        group.len() > 1
+            && !group
                 .iter()
-                .filter(|other| !other.commented && other.name == field.name);
-            let mut count = 0;
-            let mut all_blocks = true;
-            for other in group {
-                count += 1;
-                all_blocks &= matches!(other.kind, FieldKind::Block(_));
-            }
-            (count > 1 && !all_blocks).then_some(field.name.as_str())
-        })
-}
-
-/// Any active name repeated inside an inline table, where nothing can repeat,
-/// not even blocks, which have no array-of-tables spelling there.
-fn repeated_inline_name(fields: &Fields) -> Option<&str> {
-    fields
-        .iter()
-        .filter(|field| !field.commented)
-        .find_map(|field| {
-            let count = fields
-                .iter()
-                .filter(|other| !other.commented && other.name == field.name)
-                .count();
-            (count > 1).then_some(field.name.as_str())
-        })
+                .all(|field| matches!(field.kind, FieldKind::Block(_)))
+    })
 }
 
 /// Fills a `toml_edit` table from a neutral level.
@@ -103,13 +81,7 @@ fn emit_table(
     // partition. A commented entry then lands in the region its active twin
     // would render in, and uncommenting cannot bind a value into the wrong
     // table.
-    let values = fields
-        .iter()
-        .filter(|field| matches!(field.kind, FieldKind::Value(_)));
-    let blocks = fields
-        .iter()
-        .filter(|field| matches!(field.kind, FieldKind::Block(_)));
-    for field in values.chain(blocks) {
+    for field in values_then_blocks(fields) {
         match &field.kind {
             FieldKind::Value(value) => {
                 let child = child_path(path, &field.name);
@@ -297,7 +269,7 @@ fn toml_array_of(elements: &[Value], path: &str) -> Result<Array, EmitError> {
 }
 
 fn toml_inline_of(fields: &Fields, path: &str) -> Result<InlineTable, EmitError> {
-    if let Some(name) = repeated_inline_name(fields) {
+    if let Some(name) = repeated_name(fields) {
         return Err(EmitError::ConflictingName {
             name: name.to_string(),
             path: path.to_string(),
