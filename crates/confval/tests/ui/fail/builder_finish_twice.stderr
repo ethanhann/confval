@@ -1,0 +1,15 @@
+error[E0382]: use of moved value: `builder`
+  --> tests/ui/fail/builder_finish_twice.rs:11:19
+   |
+ 9 |     let builder = FieldsBuilder::new(Walk::Populated).leaf("hostname", &hostname);
+   |         ------- move occurs because `builder` has type `FieldsBuilder`, which does not implement the `Copy` trait
+10 |     let _first = builder.finish();
+   |                          -------- `builder` moved due to this method call
+11 |     let _second = builder.finish();
+   |                   ^^^^^^^ value used here after move
+   |
+note: `FieldsBuilder::finish` takes ownership of the receiver `self`, which moves `builder`
+  --> src/format/builder.rs
+   |
+   |     pub fn finish(self) -> Fields {
+   |                   ^^^^

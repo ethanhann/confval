@@ -20,18 +20,16 @@ fn span(source: SourceId, start: u32, end: u32) -> Span {
 }
 
 fn scalar_field(source: SourceId, name: &str, scalar: Scalar, at: u32) -> Field {
-    Field {
-        name: name.to_string(),
-        name_span: span(source, at, at + name.len() as u32),
-        span: span(source, at, at + 10),
+    Field::parsed(
+        name,
+        span(source, at, at + name.len() as u32),
+        span(source, at, at + 10),
         source,
-        doc: None,
-        commented: false,
-        kind: FieldKind::Value(Value {
+        FieldKind::Value(Value {
             span: span(source, at, at + 10),
             kind: ValueKind::Scalar(scalar),
         }),
-    }
+    )
 }
 
 fn seq_field(source: SourceId, name: &str, elements: Vec<Scalar>, at: u32) -> Field {
@@ -42,18 +40,16 @@ fn seq_field(source: SourceId, name: &str, elements: Vec<Scalar>, at: u32) -> Fi
             kind: ValueKind::Scalar(scalar),
         })
         .collect();
-    Field {
-        name: name.to_string(),
-        name_span: span(source, at, at + name.len() as u32),
-        span: span(source, at, at + 10),
+    Field::parsed(
+        name,
+        span(source, at, at + name.len() as u32),
+        span(source, at, at + 10),
         source,
-        doc: None,
-        commented: false,
-        kind: FieldKind::Value(Value {
+        FieldKind::Value(Value {
             span: span(source, at, at + 10),
             kind: ValueKind::Seq(values),
         }),
-    }
+    )
 }
 
 fn level(source: SourceId, items: Vec<Field>) -> Fields {
