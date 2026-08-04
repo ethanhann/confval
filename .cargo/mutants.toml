@@ -1,0 +1,6 @@
+all_features = true
+
+# `confval-derive` has no tests of its own. Its behavior is covered by the
+# integration and trybuild tests in the `confval` package, so a mutant there is
+# only reachable when the whole workspace suite runs.
+test_workspace = true
