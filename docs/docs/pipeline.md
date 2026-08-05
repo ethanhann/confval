@@ -47,7 +47,7 @@ In a system with hot reload, a panic during a reload would crash a long-lived se
 The issues are reported instead.
 
 Every validator appends issues to the report.
-An issue is usually a semantic validation rule that enforces a constraint on a setting, not a handled Rust error.
+An issue usually records a violated semantic rule rather than a handled Rust error.
 For example, a date might pass the parse stage, confirming it is a date, but violate a setting-specific rule
 requiring it to be at least 90 days in the future.
 
@@ -184,8 +184,9 @@ End-to-end examples ship in `crates/confval/examples/`.
 `hcl.rs`, `toml.rs`, and `kdl.rs` each hold a source document and one parse call.
 Everything after parsing lives in `common/mod.rs`: the spec types, the validators, the config types, and the lowering
 functions.
-Both examples share that file verbatim.
-The format-neutrality of the later stages is visible in the layout, and explicitly annotated.
+All three share that file verbatim.
+The format-neutrality of the later stages is visible in the layout.
+`common/mod.rs` annotates it.
 `issue_severity.rs` reuses the same types to show a warning passing the gate.
 `validate_traversal.rs` stands alone to show what `validate_all` reaches and what a `descend` override prunes.
 See [Getting Started](getting-started.md) to run them.

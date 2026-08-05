@@ -42,12 +42,13 @@ These design decisions should be adhered to.
 
 - Parsing produces a format-neutral field model.
 - A frontend converts one syntax into that model.
-- HCL, TOML, and KDL ship today, each behind its own feature, and a new format is another frontend over the same model.
+- HCL, TOML, and KDL ship today, each behind its own feature.
+  A new format is another frontend over the same model.
 
 ### The core has no required dependencies
 
 serde, owo-colors, hcl-edit, toml_edit, kdl, and the derive macros are each behind a feature flag.
- 
+
 confval aims to stay free of required dependencies.
 Put any new dependency behind a feature flag.
 

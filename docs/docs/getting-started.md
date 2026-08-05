@@ -52,7 +52,8 @@ It pulls in no external crate.
 This example parses an HCL document, validates it, checks the report for errors, and lowers the validated spec into a runtime config.
 
 The crate ships the same program as multiple runnable examples.
-`hcl.rs`, `toml.rs`, and `kdl.rs` each supply a source document and one parse call, and all three pull everything after parsing from a shared `common/mod.rs`.
+`hcl.rs`, `toml.rs`, and `kdl.rs` each supply a source document and one parse call.
+All three pull everything after parsing from a shared `common/mod.rs`.
 
 Read through it once for the overall shape.
 The section after it maps each part to the guide page that covers it in depth.
@@ -201,12 +202,16 @@ Each maps to one stage of the [pipeline](pipeline.md) and has its own guide page
 - The spec types, `ServerSpec` and `LimitsSpec`, declare the fields you parse a file into.
   `#[confval(derive_default)]` on `LimitsSpec` derives its `Default` from the same attribute defaults that fill an omitted field.
   See [Parsing](./guide/parsing.md).
-- The `Validate` impls check what the values mean and report at each field's span. See [Validation](./guide/validation.md).
-- The config types, `ServerConfig` and `LimitsConfig`, are the runtime form the validated spec lowers into. See [Lowering](./guide/lowering.md).
-- The `main` function runs the stages in order: parse, validate, check `has_errors`, then lower. How the report renders is covered in [Diagnostics](./guide/diagnostics.md).
+- The `Validate` impls check what the values mean and report at each field's span.
+  See [Validation](./guide/validation.md).
+- The config types, `ServerConfig` and `LimitsConfig`, are the runtime form the validated spec lowers into.
+  See [Lowering](./guide/lowering.md).
+- The `main` function runs the stages in order: parse, validate, check `has_errors`, then lower.
+  See [Diagnostics](./guide/diagnostics.md) for how the report renders.
 
 To watch the report work, put some bad values in the input: an empty `hostname`, a `port` of `99999`, an unknown `mode`.
-The `has_errors` check stops the run before lowering, and all three come back reported, each at its own line and column.
+The `has_errors` check stops the run before lowering.
+All three problems come back reported, each at its own line and column.
 
 ## Running the examples
 
