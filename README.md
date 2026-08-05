@@ -1,5 +1,10 @@
 # confval
 
+[![Build](https://github.com/ethanhann/confval/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/ethanhann/confval/actions/workflows/build.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://ethanhann.com/confval/coverage/badge.json)](https://github.com/ethanhann/confval/actions/workflows/build.yml)
+[![Tests](https://img.shields.io/endpoint?url=https://ethanhann.com/confval/coverage/tests-badge.json)](https://github.com/ethanhann/confval/actions/workflows/build.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+
 Configuration parsing, validation, and lowering primitives for Rust.
 
 Configuration is parsed span-first, so every value carries the byte range it came from and every later check can point
