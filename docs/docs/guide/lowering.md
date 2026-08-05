@@ -48,7 +48,8 @@ Field rules:
 - **`#[confval(spec_only(field, ...))]`** at the struct level names spec fields that intentionally have no runtime counterpart.
 
 The generated impl destructures the spec exhaustively with no rest pattern.
-Adding a field to either struct without accounting for it on the other side is a compile error, which keeps spec and config in lockstep.
+Adding a field to either struct without accounting for it on the other side is a compile error.
+The two structs therefore stay in agreement.
 
 ## Narrowing helpers
 

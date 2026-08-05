@@ -9,7 +9,8 @@ A file holds the defaults that ship with the project, environment variables set 
 Layering combines these sources into one configuration, applying them in order so that a value from a later source overrides the same value from an earlier one.
 
 The `layering` feature assembles the sources for you and produces the same spec type you would parse from a single file.
-Environment and command line values are coerced to the type each field declares, and every value keeps its source location, so a configuration error reports the exact file, variable, or flag responsible.
+Environment and command line values are coerced to the type each field declares.
+Every value keeps its source location, so a configuration error reports the exact file, variable, or flag responsible.
 
 ## Enabling Layering
 
@@ -66,7 +67,8 @@ let env_layer = env_fields(&mut sources, "APP_", &mut report);
 let cli_layer = cli_fields(&mut sources, std::env::args(), &mut report);
 ```
 
-A provider returns `None` when its source fails to parse, and it records the error in the report.
+A provider returns `None` when its source fails to parse.
+The error is recorded in the report.
 When any layer is `None`, `assemble` returns `None` before parsing the spec, so check the report for errors after `assemble` as you would after parsing one file.
 `assemble` never returns `None` with an empty report.
 

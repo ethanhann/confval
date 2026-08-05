@@ -146,7 +146,8 @@ The spelling `#[confval(nested, default)]` also exists on the config side, where
 On a spec it fills the omitted block during parsing, so the spec itself holds the default.
 On a config it leaves the spec field `None` and lowers `S::default()` in its place, so the spec stays faithful to the
 source and only the runtime value is filled in.
-The two are independent, and one setting can use either, both, or neither.
+The two are independent.
+One setting can use either, both, or neither.
 See [Lowering](./lowering.md#defining-a-config).
 :::
 
@@ -154,7 +155,8 @@ See [Lowering](./lowering.md#defining-a-config).
 
 The attribute default fills a field the file omits.
 When the whole block is omitted, the config side supplies it through `#[confval(nested, default)]`, which lowers `S::default()`, so the spec type needs a `Default` impl.
-Writing that impl by hand repeats the attribute defaults, and nothing keeps the two in agreement.
+Writing that impl by hand repeats the attribute defaults.
+Nothing keeps the two in agreement.
 
 `#[confval(derive_default)]` on the struct generates the `Default` impl from the attribute defaults, so each default is declared once.
 

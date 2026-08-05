@@ -5,7 +5,8 @@ sidebar_position: 4
 # Diagnostics
 
 When parsing or validation finds a problem, it does not throw.
-It records the problem in a `Report`, and confval renders that report for people to read.
+It records the problem in a `Report`.
+confval renders that report for people to read.
 Spans are what let each message point at the exact place in the file.
 
 ## Report and IssueBuilder
@@ -61,7 +62,8 @@ error: unknown load_balancing_strategy: failovr
 
 Line and column lookups are O(log n) via a per-source line index.
 Columns count characters, not bytes.
-An issue records only a severity, message, optional span, optional help, and related spans, and never reads source text until render time.
+An issue records only a severity, message, optional span, optional help, and related spans.
+It never reads source text until render time.
 
 ## Spans and source
 
