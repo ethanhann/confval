@@ -10,6 +10,13 @@ Various just recipes are available, but these are the most useful:
 
 - `just docs`: run the docs site locally
 - `just validate`: Test everything (lint, unit tests, etc.)
+- `just mutants`: run mutation testing to find gaps the suite does not cover
+
+`just validate` is the gate a change has to pass.
+`just mutants` runs longer and is worth running when you add a module or change how one behaves.
+It builds the whole workspace once per mutant, so expect it to take a while.
+`confval-derive` has no tests of its own, which is why `.cargo/mutants.toml` sets `test_workspace`.
+Its behavior is covered by the integration and trybuild tests in the `confval` package.
 
 ## Design
 
@@ -35,12 +42,13 @@ These design decisions should be adhered to.
 
 - Parsing produces a format-neutral field model.
 - A frontend converts one syntax into that model.
-- HCL, TOML, and KDL ship today, each behind its own feature, and a new format is another frontend over the same model.
+- HCL, TOML, and KDL ship today, each behind its own feature.
+  A new format is another frontend over the same model.
 
 ### The core has no required dependencies
 
 serde, owo-colors, hcl-edit, toml_edit, kdl, and the derive macros are each behind a feature flag.
- 
+
 confval aims to stay free of required dependencies.
 Put any new dependency behind a feature flag.
 
@@ -53,7 +61,8 @@ If you add an example or change one's required features, update that page and th
 ## Crate layout
 
 confval is organized into four layers, each a module, plus a prelude.
-The dependency direction is strictly downward: `format` builds on `pipeline`, which builds on `diagnostic`, which builds
+The dependency direction is strictly downward.
+`format` builds on `pipeline`, which builds on `diagnostic`, which builds
 on `source`.
 
 | Module                | Holds                                                                                       |

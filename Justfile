@@ -7,11 +7,30 @@ test:
     cargo nextest run --workspace --all-features
     cargo test --locked --all-features --doc
 
+# Run unit tests with coverage, and output HTML
+test-with-coverage:
+    cargo llvm-cov nextest --workspace --exclude confval-derive --all-features --html --ignore-filename-regex 'tests/|examples/'
+    open target/llvm-cov/html/index.html
+
 format:
     cargo fmt
 
 lint:
     cargo clippy --all-targets --all-features -- -D warnings
+
+# Run mutation testing across the workspace. Configured in .cargo/mutants.toml.
+mutants jobs="4":
+    cargo mutants -j {{ jobs }}
+
+# Mutate only the source a diff touches. Note the jobs="4" arg is bound by disk (target/ size times jobs), not CPU cores.
+mutants-diff base="main" jobs="4":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    diff=target/mutants-since.diff
+    mkdir -p target
+    git diff {{ base }} -- 'crates/*/src/*.rs' > "$diff"
+    if [ ! -s "$diff" ]; then echo "no source changes against {{ base }}"; exit 0; fi
+    cargo mutants --in-diff "$diff" -j {{ jobs }}
 
 # Test everything
 validate: format lint test validate-docs examples

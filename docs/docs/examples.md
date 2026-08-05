@@ -36,7 +36,7 @@ cargo run -q -p confval --example kdl --features derive,color,kdl
 
 ## issue_severity
 
-The `issue_severity` example illustrates the difference between a error and a warning.
+The `issue_severity` example illustrates the difference between an error and a warning.
 
 ```shell
 cargo run -q -p confval --example issue_severity --features derive,color,toml
@@ -92,7 +92,8 @@ cargo run -q -p confval --example json_diagnostics --features derive,serde,toml
 ## narrow
 
 The `narrow` example shows the ready-made narrowing helpers that convert spec integers to the widths a runtime type needs.
-It exercises five of them, and the remaining integer widths and their `opt_` variants share the same shape.
+It exercises five of them.
+The remaining integer widths and their `opt_` variants share the same shape.
 
 ```shell
 cargo run -q -p confval --example narrow --features derive,color,toml

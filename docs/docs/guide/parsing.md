@@ -16,9 +16,6 @@ What the values mean is left to [validation](./validation.md).
 
 ## Concept Overview
 
-This is a high-level look at parsing.
-The sections below cover each part in more detail.
-
 You define a spec as a struct, then parse a file into it with the frontend for the format you enabled.
 
 ```rust
@@ -146,7 +143,8 @@ The spelling `#[confval(nested, default)]` also exists on the config side, where
 On a spec it fills the omitted block during parsing, so the spec itself holds the default.
 On a config it leaves the spec field `None` and lowers `S::default()` in its place, so the spec stays faithful to the
 source and only the runtime value is filled in.
-The two are independent, and one setting can use either, both, or neither.
+The two are independent.
+One setting can use either, both, or neither.
 See [Lowering](./lowering.md#defining-a-config).
 :::
 
@@ -154,7 +152,8 @@ See [Lowering](./lowering.md#defining-a-config).
 
 The attribute default fills a field the file omits.
 When the whole block is omitted, the config side supplies it through `#[confval(nested, default)]`, which lowers `S::default()`, so the spec type needs a `Default` impl.
-Writing that impl by hand repeats the attribute defaults, and nothing keeps the two in agreement.
+Writing that impl by hand repeats the attribute defaults.
+Nothing keeps the two in agreement.
 
 `#[confval(derive_default)]` on the struct generates the `Default` impl from the attribute defaults, so each default is declared once.
 
@@ -200,8 +199,7 @@ It works three ways:
 A setting in a configuration file that does not exist in the Rust struct will be interpreted as a parsing error.
 There is no lenient mode that ignores extra settings/keys.
 
-Stricter is better in general with configuration file structure, but this is particularly useful for LLM-edited
-configuration files as LLMs tend to invent settings that do not exist.
+Strictness matters most for LLM-edited configuration files, because an LLM will invent settings that do not exist.
 
 ### What the derive does not handle
 
@@ -257,6 +255,7 @@ bind {
 ```rust
 let spec: Option<ServerSpec> = confval::format::kdl::parse_kdl(&sources, id, &mut report);
 ```
+
 A repeated node is a list when the field is a list and a duplicate error when it is not.
 An argument on a node that also has properties or children is an error, because the model has no block labels.
 A bare node where a single value is expected reports `expected string, found array`, because the bare spelling means an
@@ -270,7 +269,8 @@ answer is uniform so the same configuration means the same thing whichever front
 `hcl-edit` rejects duplicate attribute keys while parsing, so a repeated attribute is a syntax error, and TOML rejects
 a duplicate key the same way.
 A repeated block parses, and confval reports it with a related span pointing at the first occurrence.
-A repeated KDL value node reaches the same rule: a list field accumulates the occurrences, and a single-value field
+A repeated KDL value node follows the same rule.
+A list field accumulates the occurrences, and a single-value field
 reports the repeat with the related span.
 :::
 
@@ -357,10 +357,11 @@ Structural parsers recurse through `FromFields`:
 - `parse_single_struct`: like `parse_struct_field`, but reports duplicates when the field appears more than once
 - `parse_struct_list_field`: repeated blocks or a sequence of maps, collected into a `Vec`
 
-Occurrence helpers guard a field that may appear only once:
+Occurrence helpers decide what a repeated field means:
 
 - `first_occurrence`: records the first occurrence of a leaf field and reports a later one as a duplicate
 - `parse_single_struct`: the same guard around a nested block
+- `parse_string_list_occurrence`: accumulates a list field's occurrences into one list, in document order
 
 The derive wraps every leaf arm it generates in `first_occurrence`, so a derived spec reports a repeated field.
 A handwritten parser that assigns its slot directly takes the last value instead, with no diagnostic.

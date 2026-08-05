@@ -3,9 +3,9 @@
 //! `impl confval::pipeline::ValidateNested` alongside the parser.
 //!
 //! The rules themselves are not generated. They live in a `Validate` impl the
-//! author writes, because only the author knows which values are legal. The
-//! generated part is the mechanical one. Descending into child blocks is
-//! derived from the struct definition rather than maintained by hand.
+//! author writes, because only the author knows which values are legal.
+//! Descending into child blocks is derived from the struct definition rather
+//! than maintained by hand.
 //!
 //! The traversal reads the field shapes the parser already classified, so the
 //! three nested spellings each get the call they need. Non-nested fields are

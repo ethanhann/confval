@@ -140,6 +140,34 @@ mod tests {
     }
 
     #[test]
+    fn hash_reads_the_value_and_ignores_the_span() {
+        // Arrange
+        // A `HashSet` cannot pin this on its own, because `Eq` decides
+        // membership once two entries collide, so an impl that hashed nothing
+        // would still produce the expected set sizes. Hashing directly is what
+        // separates "ignores the span" from "ignores everything".
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        fn digest<T: Hash>(value: &T) -> u64 {
+            let mut hasher = DefaultHasher::new();
+            value.hash(&mut hasher);
+            hasher.finish()
+        }
+
+        let here = Located::new("a".to_string(), span_at(0, 1));
+        let far = Located::new("a".to_string(), span_at(50, 51));
+        let other = Located::new("b".to_string(), span_at(0, 1));
+
+        // Act
+        let (here_digest, far_digest, other_digest) = (digest(&here), digest(&far), digest(&other));
+
+        // Assert
+        assert_eq!(here_digest, far_digest, "the span must not reach the hash");
+        assert_ne!(here_digest, other_digest, "the value must reach the hash");
+    }
+
+    #[test]
     fn deref_reads_the_value() {
         let port = Located::new(8080u16, span_at(0, 4));
         assert_eq!(*port, 8080);

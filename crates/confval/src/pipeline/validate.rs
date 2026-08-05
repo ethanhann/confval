@@ -14,7 +14,7 @@ use core::ops::ControlFlow;
 /// to make sure the target spec of the lowering has a validator and a traversal.
 ///
 /// An empty impl satisfies the `Validate` half of that bound.
-/// What it catches is the forgotten validator, not an unchecked field.
+/// It catches the forgotten validator rather than proving any field is checked.
 /// Validation is still invoked explicitly before the lowering gate, so the
 /// bound does not make lowering call it.
 ///

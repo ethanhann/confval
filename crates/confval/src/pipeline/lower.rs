@@ -58,3 +58,39 @@ impl<T: Clone> LowerAuto<Option<Vec<T>>> for Option<Located<Vec<Located<T>>>> {
         self.as_ref().map(|list| list.value.lower_auto())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The required wrapped list is the one shape `#[derive(Spec)]` rejects,
+    /// pinned by `tests/ui/fail/spec_required_wrapped_string_list.rs`, so no
+    /// derived spec reaches this impl and only a handwritten one can. The other
+    /// four impls are covered through the derive in `tests/lower_auto.rs`.
+    #[test]
+    fn a_required_wrapped_list_keeps_every_element_in_order() {
+        // Arrange
+        let list = Located::detached(vec![
+            Located::detached("edge".to_string()),
+            Located::detached("beta".to_string()),
+        ]);
+
+        // Act
+        let lowered: Vec<String> = list.lower_auto();
+
+        // Assert
+        assert_eq!(lowered, vec!["edge".to_string(), "beta".to_string()]);
+    }
+
+    #[test]
+    fn a_required_wrapped_list_written_empty_lowers_to_an_empty_vec() {
+        // Arrange
+        let list: Located<Vec<Located<String>>> = Located::detached(Vec::new());
+
+        // Act
+        let lowered: Vec<String> = list.lower_auto();
+
+        // Assert
+        assert!(lowered.is_empty());
+    }
+}

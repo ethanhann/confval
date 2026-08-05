@@ -69,7 +69,16 @@ pub enum ValueKind {
 }
 
 /// One named entry at a structural level: an attribute, a block, or a table.
+///
+/// Marked non-exhaustive, so a field added here stays a minor release rather
+/// than a break for a frontend outside this crate. Build one with
+/// [`parsed`](Field::parsed) on the read path, or with
+/// [`detached_value`](Field::detached_value) and
+/// [`detached_block`](Field::detached_block) on the write path, then attach
+/// what the shape needs through [`with_doc`](Field::with_doc) and
+/// [`at`](Field::at).
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Field {
     /// The field's name as written in the source.
     pub name: String,
@@ -88,13 +97,48 @@ pub struct Field {
     /// spec field's doc comment for `to_template`. A multi-line comment is one
     /// string with newline separators.
     pub doc: Option<String>,
-    /// Whether the field renders as a commented-out entry in template output.
-    /// Parsing never sets it. The template walk sets it for an absent optional
-    /// field, so the template shows the field without activating it. A
-    /// commented field reads as absent everywhere: the generated parse walk
-    /// skips it, [`Fields::get`] and [`Fields::has`] skip it, and the layering
-    /// merge drops it.
-    pub commented: bool,
+}
+
+/// A field at a level, and whether a template renders it active or
+/// commented out.
+///
+/// Whether an entry is commented is a question about rendering, not about the
+/// configuration, so it lives here rather than on [`Field`]. Parsing produces
+/// only [`Active`](Entry::Active) entries. The template walk produces a
+/// [`Commented`](Entry::Commented) entry for an absent optional field, so a
+/// template shows the field without activating it.
+///
+/// Only the emitters read a commented entry, through
+/// [`entries`](Fields::entries). Every other reader goes through
+/// [`iter`](Fields::iter), [`get`](Fields::get), or [`has`](Fields::has), which
+/// yield active fields alone, so nothing on the read path has to know this
+/// distinction exists.
+#[derive(Debug, Clone)]
+pub enum Entry {
+    /// A field the configuration sets.
+    Active(Field),
+    /// A field a template shows behind its format's comment marker.
+    Commented(Field),
+}
+
+impl Entry {
+    /// The field, whether it is active or commented.
+    pub fn field(&self) -> &Field {
+        match self {
+            Entry::Active(field) | Entry::Commented(field) => field,
+        }
+    }
+
+    /// Whether a template renders this entry behind a comment marker.
+    pub fn is_commented(&self) -> bool {
+        matches!(self, Entry::Commented(_))
+    }
+}
+
+impl From<Field> for Entry {
+    fn from(field: Field) -> Self {
+        Entry::Active(field)
+    }
 }
 
 /// Whether a field was written as an attribute (`name = value`) or as a block
@@ -120,7 +164,7 @@ pub enum FieldKind {
 pub struct Fields {
     source: SourceId,
     enclosing: Span,
-    items: Vec<Field>,
+    items: Vec<Entry>,
 }
 
 impl Value {
@@ -141,6 +185,32 @@ impl Value {
 }
 
 impl Field {
+    /// A field read from a source, at the spans the frontend captured.
+    ///
+    /// This is the constructor a format frontend builds its fields with.
+    /// `source` is the source the field was read from, `name_span` covers the
+    /// name alone, where an unknown-field error points, and `span` covers the
+    /// name and the value together.
+    ///
+    /// The doc comment belongs to the write path, so a parsed field carries
+    /// none. Parsing drops a source file's comments.
+    pub fn parsed(
+        name: impl Into<String>,
+        name_span: Span,
+        span: Span,
+        source: SourceId,
+        kind: FieldKind,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            name_span,
+            span,
+            source,
+            kind,
+            doc: None,
+        }
+    }
+
     /// An attribute field with no source location, carrying a populated value.
     /// The name, name span, and field span are all the detached sentinel.
     pub fn detached_value(name: &str, value: Value) -> Self {
@@ -151,7 +221,6 @@ impl Field {
             source: SourceId::DETACHED,
             kind: FieldKind::Value(value),
             doc: None,
-            commented: false,
         }
     }
 
@@ -165,7 +234,6 @@ impl Field {
             source: SourceId::DETACHED,
             kind: FieldKind::Block(fields),
             doc: None,
-            commented: false,
         }
     }
 
@@ -176,10 +244,27 @@ impl Field {
         self
     }
 
-    /// Marks the field as a commented-out entry, for the annotated-template
-    /// walk.
-    pub fn as_commented(mut self) -> Self {
-        self.commented = true;
+    /// The commented-out entry for this field, for the annotated-template walk.
+    pub fn as_commented(self) -> Entry {
+        Entry::Commented(self)
+    }
+
+    /// Locates a constructed field.
+    ///
+    /// The field's span and its source come from `span`. An attribute field's
+    /// value takes the same span, because a spec field has one location that
+    /// both halves of it report. A block field's nested level is left alone,
+    /// because its source and enclosing span belong to the level rather than to
+    /// the field naming it.
+    ///
+    /// A sequence value takes the span as the whole list's location. Its
+    /// elements keep whatever spans they were built with.
+    pub fn at(mut self, span: Span) -> Self {
+        self.span = span;
+        self.source = span.source;
+        if let FieldKind::Value(value) = &mut self.kind {
+            value.span = span;
+        }
         self
     }
 }
@@ -188,6 +273,15 @@ impl Fields {
     /// A level read from `source`, with `enclosing` as the span
     /// missing-field errors point at.
     pub fn new(source: SourceId, enclosing: Span, items: Vec<Field>) -> Self {
+        Self::from_entries(
+            source,
+            enclosing,
+            items.into_iter().map(Entry::Active).collect(),
+        )
+    }
+
+    /// A level built from entries, so a template can carry commented ones.
+    pub fn from_entries(source: SourceId, enclosing: Span, items: Vec<Entry>) -> Self {
         Self {
             source,
             enclosing,
@@ -200,6 +294,12 @@ impl Fields {
     /// span are the detached sentinel. Used by the `ToFields` code
     /// `#[derive(Spec)]` generates.
     pub fn detached(items: Vec<Field>) -> Self {
+        Self::detached_entries(items.into_iter().map(Entry::Active).collect())
+    }
+
+    /// A detached level built from entries, the shape the template walk
+    /// produces.
+    pub fn detached_entries(items: Vec<Entry>) -> Self {
         Self {
             source: SourceId::DETACHED,
             enclosing: Span::detached(),
@@ -218,32 +318,43 @@ impl Fields {
         self.enclosing
     }
 
-    /// The fields in source order.
-    pub fn iter(&self) -> std::slice::Iter<'_, Field> {
+    /// The active fields in source order.
+    ///
+    /// A commented entry is a template's rendering of a field the
+    /// configuration does not set, so it is not a field this level has. Only
+    /// [`entries`](Fields::entries) exposes one.
+    pub fn iter(&self) -> impl Iterator<Item = &Field> {
+        self.items.iter().filter_map(|entry| match entry {
+            Entry::Active(field) => Some(field),
+            Entry::Commented(_) => None,
+        })
+    }
+
+    /// Every entry in source order, commented ones included. This is the
+    /// emitters' view, and the only one that sees a commented entry.
+    pub fn entries(&self) -> std::slice::Iter<'_, Entry> {
         self.items.iter()
     }
 
     #[cfg(feature = "layering")]
     pub(crate) fn into_items(self) -> Vec<Field> {
         self.items
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Entry::Active(field) => Some(field),
+                Entry::Commented(_) => None,
+            })
+            .collect()
     }
 
-    /// Whether an active field with the name exists at this level. A commented
-    /// field reads as absent, so name lookup skips it.
+    /// Whether a field with the name exists at this level.
     pub fn has(&self, name: &str) -> bool {
-        self.items
-            .iter()
-            .any(|field| field.name == name && !field.commented)
+        self.iter().any(|field| field.name == name)
     }
 
-    /// The first active field with the name, or `None`. A commented field
-    /// reads as absent, so name lookup skips it. Only
-    /// [`iter`](Fields::iter) exposes one, which is what the emitters and the
-    /// generated walk consume.
+    /// The first field with the name, or `None`.
     pub fn get(&self, name: &str) -> Option<&Field> {
-        self.items
-            .iter()
-            .find(|field| field.name == name && !field.commented)
+        self.iter().find(|field| field.name == name)
     }
 }
 
@@ -274,7 +385,7 @@ pub trait ToFields {
     /// The populated field model with no comments.
     fn to_fields(&self) -> Fields;
 
-    /// The source-view field model: only the fields the source actually set,
+    /// The source-view field model. It holds only the fields the source set,
     /// with defaults omitted. A field is included when its `Located` span is
     /// attached, and a filled default, which carries the detached sentinel, is
     /// omitted. Each included value keeps its real source span, so a
@@ -282,10 +393,10 @@ pub trait ToFields {
     /// the `Fields` container's own source and enclosing span stay detached,
     /// because a spec supplies neither.
     ///
-    /// This is required, not defaulted. No correct fallback exists: the
-    /// populated model would report filled defaults as operator-written, the
-    /// exact confusion this view removes, so a handwritten impl must answer the
-    /// question itself.
+    /// The method is required. No correct fallback exists. A defaulted
+    /// implementation would return the populated model, which reports filled
+    /// defaults as operator-written. That is the confusion this view removes, so
+    /// a handwritten impl must answer the question itself.
     fn to_source_fields(&self) -> Fields;
 
     /// The populated field model with each field's doc comment attached, for an
@@ -330,17 +441,86 @@ mod tests {
             Value::detached(ValueKind::Scalar(Scalar::String(String::new()))),
         )
         .as_commented();
-        let level = Fields::detached(vec![commented]);
+        let level = Fields::detached_entries(vec![commented]);
 
         // Act
         let by_get = level.get("pid_file");
         let by_has = level.has("pid_file");
 
         // Assert
-        // A commented field reads as absent, so only iteration exposes it.
+        // A commented entry reads as absent, so only `entries` exposes it.
         assert!(by_get.is_none());
         assert!(!by_has);
-        assert_eq!(level.iter().count(), 1);
+        assert_eq!(level.iter().count(), 0);
+        assert_eq!(level.entries().count(), 1);
+    }
+
+    #[test]
+    fn name_lookup_answers_each_name_at_a_mixed_level() {
+        // Arrange
+        // Three shapes at one level: an active field, a commented entry with a
+        // name nothing else uses, and a commented entry shadowing the active
+        // name. A lookup that ignored the name, or that inverted the match,
+        // would answer at least one of these wrongly.
+        let int = |value: i64| Value::detached(ValueKind::Scalar(Scalar::Int(value)));
+        let active = Field::detached_value("port", int(8080));
+        let commented_only = Field::detached_value("pid_file", int(0)).as_commented();
+        let shadowing = Field::detached_value("port", int(1)).as_commented();
+        let level = Fields::detached_entries(vec![active.into(), commented_only, shadowing]);
+
+        // Act
+        let answers = [
+            level.has("port"),
+            level.has("pid_file"),
+            level.has("hostname"),
+        ];
+
+        // Assert
+        assert_eq!(answers, [true, false, false]);
+        // `get` answers the same way and hands back the active field, not the
+        // commented entry that shares its name.
+        assert!(level.get("pid_file").is_none());
+        assert!(level.get("hostname").is_none());
+        let found = level.get("port").expect("the active field is present");
+        let FieldKind::Value(Value {
+            kind: ValueKind::Scalar(Scalar::Int(port)),
+            ..
+        }) = &found.kind
+        else {
+            panic!("port should be an integer attribute");
+        };
+        assert_eq!(*port, 8080);
+    }
+
+    #[test]
+    fn the_spec_doc_defaults_answer_none_for_a_handwritten_impl() {
+        // Arrange
+        // `#[derive(Spec)]` overrides both methods whenever the struct carries
+        // a doc comment, so the defaults are reached only by a handwritten
+        // impl. One that declares no documentation must not acquire any, or a
+        // parent's template walk would render a comment nobody wrote.
+        struct Handwritten;
+
+        impl ToFields for Handwritten {
+            fn to_fields(&self) -> Fields {
+                Fields::detached(Vec::new())
+            }
+
+            fn to_source_fields(&self) -> Fields {
+                Fields::detached(Vec::new())
+            }
+        }
+
+        // Act
+        let from_instance = Handwritten.spec_doc();
+        let from_type = Handwritten::type_doc();
+
+        // Assert
+        assert_eq!(from_instance, None);
+        assert_eq!(from_type, None);
+        // The template walk defaults to the plain one, so an impl that
+        // harvests no comments emits none either.
+        assert_eq!(Handwritten.to_template().entries().count(), 0);
     }
 
     #[test]

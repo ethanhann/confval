@@ -38,7 +38,6 @@ pub(super) fn commented_text(field: &Field, level: usize, path: &str) -> Result<
         }
         _ => {
             let mut plain = field.clone();
-            plain.commented = false;
             plain.doc = None;
             mini.push(plain);
         }
@@ -65,11 +64,16 @@ pub(super) fn commented_text(field: &Field, level: usize, path: &str) -> Result<
         // than becoming a bare `#`.
         if line.is_empty() {
             out.push('\n');
-        } else {
-            out.push('#');
-            out.push_str(line);
-            out.push('\n');
+            continue;
         }
+        // The marker sits after the level's indent, so the entry lines up with
+        // the doc comment above it. Only this level's indent moves ahead of the
+        // marker, so a nested line keeps the depth it was rendered at, and
+        // deleting the marker leaves every line correctly indented.
+        out.push_str(&indent);
+        out.push('#');
+        out.push_str(line.strip_prefix(indent.as_str()).unwrap_or(line));
+        out.push('\n');
     }
     Ok(out)
 }

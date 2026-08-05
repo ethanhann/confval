@@ -132,7 +132,7 @@ pub(crate) fn classify(field: &Field, nested: bool) -> syn::Result<FieldShape> {
         return Ok(FieldShape::Leaf { leaf, optional });
     }
 
-    // The one shape that is not wrapped in `Located`: a required string list is
+    // A required string list is the one shape not wrapped in `Located`. It is
     // written as a bare `Vec<Located<String>>`.
     if let Some(vec_inner) = unwrap_generic(inner, "Vec")
         && !optional

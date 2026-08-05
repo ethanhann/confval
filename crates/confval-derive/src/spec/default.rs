@@ -3,8 +3,8 @@
 //! The value this produces for a field is the value the parser fills when that
 //! field is absent from a present block. A field the parser would report as
 //! missing has no value to derive, so it is a compile error. The two cases then
-//! agree: a block that is absent entirely and a block present with a field
-//! omitted resolve to the same value.
+//! agree. An absent block and a present block with the field omitted resolve to
+//! the same value.
 //!
 //! This module reads the same `FieldShape` and `FieldOptions` the parser is
 //! built from, and a leaf's value comes from the shared

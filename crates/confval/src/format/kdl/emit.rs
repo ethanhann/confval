@@ -44,16 +44,17 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
     let indent = "  ".repeat(level);
     let mut nodes: Vec<KdlNode> = Vec::new();
     let mut grouped: Vec<&str> = Vec::new();
-    for field in fields.iter() {
+    for entry in fields.entries() {
+        let field = entry.field();
         let FieldKind::Value(_) = &field.kind else {
             continue;
         };
         let child = child_path(path, &field.name);
-        // A commented field renders through the same paths as an active one
+        // A commented entry renders through the same paths as an active one
         // and gains the slashdash, KDL's own disabled-node spelling, which the
         // parser reads and discards. It joins no group, so it never blocks an
         // active field's emission.
-        if field.commented {
+        if entry.is_commented() {
             let before = nodes.len();
             emit_value_field(
                 &mut nodes,
@@ -72,11 +73,7 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
         grouped.push(&field.name);
         let group: Vec<&Field> = fields
             .iter()
-            .filter(|other| {
-                !other.commented
-                    && other.name == field.name
-                    && matches!(other.kind, FieldKind::Value(_))
-            })
+            .filter(|other| other.name == field.name && matches!(other.kind, FieldKind::Value(_)))
             .collect();
         // Only one comment can render above the grouped node, so the group
         // takes the first doc any member carries.
@@ -84,7 +81,7 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
         if group.len() == 1 {
             emit_value_field(&mut nodes, field, doc, level, &indent, &child)?;
         } else {
-            let mut node = node_with(&field.name, leading(doc, &indent));
+            let mut node = node_with(&field.name, kdl_comment_prefix(doc, &indent));
             for member in &group {
                 let FieldKind::Value(value) = &member.kind else {
                     continue;
@@ -94,17 +91,18 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
             nodes.push(node);
         }
     }
-    for field in fields.iter() {
+    for entry in fields.entries() {
+        let field = entry.field();
         let FieldKind::Block(inner) = &field.kind else {
             continue;
         };
         let child = child_path(path, &field.name);
         let mut node = node_with(
             &field.name,
-            block_leading(field.doc.as_deref(), &indent, !nodes.is_empty()),
+            kdl_block_prefix(field.doc.as_deref(), &indent, !nodes.is_empty()),
         );
         attach_children(&mut node, emit_document(inner, level + 1, &child)?, &indent);
-        if field.commented {
+        if entry.is_commented() {
             slashdash(&mut std::slice::from_mut(&mut node)[..]);
         }
         nodes.push(node);
@@ -140,13 +138,13 @@ fn emit_value_field(
     };
     match &value.kind {
         ValueKind::Scalar(scalar) => {
-            let mut node = node_with(&field.name, leading(doc, indent));
+            let mut node = node_with(&field.name, kdl_comment_prefix(doc, indent));
             node.entries_mut().push(scalar_entry(scalar));
             nodes.push(node);
         }
         ValueKind::Seq(elements) => match classify_sequence(elements, path)? {
             Sequence::Scalars(scalars) => {
-                let mut node = node_with(&field.name, leading(doc, indent));
+                let mut node = node_with(&field.name, kdl_comment_prefix(doc, indent));
                 for scalar in scalars {
                     node.entries_mut().push(scalar_entry(scalar));
                 }
@@ -155,15 +153,20 @@ fn emit_value_field(
             Sequence::Maps(maps) => {
                 for (index, inner) in maps.into_iter().enumerate() {
                     let doc = if index == 0 { doc } else { None };
-                    let mut node =
-                        node_with(&field.name, block_leading(doc, indent, !nodes.is_empty()));
+                    let mut node = node_with(
+                        &field.name,
+                        kdl_block_prefix(doc, indent, !nodes.is_empty()),
+                    );
                     attach_children(&mut node, emit_document(inner, level + 1, path)?, indent);
                     nodes.push(node);
                 }
             }
         },
         ValueKind::Map(inner) => {
-            let mut node = node_with(&field.name, block_leading(doc, indent, !nodes.is_empty()));
+            let mut node = node_with(
+                &field.name,
+                kdl_block_prefix(doc, indent, !nodes.is_empty()),
+            );
             attach_children(&mut node, emit_document(inner, level + 1, path)?, indent);
             nodes.push(node);
         }
@@ -268,7 +271,7 @@ fn node_with(name: &str, leading: String) -> KdlNode {
 
 /// The leading decor for a value node: its doc comment as `// line` comments,
 /// each at the node's indentation, followed by the indent itself.
-fn leading(doc: Option<&str>, indent: &str) -> String {
+fn kdl_comment_prefix(doc: Option<&str>, indent: &str) -> String {
     let mut out = String::new();
     if let Some(text) = doc {
         for line in comment_lines(text) {
@@ -288,12 +291,12 @@ fn leading(doc: Option<&str>, indent: &str) -> String {
 
 /// The leading decor for a block node: a blank line when the node follows
 /// another structure at its level, then the doc comment and indent.
-fn block_leading(doc: Option<&str>, indent: &str, follows: bool) -> String {
+fn kdl_block_prefix(doc: Option<&str>, indent: &str, follows: bool) -> String {
     let mut out = String::new();
     if follows {
         out.push('\n');
     }
-    out.push_str(&leading(doc, indent));
+    out.push_str(&kdl_comment_prefix(doc, indent));
     out
 }
 
@@ -355,8 +358,8 @@ mod tests {
     #[test]
     fn emit_kdl_writes_a_commented_leaf_as_a_slashdash_node() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
         ]);
 
@@ -370,8 +373,8 @@ mod tests {
     #[test]
     fn emit_kdl_renders_a_doc_above_its_commented_entry() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new()))
                 .with_doc(Some("The PID file path.".to_string()))
                 .as_commented(),
@@ -387,8 +390,8 @@ mod tests {
     #[test]
     fn emit_kdl_writes_a_commented_empty_block_as_a_slashdash_node() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
         ]);
 
@@ -405,8 +408,8 @@ mod tests {
         let hint = Value::detached(ValueKind::Seq(vec![Value::detached(ValueKind::Map(
             Fields::detached(vec![]),
         ))]));
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             Field::detached_value("svc", hint).as_commented(),
         ]);
 
@@ -420,8 +423,8 @@ mod tests {
     #[test]
     fn emit_kdl_indents_a_commented_entry_inside_a_block() {
         // Arrange
-        let inner = Fields::detached(vec![
-            scalar("mode", Scalar::String("log".to_string())),
+        let inner = Fields::detached_entries(vec![
+            scalar("mode", Scalar::String("log".to_string())).into(),
             scalar("rate", Scalar::Int(0)).as_commented(),
         ]);
         let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
@@ -436,8 +439,8 @@ mod tests {
     #[test]
     fn emit_kdl_renders_adjacent_commented_entries_in_order() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("a", Scalar::Int(1)).as_commented(),
             scalar("b", Scalar::Int(2)).as_commented(),
         ]);
@@ -454,7 +457,7 @@ mod tests {
         // Arrange
         let fields = Fields::detached(vec![Field::detached_block(
             "limits",
-            Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
+            Fields::detached_entries(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
         )]);
 
         // Act
@@ -472,8 +475,8 @@ mod tests {
     #[test]
     fn emit_kdl_excludes_commented_fields_from_grouping() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("x", Scalar::Int(1)),
+        let fields = Fields::detached_entries(vec![
+            scalar("x", Scalar::Int(1)).into(),
             scalar("x", Scalar::Int(2)).as_commented(),
         ]);
 
@@ -487,8 +490,8 @@ mod tests {
     #[test]
     fn emit_kdl_reparses_a_commented_template_to_the_active_fields_alone() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
             Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
         ]);
@@ -647,6 +650,53 @@ mod tests {
             parse_struct_list_field(&mut services, field, &mut report);
         }
         assert_eq!(services.len(), 2);
+    }
+
+    #[test]
+    fn emit_kdl_writes_a_sequence_of_maps_with_a_doc_and_nested_content() {
+        // Arrange
+        // Two elements are needed for either half of this. With one element a
+        // doc above the first and a doc above the last are the same line, and
+        // a nested level at the wrong depth still reparses. The inner block
+        // pins the child document's indentation.
+        let element = |port: i64| {
+            ValueKind::Map(Fields::detached(vec![
+                scalar("port", Scalar::Int(port)),
+                Field::detached_block(
+                    "retry",
+                    Fields::detached(vec![scalar("attempts", Scalar::Int(3))]),
+                ),
+            ]))
+        };
+        let fields = Fields::detached(vec![
+            Field::detached_value(
+                "svc",
+                Value::detached(ValueKind::Seq(vec![
+                    Value::detached(element(1)),
+                    Value::detached(element(2)),
+                ])),
+            )
+            .with_doc(Some("A service entry.".to_string())),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            text.matches("// A service entry.").count(),
+            1,
+            "got:\n{text}"
+        );
+        let doc_at = text.find("// A service entry.").expect("the doc renders");
+        let first_node = text.find("svc {").expect("the first node renders");
+        assert!(doc_at < first_node, "the doc precedes the first element");
+        // The element's own fields sit one level in, and the nested block's
+        // contents two, which is what the child document's level decides.
+        assert!(text.contains("\n  port 1"), "got:\n{text}");
+        assert!(text.contains("\n  retry {"), "got:\n{text}");
+        assert!(text.contains("\n    attempts 3"), "got:\n{text}");
+        reparse(&text);
     }
 
     #[test]
@@ -874,6 +924,30 @@ mod tests {
         // Assert
         let round = reparse(&text);
         assert!(round.get("k\u{202e}ey").is_some(), "emitted: {text:?}");
+    }
+
+    #[test]
+    fn emit_kdl_quotes_a_name_whose_first_character_bars_it() {
+        // Arrange
+        // KDL's bare-name grammar turns on the first character, so a name that
+        // is otherwise identifier-shaped still has to quote when it opens with
+        // a digit. Emitting it bare produces text the parser rejects.
+        let fields = Fields::detached(vec![
+            scalar("9lives", Scalar::Int(9)),
+            scalar("_ok", Scalar::Int(1)),
+        ]);
+
+        // Act
+        let text = emit_kdl(&fields).unwrap();
+
+        // Assert
+        assert!(text.contains("\"9lives\""), "got: {text}");
+        // A leading underscore is a legal opener, so it stays bare and the two
+        // cases cannot both be satisfied by quoting everything.
+        assert!(text.contains("\n_ok 1"), "got: {text}");
+        let round = reparse(&text);
+        assert!(round.get("9lives").is_some());
+        assert!(round.get("_ok").is_some());
     }
 
     #[test]

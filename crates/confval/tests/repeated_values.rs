@@ -4,7 +4,7 @@
 //! resolution lives in the generated walk, so a hand-built `Fields` exercises
 //! it with no frontend in the loop, pinning the behavior for every format.
 
-use confval::format::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
+use confval::format::{Entry, Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
 use confval::prelude::*;
 use confval::source::SourceId;
 
@@ -20,18 +20,16 @@ fn span(source: SourceId, start: u32, end: u32) -> Span {
 }
 
 fn scalar_field(source: SourceId, name: &str, scalar: Scalar, at: u32) -> Field {
-    Field {
-        name: name.to_string(),
-        name_span: span(source, at, at + name.len() as u32),
-        span: span(source, at, at + 10),
+    Field::parsed(
+        name,
+        span(source, at, at + name.len() as u32),
+        span(source, at, at + 10),
         source,
-        doc: None,
-        commented: false,
-        kind: FieldKind::Value(Value {
+        FieldKind::Value(Value {
             span: span(source, at, at + 10),
             kind: ValueKind::Scalar(scalar),
         }),
-    }
+    )
 }
 
 fn seq_field(source: SourceId, name: &str, elements: Vec<Scalar>, at: u32) -> Field {
@@ -42,22 +40,24 @@ fn seq_field(source: SourceId, name: &str, elements: Vec<Scalar>, at: u32) -> Fi
             kind: ValueKind::Scalar(scalar),
         })
         .collect();
-    Field {
-        name: name.to_string(),
-        name_span: span(source, at, at + name.len() as u32),
-        span: span(source, at, at + 10),
+    Field::parsed(
+        name,
+        span(source, at, at + name.len() as u32),
+        span(source, at, at + 10),
         source,
-        doc: None,
-        commented: false,
-        kind: FieldKind::Value(Value {
+        FieldKind::Value(Value {
             span: span(source, at, at + 10),
             kind: ValueKind::Seq(values),
         }),
-    }
+    )
 }
 
 fn level(source: SourceId, items: Vec<Field>) -> Fields {
     Fields::new(source, span(source, 0, 100), items)
+}
+
+fn entry_level(source: SourceId, items: Vec<Entry>) -> Fields {
+    Fields::from_entries(source, span(source, 0, 100), items)
 }
 
 #[derive(confval::Spec, PartialEq, Debug)]
@@ -101,7 +101,7 @@ impl Validate for WrappedListSpec {
 fn a_commented_field_reads_as_absent_to_the_walk() {
     // Arrange
     let source = source();
-    let fields = level(
+    let fields = entry_level(
         source,
         vec![scalar_field(source, "port", Scalar::Int(9090), 0).as_commented()],
     );
@@ -121,10 +121,10 @@ fn a_commented_field_reads_as_absent_to_the_walk() {
 fn a_commented_unknown_name_reports_nothing() {
     // Arrange
     let source = source();
-    let fields = level(
+    let fields = entry_level(
         source,
         vec![
-            scalar_field(source, "port", Scalar::Int(8080), 0),
+            scalar_field(source, "port", Scalar::Int(8080), 0).into(),
             scalar_field(source, "hostnme", Scalar::Int(1), 20).as_commented(),
         ],
     );

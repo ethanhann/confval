@@ -47,7 +47,7 @@ In a system with hot reload, a panic during a reload would crash a long-lived se
 The issues are reported instead.
 
 Every validator appends issues to the report.
-An issue is usually a semantic validation rule that enforces a constraint on a setting, not a handled Rust error.
+An issue usually records a violated semantic rule rather than a handled Rust error.
 For example, a date might pass the parse stage, confirming it is a date, but violate a setting-specific rule
 requiring it to be at least 90 days in the future.
 
@@ -73,8 +73,7 @@ Call `report.has_errors()` after validation and return before lowering when it i
 [Getting Started](./getting-started.md#a-complete-example) shows the check in place.
 
 Report also has `has_warnings()` and `has_issues()` (i.e., has warnings or errors).
-This granularity gives the implementor the flexibility to decide if warnings should also prevent lowering or perhaps
-take some other implementation-specific action.
+You decide whether warnings also stop lowering.
 
 In practice, a sensible approach would be to gracefully exit a running program when errors are found or gracefully stop
 a hot reload request.
@@ -142,8 +141,7 @@ the other is a compile error.
 
 ## Type selection principle
 
-**Spec types use the rawest type that parses infallibly.**
-Strings, `i64`, bools, paths.
+**Spec types use the rawest type that parses infallibly**, meaning strings, `i64`, bools, and paths.
 The structural parsers never reject a value for semantic reasons, so a port of `99999` or a strategy of `"failovr"`
 parses fine and is caught by validation with a span, alongside every other problem.
 
@@ -152,8 +150,7 @@ Closed sets like strategies or log levels are validated against a constant slice
 The runtime enum implements `TryFrom<&str>` and the conversion happens at lowering.
 A serde keyword enum in the spec layer would abort parsing with a single error instead of joining the report.
 
-**Config types use the fully parsed, typed form.**
-`IpNet`, `SocketAddr`, runtime enums.
+**Config types use the fully parsed, typed form**, such as `IpNet`, `SocketAddr`, and runtime enums.
 Downstream code never re-parses a string it received from config.
 
 **Handwritten `FromFields` impls cover the shapes the derive does not.**
@@ -184,8 +181,9 @@ End-to-end examples ship in `crates/confval/examples/`.
 `hcl.rs`, `toml.rs`, and `kdl.rs` each hold a source document and one parse call.
 Everything after parsing lives in `common/mod.rs`: the spec types, the validators, the config types, and the lowering
 functions.
-Both examples share that file verbatim.
-The format-neutrality of the later stages is visible in the layout, and explicitly annotated.
+All three share that file verbatim.
+The format-neutrality of the later stages is visible in the layout.
+`common/mod.rs` annotates it.
 `issue_severity.rs` reuses the same types to show a warning passing the gate.
 `validate_traversal.rs` stands alone to show what `validate_all` reaches and what a `descend` override prunes.
 See [Getting Started](getting-started.md) to run them.

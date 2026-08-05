@@ -34,7 +34,7 @@ owo-colors = { workspace = true, optional = true }
 hcl-edit = { workspace = true, optional = true }
 toml_edit = { workspace = true, optional = true }
 kdl = { workspace = true, optional = true }
-confval-derive = { version = "=0.6.1", path = "../confval-derive", optional = true }
+confval-derive = { version = "=0.7.0", path = "../confval-derive", optional = true }
 
 [dev-dependencies]
 hcl-edit = "0.9"
@@ -118,6 +118,10 @@ required-features = ["derive", "toml", "layering"]
 
 [[test]]
 name = "validate_traversal"
+required-features = ["derive"]
+
+[[test]]
+name = "lower_auto"
 required-features = ["derive"]
 
 [[test]]

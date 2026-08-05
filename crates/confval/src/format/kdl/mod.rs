@@ -9,12 +9,12 @@
 //! The write path, [`emit_kdl`], lives in the sibling `emit` module.
 //!
 //! A KDL node maps to one field by its shape. A node with only arguments is a
-//! value: one scalar argument is a scalar, more are a sequence, and a bare node
+//! value. One scalar argument is a scalar, more are a sequence, and a bare node
 //! is an empty sequence, the only spelling KDL has for an empty list. A node
 //! with properties or children is a block, with the properties as leading
 //! fields, so `tls cert="a.pem"` and `tls { cert "a.pem" }` reach the same
 //! `FromFields` impl. Repeated same-named nodes stay separate fields, and the
-//! spec-side walk resolves them: a list field accumulates them and a
+//! spec-side walk resolves them. A list field accumulates them, and a
 //! single-value field reports a duplicate.
 //!
 //! Behavior contract:
@@ -134,8 +134,8 @@ fn fields_of_document(
     Fields::new(source, enclosing, items)
 }
 
-/// Maps one node to one field by its shape: only arguments make a value, and
-/// properties or children make a block.
+/// Maps one node to one field by its shape. Only arguments make a value.
+/// Properties or children make a block.
 fn field_of_node(node: &KdlNode, source: SourceId, report: &mut Report) -> Field {
     let name_span = span_of!(node.name(), source);
     let node_span = span_of!(node, source);
@@ -175,18 +175,10 @@ fn field_of_node(node: &KdlNode, source: SourceId, report: &mut Report) -> Field
         };
         FieldKind::Block(Fields::new(source, enclosing, items))
     };
-    Field {
-        name: node.name().value().to_string(),
-        name_span,
-        span: node_span,
-        source,
-        kind,
-        doc: None,
-        commented: false,
-    }
+    Field::parsed(node.name().value(), name_span, node_span, source, kind)
 }
 
-/// The value of a node that carries only arguments: a bare node is an empty
+/// The value of a node that carries only arguments. A bare node is an empty
 /// sequence, one argument is its scalar, and more are a sequence. The sequence
 /// spans the node, and a single scalar spans its entry.
 fn value_of_arguments(arguments: &[&KdlEntry], node_span: Span, source: SourceId) -> Value {
@@ -209,27 +201,47 @@ fn value_of_arguments(arguments: &[&KdlEntry], node_span: Span, source: SourceId
 }
 
 /// Maps a property entry to a leaf field. The name span is the property name's
-/// identifier, and the value span is the entry, which covers name and value
-/// together, because kdl-rs gives the value no span of its own.
+/// identifier and the field span is the whole entry, name and value together,
+/// which is what the other frontends report. The value inside it carries the
+/// narrower span [`value_span_of`] computes.
 fn field_of_property(entry: &KdlEntry, source: SourceId) -> Option<Field> {
     let name: &KdlIdentifier = entry.name()?;
     let entry_span = span_of!(entry, source);
-    Some(Field {
-        name: name.value().to_string(),
-        name_span: span_of!(name, source),
-        span: entry_span,
+    Some(Field::parsed(
+        name.value(),
+        span_of!(name, source),
+        entry_span,
         source,
-        kind: FieldKind::Value(value_of_entry(entry, source)),
-        doc: None,
-        commented: false,
-    })
+        FieldKind::Value(value_of_entry(entry, source)),
+    ))
+}
+
+/// The span of an entry's value alone.
+///
+/// kdl-rs spans an entry from its name through its value, so a property's span
+/// covers `cert="a.pem"` while a diagnostic should underline `"a.pem"`. The
+/// value's own text is the tail of that span, so its length locates the start.
+/// This holds through whitespace around the `=`, a quoted key, an `=` inside
+/// the value, and a type annotation, because each of those sits ahead of the
+/// value text.
+///
+/// An argument entry has no name, so its span is already the value alone and
+/// the arithmetic returns it unchanged. An entry built rather than parsed
+/// carries no format to measure, so it keeps the whole span.
+fn value_span_of(entry: &KdlEntry, source: SourceId) -> Span {
+    let span = span_of!(entry, source);
+    let Some(format) = entry.format() else {
+        return span;
+    };
+    let start = span.end.saturating_sub(format.value_repr.len() as u32);
+    Span::new(source, start.max(span.start), span.end)
 }
 
 /// Converts one entry's value into a neutral [`Value`]. Anything the model has
 /// no scalar for, `#null` and an integer beyond `i64`, becomes
 /// [`ValueKind::Other`] with a diagnostic label.
 fn value_of_entry(entry: &KdlEntry, source: SourceId) -> Value {
-    let span = span_of!(entry, source);
+    let span = value_span_of(entry, source);
     let kind = match entry.value() {
         KdlValue::String(string) => ValueKind::Scalar(Scalar::String(string.clone())),
         KdlValue::Integer(int) => match i64::try_from(*int) {
@@ -382,6 +394,53 @@ mod tests {
     }
 
     #[test]
+    fn a_property_value_span_covers_the_value_alone() {
+        // Arrange
+        // Each property puts something different between the name and the
+        // value: padding around the `=`, an `=` inside the value, a quoted key,
+        // and a type annotation.
+        let input = "tls plain=\"a.pem\" padded = 8443 inner=\"a=b\" \"odd key\"=1 typed=(u8)7\n";
+
+        // Act
+        let (_, fields) = parse(input);
+
+        // Assert
+        let FieldKind::Block(inner) = &fields.get("tls").unwrap().kind else {
+            panic!("tls should be a block");
+        };
+        let spelled = |name: &str| {
+            let FieldKind::Value(value) = &inner.get(name).unwrap().kind else {
+                panic!("{name} should be a value");
+            };
+            &input[value.span.start as usize..value.span.end as usize]
+        };
+        assert_eq!(spelled("plain"), "\"a.pem\"");
+        assert_eq!(spelled("padded"), "8443");
+        assert_eq!(spelled("inner"), "\"a=b\"");
+        assert_eq!(spelled("odd key"), "1");
+        assert_eq!(spelled("typed"), "7");
+    }
+
+    #[test]
+    fn an_argument_value_span_is_unchanged_by_the_narrowing() {
+        // Arrange
+        let input = "port 8443\n";
+
+        // Act
+        let (_, fields) = parse(input);
+
+        // Assert
+        // An argument entry has no name, so its span is already the value alone.
+        let FieldKind::Value(value) = &fields.get("port").unwrap().kind else {
+            panic!("port should be a value");
+        };
+        assert_eq!(
+            &input[value.span.start as usize..value.span.end as usize],
+            "8443"
+        );
+    }
+
+    #[test]
     fn properties_parse_as_a_block() {
         // Arrange
         let input = "tls cert=\"a.pem\" key=\"k.pem\"\n";
@@ -399,11 +458,11 @@ mod tests {
         };
         let cert = parse_string_field(inner.get("cert").unwrap(), &mut report).unwrap();
         assert_eq!(cert.value, "a.pem");
-        // The property value span covers name and value together, the best
-        // kdl-rs offers, because the value has no span of its own.
+        // The property value span covers the value alone, so a diagnostic
+        // underlines what the operator would change, the way TOML and HCL do.
         assert_eq!(
             &input[cert.span.start as usize..cert.span.end as usize],
-            "cert=\"a.pem\""
+            "\"a.pem\""
         );
         assert!(!report.has_issues());
     }

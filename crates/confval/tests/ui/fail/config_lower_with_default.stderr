@@ -1,0 +1,6 @@
+error: #[confval(lower(...))] cannot be combined with `nested` or `default`
+  --> tests/ui/fail/config_lower_with_default.rs:15:5
+   |
+15 | /     #[confval(lower(from = port, with = to_u16), default)]
+16 | |     port: u16,
+   | |_____________^

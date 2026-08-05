@@ -1,5 +1,5 @@
 //! `#[derive(Config)]`: generating the step that turns a parsed spec into the
-//! runtime form the proxy uses.
+//! runtime form the program uses.
 //!
 //! "Lowering" is that conversion. A spec is the freshly parsed config (every
 //! value still wrapped in `Located`, integers still wide, strings still
@@ -31,9 +31,10 @@ enum ConfigFieldSource {
     /// read off this config field's type.
     ///
     /// `default` is set by `#[confval(nested, default)]` on a non-optional
-    /// config field whose spec field is `Option<Located<S>>`: an absent block
-    /// lowers `S::default()` instead of producing a missing-field error, so the
-    /// runtime field is always populated while the spec stays source-faithful.
+    /// config field whose spec field is `Option<Located<S>>`. An absent block
+    /// then lowers `S::default()` rather than producing a missing-field error.
+    /// The runtime field is always populated, and the spec still records only
+    /// what the source wrote.
     Nested { default: bool },
     /// `#[confval(lower(from = ..., with = ...))]`: call `with` on the named
     /// spec field(s) `from` to produce this field.
@@ -49,9 +50,9 @@ enum ConfigFieldSource {
 /// walks the config fields. For each it works out where the value comes from
 /// and emits the line that produces it, recording which spec fields were used.
 /// Those lines, plus the list of used spec fields, are assembled into a `lower`
-/// function: it destructures the spec by the used field names (the exhaustive
-/// destructure that makes an unconsumed field a compile error) and builds the
-/// config from the per-field expressions.
+/// function. That function destructures the spec by the used field names, which
+/// is the exhaustive destructure that makes an unconsumed field a compile error,
+/// and builds the config from the per-field expressions.
 pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     // Like the Spec derive, only structs with named fields are supported.
     let Data::Struct(data) = &input.data else {

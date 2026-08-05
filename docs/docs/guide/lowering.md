@@ -4,7 +4,8 @@ sidebar_position: 3
 
 # Lowering
 
-Once a spec is validated, lowering converts it into a config type: the runtime form your program uses.
+Once a spec is validated, lowering converts it into a config type.
+A config type is the runtime form your program uses.
 Because lowering runs only after the [gate](../pipeline.md), the narrowing conversions inside it never see a bad value.
 
 ## Defining a config
@@ -48,14 +49,15 @@ Field rules:
 - **`#[confval(spec_only(field, ...))]`** at the struct level names spec fields that intentionally have no runtime counterpart.
 
 The generated impl destructures the spec exhaustively with no rest pattern.
-Adding a field to either struct without accounting for it on the other side is a compile error, which keeps spec and config in lockstep.
+Adding a field to either struct without accounting for it on the other side is a compile error.
+The two structs therefore stay in agreement.
 
 ## Narrowing helpers
 
 `confval::pipeline::narrow` provides ready-made `with` functions.
 For integer width changes: `i64_to_u16`, `i64_to_u32`, `i64_to_u64`, `i64_to_usize`, and `opt_` variants for optional fields.
 They narrow with `try_from` rather than `as`.
-A value that does not fit is reported at its span and lowering fails, so a missing range rule surfaces as a located error instead of a silent truncation.
+A value that does not fit is reported at its span and lowering fails, so a missing range rule is reported as a located error instead of silently truncating the value.
 `i64_secs_to_duration` (and `opt_i64_secs_to_duration`) route a seconds count through the same checked narrow into a `Duration`, rejecting a negative value rather than wrapping it.
 `i64_to_f64` widens to `f64` for the ratio and rate fields where an `as` cast cannot be named in a `with` attribute.
 
@@ -65,8 +67,8 @@ The field was validated against the same set the `TryFrom` accepts, so the conve
 The helper reports at the value's span when the `keyword_set()` check was left out of the `Validate` impl, or when a hand-rolled keyword set and its enum disagree, a drift `keyword_enum!` rules out.
 
 `keyword_list::<T>` does the same for a list field, lowering a `Vec<Located<String>>` into a `Vec<T>`.
-Every element that fails is reported before the call returns, so an operator sees all of them in one run.
-Any failure fails the whole field.
+Every element that fails is reported before the call returns, so an operator sees all of them in one run, and a single
+bad element leaves the whole field unlowered.
 `opt_keyword_list::<T>` takes the wrapped optional list, `Option<Located<Vec<Located<String>>>>`, and returns `Some(None)` for an absent field.
 It unwraps that wrapper as well as the `Option`, which the other `opt_` helpers do not, because the wrapped shape adds a `Located` around the list.
 Validate a keyword list with [`check_each`](./validation.md#keywordset) so a bad element is reported at its own span during validation rather than through the lowering helper's defensive branch.

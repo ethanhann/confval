@@ -68,8 +68,9 @@ fn argument_entry_spans_cover_the_value_text() {
 #[test]
 fn property_entry_spans_cover_name_and_value_together() {
     // Arrange
-    // The property value has no span of its own, so the frontend accepts the
-    // entry span, which starts at the property name.
+    // kdl-rs spans a property from its name through its value and gives the
+    // value no span of its own. The frontend narrows it to the value using the
+    // entry's `value_repr`, so this guards the two inputs that arithmetic reads.
     let document = parse();
     let server = document.nodes().first().unwrap();
     let children = server.children().unwrap();
@@ -85,6 +86,9 @@ fn property_entry_spans_cover_name_and_value_together() {
     let cert = &tls.entries()[0];
     assert_eq!(slice!(cert.span()), "cert=\"cert.pem\"");
     assert_eq!(slice!(cert.name().unwrap().span()), "cert");
+    // The value's text is the tail of the entry span, which is what lets the
+    // frontend locate it without the source.
+    assert_eq!(cert.format().unwrap().value_repr, "\"cert.pem\"");
 }
 
 #[test]

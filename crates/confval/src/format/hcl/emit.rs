@@ -6,7 +6,9 @@
 
 use super::commented::commented_text;
 use crate::format::EmitError;
-use crate::format::emit::{child_path, comment_lines};
+use crate::format::emit::{
+    child_path, comment_lines, first_conflicting_name, repeated_name, values_then_blocks,
+};
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 use hcl_edit::Decorate;
 use hcl_edit::Ident;
@@ -75,42 +77,38 @@ pub(super) fn emit_body(
     let mut body = Body::new();
     let mut pending = String::new();
     let mut emitted = 0usize;
-    let values = fields
-        .iter()
-        .filter(|field| matches!(field.kind, FieldKind::Value(_)));
-    let blocks = fields
-        .iter()
-        .filter(|field| matches!(field.kind, FieldKind::Block(_)));
-    for field in values.chain(blocks) {
-        if field.commented {
+    for entry in values_then_blocks(fields) {
+        let field = entry.field();
+        if entry.is_commented() {
             pending.push_str(&commented_text(field, level, path)?);
             continue;
         }
         // The prefix carries any pending commented text, then the field's doc
         // comment above its indentation, so the comment aligns with the field
         // it documents.
-        let prefix = format!(
-            "{}{}",
-            std::mem::take(&mut pending),
-            hcl_comment_prefix(&field.doc, &indent)
-        );
+        let pending_text = std::mem::take(&mut pending);
+        let doc_prefix = hcl_comment_prefix(&field.doc, &indent);
         match &field.kind {
             FieldKind::Value(value) => {
                 let child = child_path(path, &field.name);
                 let mut attribute =
                     Attribute::new(ident_of(&field.name, path)?, hcl_expr_of(value, &child)?);
-                attribute.decor_mut().set_prefix(prefix);
+                attribute
+                    .decor_mut()
+                    .set_prefix(format!("{pending_text}{doc_prefix}"));
                 body.push(Structure::Attribute(attribute));
             }
             FieldKind::Block(inner) => {
                 let child = child_path(path, &field.name);
                 let mut block = Block::new(ident_of(&field.name, path)?);
-                let prefix = if emitted == 0 {
-                    prefix
-                } else {
-                    format!("\n{prefix}")
-                };
-                block.decor_mut().set_prefix(prefix);
+                // The blank line separates the block from the structure above
+                // it, so it follows any pending commented text rather than
+                // preceding it. A commented entry belongs to the value group it
+                // was written after, the way TOML and KDL render it.
+                let separator = if emitted == 0 { "" } else { "\n" };
+                block
+                    .decor_mut()
+                    .set_prefix(format!("{pending_text}{separator}{doc_prefix}"));
                 let (mut inner_body, inner_pending) = emit_body(inner, level + 1, &child)?;
                 inner_body
                     .decor_mut()
@@ -167,50 +165,29 @@ fn hcl_expr_of(value: &Value, path: &str) -> Result<Expression, EmitError> {
 }
 
 /// A name used by more than one active value field at one level, which HCL
-/// cannot spell as duplicate attributes. A commented field is comment text,
-/// so it conflicts with nothing.
+/// cannot spell as duplicate attributes. HCL repeats blocks freely, so only the
+/// value fields in a group count.
 fn duplicate_attribute_name(fields: &Fields) -> Option<&str> {
-    fields
-        .iter()
-        .filter(|field| !field.commented)
-        .find_map(|field| {
-            let values = fields
-                .iter()
-                .filter(|other| {
-                    !other.commented
-                        && other.name == field.name
-                        && matches!(other.kind, FieldKind::Value(_))
-                })
-                .count();
-            (values > 1).then_some(field.name.as_str())
-        })
-}
-
-/// Any active name repeated inside an object, which is a map with unique keys.
-fn repeated_object_name(fields: &Fields) -> Option<&str> {
-    fields
-        .iter()
-        .filter(|field| !field.commented)
-        .find_map(|field| {
-            let count = fields
-                .iter()
-                .filter(|other| !other.commented && other.name == field.name)
-                .count();
-            (count > 1).then_some(field.name.as_str())
-        })
+    first_conflicting_name(fields, |group| {
+        group
+            .iter()
+            .filter(|field| matches!(field.kind, FieldKind::Value(_)))
+            .count()
+            > 1
+    })
 }
 
 fn hcl_object_of(fields: &Fields, path: &str) -> Result<Object, EmitError> {
-    if let Some(name) = repeated_object_name(fields) {
+    if let Some(name) = repeated_name(fields) {
         return Err(EmitError::ConflictingName {
             name: name.to_string(),
             path: path.to_string(),
         });
     }
     let mut object = Object::new();
-    // An inline object has no comment spelling, and a commented field reads
-    // as absent, so it renders nothing here.
-    for field in fields.iter().filter(|field| !field.commented) {
+    // An inline object has no comment spelling, and `iter` yields no commented
+    // entry, so one renders nothing here.
+    for field in fields.iter() {
         let child = child_path(path, &field.name);
         let value = match &field.kind {
             FieldKind::Value(value) => hcl_expr_of(value, &child)?,
@@ -328,8 +305,8 @@ mod tests {
     #[test]
     fn emit_hcl_writes_a_commented_leaf_after_the_active_values() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
         ]);
 
@@ -343,8 +320,8 @@ mod tests {
     #[test]
     fn emit_hcl_renders_a_doc_above_its_commented_entry() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new()))
                 .with_doc(Some("The PID file path.".to_string()))
                 .as_commented(),
@@ -363,8 +340,8 @@ mod tests {
     #[test]
     fn emit_hcl_writes_a_commented_empty_block() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
         ]);
 
@@ -383,8 +360,8 @@ mod tests {
         let hint = Value::detached(ValueKind::Seq(vec![Value::detached(ValueKind::Map(
             Fields::detached(vec![]),
         ))]));
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             Field::detached_value("svc", hint).as_commented(),
         ]);
 
@@ -398,8 +375,8 @@ mod tests {
     #[test]
     fn emit_hcl_indents_a_commented_entry_inside_a_block() {
         // Arrange
-        let inner = Fields::detached(vec![
-            scalar("mode", Scalar::String("log".to_string())),
+        let inner = Fields::detached_entries(vec![
+            scalar("mode", Scalar::String("log".to_string())).into(),
             scalar("rate", Scalar::Int(0)).as_commented(),
         ]);
         let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
@@ -408,21 +385,22 @@ mod tests {
         let text = emit_hcl(&fields).unwrap();
 
         // Assert
-        // The commented line keeps the level's indent behind the prefix, so
-        // uncommenting restores the aligned entry.
-        assert_eq!(text, "limits {\n  mode = \"log\"\n#  rate = 0\n}\n");
+        // The marker follows the level's indent, so the entry lines up with the
+        // body around it and uncommenting restores the aligned entry.
+        assert_eq!(text, "limits {\n  mode = \"log\"\n  #rate = 0\n}\n");
     }
 
     #[test]
     fn emit_hcl_attaches_a_commented_entry_above_a_doc_commented_block() {
         // Arrange
-        let fields = Fields::detached(vec![
+        let fields = Fields::detached_entries(vec![
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
             Field::detached_block(
                 "limits",
                 Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
             )
-            .with_doc(Some("Request limits.".to_string())),
+            .with_doc(Some("Request limits.".to_string()))
+            .into(),
         ]);
 
         // Act
@@ -436,10 +414,36 @@ mod tests {
     }
 
     #[test]
+    fn emit_hcl_keeps_a_commented_entry_with_the_values_above_it() {
+        // Arrange
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
+            scalar("pid_file", Scalar::String(String::new())).as_commented(),
+            Field::detached_block(
+                "limits",
+                Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
+            )
+            .with_doc(Some("Request limits.".to_string()))
+            .into(),
+        ]);
+
+        // Act
+        let text = emit_hcl(&fields).unwrap();
+
+        // Assert
+        // The blank line separates the block from the value group, so the
+        // commented entry stays with the values it belongs to.
+        assert_eq!(
+            text,
+            "port = 8080\n#pid_file = \"\"\n\n# Request limits.\nlimits {\n  max_body_mb = 16\n}\n"
+        );
+    }
+
+    #[test]
     fn emit_hcl_renders_adjacent_commented_entries_in_order() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("a", Scalar::Int(1)).as_commented(),
             scalar("b", Scalar::Int(2)).as_commented(),
         ]);
@@ -456,22 +460,22 @@ mod tests {
         // Arrange
         let fields = Fields::detached(vec![Field::detached_block(
             "limits",
-            Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
+            Fields::detached_entries(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]),
         )]);
 
         // Act
         let text = emit_hcl(&fields).unwrap();
 
         // Assert
-        assert_eq!(text, "limits {\n#  max_body_mb = 16\n}\n");
+        assert_eq!(text, "limits {\n  #max_body_mb = 16\n}\n");
         reparse(&text);
     }
 
     #[test]
     fn emit_hcl_excludes_commented_fields_from_the_duplicate_check() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("x", Scalar::Int(1)),
+        let fields = Fields::detached_entries(vec![
+            scalar("x", Scalar::Int(1)).into(),
             scalar("x", Scalar::Int(2)).as_commented(),
         ]);
 
@@ -485,8 +489,8 @@ mod tests {
     #[test]
     fn emit_hcl_drops_a_commented_field_inside_an_object() {
         // Arrange
-        let map = Fields::detached(vec![
-            scalar("cert", Scalar::String("a.pem".to_string())),
+        let map = Fields::detached_entries(vec![
+            scalar("cert", Scalar::String("a.pem".to_string())).into(),
             scalar("key", Scalar::String(String::new())).as_commented(),
         ]);
         let fields = Fields::detached(vec![Field::detached_value(
@@ -505,8 +509,8 @@ mod tests {
     #[test]
     fn emit_hcl_reparses_a_commented_template_to_the_active_fields_alone() {
         // Arrange
-        let fields = Fields::detached(vec![
-            scalar("port", Scalar::Int(8080)),
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
             scalar("pid_file", Scalar::String(String::new())).as_commented(),
             Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
         ]);
@@ -740,6 +744,49 @@ mod tests {
                 path: String::new(),
             })
         );
+    }
+
+    #[test]
+    fn emit_hcl_writes_an_object_with_several_distinct_keys() {
+        // Arrange
+        // The duplicate scan runs over every object, so a level with more than
+        // one distinct key is the case that must be accepted rather than
+        // refused. Two keys and a nested object cover the recursion as well.
+        let inner = Fields::detached(vec![
+            scalar("ca", Scalar::String("ca.pem".to_string())),
+            scalar("verify", Scalar::Bool(true)),
+        ]);
+        let map = Fields::detached(vec![
+            scalar("cert", Scalar::String("a.pem".to_string())),
+            scalar("key", Scalar::String("a.key".to_string())),
+            Field::detached_value("trust", Value::detached(ValueKind::Map(inner))),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_value(
+            "tls",
+            Value::detached(ValueKind::Map(map)),
+        )]);
+
+        // Act
+        let text = emit_hcl(&fields).expect("distinct keys are not a conflict");
+
+        // Assert
+        let round = reparse(&text);
+        let FieldKind::Value(value) = &round.get("tls").unwrap().kind else {
+            panic!("tls should be an attribute");
+        };
+        let ValueKind::Map(object) = &value.kind else {
+            panic!("tls should be an object");
+        };
+        let names: Vec<&str> = object.iter().map(|field| field.name.as_str()).collect();
+        assert_eq!(names, vec!["cert", "key", "trust"]);
+        let FieldKind::Value(trust) = &object.get("trust").unwrap().kind else {
+            panic!("trust should be an attribute");
+        };
+        let ValueKind::Map(nested) = &trust.kind else {
+            panic!("trust should be an object");
+        };
+        let nested_names: Vec<&str> = nested.iter().map(|field| field.name.as_str()).collect();
+        assert_eq!(nested_names, vec!["ca", "verify"]);
     }
 
     #[test]

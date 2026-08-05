@@ -25,7 +25,7 @@ pub use pipeline::keyword::KeywordSet;
 pub use pipeline::range::RangeConstraint;
 
 /// Implementation detail for the crate's macros. Not part of the public API,
-/// and exempt from semver. `keyword_enum!` reaches `serde` through this path so
+/// and exempt from semver. `keyword_enum!` uses `serde` through this path, so
 /// the generated impl is gated on confval's own `serde` feature rather than the
 /// caller's dependency graph.
 #[doc(hidden)]
@@ -47,7 +47,7 @@ pub mod __private {
 /// ([`KeywordSet`] and its [`keyword_enum!`] macro, [`RangeConstraint`] and its
 /// [`range_constraint!`] macro), and, with the `derive` feature, the [`Spec`]
 /// and [`Config`] derives.
-/// Each validator and its macro travel together, so the validated-range and
+/// Each validator is exported with its macro, so the validated-range and
 /// keyword patterns each work from one import.
 ///
 /// The write-path trait [`ToFields`](format::ToFields) is in the prelude,

@@ -1,6 +1,6 @@
-//! Span-first provenance: every parsed value carries its exact location in
-//! the source text, so diagnostics can point at the offending value rather
-//! than the enclosing section.
+//! Validation and lowering of a parsed spec. Every parsed value carries its
+//! exact location in the source text, so a diagnostic points at the offending
+//! value rather than at the enclosing section.
 
 /// Keyword sets and the [`keyword_enum!`](crate::keyword_enum) macro.
 pub mod keyword;
