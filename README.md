@@ -15,8 +15,8 @@ Everything after parsing works against that model.
 
 The [toml example](./crates/confval/examples/toml.rs), [hcl example](./crates/confval/examples/hcl.rs), and
 [kdl example](./crates/confval/examples/kdl.rs) demonstrate how this crate is meant to be used.
-The three share every line after the parse call.
-Only the call that parses the file differs.
+The three run the same steps in the same order.
+Only the source text, its file name, and the two format calls that parse and emit it differ.
 The [layering example](./crates/confval/examples/layering.rs) assembles one configuration from a file, the environment,
 and the command line.
 The [templates example](./crates/confval/examples/templates.rs) runs the pipeline backward and writes an annotated

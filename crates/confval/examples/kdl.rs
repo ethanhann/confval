@@ -2,14 +2,24 @@
 //! a runtime type, print the result, and emit the populated spec back to
 //! canonical KDL text.
 //!
-//! The spec types, validators, config types, and lowering functions all live
-//! in `common`, which the `hcl` and `toml` examples share verbatim. Only the
-//! source text and the two format calls below, `parse_kdl` and `emit_kdl`, are
-//! format-specific.
+//! The spec types, validators, config types, and lowering functions all live in
+//! `common`, which the `hcl` and `toml` examples share verbatim. Those two
+//! examples run the same steps in the same order as this one. Only the source
+//! text, its file name, and the two format calls, `parse_kdl` and `emit_kdl`,
+//! differ between the three.
 //!
 //! A failing variant renders its diagnostics to stderr first, and the valid
-//! config then shows the lowered output and the write path. A scalar is one
-//! argument, a list is repeated arguments or repeated nodes, and a nested
+//! config then shows the lowered output and the write path. The failing report
+//! includes an error at a single list element, an unknown keyword in a nested
+//! block, and a cross-field warning whose related span points at the setting
+//! that caused it.
+//!
+//! The valid config omits the `limits` node, so the lowered output shows the
+//! config-side `#[confval(nested, default)]` filling `LimitsSpec::default()`
+//! while the spec stays source-faithful.
+//!
+//! KDL spells the same field model differently from HCL and TOML. A scalar is
+//! one argument, a list is repeated arguments or repeated nodes, and a nested
 //! structure is a children block or properties on one node.
 //!
 //! Run with: cargo run -p confval --example kdl --features derive,color,kdl
@@ -25,7 +35,9 @@ use confval::prelude::*;
 /// path in one pass.
 fn show_failing_variant() -> Result<(), String> {
     let input = r#"hostname ""
-port 99999
+port 80
+tls #true
+allow "10.0.0.0/8" ""
 
 limits {
   mode "yolo"
@@ -51,13 +63,10 @@ fn main() -> Result<(), String> {
     show_failing_variant()?;
 
     let input = r#"hostname "127.0.0.1"
-port 8080
+port 8443
 workers 8
+tls #true
 allow "10.0.0.0/8" "192.168.0.0/16"
-
-limits {
-  mode "log"
-}
 "#;
 
     let mut sources = SourceMap::new();
