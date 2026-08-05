@@ -1,26 +1,29 @@
-//! End-to-end example: parse an HCL config span-first, validate it, lower it
-//! to a runtime type, and render the diagnostics.
+//! End-to-end example: parse an HCL config span-first, validate it, lower it to
+//! a runtime type, print the result, and emit the populated spec back to
+//! canonical HCL text.
 //!
 //! The spec types, validators, config types, and lowering functions all live in
-//! `common`, which the companion `toml` and `kdl` examples share verbatim. Only
-//! the source text and the single `parse_hcl` call below are format-specific,
-//! which is what makes the pipeline after parsing format-neutral.
+//! `common`, which the `toml` and `kdl` examples share verbatim. Those two
+//! examples run the same steps in the same order as this one. Only the source
+//! text, its file name, and the two format calls, `parse_hcl` and `emit_hcl`,
+//! differ between the three.
 //!
 //! A failing variant renders its diagnostics to stderr first, and the valid
-//! config then shows the lowered output. The failing report includes an error
-//! at a single list element and a cross-field warning whose related span points
-//! at the setting that caused it.
+//! config then shows the lowered output and the write path. The failing report
+//! includes an error at a single list element, an unknown keyword in a nested
+//! block, and a cross-field warning whose related span points at the setting
+//! that caused it.
 //!
-//! Beyond the flat fields, the pair exercises a nested block that is optional
-//! in the source but defaulted at runtime (`limits`), a `KeywordSet`-validated
-//! keyword field (`mode`), and the ready-made `narrow` helpers alongside a
-//! handwritten `with` function.
+//! The valid config omits the `limits` block, so the lowered output shows the
+//! config-side `#[confval(nested, default)]` filling `LimitsSpec::default()`
+//! while the spec stays source-faithful.
 //!
 //! Run with: cargo run -p confval --example hcl --features derive,color,hcl
 
 mod common;
 
 use common::{ServerConfig, ServerSpec, validate_and_gate};
+use confval::format::ToFields;
 use confval::prelude::*;
 
 /// Parses and validates a broken config, rendering its diagnostics to stderr
@@ -57,6 +60,7 @@ fn main() -> Result<(), String> {
 
     let input = r#"hostname = "127.0.0.1"
 port = 8443
+workers = 8
 tls = true
 allow = ["10.0.0.0/8", "192.168.0.0/16"]
 "#;
@@ -73,11 +77,16 @@ allow = ["10.0.0.0/8", "192.168.0.0/16"]
     // Validate and gate
     validate_and_gate(&spec, &sources, &mut report);
 
-    // Lower
+    // Lower to the runtime config
     let config =
         ServerConfig::lower(&spec, &mut report).ok_or("lowering failed despite a clean report")?;
-
-    // Print results
     println!("{}", config);
+
+    // Emit the populated spec back to canonical HCL, the write path.
+    let text =
+        confval::format::hcl::emit_hcl(&spec.to_fields()).map_err(|error| error.to_string())?;
+    println!("+ Emitted HCL:");
+    print!("{text}");
+
     Ok(())
 }
