@@ -33,6 +33,15 @@
   margin: 0;
 }
 
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 1rem;
+}
+
 .heroSummary {
   max-width: 44rem;
   margin: 0 auto 2rem;

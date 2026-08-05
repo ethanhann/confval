@@ -11,6 +11,13 @@ import styles from './index.module.css';
 
 function HomepageHeader() {
     const {siteConfig} = useDocusaurusContext();
+    const site = `${siteConfig.url}${siteConfig.baseUrl}`;
+    const workflow = `https://github.com/${siteConfig.organizationName}/${siteConfig.projectName}/actions/workflows/build.yml`;
+    const badges = [
+        {alt: 'Build', src: `${workflow}/badge.svg?branch=main`},
+        {alt: 'Coverage', src: `https://img.shields.io/endpoint?url=${site}coverage/badge.json`},
+        {alt: 'Tests', src: `https://img.shields.io/endpoint?url=${site}coverage/tests-badge.json`},
+    ];
     return (
         <header className={clsx('hero hero--primary', styles.heroBanner)}>
             <div className="container">
@@ -23,6 +30,13 @@ function HomepageHeader() {
                     <Heading as="h1" className={clsx('hero__title', styles.heroTitle)}>
                         {siteConfig.title}
                     </Heading>
+                </div>
+                <div className={styles.badges}>
+                    {badges.map((badge) => (
+                        <a key={badge.alt} href={workflow}>
+                            <img src={badge.src} alt={badge.alt}/>
+                        </a>
+                    ))}
                 </div>
                 <p className="hero__subtitle">{siteConfig.tagline}</p>
                 <p className={styles.heroSummary}>
