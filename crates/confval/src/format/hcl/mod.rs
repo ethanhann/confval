@@ -496,8 +496,8 @@ mod tests {
     /// hcl-edit panics on `-9223372036854775808`, whose magnitude is 2^63. The
     /// upstream fix is https://github.com/martinohmann/hcl-rs/pull/549. When a
     /// released hcl-edit carries it, `parse_body` stops panicking and this test
-    /// fails, which is the prompt to delete both workarounds and the tests that
-    /// pin them and let a clean parse error and a faithful round trip take over.
+    /// fails. Delete both workarounds and the tests that pin them. A clean parse
+    /// error and a faithful round trip then take over.
     ///
     /// The caught panic writes to the test's captured output, which the harness
     /// hides while this test passes.

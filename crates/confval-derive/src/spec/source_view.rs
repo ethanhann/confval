@@ -3,8 +3,8 @@
 //!
 //! Where the populate walk fills every default and detaches every span, this
 //! walk emits only the fields the source set and keeps their spans. One rule
-//! decides every shape: a value is emitted when its `Located` span is attached,
-//! and a filled default, which carries the detached sentinel, is omitted. Each
+//! decides every shape. A value is emitted when its `Located` span is attached.
+//! A filled default carries the detached sentinel and is omitted. Each
 //! emitted field is built detached and then located with `Field::at`, so a
 //! location-aware consumer keeps the source positions. The name span and the
 //! level container stay detached, because a spec supplies neither. A bare

@@ -9,12 +9,12 @@
 //! The write path, [`emit_kdl`], lives in the sibling `emit` module.
 //!
 //! A KDL node maps to one field by its shape. A node with only arguments is a
-//! value: one scalar argument is a scalar, more are a sequence, and a bare node
+//! value. One scalar argument is a scalar, more are a sequence, and a bare node
 //! is an empty sequence, the only spelling KDL has for an empty list. A node
 //! with properties or children is a block, with the properties as leading
 //! fields, so `tls cert="a.pem"` and `tls { cert "a.pem" }` reach the same
 //! `FromFields` impl. Repeated same-named nodes stay separate fields, and the
-//! spec-side walk resolves them: a list field accumulates them and a
+//! spec-side walk resolves them. A list field accumulates them, and a
 //! single-value field reports a duplicate.
 //!
 //! Behavior contract:
@@ -134,8 +134,8 @@ fn fields_of_document(
     Fields::new(source, enclosing, items)
 }
 
-/// Maps one node to one field by its shape: only arguments make a value, and
-/// properties or children make a block.
+/// Maps one node to one field by its shape. Only arguments make a value.
+/// Properties or children make a block.
 fn field_of_node(node: &KdlNode, source: SourceId, report: &mut Report) -> Field {
     let name_span = span_of!(node.name(), source);
     let node_span = span_of!(node, source);
@@ -178,7 +178,7 @@ fn field_of_node(node: &KdlNode, source: SourceId, report: &mut Report) -> Field
     Field::parsed(node.name().value(), name_span, node_span, source, kind)
 }
 
-/// The value of a node that carries only arguments: a bare node is an empty
+/// The value of a node that carries only arguments. A bare node is an empty
 /// sequence, one argument is its scalar, and more are a sequence. The sequence
 /// spans the node, and a single scalar spans its entry.
 fn value_of_arguments(arguments: &[&KdlEntry], node_span: Span, source: SourceId) -> Value {

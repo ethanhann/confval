@@ -45,12 +45,11 @@ where
     /// violated. The help line restates that bound, using the configured
     /// `units` and `help` text when present.
     pub fn check_located(&self, value: &Located<T>, field: &'static str, report: &mut Report) {
-        // NaN is unordered. It compares `false` against both bounds, so the
-        // range checks below would silently accept it.
-        // Reject it up front.
-        // The self-comparison is the only generic NaN test available here.
-        // For integer `T` it is always `false` and compiles away.
-        // Infinities need no special case. They fall outside any finite min/max.
+        // NaN is unordered and compares `false` against both bounds, so the
+        // range checks below would accept it. The self-comparison is the only
+        // generic NaN test available here, and for integer `T` it is always
+        // `false` and compiles away. Infinities need no special case, because
+        // they fall outside any finite min or max.
         #[allow(clippy::eq_op)]
         let is_nan = value.value != value.value;
         if is_nan {

@@ -25,7 +25,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Walk {
-    /// The `to_fields` walk: every field is emitted and every span is detached.
+    /// The `to_fields` walk. Every field is emitted and every span is detached.
     Populated,
     /// The `to_source_fields` walk: only the fields a source set, each keeping
     /// its span.

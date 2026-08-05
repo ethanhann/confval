@@ -23,8 +23,7 @@ use std::fmt::{self, Display, Formatter};
 
 /// Why a `Fields` could not be emitted to a format.
 ///
-/// Each variant carries `path`, the dotted field path to where the problem
-/// sits, so an error in a large tree names its location. For a name problem
+/// Each variant carries `path`, the dotted field path to the problem, so an error in a large tree names its location. For a name problem
 /// the path is the enclosing level, empty at the document root. For a value
 /// problem it is the offending field itself.
 #[derive(Debug, Clone, PartialEq, Eq)]

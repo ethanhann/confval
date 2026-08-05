@@ -8,8 +8,8 @@
 //! shape.
 //!
 //! The two walks are one code path with an `annotate` flag, rather than two.
-//! The template walk is a set of deltas on the populated one: it recurses with
-//! `to_template`, attaches each field's doc, and renders an absent optional
+//! The template walk differs from the populated one in three places. It recurses
+//! with `to_template`, attaches each field's doc, and renders an absent optional
 //! field as a commented entry. Generating them separately would mean writing
 //! every field shape twice, and the two copies could then disagree.
 //!

@@ -8,7 +8,7 @@
 //!   *walks* its nested blocks during validation (an
 //!   `impl confval::pipeline::ValidateNested`).
 //! - `#[derive(Config)]` writes the code that *converts* a parsed spec into the
-//!   runtime form the proxy uses (an `impl confval::pipeline::Lower`).
+//!   runtime form the program uses (an `impl confval::pipeline::Lower`).
 //!
 //! ## How a derive macro works (the mental model for this whole crate)
 //!

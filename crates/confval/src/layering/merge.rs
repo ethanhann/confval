@@ -191,8 +191,8 @@ impl Shell {
     }
 }
 
-/// A field taken apart for the merge: a structural field splits into its shell
-/// and inner level, and any other field passes through whole.
+/// A field taken apart for the merge. A structural field splits into its shell
+/// and inner level. Any other field passes through whole.
 enum Split {
     Structural(Shell, Fields),
     Plain(Field),
@@ -649,7 +649,7 @@ mod tests {
     fn merge_keeps_the_base_doc_on_an_overridden_value() {
         // Arrange
         // `rewrap` keeps the base's doc on a merged block, so the value-level
-        // override follows the same rule: the value moves, the doc stays.
+        // override follows the same rule. The value moves and the doc stays.
         let mut base_field = scalar("port", Scalar::Int(1));
         base_field.doc = Some("The listen port.".to_string());
         let mut over_field = scalar("port", Scalar::Int(2));

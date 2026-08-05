@@ -404,8 +404,8 @@ mod tests {
     #[test]
     fn emit_toml_writes_an_inline_table_with_several_distinct_keys() {
         // Arrange
-        // An inline table admits no repetition at all, so the scan guarding it
-        // must still accept a level whose keys are simply distinct. A nested
+        // An inline table admits no repetition, so the scan guarding it
+        // must still accept a level whose keys are distinct. A nested
         // inline table covers the recursion.
         let inner = Fields::detached(vec![
             scalar("ca", Scalar::String("ca.pem".to_string())),

@@ -385,7 +385,7 @@ pub trait ToFields {
     /// The populated field model with no comments.
     fn to_fields(&self) -> Fields;
 
-    /// The source-view field model: only the fields the source actually set,
+    /// The source-view field model. It holds only the fields the source set,
     /// with defaults omitted. A field is included when its `Located` span is
     /// attached, and a filled default, which carries the detached sentinel, is
     /// omitted. Each included value keeps its real source span, so a
@@ -393,10 +393,10 @@ pub trait ToFields {
     /// the `Fields` container's own source and enclosing span stay detached,
     /// because a spec supplies neither.
     ///
-    /// This is required, not defaulted. No correct fallback exists: the
-    /// populated model would report filled defaults as operator-written, the
-    /// exact confusion this view removes, so a handwritten impl must answer the
-    /// question itself.
+    /// The method is required. No correct fallback exists. A defaulted
+    /// implementation would return the populated model, which reports filled
+    /// defaults as operator-written. That is the confusion this view removes, so
+    /// a handwritten impl must answer the question itself.
     fn to_source_fields(&self) -> Fields;
 
     /// The populated field model with each field's doc comment attached, for an
