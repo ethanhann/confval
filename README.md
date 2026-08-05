@@ -4,13 +4,14 @@ Configuration parsing, validation, and lowering primitives for Rust.
 
 Configuration is parsed span-first, so every value carries the byte range it came from and every later check can point
 at the place in the file that caused it.
-The core knows no file format.
+The core does not depend on any file format.
 A frontend converts one syntax into a format-neutral field model.
 Everything after parsing works against that model.
 
 The [toml example](./crates/confval/examples/toml.rs), [hcl example](./crates/confval/examples/hcl.rs), and
 [kdl example](./crates/confval/examples/kdl.rs) demonstrate how this crate is meant to be used.
-The three share every line after the parse call, which is what makes the pipeline format-neutral.
+The three share every line after the parse call.
+Only the call that parses the file differs.
 The [layering example](./crates/confval/examples/layering.rs) assembles one configuration from a file, the environment,
 and the command line.
 The [templates example](./crates/confval/examples/templates.rs) runs the pipeline backward and writes an annotated
@@ -21,8 +22,7 @@ command.
 
 See the [confval documentation](https://ethanhann.com/confval/) for the full API overview.
 
-The confval crate was originally extracted from the [Snakeway reverse proxy](https://snakeway.dev) configuration
-subsystem after reusable patterns emerged during development.
+The confval crate was extracted from the [Snakeway reverse proxy](https://snakeway.dev) configuration subsystem.
 
 ## Usage examples
 
