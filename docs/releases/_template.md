@@ -43,7 +43,7 @@ One or two sentences describing the theme of this release.
 
 ## Upgrading
 
-Notes for consumers moving from the previous version.
+What you need to change when moving from the previous version.
 
 ```toml
 [dependencies]
