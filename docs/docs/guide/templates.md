@@ -41,7 +41,6 @@ max_body_mb = 16
 mode = "enforce"
 ```
 
-The rest of this page covers how each part works.
 
 ## Generating a Template
 
@@ -66,6 +65,7 @@ use confval::format::kdl::{emit_kdl, parse_kdl};
 let spec: ServerSpec = parse_kdl(&sources, id, &mut report).unwrap();
 let template = emit_kdl(&spec.to_template())?;
 ```
+
 A comment is indented to line up with the field it documents, so a comment inside a block is at the block's indentation:
 
 ```hcl
@@ -144,7 +144,8 @@ The rules follow from what the parser leaves in the spec:
 - A required field is always present, so it is always emitted.
 - A leaf with an attribute default is emitted with that default, because parsing already filled it when the source omitted the field.
 - A repeated block is emitted once per element.
-- An optional block is filled only when you mark it, which the next section covers.
+- An optional block is filled only when you mark it.
+  See [Marking Optional Blocks](#marking-optional-blocks).
 
 A block that is present is populated in turn, so a block you wrote but left partial gains its own absent defaults.
 A block that is filled is populated to full depth, so one call at the root resolves a nested tree of defaults all the way down.
@@ -223,7 +224,7 @@ The marker changes populate only, so parsing still leaves an absent block `None`
 ## When Emit Fails
 
 Emit returns a `Result`, because not every field model has a faithful spelling in every format.
-On the populate path the risk is small, and it depends on the format.
+On the populate path the risk is small.
 
 Emitting a populated spec to TOML always succeeds.
 TOML has a literal for every value populate produces and quotes any key, so `emit_toml(&spec.to_template())?` cannot fail on a populated model.

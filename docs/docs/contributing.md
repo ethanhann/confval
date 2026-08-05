@@ -61,7 +61,8 @@ If you add an example or change one's required features, update that page and th
 ## Crate layout
 
 confval is organized into four layers, each a module, plus a prelude.
-The dependency direction is strictly downward: `format` builds on `pipeline`, which builds on `diagnostic`, which builds
+The dependency direction is strictly downward.
+`format` builds on `pipeline`, which builds on `diagnostic`, which builds
 on `source`.
 
 | Module                | Holds                                                                                       |

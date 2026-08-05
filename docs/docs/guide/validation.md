@@ -14,13 +14,10 @@ Every spec lowered into a config must implement it, or the config does not compi
 The bound guarantees a validator exists.
 It does not guarantee that every field is checked inside that validator.
 
-The checks are (currently) intentionally minimal.
+confval ships a minimal set of checks.
 confval provides only two domain-agnostic checks: `RangeConstraint` and `KeywordSet`.
 
 ## Concept Overview
-
-This is a high-level look at validation.
-The sections below cover each part in more detail.
 
 A spec type checks its own fields in a `Validate` impl.
 Numeric bounds use `RangeConstraint`, closed sets use `KeywordSet`, and each problem is reported at the field's span.
@@ -237,18 +234,16 @@ A spec type with nothing worth checking writes one, which states that validation
 Handwritten `Lower` impls add the same `where S: Validate + ValidateNested` clause directly.
 A flattening lowering, meaning one with no per-entity `Lower` impl, can put the bound on the function that performs it.
 
-The bound guarantees the validator exists.
-It does not guarantee that lowering calls it.
-Validation is still invoked explicitly before the gate.
-The trait closes the "forgot to write a validator" gap.
-Calling the validator remains the caller's responsibility.
+The bound guarantees that the validator exists, but it does not make lowering call it, so validation stays an explicit
+step before the gate.
+What the trait rules out is a spec that was never given a validator at all.
 
 ## `Validate` impl contains the rules, `validate_all` runs them
 
 A `Validate` impl covers one spec type's own fields.
 It does not reach the nested blocks underneath it, because those are separate types with rules of their own.
 The specs for a configuration surface form a tree.
-Something has to walk the tree.
+A traversal has to visit every node.
 That walk is generated rather than written by hand, though you can write it yourself.
 
 `validate_all` runs this type's `validate`, then descends into every `#[confval(nested)]` field, recursively.
@@ -270,7 +265,7 @@ unchecked.
 Nothing in the type system catches that, because both methods compile and both take the same arguments.
 
 Keep `validate` out of your call sites.
-The examples fold validation into the gate helper.
+The examples call `validate_all` inside the gate helper.
 `validate_all` then runs in the one place that decides whether a spec is safe to lower.
 :::
 

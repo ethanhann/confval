@@ -16,9 +16,6 @@ What the values mean is left to [validation](./validation.md).
 
 ## Concept Overview
 
-This is a high-level look at parsing.
-The sections below cover each part in more detail.
-
 You define a spec as a struct, then parse a file into it with the frontend for the format you enabled.
 
 ```rust
@@ -202,8 +199,7 @@ It works three ways:
 A setting in a configuration file that does not exist in the Rust struct will be interpreted as a parsing error.
 There is no lenient mode that ignores extra settings/keys.
 
-Stricter is better in general with configuration file structure, but this is particularly useful for LLM-edited
-configuration files as LLMs tend to invent settings that do not exist.
+Strictness matters most for LLM-edited configuration files, because an LLM will invent settings that do not exist.
 
 ### What the derive does not handle
 
@@ -259,6 +255,7 @@ bind {
 ```rust
 let spec: Option<ServerSpec> = confval::format::kdl::parse_kdl(&sources, id, &mut report);
 ```
+
 A repeated node is a list when the field is a list and a duplicate error when it is not.
 An argument on a node that also has properties or children is an error, because the model has no block labels.
 A bare node where a single value is expected reports `expected string, found array`, because the bare spelling means an
@@ -272,7 +269,8 @@ answer is uniform so the same configuration means the same thing whichever front
 `hcl-edit` rejects duplicate attribute keys while parsing, so a repeated attribute is a syntax error, and TOML rejects
 a duplicate key the same way.
 A repeated block parses, and confval reports it with a related span pointing at the first occurrence.
-A repeated KDL value node reaches the same rule: a list field accumulates the occurrences, and a single-value field
+A repeated KDL value node follows the same rule.
+A list field accumulates the occurrences, and a single-value field
 reports the repeat with the related span.
 :::
 

@@ -56,7 +56,6 @@ The crate ships the same program as multiple runnable examples.
 All three pull everything after parsing from a shared `common/mod.rs`.
 
 Read through it once for the overall shape.
-The section after it maps each part to the guide page that covers it in depth.
 
 ```rust
 use confval::prelude::*;
