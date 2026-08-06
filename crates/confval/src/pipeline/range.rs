@@ -68,7 +68,7 @@ where
         };
         let help = self.help.map(String::from).unwrap_or_else(|| {
             format!(
-                "Set {} to {} {}{}",
+                "Set {} to {} {} {}",
                 field,
                 kind,
                 limit,
@@ -90,7 +90,7 @@ where
 ///
 /// range_constraint!(THREADS, usize, min: 1, max: 1024);
 /// range_constraint!(PORT, u16, min: 1, max: 65535);
-/// range_constraint!(INTERVAL, u64, min: 1, max: 3600, units: "s");
+/// range_constraint!(INTERVAL, u64, min: 1, max: 3600, units: "seconds");
 /// range_constraint!(WORKERS, usize, min: 1, max: 128, help: "Match this to your CPU core count.");
 /// ```
 #[macro_export]
@@ -131,9 +131,9 @@ mod tests {
 
     range_constraint!(PORT, i64, min: 1, max: 65535);
     range_constraint!(THREADS, i64, min: 1, max: 1024);
-    range_constraint!(INTERVAL, i64, min: 1, max: 3600, units: "s");
+    range_constraint!(INTERVAL, i64, min: 1, max: 3600, units: "seconds");
     range_constraint!(WORKERS, i64, min: 1, max: 128, help: "Match this to your CPU core count.");
-    range_constraint!(TIMEOUT, i64, min: 1, max: 300, units: "s", help: "Keep this under 5 minutes for responsive shutdowns.");
+    range_constraint!(TIMEOUT, i64, min: 1, max: 300, units: "seconds", help: "Keep this under 5 minutes for responsive shutdowns.");
 
     fn check(constraint: &RangeConstraint<i64>, value: i64, field: &'static str) -> Report {
         let mut report = Report::new();
@@ -170,8 +170,16 @@ mod tests {
 
     #[test]
     fn help_includes_units_when_present() {
+        // Arrange
+        let expected = "seconds";
+
+        // Act
         let report = check(&INTERVAL, 0, "interval");
-        assert!(report.issues()[0].help.as_ref().unwrap().contains("s"));
+
+        // Assert
+        let help = report.issues()[0].help.as_ref().expect("No help specified");
+        assert!(help.contains(expected));
+        assert_eq!(help, "Set interval to at least 1 seconds");
     }
 
     #[test]
