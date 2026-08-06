@@ -22,7 +22,7 @@ lint:
 mutants jobs="4":
     cargo mutants -j {{ jobs }}
 
-# Mutate only the source a diff touches. Note the jobs="4" arg is bound by disk (target/ size times jobs), not CPU cores.
+# Mutate only the source a diff touches. Note the jobs="4" arg is bound by disk (target / size * jobs), not CPU cores.
 mutants-diff base="main" jobs="4":
     #!/usr/bin/env bash
     set -euo pipefail
