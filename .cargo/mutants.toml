@@ -11,3 +11,4 @@ exclude_re = [
     "replace < with <= in __keyword_enum_keywords_unique",
 ]
 timeout_multiplier = 8.0
+test_tool = "nextest"
