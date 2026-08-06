@@ -13,8 +13,8 @@ The core does not depend on any file format.
 A frontend converts one syntax into a format-neutral field model.
 Everything after parsing works against that model.
 
-The [toml example](./crates/confval/examples/toml.rs), [hcl example](./crates/confval/examples/hcl.rs), and
-[kdl example](./crates/confval/examples/kdl.rs) demonstrate how this crate is meant to be used.
+The [toml example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/toml.rs), [hcl example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/hcl.rs), and
+[kdl example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/kdl.rs) demonstrate how this crate is meant to be used.
 The three run the same steps in the same order.
 Only the source text, its file name, and the two format calls that parse and emit it differ.
 The [layering example](./crates/confval/examples/layering.rs) assembles one configuration from a file, the environment,
