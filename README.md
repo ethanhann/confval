@@ -17,13 +17,14 @@ The [toml example](https://github.com/ethanhann/confval/tree/main/crates/confval
 [kdl example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/kdl.rs) demonstrate how this crate is meant to be used.
 The three run the same steps in the same order.
 Only the source text, its file name, and the two format calls that parse and emit it differ.
-The [layering example](./crates/confval/examples/layering.rs) assembles one configuration from a file, the environment,
+
+The [layering example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/layering.rs) assembles one configuration from a file, the environment,
 and the command line.
-The [templates example](./crates/confval/examples/templates.rs) runs the pipeline backward and writes an annotated
-configuration file from the spec types.
+
+The [templates example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/templates.rs) writes an annotated configuration file from the spec types (it essentially runs the pipeline backward).
+
 Twelve examples ship in total.
-The [Examples](https://ethanhann.com/confval/docs/examples) page lists what each one covers along with its run
-command.
+The [Examples](https://ethanhann.com/confval/docs/examples) page lists what each one covers along with its run command.
 
 See the [confval documentation](https://ethanhann.com/confval/) for the full API overview.
 
@@ -33,8 +34,7 @@ The confval crate was extracted from the [Snakeway reverse proxy](https://snakew
 
 - [In this repo](https://github.com/ethanhann/confval/tree/main/crates/confval/examples)
 - An example PR for [mini-redis](https://github.com/ethanhann/mini-redis/pull/1)
-- Snakeway reverse proxy's [snakeway-conf](https://github.com/snakewayhq/snakeway/tree/main/crates/snakeway-conf/src)
-  crate (advanced usage)
+- Snakeway reverse proxy's [snakeway-conf](https://github.com/snakewayhq/snakeway/tree/main/crates/snakeway-conf/src) crate (advanced usage)
 
 ## License
 
