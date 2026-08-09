@@ -110,8 +110,8 @@ pub(super) fn write_string(out: &mut String, text: &str) {
         match character {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\u000a"),
+            '\t' => out.push_str("\\u0009"),
             '\r' => out.push_str("\\r"),
             '\u{8}' => out.push_str("\\b"),
             '\u{c}' => out.push_str("\\f"),
