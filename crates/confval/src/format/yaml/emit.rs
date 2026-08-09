@@ -245,9 +245,7 @@ fn shape_of(member: &Member) -> Shape {
 
 fn shape_of_value(value: &Value) -> Shape {
     match &value.kind {
-        ValueKind::Seq(elements) => {
-            shape_of_elements(&elements.iter().collect::<Vec<_>>())
-        }
+        ValueKind::Seq(elements) => shape_of_elements(&elements.iter().collect::<Vec<_>>()),
         ValueKind::Map(inner) => {
             if inner.entries().len() == 0 {
                 Shape::Inline
@@ -264,7 +262,11 @@ fn shape_of_elements(elements: &[&Value]) -> Shape {
     let structural = elements
         .iter()
         .any(|element| matches!(element.kind, ValueKind::Map(_) | ValueKind::Seq(_)));
-    if structural { Shape::Block } else { Shape::Inline }
+    if structural {
+        Shape::Block
+    } else {
+        Shape::Inline
+    }
 }
 
 /// Writes a member that fits after `key: `.
@@ -330,9 +332,7 @@ fn write_value_inline(out: &mut String, value: &Value, path: &str) -> Result<(),
             write_scalar(out, scalar);
             Ok(())
         }
-        ValueKind::Seq(elements) => {
-            write_flow(out, &elements.iter().collect::<Vec<_>>(), path)
-        }
+        ValueKind::Seq(elements) => write_flow(out, &elements.iter().collect::<Vec<_>>(), path),
         ValueKind::Map(_) => {
             out.push_str("{}");
             Ok(())
@@ -411,7 +411,8 @@ fn splice_dash(out: &mut String, body: &str, level: usize) {
     let mut spliced = false;
     for line in body.lines() {
         let content = line.trim_start();
-        if !spliced && !content.is_empty() && !content.starts_with('#') && line.len() >= column + 2 {
+        if !spliced && !content.is_empty() && !content.starts_with('#') && line.len() >= column + 2
+        {
             out.push_str(&line[..column]);
             out.push_str("- ");
             out.push_str(&line[column + 2..]);
@@ -460,7 +461,12 @@ fn float_text(float: f64) -> String {
         return ".nan".to_string();
     }
     if float.is_infinite() {
-        return if float.is_sign_negative() { "-.inf" } else { ".inf" }.to_string();
+        return if float.is_sign_negative() {
+            "-.inf"
+        } else {
+            ".inf"
+        }
+        .to_string();
     }
     format!("{float:?}")
 }
@@ -516,7 +522,6 @@ fn indent(out: &mut String, level: usize) {
         out.push_str("  ");
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -597,10 +602,7 @@ mod tests {
         let out = emit_yaml(&fields).unwrap();
 
         // Assert
-        assert_eq!(
-            out,
-            "max_weight: 16\n\nsprocket:\n  max_height: 32\n"
-        );
+        assert_eq!(out, "max_weight: 16\n\nsprocket:\n  max_height: 32\n");
     }
 
     #[test]
@@ -611,11 +613,11 @@ mod tests {
         // drop the spacing on the second, because a reparse yields map values.
         let fields = Fields::detached(vec![
             text("hostname", "api"),
-            Field::detached_block(
-                "tls",
-                Fields::detached(vec![text("cert", "c.pem")]),
+            Field::detached_block("tls", Fields::detached(vec![text("cert", "c.pem")])),
+            Field::detached_value(
+                "limits",
+                Value::detached(map(vec![scalar("max", Scalar::Int(1))])),
             ),
-            Field::detached_value("limits", Value::detached(map(vec![scalar("max", Scalar::Int(1))]))),
         ]);
 
         // Act
@@ -640,7 +642,10 @@ mod tests {
         // inline value can follow it at the same level. The reader has only the
         // indentation to close the block on.
         let fields = Fields::detached(vec![
-            Field::detached_value("limits", Value::detached(map(vec![scalar("max", Scalar::Int(1))]))),
+            Field::detached_value(
+                "limits",
+                Value::detached(map(vec![scalar("max", Scalar::Int(1))])),
+            ),
             scalar("port", Scalar::Int(8080)),
         ]);
 
@@ -650,7 +655,10 @@ mod tests {
         // Assert
         assert_eq!(out, "limits:\n  max: 1\nport: 8080\n");
         let round = reparse(&out);
-        assert!(round.get("port").is_some(), "the dedented member must survive");
+        assert!(
+            round.get("port").is_some(),
+            "the dedented member must survive"
+        );
         assert_eq!(round.iter().count(), 2);
     }
 
@@ -730,12 +738,7 @@ mod tests {
     #[test]
     fn emit_yaml_keeps_a_multi_entry_element_under_its_marker() {
         // Arrange
-        let element = |port: i64| {
-            map(vec![
-                scalar("port", Scalar::Int(port)),
-                text("host", "h"),
-            ])
-        };
+        let element = |port: i64| map(vec![scalar("port", Scalar::Int(port)), text("host", "h")]);
         let fields = Fields::detached(vec![seq("service", vec![element(1), element(2)])]);
 
         // Act
@@ -994,10 +997,7 @@ mod tests {
         let out = emit_yaml(&fields).unwrap();
 
         // Assert
-        assert_eq!(
-            out,
-            "max_body-mb: 1\n\"weird key\": 2\n\"9lives\": 3\n"
-        );
+        assert_eq!(out, "max_body-mb: 1\n\"weird key\": 2\n\"9lives\": 3\n");
         let round = reparse(&out);
         for name in ["max_body-mb", "weird key", "9lives"] {
             assert!(round.get(name).is_some(), "key {name} should read back");
@@ -1106,7 +1106,10 @@ mod tests {
         // Assert
         // A doc above a commented entry is already a comment, so it renders
         // once rather than behind a second marker.
-        assert!(out.contains("# The PID file path.\n#pid_file"), "got:\n{out}");
+        assert!(
+            out.contains("# The PID file path.\n#pid_file"),
+            "got:\n{out}"
+        );
         assert!(!out.contains("##"), "got:\n{out}");
         let round = reparse(&out);
         let names: Vec<&str> = round.iter().map(|field| field.name.as_str()).collect();

@@ -126,10 +126,7 @@ impl Offsets {
     fn at(&self, characters: usize) -> u32 {
         match &self.positions {
             None => (characters as u32).min(self.len),
-            Some(positions) => positions
-                .get(characters)
-                .copied()
-                .unwrap_or(self.len),
+            Some(positions) => positions.get(characters).copied().unwrap_or(self.len),
         }
     }
 }
@@ -161,7 +158,9 @@ impl<'input> Reader<'input, '_> {
             // `StreamEnd`. Reported rather than silent, so a `None` return
             // always carries an issue.
             None => {
-                self.report.error("syntax error: unexpected end of input").emit();
+                self.report
+                    .error("syntax error: unexpected end of input")
+                    .emit();
                 None
             }
         }
@@ -176,7 +175,10 @@ impl<'input> Reader<'input, '_> {
                 // An empty file, a whitespace-only file, and a file holding
                 // only comments all reach the end with no document.
                 Event::StreamEnd => {
-                    self.report.error(ROOT_MUST_BE_A_MAPPING).at(document).emit();
+                    self.report
+                        .error(ROOT_MUST_BE_A_MAPPING)
+                        .at(document)
+                        .emit();
                     return None;
                 }
                 _ => continue,
@@ -594,7 +596,8 @@ mod tests {
     #[test]
     fn sequences_parse_in_both_styles_with_element_spans() {
         // Arrange
-        let input = "flow: [\"10.0.0.0/8\", \"192.168.0.0/16\"]\nblock:\n  - \"a\"\n  - \"b\"\nempty: []\n";
+        let input =
+            "flow: [\"10.0.0.0/8\", \"192.168.0.0/16\"]\nblock:\n  - \"a\"\n  - \"b\"\nempty: []\n";
 
         // Act
         let fields = parse(input);
@@ -652,7 +655,8 @@ mod tests {
             let mut report = Report::new();
             assert!(parse_string_field(fields.get(name).unwrap(), &mut report).is_none());
             assert_eq!(
-                report.issues()[0].message, "expected string, found null",
+                report.issues()[0].message,
+                "expected string, found null",
                 "field {name}"
             );
         }
@@ -778,7 +782,8 @@ mod tests {
 
             // Assert
             assert_eq!(
-                report.issues()[0].message, ROOT_MUST_BE_A_MAPPING,
+                report.issues()[0].message,
+                ROOT_MUST_BE_A_MAPPING,
                 "input: {input:?}"
             );
         }
@@ -795,7 +800,8 @@ mod tests {
 
             // Assert
             assert_eq!(
-                report.issues()[0].message, ROOT_MUST_BE_A_MAPPING,
+                report.issues()[0].message,
+                ROOT_MUST_BE_A_MAPPING,
                 "input: {input:?}"
             );
             let span = report.issues()[0].span.unwrap();
@@ -939,7 +945,8 @@ mod tests {
             let mut report = Report::new();
             assert!(parse_string_field(fields.get(name).unwrap(), &mut report).is_none());
             assert_eq!(
-                report.issues()[0].message, "expected string, found tagged value",
+                report.issues()[0].message,
+                "expected string, found tagged value",
                 "field {name}"
             );
         }

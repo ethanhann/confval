@@ -20,12 +20,7 @@
 //! its type was never decided, so a typed reparse of the emitted file reads
 //! those leaves as strings.
 
-#[cfg(any(
-    feature = "toml",
-    feature = "hcl",
-    feature = "json",
-    feature = "yaml"
-))]
+#[cfg(any(feature = "toml", feature = "hcl", feature = "json", feature = "yaml"))]
 use super::field::{Entry, Field, FieldKind, Fields};
 use std::fmt::{self, Display, Formatter};
 
@@ -104,12 +99,7 @@ pub(crate) fn child_path(path: &str, name: &str) -> String {
 /// This yields entries rather than fields, because an emitter renders the
 /// commented ones too and places each in the region its active twin would
 /// occupy.
-#[cfg(any(
-    feature = "toml",
-    feature = "hcl",
-    feature = "json",
-    feature = "yaml"
-))]
+#[cfg(any(feature = "toml", feature = "hcl", feature = "json", feature = "yaml"))]
 pub(crate) fn values_then_blocks(fields: &Fields) -> impl Iterator<Item = &Entry> {
     let values = fields
         .entries()
@@ -126,12 +116,7 @@ pub(crate) fn values_then_blocks(fields: &Fields) -> impl Iterator<Item = &Entry
 /// only in which groups they refuse. `rejects` receives the fields sharing one
 /// name, in declaration order. A commented entry is comment text, so it never
 /// reaches here and conflicts with nothing.
-#[cfg(any(
-    feature = "toml",
-    feature = "hcl",
-    feature = "json",
-    feature = "yaml"
-))]
+#[cfg(any(feature = "toml", feature = "hcl", feature = "json", feature = "yaml"))]
 pub(crate) fn first_conflicting_name(
     fields: &Fields,
     rejects: impl Fn(&[&Field]) -> bool,
@@ -194,12 +179,7 @@ impl std::error::Error for EmitError {}
 ///
 /// The caller supplies the marker. HCL, TOML, and YAML write `#`, and KDL
 /// writes `//`.
-#[cfg(any(
-    feature = "toml",
-    feature = "hcl",
-    feature = "kdl",
-    feature = "yaml"
-))]
+#[cfg(any(feature = "toml", feature = "hcl", feature = "kdl", feature = "yaml"))]
 pub(crate) fn comment_lines(doc: &str) -> Vec<String> {
     doc.replace("\r\n", "\n")
         .replace('\r', "\n")

@@ -151,9 +151,7 @@ fn decimal(text: &str) -> bool {
         }
         // A bare integer mantissa is a float only with an exponent, because the
         // integer pattern is tried first and matches it otherwise.
-        None => {
-            !mantissa.is_empty() && mantissa.bytes().all(|byte| byte.is_ascii_digit())
-        }
+        None => !mantissa.is_empty() && mantissa.bytes().all(|byte| byte.is_ascii_digit()),
     }
 }
 
@@ -170,7 +168,10 @@ mod tests {
         let resolved: Vec<Core> = forms.iter().map(|text| resolve(text)).collect();
 
         // Assert
-        assert!(resolved.iter().all(|core| *core == Core::Null), "{resolved:?}");
+        assert!(
+            resolved.iter().all(|core| *core == Core::Null),
+            "{resolved:?}"
+        );
     }
 
     #[test]
@@ -206,7 +207,10 @@ mod tests {
         let resolved: Vec<Core> = forms.iter().map(|text| resolve(text)).collect();
 
         // Assert
-        assert!(resolved.iter().all(|core| *core == Core::Str), "{resolved:?}");
+        assert!(
+            resolved.iter().all(|core| *core == Core::Str),
+            "{resolved:?}"
+        );
     }
 
     #[test]
@@ -246,7 +250,10 @@ mod tests {
         let resolved: Vec<Core> = forms.iter().map(|text| resolve(text)).collect();
 
         // Assert
-        assert!(resolved.iter().all(|core| *core == Core::Str), "{resolved:?}");
+        assert!(
+            resolved.iter().all(|core| *core == Core::Str),
+            "{resolved:?}"
+        );
     }
 
     #[test]
@@ -259,14 +266,21 @@ mod tests {
         let resolved: Vec<Core> = forms.iter().map(|text| resolve(text)).collect();
 
         // Assert
-        assert!(resolved.iter().all(|core| *core == Core::Str), "{resolved:?}");
+        assert!(
+            resolved.iter().all(|core| *core == Core::Str),
+            "{resolved:?}"
+        );
     }
 
     #[test]
     fn an_integer_beyond_i64_is_oversized() {
         // Arrange
         // i128 holds this, i64 does not.
-        let forms = ["9223372036854775808", "-9223372036854775809", "0xFFFFFFFFFFFFFFFF"];
+        let forms = [
+            "9223372036854775808",
+            "-9223372036854775809",
+            "0xFFFFFFFFFFFFFFFF",
+        ];
 
         // Act
         let resolved: Vec<Core> = forms.iter().map(|text| resolve(text)).collect();
@@ -356,13 +370,18 @@ mod tests {
         // Arrange
         // The core pattern carries no sign and lists three case variants, so
         // each of these is text.
-        let forms = ["-.nan", "+.nan", ".Nan", ".nAn", "nan", "NaN", ".iNf", "inf"];
+        let forms = [
+            "-.nan", "+.nan", ".Nan", ".nAn", "nan", "NaN", ".iNf", "inf",
+        ];
 
         // Act
         let resolved: Vec<Core> = forms.iter().map(|text| resolve(text)).collect();
 
         // Assert
-        assert!(resolved.iter().all(|core| *core == Core::Str), "{resolved:?}");
+        assert!(
+            resolved.iter().all(|core| *core == Core::Str),
+            "{resolved:?}"
+        );
     }
 
     #[test]
@@ -394,7 +413,10 @@ mod tests {
         let resolved: Vec<Core> = forms.iter().map(|text| resolve(text)).collect();
 
         // Assert
-        assert!(resolved.iter().all(|core| *core == Core::Str), "{resolved:?}");
+        assert!(
+            resolved.iter().all(|core| *core == Core::Str),
+            "{resolved:?}"
+        );
     }
 
     #[test]
