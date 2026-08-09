@@ -314,9 +314,8 @@ mod json_duplicate_groups {
             report.issues()
         );
         // The overlay's level stands, so nothing is lost without a diagnostic.
-        if let Some(spec) = spec {
-            let limits = spec.limits.expect("the overlay level should stand");
-            assert_eq!(limits.value.mode.value, "enforce");
-        }
+        let spec = spec.expect("the assembly should still produce a spec");
+        let limits = spec.limits.expect("the overlay level should stand");
+        assert_eq!(limits.value.mode.value, "enforce");
     }
 }
