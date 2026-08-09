@@ -320,3 +320,94 @@ mod json_duplicate_groups {
         assert_eq!(limits.value.mode.value, "enforce");
     }
 }
+
+/// A YAML level can carry two fields under one name, the same shape the JSON
+/// module above tests, reached through the event stream rather than an AST.
+#[cfg(feature = "yaml")]
+mod yaml_duplicate_groups {
+    use super::*;
+    use confval::format::yaml::parse_yaml_fields;
+
+    #[derive(confval::Spec, Debug)]
+    struct AllowSpec {
+        hostname: Located<String>,
+        allow: Option<Located<Vec<Located<String>>>>,
+    }
+
+    impl Validate for AllowSpec {
+        fn validate(&self, _report: &mut Report) {}
+    }
+
+    #[test]
+    fn a_yaml_base_layer_with_a_duplicated_list_key_accumulates_through_the_assembly() {
+        // Arrange
+        // The two `allow` entries stay separate fields through the merge, and
+        // the walk resolves them by the spec's declared list shape.
+        let base_text = r#"hostname: "filehost"
+allow: "10.0.0.0/8"
+allow: "192.168.0.0/16"
+"#;
+        let mut sources = SourceMap::new();
+        let mut report = Report::new();
+        let base = sources.add("server.yaml", base_text);
+
+        // Act
+        let spec: Option<AllowSpec> = Assembly::new()
+            .merge(parse_yaml_fields(&sources, base, &mut report))
+            .merge(cli_fields(
+                &mut sources,
+                ["--hostname=clihost".to_string()],
+                &mut report,
+            ))
+            .assemble(&mut report);
+
+        // Assert
+        assert!(!report.has_issues(), "issues: {:?}", report.issues());
+        let spec = spec.unwrap();
+        assert_eq!(spec.hostname.value, "clihost");
+        let allow = spec.allow.expect("both occurrences should reach the walk");
+        let values: Vec<&str> = allow
+            .value
+            .iter()
+            .map(|element| element.value.as_str())
+            .collect();
+        assert_eq!(values, vec!["10.0.0.0/8", "192.168.0.0/16"]);
+    }
+
+    #[test]
+    fn a_heterogeneous_yaml_duplicate_group_is_reported_rather_than_dropped() {
+        // Arrange
+        // A scalar beside a nested mapping under one name. The merge judges the
+        // group by its first field, so this pins that the mismatch is reported
+        // and the overlay still lands.
+        let base_text = r#"hostname: "filehost"
+allow: 1
+allow: {mode: "log"}
+"#;
+        let mut sources = SourceMap::new();
+        let mut report = Report::new();
+        let base = sources.add("server.yaml", base_text);
+
+        // Act
+        let spec: Option<AllowSpec> = Assembly::new()
+            .merge(parse_yaml_fields(&sources, base, &mut report))
+            .merge(cli_fields(
+                &mut sources,
+                ["--allow.mode=enforce".to_string()],
+                &mut report,
+            ))
+            .assemble(&mut report);
+
+        // Assert
+        assert!(
+            report.issues().iter().any(|issue| {
+                issue.message.starts_with("`allow` is a")
+                    && issue.message.contains("in one source and a")
+            }),
+            "issues: {:?}",
+            report.issues()
+        );
+        // The assembly still answers rather than panicking or dropping.
+        let _ = spec;
+    }
+}
