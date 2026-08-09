@@ -6,7 +6,7 @@ import styles from './styles.module.css';
 
 const diagram = (direction: string, nodeSpacing: number) => `%%{ init: { "flowchart": { "curve": "basis", "nodeSpacing": ${nodeSpacing} } } }%%
 flowchart ${direction}
-    file[/"<b>Config file</b><br/>HCL or TOML"/]
+    file[/"<b>Config file</b><br/>TOML, HCL, KDL, JSON, or YAML"/]
     parse["parse"]
     validate["validate"]
     gate{"errors?"}
