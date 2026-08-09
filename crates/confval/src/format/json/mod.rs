@@ -9,32 +9,34 @@
 //!
 //! The write path, [`emit_json`], lives in the sibling `emit` module.
 //!
-//! A JSON document is one value, and a configuration is named fields, so the
-//! root must be an object. Its members become the root level. Below the root
-//! every object is a [`ValueKind::Map`], the shape TOML's inline table and
-//! HCL's object attribute already lower to, so [`FieldKind::Block`] never
+//! A JSON document holds one value. A configuration is a set of named fields,
+//! so the root must be an object. Its members become the root level. Below the
+//! root every object is a [`ValueKind::Map`], the shape TOML's inline table
+//! and HCL's object attribute already lower to, so [`FieldKind::Block`] never
 //! arises from a JSON parse. An array is a [`ValueKind::Seq`] with per-element
-//! values.
+//! values, which a list field reads.
+//!
+//! The frontend accepts no jsonc-parser extension, so the text it reads and the
+//! text it writes carry nothing a strict JSON parser rejects.
 //!
 //! Behavior contract:
 //!
 //! - Parsing accepts strict JSON alone. jsonc-parser's seven extensions are all
 //!   turned off, so a comment, a trailing comma, an unquoted property name, a
 //!   missing comma, a single-quoted string, a hexadecimal number, and a unary
-//!   plus are each a syntax error. A file this frontend accepts is readable by
-//!   every JSON consumer.
+//!   plus are each a syntax error.
 //! - A syntax error is reported as one issue at its byte range, and parsing
 //!   returns `None`.
-//! - A root that is not an object, and a document with no value at all, each
-//!   report `expected an object at the document root` and return `None`.
-//! - Numbers classify by spelling. Raw text carrying a `.`, an `e`, or an `E`
-//!   is a float, and any other number is an integer.
+//! - A root that is not an object and an empty document each report
+//!   `expected an object at the document root` and return `None`.
+//! - The frontend classifies a number by its spelling. Raw text carrying a `.`,
+//!   an `e`, or an `E` is a float, and any other number is an integer.
 //! - Values outside the neutral model (`null`, an integer beyond `i64`, a
 //!   number whose `f64` value is not finite) become [`ValueKind::Other`]
 //!   carrying a diagnostic label, so they surface as ordinary type mismatches
 //!   at the field that used them.
 //! - Duplicate keys stay separate fields. The generated walk resolves them by
-//!   the spec's declared shape: a list field accumulates the occurrences in
+//!   the spec's declared shape. A list field accumulates the occurrences in
 //!   document order, and a single-value field reports a duplicate.
 
 use crate::diagnostic::Report;
@@ -80,9 +82,8 @@ pub fn parse_json_fields(sources: &SourceMap, id: SourceId, report: &mut Report)
     };
     match parsed.value {
         Some(JsonValue::Object(object)) => Some(fields_of_object(&object, document, id)),
-        // A root with no field names has nothing for the model to hold, and an
-        // empty document has no value span to point at, so it takes the whole
-        // document instead.
+        // A root that is not an object has no field names for the model to
+        // hold.
         Some(other) => {
             report
                 .error(ROOT_MUST_BE_AN_OBJECT)
@@ -90,6 +91,8 @@ pub fn parse_json_fields(sources: &SourceMap, id: SourceId, report: &mut Report)
                 .emit();
             None
         }
+        // An empty document has no value to point at, so the error takes the
+        // whole document span.
         None => {
             report.error(ROOT_MUST_BE_AN_OBJECT).at(document).emit();
             None
@@ -124,8 +127,8 @@ fn strict() -> ParseOptions {
 }
 
 /// A parse error's message with its first character lowercased, so it reads as
-/// the continuation of `syntax error:` that it is. jsonc-parser writes each
-/// message as a standalone sentence.
+/// a continuation of `syntax error:`. jsonc-parser writes each message as a
+/// standalone sentence.
 fn lead_lowercase(kind: &jsonc_parser::errors::ParseErrorKind) -> String {
     let text = kind.to_string();
     let mut characters = text.chars();
@@ -135,7 +138,9 @@ fn lead_lowercase(kind: &jsonc_parser::errors::ParseErrorKind) -> String {
     }
 }
 
-/// Converts a jsonc-parser byte range to a confval [`Span`].
+/// Converts a jsonc-parser range to a confval [`Span`]. A `Range` holds byte
+/// indices into the UTF-8 source, which `json_span_fidelity` pins, so the
+/// conversion is a widening and nothing else.
 fn span_of(range: Range, source: SourceId) -> Span {
     Span::new(source, range.start as u32, range.end as u32)
 }
@@ -154,8 +159,8 @@ fn error_span(range: Range, source: SourceId) -> Span {
 }
 
 /// Normalizes an object's properties into neutral fields. `enclosing` is the
-/// span missing-field errors point at: the object's brace range for a nested
-/// level, or the whole document at the root.
+/// span missing-field errors point at. It is the object's brace range for a
+/// nested level and the whole document at the root.
 fn fields_of_object(object: &Object, enclosing: Span, source: SourceId) -> Fields {
     let items = object
         .properties
@@ -194,8 +199,8 @@ fn name_text<'p>(name: &'p ObjectPropName<'_>) -> &'p str {
 fn value_of(value: &JsonValue, source: SourceId) -> Value {
     let span = span_of(value.range(), source);
     let kind = match value {
-        // The crate resolves escape sequences, so the model holds the text the
-        // operator meant rather than its spelling.
+        // jsonc-parser resolves escape sequences, so the model holds the text
+        // the operator meant rather than its spelling.
         JsonValue::StringLit(literal) => {
             ValueKind::Scalar(Scalar::String(literal.value.to_string()))
         }
@@ -215,8 +220,8 @@ fn value_of(value: &JsonValue, source: SourceId) -> Value {
 }
 
 /// Classifies a number by its spelling. A fraction or an exponent makes a
-/// float, and any other number is an integer, which is the distinction TOML
-/// draws syntactically and the one the emitter round-trips.
+/// float, and any other number is an integer. TOML draws the same distinction
+/// syntactically, and the emitter preserves it.
 ///
 /// A magnitude the chosen kind cannot hold surfaces as a type mismatch rather
 /// than a distorted number. An integer beyond `i64` is an oversized integer,

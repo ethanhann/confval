@@ -27,12 +27,12 @@ use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 /// fields into one member, so the round trip over duplicates holds at the
 /// walk's resolution rather than at the `Fields` level.
 ///
-/// It fails on a [`ValueKind::Other`], on a non-finite float, which JSON has no
-/// literal for, and on a value beside a same-named block, whose only JSON
-/// spelling is a duplicate key that most consumers silently collapse. Every
-/// name is representable, because any key spells as a JSON string, so
-/// [`EmitError::UnrepresentableName`] never arises. Emit of a populated spec
-/// fails only for a non-finite float default.
+/// It fails on a [`ValueKind::Other`], on a non-finite float, and on a value
+/// beside a same-named block. JSON has no literal for a non-finite float. Its
+/// only spelling for the value-beside-block pair is a duplicate key, which most
+/// consumers collapse to one member. Every name is representable, because any
+/// key spells as a JSON string, so [`EmitError::UnrepresentableName`] never
+/// arises. Emit of a populated spec fails only for a non-finite float default.
 pub fn emit_json(fields: &Fields) -> Result<String, EmitError> {
     let mut out = String::new();
     write_object(&mut out, fields, 0, "")?;
@@ -658,8 +658,8 @@ mod tests {
     #[test]
     fn emit_json_keeps_the_float_spelling() {
         // Arrange
-        // Rust's shortest form of 1e20 carries no point, so the emitter adds
-        // one and the reparse still reads a float.
+        // Rust's shortest form of 1e20 spells an exponent rather than a
+        // point, and the exponent is enough for the reparse to read a float.
         let fields = Fields::detached(vec![
             scalar("whole", Scalar::Float(1.0)),
             scalar("large", Scalar::Float(1e20)),

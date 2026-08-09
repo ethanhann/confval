@@ -11,7 +11,7 @@
 //! emit a `Fields` a frontend parsed or built by hand, which can carry a name
 //! or a value the target format cannot spell, or use one name in conflicting
 //! ways at one level, such as a value next to a same-named block in TOML or
-//! two same-named values in either format.
+//! JSON, or two same-named values in HCL or TOML.
 //!
 //! A layered tree can carry [`Scalar::Unparsed`](super::Scalar) text from an
 //! environment variable or a flag. That text emits as a string literal, since
@@ -84,9 +84,9 @@ pub(crate) fn child_path(path: &str, name: &str) -> String {
 ///
 /// HCL follows the Terraform convention of arguments before nested blocks.
 /// TOML's syntax forces the same order, because a bare key written after a
-/// table header would belong to that table. JSON's syntax constrains nothing
-/// and takes the same order so the three formats read alike. One walk serves
-/// all of them.
+/// table header would belong to that table. JSON imposes no order of its own.
+/// The JSON emitter follows the same one, so the three formats read alike, and
+/// one walk serves all of them.
 ///
 /// This yields entries rather than fields, because an emitter renders the
 /// commented ones too and places each in the region its active twin would
