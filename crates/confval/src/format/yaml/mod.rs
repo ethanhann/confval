@@ -756,14 +756,12 @@ mod tests {
     #[test]
     fn an_alias_surfaces_as_a_type_mismatch_and_its_anchor_reads_through() {
         // Arrange
-        let input = "base: \"anchored\"\nuse: *a\nlist:\n  - *a\n";
-        let anchored = "base: &a \"anchored\"\nuse: *a\nlist:\n  - *a\n";
+        let input = "base: &a \"anchored\"\nuse: *a\nlist:\n  - *a\n";
 
         // Act
-        let fields = parse(anchored);
+        let fields = parse(input);
 
         // Assert
-        let _ = input;
         let mut report = Report::new();
         // The anchored value is ordinary data wherever it stands.
         assert_eq!(
@@ -813,6 +811,27 @@ mod tests {
         assert_eq!(report.issues()[0].message, SCALAR_KEY);
         assert!(fields.get("port").is_some(), "the later field must survive");
         assert_eq!(fields.iter().count(), 1);
+    }
+
+    #[test]
+    fn an_alias_key_falls_under_the_scalar_key_rule() {
+        // Arrange
+        // An alias is not a scalar, so a key written as one has no name the
+        // model can hold and the entry is skipped rather than half-built. The
+        // explicit `? key` form is what reaches the frontend, because the
+        // parser rejects the simple `*a: 1` form as a malformed key first.
+        let input = "base: &a \"x\"\n? *a\n: 1\nport: 8080\n";
+        let mut sources = SourceMap::new();
+        let id = sources.add("test.yaml", input);
+        let mut report = Report::new();
+
+        // Act
+        let fields = parse_yaml_fields(&sources, id, &mut report).unwrap();
+
+        // Assert
+        assert_eq!(report.issues()[0].message, SCALAR_KEY);
+        let names: Vec<&str> = fields.iter().map(|field| field.name.as_str()).collect();
+        assert_eq!(names, vec!["base", "port"]);
     }
 
     #[test]
