@@ -66,11 +66,11 @@ let spec: ServerSpec = parse_kdl(&sources, id, &mut report).unwrap();
 let template = emit_kdl(&spec.to_template())?;
 ```
 
-`emit_json` is the exception.
-JSON has no comment syntax, so it renders no doc comments and skips commented entries.
+JSON has no comment syntax, so `emit_json` renders no doc comments and skips commented entries.
 `emit_json(&spec.to_template())` therefore produces the same text as `emit_json(&spec.to_fields())`.
-Nothing about the configuration is lost, because a commented entry stands for a field the configuration does not set.
-Use one of the other three formats when you want an annotated template.
+A commented entry stands for a field the source does not set, so the emitted JSON still holds every value the spec
+carries, and it shows none of the settings the operator has not written.
+Use HCL, TOML, or KDL when you want an annotated template.
 
 A comment is indented to line up with the field it documents, so a comment inside a block is at the block's indentation:
 
@@ -240,8 +240,9 @@ The first is `i64::MIN`, which HCL would spell as a negation that overflows when
 The second is a non-finite float, an infinity or a NaN, which HCL has no keyword for.
 A spec that holds neither emits to HCL without failing.
 
-Emitting a populated spec to JSON fails only for the second of those, the non-finite float.
-JSON has no literal for an infinity or a NaN, and any key spells as a JSON string.
+Emitting a populated spec to JSON fails only for a non-finite float, an infinity or a NaN, which JSON has no literal
+for.
+`i64::MIN` emits, because JSON writes it as a plain integer.
 
 Emit can also fail on a `Fields` that a frontend parsed rather than populated, because a parsed model can carry a name or a value the target format cannot spell.
 A value with no representation, such as a TOML datetime, fails in any format.
@@ -249,8 +250,9 @@ A name that is not a valid identifier fails when you emit HCL, which has no way 
 HCL also spells a value and a block side by side under one name.
 A TOML key names one thing, so `emit_toml` refuses that pair rather than silently dropping one of the two.
 A name used twice for plain values has no spelling in either format, so both emitters refuse it as well.
-`emit_json` groups a repeated name into one member holding an array instead, and refuses only the value beside a
-same-named block, whose one JSON spelling is a duplicate key that most consumers collapse to a single member.
+`emit_json` groups a repeated name into one member holding an array, so a name used twice for plain values emits.
+It refuses a value beside a same-named block.
+The only JSON spelling for that pair is a duplicate key, and most consumers keep one of the two members.
 Each emit error names the dotted path of the field responsible, so a failure in a large tree points at its location.
 
 A tree assembled by layering can carry unparsed text from an environment variable or a command line flag.
