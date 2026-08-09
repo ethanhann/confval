@@ -9,6 +9,17 @@
 //! Anything the patterns do not match is a string. That is what retires the
 //! Norway problem: `no` is not in the 1.2 boolean pattern, so `country: no` is
 //! the string `no`.
+//!
+//! The module also decides what a style and a tag mean, because those are the
+//! other two inputs to the same question. A quoted scalar is a string whatever
+//! its text, and a tag either forces a reading, restates the node's own kind,
+//! or is one the model has no place for.
+
+use crate::format::field::{Scalar, ValueKind};
+use saphyr_parser::{ScalarStyle, Tag};
+
+/// The label every tag the frontend refuses carries.
+pub(super) const TAGGED: &str = "tagged value";
 
 /// What the core schema resolves a plain scalar's text to.
 ///
@@ -153,6 +164,70 @@ fn decimal(text: &str) -> bool {
         // integer pattern is tried first and matches it otherwise.
         None => !mantissa.is_empty() && mantissa.bytes().all(|byte| byte.is_ascii_digit()),
     }
+}
+
+/// Whether a collection's tag leaves the node reading as itself.
+///
+/// An absent tag and the non-specific `!` both do. So does the core schema tag
+/// for the node's own kind, which restates what the shape already says. Any
+/// other tag is refused, because the model has no place to put it.
+pub(super) fn reads_through(tag: Option<&Tag>, kind: &str) -> bool {
+    match tag {
+        None => true,
+        Some(tag) if non_specific(tag) => true,
+        Some(tag) => tag.is_yaml_core_schema() && tag.suffix == kind,
+    }
+}
+
+/// Whether a tag is YAML's non-specific `!`, which the schema resolves by node
+/// kind: a string on a scalar, and the node itself on a collection.
+fn non_specific(tag: &Tag) -> bool {
+    tag.handle.is_empty() && tag.suffix == "!"
+}
+
+/// One scalar's neutral value kind, from its text, its style, and its tag.
+pub(super) fn scalar_kind(text: &str, style: ScalarStyle, tag: Option<&Tag>) -> ValueKind {
+    let Some(tag) = tag else {
+        return match style {
+            ScalarStyle::Plain => of_core(resolve(text), text),
+            // A quoted, literal, or folded scalar is a string whatever its
+            // text, so `port: "8080"` is the string `8080`.
+            _ => string(text),
+        };
+    };
+    if non_specific(tag) {
+        return string(text);
+    }
+    if !tag.is_yaml_core_schema() {
+        return ValueKind::Other(TAGGED);
+    }
+    match tag.suffix.as_str() {
+        "str" => string(text),
+        suffix @ ("null" | "bool" | "int" | "float") => match resolve_as(suffix, text) {
+            Some(core) => of_core(core, text),
+            None => ValueKind::Other(TAGGED),
+        },
+        // A core tag naming a collection sits on the wrong node kind here, and
+        // an unknown `!!name` has no reading at all.
+        _ => ValueKind::Other(TAGGED),
+    }
+}
+
+/// The neutral value kind for one resolved scalar.
+fn of_core(core: Core, text: &str) -> ValueKind {
+    match core {
+        Core::Null => ValueKind::Other("null"),
+        Core::Bool(value) => ValueKind::Scalar(Scalar::Bool(value)),
+        Core::Int(value) => ValueKind::Scalar(Scalar::Int(value)),
+        Core::Float(value) => ValueKind::Scalar(Scalar::Float(value)),
+        Core::OversizedInt => ValueKind::Other("oversized integer"),
+        Core::OversizedFloat => ValueKind::Other("oversized number"),
+        Core::Str => string(text),
+    }
+}
+
+fn string(text: &str) -> ValueKind {
+    ValueKind::Scalar(Scalar::String(text.to_string()))
 }
 
 #[cfg(test)]

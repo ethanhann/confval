@@ -6,8 +6,9 @@
 //! saphyr-parser type escapes. The leaf parsers, the derive-generated walks,
 //! and the handwritten [`FromFields`] impls all work against the neutral model.
 //!
-//! The core schema resolution lives in the sibling `resolve` module, and the
-//! write path, [`emit_yaml`], in the sibling `emit` module.
+//! The core schema resolution, which decides what a scalar's text, style, and
+//! tag mean, lives in the sibling `resolve` module. The write path,
+//! [`emit_yaml`], lives in `emit` and its text mechanics in `text`.
 //!
 //! The frontend drives the parser's pull API rather than loading a document
 //! model. A loader stores a mapping in a hash map, which drops one value of a
@@ -40,13 +41,14 @@
 //! - Duplicate keys stay separate fields, the way they do in JSON.
 
 use crate::diagnostic::Report;
-use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
+use crate::format::field::{Field, FieldKind, Fields, FromFields, Value, ValueKind};
 use crate::source::{SourceId, SourceMap, Span};
-use resolve::Core;
-use saphyr_parser::{Event, Parser, ScalarStyle, Span as YamlSpan, StrInput, Tag};
+use resolve::{reads_through, scalar_kind};
+use saphyr_parser::{Event, Parser, Span as YamlSpan, StrInput};
 
 mod emit;
 mod resolve;
+mod text;
 pub use emit::emit_yaml;
 
 /// The message a root that cannot hold named fields reports.
@@ -375,70 +377,6 @@ fn lead_lowercase(message: &str) -> String {
         Some(first) => first.to_lowercase().chain(characters).collect(),
         None => message.to_string(),
     }
-}
-
-/// Whether a collection's tag leaves the node reading as itself.
-///
-/// An absent tag and the non-specific `!` both do. So does the core schema tag
-/// for the node's own kind, which restates what the shape already says. Any
-/// other tag is refused, because the model has no place to put it.
-fn reads_through(tag: Option<&Tag>, kind: &str) -> bool {
-    match tag {
-        None => true,
-        Some(tag) if non_specific(tag) => true,
-        Some(tag) => tag.is_yaml_core_schema() && tag.suffix == kind,
-    }
-}
-
-/// Whether a tag is YAML's non-specific `!`, which the schema resolves by node
-/// kind: a string on a scalar, and the node itself on a collection.
-fn non_specific(tag: &Tag) -> bool {
-    tag.handle.is_empty() && tag.suffix == "!"
-}
-
-/// One scalar's neutral value kind, from its text, its style, and its tag.
-fn scalar_kind(text: &str, style: ScalarStyle, tag: Option<&Tag>) -> ValueKind {
-    let Some(tag) = tag else {
-        return match style {
-            ScalarStyle::Plain => of_core(resolve::resolve(text), text),
-            // A quoted, literal, or folded scalar is a string whatever its
-            // text, so `port: "8080"` is the string `8080`.
-            _ => string(text),
-        };
-    };
-    if non_specific(tag) {
-        return string(text);
-    }
-    if !tag.is_yaml_core_schema() {
-        return ValueKind::Other(TAGGED);
-    }
-    match tag.suffix.as_str() {
-        "str" => string(text),
-        suffix @ ("null" | "bool" | "int" | "float") => match resolve::resolve_as(suffix, text) {
-            Some(core) => of_core(core, text),
-            None => ValueKind::Other(TAGGED),
-        },
-        // A core tag naming a collection sits on the wrong node kind here, and
-        // an unknown `!!name` has no reading at all.
-        _ => ValueKind::Other(TAGGED),
-    }
-}
-
-/// The neutral value kind for one resolved scalar.
-fn of_core(core: Core, text: &str) -> ValueKind {
-    match core {
-        Core::Null => ValueKind::Other("null"),
-        Core::Bool(value) => ValueKind::Scalar(Scalar::Bool(value)),
-        Core::Int(value) => ValueKind::Scalar(Scalar::Int(value)),
-        Core::Float(value) => ValueKind::Scalar(Scalar::Float(value)),
-        Core::OversizedInt => ValueKind::Other("oversized integer"),
-        Core::OversizedFloat => ValueKind::Other("oversized number"),
-        Core::Str => string(text),
-    }
-}
-
-fn string(text: &str) -> ValueKind {
-    ValueKind::Scalar(Scalar::String(text.to_string()))
 }
 
 #[cfg(test)]
