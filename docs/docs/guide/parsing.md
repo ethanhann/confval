@@ -220,6 +220,7 @@ To parse, call the frontend for the format you enabled with the appropriate feat
 | `confval::format::hcl::parse_hcl`   | `hcl`   | `hcl-edit`  |
 | `confval::format::toml::parse_toml` | `toml`  | `toml_edit` |
 | `confval::format::kdl::parse_kdl`   | `kdl`   | `kdl`       |
+| `confval::format::json::parse_json` | `json`  | `jsonc-parser` |
 
 Each takes a `SourceMap`, a `SourceId`, and a `&mut Report`, and returns your spec as an `Option`.
 
@@ -261,6 +262,61 @@ An argument on a node that also has properties or children is an error, because 
 A bare node where a single value is expected reports `expected string, found array`, because the bare spelling means an
 empty list.
 
+JSON has one nested spelling, the object, which the model reads wherever it accepts a block.
+The document root must be an object, because a configuration is named fields.
+Any other root reports `expected an object at the document root` and yields no tree.
+An empty document reports the same thing.
+
+For example, this document fills the same spec the snippets above fill:
+
+```json
+{
+  "hostname": "127.0.0.1",
+  "port": 8080,
+  "allow": ["10.0.0.0/8", "192.168.0.0/16"],
+  "bind": {
+    "port": 8080
+  }
+}
+```
+
+```rust
+let spec: Option<ServerSpec> = confval::format::json::parse_json(&sources, id, &mut report);
+```
+
+The frontend accepts strict JSON alone.
+A comment, a trailing comma, an unquoted property name, a missing comma between members, a single-quoted string, a
+hexadecimal number, and a number with a unary plus are each a syntax error.
+A file this frontend reads is therefore readable by every JSON consumer.
+
+A number classifies by its spelling.
+`1` is an integer, and `1.0` and `1e3` are floats.
+An integer beyond the range of an `i64` reports `found oversized integer`.
+A number whose magnitude no `f64` holds, such as `1e999`, reports `found oversized number`.
+Each of those is a type mismatch at the value, rather than a number the model quietly changed.
+
+A `null` reports `expected string, found null` at the value that used it.
+The model has no null, and an absent optional field is spelled by omission.
+
+A duplicate key is a list when the field is a list and a `duplicate field` error when it is not, the same rule a
+repeated KDL node follows.
+
+A scalar where a nested object is expected reports `expected block, found string`.
+The expected side of a mismatch is shared across formats, so the message names a block even though JSON has no block
+spelling.
+
+Writing the model back out with `confval::format::json::emit_json` produces pretty-printed JSON with two-space
+indentation, values before nested objects, and a trailing newline:
+
+```rust
+let text = confval::format::json::emit_json(&spec.to_fields())?;
+```
+
+JSON has no comment syntax.
+Emitted JSON therefore carries no comments, and `emit_json(&spec.to_template())` produces the same text as
+`emit_json(&spec.to_fields())`.
+Use HCL, TOML, or KDL when you want an annotated template.
+
 A list field also accepts a single string as a one-element list, in every format.
 KDL forces the question, because it has no array literal and spells a one-element list as a single value, and the
 answer is uniform so the same configuration means the same thing whichever frontend read it.
@@ -272,6 +328,7 @@ A repeated block parses, and confval reports it with a related span pointing at 
 A repeated KDL value node follows the same rule.
 A list field accumulates the occurrences, and a single-value field
 reports the repeat with the related span.
+JSON's grammar permits the same key twice, so a duplicate key reaches the same rule rather than failing the parse.
 :::
 
 ## Writing parsers by hand
