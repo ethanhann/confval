@@ -8,6 +8,8 @@ pub mod parse;
 pub use parse::*;
 #[cfg(feature = "hcl")]
 pub mod hcl;
+#[cfg(feature = "json")]
+pub mod json;
 #[cfg(feature = "kdl")]
 pub mod kdl;
 #[cfg(feature = "toml")]

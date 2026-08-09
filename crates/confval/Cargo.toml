@@ -18,10 +18,11 @@ serde = ["dep:serde", "dep:serde_json"]
 color = ["dep:owo-colors"]
 # Format frontends are independent opt-ins.
 # The derive macro emits the format-neutral `FromFields`, so `derive` needs no frontend.
-# tldr; pick `hcl`, `toml`, and/or `kdl` for the format(s) you actually parse.
+# tldr; pick `hcl`, `toml`, `kdl`, and/or `json` for the format(s) you actually parse.
 hcl = ["dep:hcl-edit"]
 toml = ["dep:toml_edit"]
 kdl = ["dep:kdl"]
+json = ["dep:jsonc-parser"]
 derive = ["dep:confval-derive"]
 # Assemble one configuration from several layered sources. Combines file
 # providers with env and CLI by precedence. Pulls in no external crate.
@@ -34,6 +35,7 @@ owo-colors = { workspace = true, optional = true }
 hcl-edit = { workspace = true, optional = true }
 toml_edit = { workspace = true, optional = true }
 kdl = { workspace = true, optional = true }
+jsonc-parser = { workspace = true, optional = true }
 confval-derive = { version = "=0.7.3", path = "../confval-derive", optional = true }
 
 [dev-dependencies]
@@ -69,6 +71,10 @@ name = "kdl"
 required-features = ["derive", "color", "kdl"]
 
 [[example]]
+name = "json"
+required-features = ["derive", "color", "json"]
+
+[[example]]
 name = "doc_fallback"
 required-features = ["derive", "toml"]
 
@@ -95,6 +101,10 @@ required-features = ["derive"]
 [[test]]
 name = "hcl_end_to_end"
 required-features = ["derive", "hcl"]
+
+[[test]]
+name = "json_end_to_end"
+required-features = ["derive", "json"]
 
 [[test]]
 name = "kdl_end_to_end"
