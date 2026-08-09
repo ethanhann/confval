@@ -266,17 +266,12 @@ fn write_scalar(out: &mut String, scalar: &Scalar, path: &str) -> Result<(), Emi
 
 /// A finite float's shortest text in a spelling that reparses as a float.
 ///
-/// Rust's shortest formatting of a whole-valued float of large magnitude, such
-/// as `1e20`, yields text with no fraction and no exponent, which the parse
-/// mapping would classify as an integer. Appending `.0` in that case keeps the
-/// classification stable through a round trip.
+/// The `Debug` formatting of an `f64` always spells a fraction or an exponent,
+/// `100.0` rather than `100` and `1e20` rather than its digit string, so the
+/// text never classifies as an integer on reparse. The float spelling tests
+/// pin that property against the parse mapping.
 fn float_text(float: f64) -> String {
-    let text = format!("{float:?}");
-    if text.contains(['.', 'e', 'E']) {
-        text
-    } else {
-        format!("{text}.0")
-    }
+    format!("{float:?}")
 }
 
 /// Writes a JSON string literal, escaping per RFC 8259: the quote, the
