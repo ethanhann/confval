@@ -5,14 +5,16 @@ sidebar_position: 4
 # Examples
 
 The crate ships thirteen runnable examples in `crates/confval/examples/`.
-`hcl`, `toml`, `kdl`, and `json` define the same types and differ only in the format they read.
+`hcl`, `toml`, `kdl`, and `json` are the same program four times.
+Each renders the diagnostics for a failing variant to stderr, feeds a valid document, prints the lowered config, and emits the populated spec back to canonical text.
+They differ in the source text, its file name, and the two format calls that parse and emit it.
 The rest demonstrate one feature each, except `handwritten`, which runs the whole pipeline over a spec written without the derive.
 Each section below gives the run command.
 `just examples` runs them all.
 
 ## hcl
 
-The `hcl` example renders the diagnostics for a failing variant to stderr, then feeds a valid document and prints the lowered config.
+The `hcl` example runs those steps over HCL.
 
 ```shell
 cargo run -q -p confval --example hcl --features derive,color,hcl
@@ -20,7 +22,7 @@ cargo run -q -p confval --example hcl --features derive,color,hcl
 
 ## toml
 
-The `toml` example feeds a valid document to show the lowered config.
+The `toml` example runs those steps over TOML.
 
 ```shell
 cargo run -q -p confval --example toml --features derive,color,toml
@@ -28,7 +30,7 @@ cargo run -q -p confval --example toml --features derive,color,toml
 
 ## kdl
 
-The `kdl` example renders the diagnostics for a failing variant to stderr, then feeds a valid document, prints the lowered config, and emits the populated spec back to canonical KDL.
+The `kdl` example runs those steps over KDL.
 
 ```shell
 cargo run -q -p confval --example kdl --features derive,color,kdl
@@ -36,7 +38,7 @@ cargo run -q -p confval --example kdl --features derive,color,kdl
 
 ## json
 
-The `json` example renders the diagnostics for a failing variant to stderr, then feeds a valid document, prints the lowered config, and emits the populated spec back to canonical JSON.
+The `json` example runs those steps over JSON.
 
 ```shell
 cargo run -q -p confval --example json --features derive,color,json

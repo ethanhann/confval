@@ -178,7 +178,7 @@ messages.
 ## Runnable examples
 
 End-to-end examples ship in `crates/confval/examples/`.
-`hcl.rs`, `toml.rs`, `kdl.rs`, and `json.rs` each hold a source document and one parse call.
+`hcl.rs`, `toml.rs`, `kdl.rs`, and `json.rs` each hold a source document and the two format calls that parse and emit it.
 Everything after parsing lives in `common/mod.rs`: the spec types, the validators, the config types, and the lowering
 functions.
 All four share that file verbatim.
