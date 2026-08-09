@@ -4,9 +4,9 @@
 //!
 //! The spec types, validators, config types, and lowering functions all live in
 //! `common`, which the `hcl`, `toml`, and `kdl` examples share verbatim. Those
-//! examples run the same steps in the same order as this one. Only the source
-//! text, its file name, and the two format calls, `parse_json` and `emit_json`,
-//! differ between them.
+//! three examples run the same steps in the same order as this one. Only the
+//! source text, its file name, and the two format calls, `parse_json` and
+//! `emit_json`, differ between the four.
 //!
 //! A failing variant renders its diagnostics to stderr first, and the valid
 //! config then shows the lowered output and the write path. The failing report
@@ -19,7 +19,7 @@
 //! while the spec stays source-faithful.
 //!
 //! JSON accepts one nested spelling, the object, which the model reads wherever
-//! it accepts a block. The document root must be an object, and the frontend
+//! it accepts a block. The document root must be an object. The frontend
 //! accepts strict JSON alone, so a comment or a trailing comma is a syntax
 //! error.
 //!
