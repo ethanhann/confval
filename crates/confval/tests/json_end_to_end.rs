@@ -487,6 +487,36 @@ fn a_grouped_duplicate_list_key_reparses_to_the_same_resolved_list() {
 }
 
 #[test]
+fn a_grouped_array_occurrence_reparses_to_the_same_resolved_list() {
+    // Arrange
+    // An array occurrence contributes its elements and a scalar occurrence
+    // contributes itself, so the grouped member reads back as the same list
+    // the walk accumulates from the original.
+    let input = r#"{
+  "hostname": "127.0.0.1",
+  "port": 8080,
+  "daemon": false,
+  "allow": ["10.0.0.0/8", "192.168.0.0/16"],
+  "allow": "172.16.0.0/12"
+}
+"#;
+    let mut sources = SourceMap::new();
+    let mut report = Report::new();
+    let id = sources.add("in.json", input);
+    let fields = parse_json_fields(&sources, id, &mut report).unwrap();
+
+    // Act
+    let text = emit_json(&fields).expect("emit json");
+
+    // Assert
+    assert!(
+        text.contains(r#""allow": ["10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12"]"#),
+        "got: {text}"
+    );
+    assert_eq!(spec_of(&text), spec_of(input));
+}
+
+#[test]
 fn a_grouped_duplicate_scalar_key_trades_its_duplicate_report_for_a_mismatch() {
     // Arrange
     // The grouped member is an array where a scalar is expected, which is the
