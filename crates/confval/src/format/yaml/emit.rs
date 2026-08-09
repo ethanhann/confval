@@ -411,6 +411,7 @@ mod tests {
     use super::super::parse_yaml_fields;
     use super::*;
     use crate::diagnostic::Report;
+    use crate::format::field::Scalar;
     use crate::format::parse::{parse_float_field, parse_string_field, parse_string_list_field};
     use crate::source::SourceMap;
 
