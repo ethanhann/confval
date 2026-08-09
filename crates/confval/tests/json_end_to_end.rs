@@ -1,6 +1,8 @@
-//! End-to-end exercise of the JSON frontend through the span-first pipeline: a
-//! derived Spec and Config pair driven through parse, validation, the error
-//! gate, and lowering, plus the JSON-specific mapping behaviors an operator can
+//! End-to-end exercise of the JSON frontend through the span-first pipeline.
+//! A derived Spec and Config pair runs through parse, validation, the error
+//! gate, and lowering.
+//!
+//! The suite also covers the JSON-specific mapping behaviors an operator can
 //! observe: duplicate keys resolved by the spec's declared shape, the root
 //! object requirement, and the write path back to canonical text.
 

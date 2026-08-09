@@ -1,8 +1,10 @@
-//! End-to-end exercise of the KDL frontend through the span-first pipeline: a
-//! handwritten Spec and Config pair driven through parse, validation, the
-//! error gate, and lowering, plus the KDL-specific mapping behaviors an
-//! operator can observe: repeated-node lists, the duplicate report for a
-//! repeated scalar, and the write path back to canonical text.
+//! End-to-end exercise of the KDL frontend through the span-first pipeline.
+//! A derived Spec and Config pair runs through parse, validation, the error
+//! gate, and lowering.
+//!
+//! The suite also covers the KDL-specific mapping behaviors an operator can
+//! observe: repeated-node lists, the duplicate report for a repeated scalar,
+//! and the write path back to canonical text.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 #![cfg(feature = "derive")]
