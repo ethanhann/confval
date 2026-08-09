@@ -32,7 +32,7 @@ mutants-diff base="main" jobs="4":
     if [ ! -s "$diff" ]; then echo "no source changes against {{ base }}"; exit 0; fi
     cargo mutants --in-diff "$diff" -j {{ jobs }}
 
-# Compile each format frontend on its own, so a cfg gate the all-features build hides cannot rot.
+# Compile each format frontend alone, so a cfg gate the all-features build hides cannot drift.
 check-frontends:
     cargo check -q -p confval --no-default-features --features derive,hcl
     cargo check -q -p confval --no-default-features --features derive,toml
