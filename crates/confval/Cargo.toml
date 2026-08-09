@@ -77,6 +77,10 @@ name = "json"
 required-features = ["derive", "color", "json"]
 
 [[example]]
+name = "yaml"
+required-features = ["derive", "color", "yaml"]
+
+[[example]]
 name = "doc_fallback"
 required-features = ["derive", "toml"]
 
@@ -107,6 +111,10 @@ required-features = ["derive", "hcl"]
 [[test]]
 name = "json_end_to_end"
 required-features = ["derive", "json"]
+
+[[test]]
+name = "yaml_end_to_end"
+required-features = ["derive", "yaml"]
 
 [[test]]
 name = "kdl_end_to_end"

@@ -38,6 +38,7 @@ check-frontends:
     cargo check -q -p confval --no-default-features --features derive,toml
     cargo check -q -p confval --no-default-features --features derive,kdl
     cargo check -q -p confval --no-default-features --features derive,json
+    cargo check -q -p confval --no-default-features --features derive,yaml
 
 # Test everything
 validate: format lint check-frontends test validate-docs examples
@@ -53,6 +54,7 @@ examples:
     cargo run -q -p confval --features derive,color,toml,hcl --example templates
     cargo run -q -p confval --features derive,color,kdl --example kdl
     cargo run -q -p confval --features derive,color,json --example json
+    cargo run -q -p confval --features derive,color,yaml --example yaml
     cargo run -q -p confval --features derive,toml --example doc_fallback
     cargo run -q -p confval --features derive,serde,toml --example json_diagnostics
     cargo run -q -p confval --features derive,color,toml --example narrow
