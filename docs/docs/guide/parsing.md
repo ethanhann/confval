@@ -368,8 +368,10 @@ same way on a scalar.
 Three things report `expected string, found tagged value`: a core scalar tag whose text it cannot read such as
 `!!int foo`, a core tag on the wrong node kind such as `!!int {a: 1}`, and any tag outside the core schema.
 
-A key that is a mapping or a sequence has no field name the model can hold.
+A key that is a mapping, a sequence, or an explicit `? *alias` has no field name the model can hold.
 It reports `expected a scalar key` and the entry is skipped, so one exotic key does not hide the errors after it.
+An alias written as a plain key, `*a: 1`, is a syntax error instead, because the parser rejects it before the frontend
+sees it.
 A scalar key reads as its text whatever the schema would resolve it to, so `8080:` names the field `8080`.
 
 A scalar where a nested mapping is expected reports `expected block, found string`, because the expected side of a
