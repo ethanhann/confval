@@ -39,11 +39,12 @@ cargo add confval --features "hcl,derive"
 | `toml`     | off     | `toml_edit`      | The `confval::format::toml` frontend                                                     |
 | `kdl`      | off     | `kdl`            | The `confval::format::kdl` frontend                                                      |
 | `json`     | off     | `jsonc-parser`   | The `confval::format::json` frontend                                                     |
+| `yaml`     | off     | `saphyr-parser`  | The `confval::format::yaml` frontend                                                     |
 | `derive`   | off     | `confval-derive` | `#[derive(Spec)]` and `#[derive(Config)]` (format-neutral)                               |
 | `layering` | off     | nothing          | The `confval::layering` module for assembling from a file, environment, and command line |
 
 Frontends (that define the configuration format) are independent opt-ins.
-Pick `hcl`, `toml`, `kdl`, or `json` for the format you want.
+Pick `hcl`, `toml`, `kdl`, `json`, or `yaml` for the format you want.
 The `derive` feature emits the format-neutral `FromFields`, so it brings in no parser on its own.
 The `layering` feature adds the [layering](./guide/layering.md) module, which merges several sources into one configuration.
 It pulls in no external crate.
@@ -53,8 +54,8 @@ It pulls in no external crate.
 This example parses an HCL document, validates it, checks the report for errors, and lowers the validated spec into a runtime config.
 
 The crate ships the same program as multiple runnable examples.
-`hcl.rs`, `toml.rs`, `kdl.rs`, and `json.rs` each supply a source document and the two format calls that parse and emit it.
-All four pull everything after parsing from a shared `common/mod.rs`.
+`hcl.rs`, `toml.rs`, `kdl.rs`, `json.rs`, and `yaml.rs` each supply a source document and the two format calls that parse and emit it.
+All five pull everything after parsing from a shared `common/mod.rs`.
 
 Read through it once for the overall shape.
 
@@ -215,5 +216,5 @@ All three problems come back reported, each at its own line and column.
 
 ## Running the examples
 
-The program above ships as the `hcl`, `toml`, `kdl`, and `json` examples in `crates/confval/examples/`, alongside examples for warnings, validation traversal, layering, and templates.
+The program above ships as the `hcl`, `toml`, `kdl`, `json`, and `yaml` examples in `crates/confval/examples/`, alongside examples for warnings, validation traversal, layering, and templates.
 See [Examples](./examples.md) for each run command and the output it prints.

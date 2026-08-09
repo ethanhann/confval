@@ -82,7 +82,7 @@ check-doc-programs:
     done
     count=$(ls "$dir/src/bin" | wc -l | tr -d ' ')
     if [ "$count" -eq 0 ]; then echo "no full-program doc snippets found"; exit 0; fi
-    printf '[package]\nname = "doc-programs"\nversion = "0.0.0"\nedition = "2024"\n\n[dependencies]\nconfval = { path = "../../crates/confval", features = ["derive", "toml", "hcl", "color", "serde", "layering"] }\n\n[workspace]\n' > "$dir/Cargo.toml"
+    printf '[package]\nname = "doc-programs"\nversion = "0.0.0"\nedition = "2024"\n\n[dependencies]\nconfval = { path = "../../crates/confval", features = ["derive", "toml", "hcl", "kdl", "json", "yaml", "color", "serde", "layering"] }\n\n[workspace]\n' > "$dir/Cargo.toml"
     cargo build -q --manifest-path "$dir/Cargo.toml"
     echo "compiled $count doc program(s)"
 

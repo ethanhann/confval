@@ -15,8 +15,9 @@ Everything after parsing works against that model.
 
 The [toml example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/toml.rs), [hcl example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/hcl.rs),
 [kdl example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/kdl.rs), and
-[json example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/json.rs) demonstrate how this crate is meant to be used.
-The four run the same steps in the same order.
+[json example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/json.rs), and
+[yaml example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/yaml.rs) demonstrate how this crate is meant to be used.
+The five run the same steps in the same order.
 Only the source text, its file name, and the two format calls that parse and emit it differ.
 
 The [layering example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/layering.rs) assembles one configuration from a file, the environment,
@@ -24,7 +25,7 @@ and the command line.
 
 The [templates example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/templates.rs) writes an annotated configuration file from the spec types (it essentially runs the pipeline backward).
 
-Thirteen examples ship in total.
+Fourteen examples ship in total.
 The [Examples](https://ethanhann.com/confval/docs/examples) page lists what each one covers along with its run command.
 
 See the [confval documentation](https://ethanhann.com/confval/) for the full API overview.
