@@ -150,7 +150,7 @@ impl<'input> Reader<'input, '_> {
         match self.parser.next_event() {
             Some(Ok(step)) => Some(step),
             Some(Err(error)) => {
-                let at = self.offsets.at(error.marker().index());
+                let at = error.marker().index() as u32;
                 self.report
                     .error(syntax_error(error.info()))
                     .at(widen(Span::new(self.source, at, at)))
@@ -196,7 +196,7 @@ impl<'input> Reader<'input, '_> {
             return None;
         };
         let (items, _) = self.entries(span)?;
-        let fields = Fields::new(self.source, document, items);
+        let fields = Fields::new(self.source, Span::new(self.source, 0, 1), items);
         loop {
             let (event, span) = self.next()?;
             match event {
