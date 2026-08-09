@@ -7,7 +7,9 @@
 //! literal for every value populate produces and quotes any key. Emitting a
 //! populated spec to HCL fails only for the two numeric values HCL cannot write,
 //! an `i64::MIN` and a non-finite float. Emitting a populated spec to JSON fails
-//! only for a non-finite float. The remaining failures arise when you
+//! only for a non-finite float. Emitting a populated spec to KDL or YAML never
+//! fails either, because each has a literal for every value populate produces
+//! and quotes any key. The remaining failures arise when you
 //! emit a `Fields` a frontend parsed or built by hand, which can carry a name
 //! or a value the target format cannot write, or use one name in conflicting
 //! ways at one level, such as a value next to a same-named block in TOML or
@@ -18,7 +20,12 @@
 //! its type was never decided, so a typed reparse of the emitted file reads
 //! those leaves as strings.
 
-#[cfg(any(feature = "toml", feature = "hcl", feature = "json"))]
+#[cfg(any(
+    feature = "toml",
+    feature = "hcl",
+    feature = "json",
+    feature = "yaml"
+))]
 use super::field::{Entry, Field, FieldKind, Fields};
 use std::fmt::{self, Display, Formatter};
 
@@ -70,7 +77,13 @@ fn location(path: &str) -> String {
 }
 
 /// The dotted path of a field under `path`, which is empty at the root.
-#[cfg(any(feature = "toml", feature = "hcl", feature = "kdl", feature = "json"))]
+#[cfg(any(
+    feature = "toml",
+    feature = "hcl",
+    feature = "kdl",
+    feature = "json",
+    feature = "yaml"
+))]
 pub(crate) fn child_path(path: &str, name: &str) -> String {
     if path.is_empty() {
         name.to_string()
@@ -84,14 +97,19 @@ pub(crate) fn child_path(path: &str, name: &str) -> String {
 ///
 /// HCL follows the Terraform convention of arguments before nested blocks.
 /// TOML's syntax forces the same order, because a bare key written after a
-/// table header would belong to that table. JSON imposes no order of its own.
-/// The JSON emitter follows the same one, so the three formats read alike, and
-/// one walk serves all of them.
+/// table header would belong to that table. JSON and YAML impose no order of
+/// their own. Their emitters follow the same one, so the four formats read
+/// alike, and one walk serves all of them.
 ///
 /// This yields entries rather than fields, because an emitter renders the
 /// commented ones too and places each in the region its active twin would
 /// occupy.
-#[cfg(any(feature = "toml", feature = "hcl", feature = "json"))]
+#[cfg(any(
+    feature = "toml",
+    feature = "hcl",
+    feature = "json",
+    feature = "yaml"
+))]
 pub(crate) fn values_then_blocks(fields: &Fields) -> impl Iterator<Item = &Entry> {
     let values = fields
         .entries()
@@ -108,7 +126,12 @@ pub(crate) fn values_then_blocks(fields: &Fields) -> impl Iterator<Item = &Entry
 /// only in which groups they refuse. `rejects` receives the fields sharing one
 /// name, in declaration order. A commented entry is comment text, so it never
 /// reaches here and conflicts with nothing.
-#[cfg(any(feature = "toml", feature = "hcl", feature = "json"))]
+#[cfg(any(
+    feature = "toml",
+    feature = "hcl",
+    feature = "json",
+    feature = "yaml"
+))]
 pub(crate) fn first_conflicting_name(
     fields: &Fields,
     rejects: impl Fn(&[&Field]) -> bool,
@@ -169,8 +192,14 @@ impl std::error::Error for EmitError {}
 /// at a bare carriage return, TOML rejects a non-printable one, and KDL bans
 /// several from its text.
 ///
-/// The caller supplies the marker. HCL and TOML write `#` and KDL writes `//`.
-#[cfg(any(feature = "toml", feature = "hcl", feature = "kdl"))]
+/// The caller supplies the marker. HCL, TOML, and YAML write `#`, and KDL
+/// writes `//`.
+#[cfg(any(
+    feature = "toml",
+    feature = "hcl",
+    feature = "kdl",
+    feature = "yaml"
+))]
 pub(crate) fn comment_lines(doc: &str) -> Vec<String> {
     doc.replace("\r\n", "\n")
         .replace('\r', "\n")
