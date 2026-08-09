@@ -517,3 +517,657 @@ fn indent(out: &mut String, level: usize) {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::super::parse_yaml_fields;
+    use super::*;
+    use crate::diagnostic::Report;
+    use crate::format::parse::{parse_float_field, parse_string_field, parse_string_list_field};
+    use crate::source::SourceMap;
+
+    fn scalar(name: &str, scalar: Scalar) -> Field {
+        Field::detached_value(name, Value::detached(ValueKind::Scalar(scalar)))
+    }
+
+    fn text(name: &str, value: &str) -> Field {
+        scalar(name, Scalar::String(value.to_string()))
+    }
+
+    fn seq(name: &str, elements: Vec<ValueKind>) -> Field {
+        let values = elements.into_iter().map(Value::detached).collect();
+        Field::detached_value(name, Value::detached(ValueKind::Seq(values)))
+    }
+
+    fn map(fields: Vec<Field>) -> ValueKind {
+        ValueKind::Map(Fields::detached(fields))
+    }
+
+    fn reparse(text: &str) -> Fields {
+        let mut sources = SourceMap::new();
+        let id = sources.add("emitted.yaml", text.to_string());
+        let mut report = Report::new();
+        let fields = parse_yaml_fields(&sources, id, &mut report)
+            .unwrap_or_else(|| panic!("emitted text should parse:\n{text}"));
+        assert!(
+            !report.has_issues(),
+            "reparse issues: {:?}",
+            report.issues()
+        );
+        fields
+    }
+
+    #[test]
+    fn emit_yaml_writes_canonical_text() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            text("hostname", "api"),
+            scalar("port", Scalar::Int(8080)),
+            Field::detached_block(
+                "limits",
+                Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
+            ),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        // Two-space indentation, a blank line above the block, and a trailing
+        // newline.
+        assert_eq!(
+            out,
+            "hostname: \"api\"\nport: 8080\n\nlimits:\n  max_body_mb: 16\n"
+        );
+        reparse(&out);
+    }
+
+    #[test]
+    fn emit_yaml_orders_values_before_blocks() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            Field::detached_block(
+                "sprocket",
+                Fields::detached(vec![scalar("max_height", Scalar::Int(32))]),
+            ),
+            scalar("max_weight", Scalar::Int(16)),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            out,
+            "max_weight: 16\n\nsprocket:\n  max_height: 32\n"
+        );
+    }
+
+    #[test]
+    fn emit_yaml_is_idempotent_over_its_own_output() {
+        // Arrange
+        // The blank line keys on how a member renders rather than on its field
+        // kind. A kind-keyed rule would space the blocks on the first emit and
+        // drop the spacing on the second, because a reparse yields map values.
+        let fields = Fields::detached(vec![
+            text("hostname", "api"),
+            Field::detached_block(
+                "tls",
+                Fields::detached(vec![text("cert", "c.pem")]),
+            ),
+            Field::detached_value("limits", Value::detached(map(vec![scalar("max", Scalar::Int(1))]))),
+        ]);
+
+        // Act
+        let once = emit_yaml(&fields).unwrap();
+        let twice = emit_yaml(&reparse(&once)).unwrap();
+
+        // Assert
+        assert_eq!(once, twice, "first emit:\n{once}");
+        // The map value sorts with the values and the block after them, and
+        // the second pass keeps both blank lines even though the reparse turned
+        // the block into a map value.
+        assert_eq!(
+            once,
+            "hostname: \"api\"\n\nlimits:\n  max: 1\n\ntls:\n  cert: \"c.pem\"\n"
+        );
+    }
+
+    #[test]
+    fn emit_yaml_dedents_an_inline_member_after_a_block_one() {
+        // Arrange
+        // A map value renders as a block and sorts with the values, so an
+        // inline value can follow it at the same level. The reader has only the
+        // indentation to close the block on.
+        let fields = Fields::detached(vec![
+            Field::detached_value("limits", Value::detached(map(vec![scalar("max", Scalar::Int(1))]))),
+            scalar("port", Scalar::Int(8080)),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "limits:\n  max: 1\nport: 8080\n");
+        let round = reparse(&out);
+        assert!(round.get("port").is_some(), "the dedented member must survive");
+        assert_eq!(round.iter().count(), 2);
+    }
+
+    #[test]
+    fn emit_yaml_writes_a_scalar_sequence_in_flow_style() {
+        // Arrange
+        let fields = Fields::detached(vec![seq(
+            "allow",
+            vec![
+                ValueKind::Scalar(Scalar::String("a".to_string())),
+                ValueKind::Scalar(Scalar::String("b".to_string())),
+            ],
+        )]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "allow: [\"a\", \"b\"]\n");
+        let round = reparse(&out);
+        let mut report = Report::new();
+        assert_eq!(
+            parse_string_list_field(round.get("allow").unwrap(), &mut report)
+                .unwrap()
+                .value
+                .len(),
+            2
+        );
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn emit_yaml_writes_an_empty_sequence_and_an_empty_mapping_inline() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            seq("allow", vec![]),
+            Field::detached_value("tls", Value::detached(map(vec![]))),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        // Neither is block-rendered, so neither takes a blank line.
+        assert_eq!(out, "allow: []\ntls: {}\n");
+        reparse(&out);
+    }
+
+    #[test]
+    fn emit_yaml_writes_an_empty_document_as_an_empty_mapping() {
+        // Arrange
+        let fields = Fields::detached(vec![]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "{}\n");
+        assert_eq!(reparse(&out).iter().count(), 0);
+    }
+
+    #[test]
+    fn emit_yaml_writes_a_structural_sequence_in_block_style() {
+        // Arrange
+        let element = |port: i64| map(vec![scalar("port", Scalar::Int(port))]);
+        let fields = Fields::detached(vec![seq("service", vec![element(1), element(2)])]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        // A mapping element opens on its own marker's line.
+        assert_eq!(out, "service:\n  - port: 1\n  - port: 2\n");
+        reparse(&out);
+    }
+
+    #[test]
+    fn emit_yaml_keeps_a_multi_entry_element_under_its_marker() {
+        // Arrange
+        let element = |port: i64| {
+            map(vec![
+                scalar("port", Scalar::Int(port)),
+                text("host", "h"),
+            ])
+        };
+        let fields = Fields::detached(vec![seq("service", vec![element(1), element(2)])]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            out,
+            "service:\n  - port: 1\n    host: \"h\"\n  - port: 2\n    host: \"h\"\n"
+        );
+        reparse(&out);
+    }
+
+    #[test]
+    fn emit_yaml_writes_a_nested_sequence_element_in_flow_style() {
+        // Arrange
+        let row = |first: i64| {
+            ValueKind::Seq(vec![Value::detached(ValueKind::Scalar(Scalar::Int(first)))])
+        };
+        let fields = Fields::detached(vec![seq("matrix", vec![row(1), row(2)])]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "matrix:\n  - [1]\n  - [2]\n");
+        reparse(&out);
+    }
+
+    #[test]
+    fn emit_yaml_groups_repeated_value_fields_into_one_sequence_member() {
+        // Arrange
+        // Only a parsed document with duplicate keys produces this shape.
+        let fields = Fields::detached(vec![
+            text("allow", "a"),
+            text("name", "x"),
+            text("allow", "b"),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "allow: [\"a\", \"b\"]\nname: \"x\"\n");
+    }
+
+    #[test]
+    fn emit_yaml_flattens_a_sequence_occurrence_into_the_grouped_member() {
+        // Arrange
+        // A sequence occurrence contributes its elements, and a scalar or a
+        // mapping contributes itself as one element.
+        let fields = Fields::detached(vec![
+            seq(
+                "allow",
+                vec![
+                    ValueKind::Scalar(Scalar::Int(1)),
+                    ValueKind::Scalar(Scalar::Int(2)),
+                ],
+            ),
+            scalar("allow", Scalar::Int(3)),
+            Field::detached_value("allow", Value::detached(map(vec![]))),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "allow:\n  - 1\n  - 2\n  - 3\n  - {}\n");
+    }
+
+    #[test]
+    fn emit_yaml_groups_repeated_blocks_into_one_block_sequence() {
+        // Arrange
+        let block = |port: i64| {
+            Field::detached_block(
+                "service",
+                Fields::detached(vec![scalar("port", Scalar::Int(port))]),
+            )
+        };
+        let fields = Fields::detached(vec![block(1), block(2)]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "service:\n  - port: 1\n  - port: 2\n");
+        reparse(&out);
+    }
+
+    #[test]
+    fn emit_yaml_rejects_a_value_beside_a_same_named_block() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("x", Scalar::Int(1)),
+            Field::detached_block("x", Fields::detached(vec![scalar("y", Scalar::Int(2))])),
+        ]);
+
+        // Act
+        let result = emit_yaml(&fields);
+
+        // Assert
+        assert_eq!(
+            result,
+            Err(EmitError::ConflictingName {
+                name: "x".to_string(),
+                path: String::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn emit_yaml_rejects_an_unrepresentable_value_with_its_dotted_path() {
+        // Arrange
+        let inner = Fields::detached(vec![Field::detached_value(
+            "when",
+            Value::detached(ValueKind::Other("alias")),
+        )]);
+        let fields = Fields::detached(vec![Field::detached_block("tls", inner)]);
+
+        // Act
+        let result = emit_yaml(&fields);
+
+        // Assert
+        assert_eq!(
+            result,
+            Err(EmitError::UnrepresentableValue {
+                label: "alias",
+                path: "tls.when".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn emit_yaml_round_trips_non_finite_floats() {
+        // YAML 1.2 writes all three natively, so YAML joins TOML and KDL where
+        // JSON and HCL refuse.
+        for (value, spelled) in [
+            (f64::INFINITY, ".inf"),
+            (f64::NEG_INFINITY, "-.inf"),
+            (f64::NAN, ".nan"),
+        ] {
+            // Arrange
+            let fields = Fields::detached(vec![scalar("rate", Scalar::Float(value))]);
+
+            // Act
+            let out = emit_yaml(&fields).unwrap();
+
+            // Assert
+            assert_eq!(out, format!("rate: {spelled}\n"));
+            let round = reparse(&out);
+            let mut report = Report::new();
+            let parsed = parse_float_field(round.get("rate").unwrap(), &mut report).unwrap();
+            if value.is_nan() {
+                assert!(parsed.value.is_nan());
+            } else {
+                assert_eq!(parsed.value, value);
+            }
+            assert!(!report.has_issues());
+        }
+    }
+
+    #[test]
+    fn emit_yaml_keeps_the_float_form() {
+        // Arrange
+        // The debug form of a finite float always carries a point or an
+        // exponent, so the core schema reads it back as a float.
+        let fields = Fields::detached(vec![
+            scalar("whole", Scalar::Float(1.0)),
+            scalar("large", Scalar::Float(1e20)),
+            scalar("count", Scalar::Int(4)),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "whole: 1.0\nlarge: 1e20\ncount: 4\n");
+        let round = reparse(&out);
+        let mut report = Report::new();
+        assert_eq!(
+            parse_float_field(round.get("large").unwrap(), &mut report)
+                .unwrap()
+                .value,
+            1e20
+        );
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn emit_yaml_quotes_every_string_including_the_schema_traps() {
+        // Arrange
+        // Each of these resolves to something other than a string when written
+        // plain, so quoting is what keeps the round trip honest.
+        let traps = ["no", "yes", "true", "null", "~", "8080", "1.5", ".inf", ""];
+        let fields = Fields::detached(
+            traps
+                .iter()
+                .enumerate()
+                .map(|(index, value)| text(&format!("k{index}"), value))
+                .collect(),
+        );
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        let round = reparse(&out);
+        let mut report = Report::new();
+        for (index, value) in traps.iter().enumerate() {
+            let name = format!("k{index}");
+            assert_eq!(
+                parse_string_field(round.get(&name).unwrap(), &mut report)
+                    .unwrap()
+                    .value,
+                *value,
+                "value {value:?} should read back as a string"
+            );
+        }
+        assert!(!report.has_issues(), "{:?}", report.issues());
+    }
+
+    #[test]
+    fn emit_yaml_escapes_the_quote_the_backslash_and_the_controls() {
+        // Arrange
+        let hostile = "quote\" backslash\\ nl\n tab\t cr\r bs\u{8} ff\u{c} \
+                       nul\u{0} unit\u{1f} snowman\u{2603}";
+        let fields = Fields::detached(vec![text("greeting", hostile)]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert!(out.contains("\\\"") && out.contains("\\\\"), "got: {out}");
+        assert!(out.contains("snowman\u{2603}"), "raw UTF-8 passes through");
+        let round = reparse(&out);
+        let mut report = Report::new();
+        assert_eq!(
+            parse_string_field(round.get("greeting").unwrap(), &mut report)
+                .unwrap()
+                .value,
+            hostile
+        );
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn emit_yaml_writes_a_plain_key_beside_a_quoted_one() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("max_body-mb", Scalar::Int(1)),
+            scalar("weird key", Scalar::Int(2)),
+            scalar("9lives", Scalar::Int(3)),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(
+            out,
+            "max_body-mb: 1\n\"weird key\": 2\n\"9lives\": 3\n"
+        );
+        let round = reparse(&out);
+        for name in ["max_body-mb", "weird key", "9lives"] {
+            assert!(round.get(name).is_some(), "key {name} should read back");
+        }
+    }
+
+    #[test]
+    fn emit_yaml_writes_an_unparsed_scalar_as_a_string() {
+        // Arrange
+        // A layered tree carries unparsed text from an environment variable or
+        // a flag, whose type was never decided.
+        let fields = Fields::detached(vec![scalar("port", Scalar::Unparsed("8080".to_string()))]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "port: \"8080\"\n");
+    }
+
+    #[test]
+    fn emit_yaml_renders_doc_comments_above_their_entries() {
+        // Arrange
+        let fields = Fields::detached(vec![
+            scalar("port", Scalar::Int(1)).with_doc(Some("The port.".to_string())),
+            Field::detached_block(
+                "limits",
+                Fields::detached(vec![
+                    scalar("max_body_mb", Scalar::Int(16))
+                        .with_doc(Some("Max body size.".to_string())),
+                ]),
+            )
+            .with_doc(Some("Request limits.".to_string())),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        // The blank line goes above the block's comment, and a nested comment
+        // carries its field's indentation.
+        assert_eq!(
+            out,
+            "# The port.\nport: 1\n\n# Request limits.\nlimits:\n  # Max body size.\n  max_body_mb: 16\n"
+        );
+        reparse(&out);
+    }
+
+    #[test]
+    fn emit_yaml_renders_every_commented_shape_behind_a_spaceless_marker() {
+        // Arrange
+        // The four shapes a template hides: an optional leaf, an optional
+        // string list, an unmarked optional block, and an empty repeated block.
+        let repeated = Value::detached(ValueKind::Seq(vec![Value::detached(map(vec![]))]));
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
+            text("pid_file", "").as_commented(),
+            seq("allow", vec![]).as_commented(),
+            Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
+            Field::detached_value("svc", repeated).as_commented(),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        // The block field sorts after the values, and only the block-rendered
+        // member takes a blank line.
+        assert_eq!(
+            out,
+            "port: 8080\n#pid_file: \"\"\n#allow: []\n\n#svc:\n  #- {}\n#tls: {}\n"
+        );
+    }
+
+    #[test]
+    fn emit_yaml_puts_a_nested_commented_entry_after_its_indentation() {
+        // Arrange
+        // Deleting the `#` must leave the entry at its own column.
+        let inner = Fields::detached_entries(vec![
+            text("mode", "log").into(),
+            scalar("retry", Scalar::Int(0)).as_commented(),
+        ]);
+        let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "limits:\n  mode: \"log\"\n  #retry: 0\n");
+    }
+
+    #[test]
+    fn emit_yaml_reparses_a_template_to_the_active_fields_alone() {
+        // Arrange
+        let fields = Fields::detached_entries(vec![
+            scalar("port", Scalar::Int(8080)).into(),
+            text("pid_file", "")
+                .with_doc(Some("The PID file path.".to_string()))
+                .as_commented(),
+            Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        // A doc above a commented entry is already a comment, so it renders
+        // once rather than behind a second marker.
+        assert!(out.contains("# The PID file path.\n#pid_file"), "got:\n{out}");
+        assert!(!out.contains("##"), "got:\n{out}");
+        let round = reparse(&out);
+        let names: Vec<&str> = round.iter().map(|field| field.name.as_str()).collect();
+        assert_eq!(names, vec!["port"]);
+    }
+
+    #[test]
+    fn emit_yaml_uncomments_to_an_empty_instance_of_each_shape() {
+        // Arrange
+        // Uncommenting is deleting the `#`, and what remains must parse to the
+        // shape the field declares.
+        let repeated = Value::detached(ValueKind::Seq(vec![Value::detached(map(vec![]))]));
+        let fields = Fields::detached_entries(vec![
+            text("pid_file", "").as_commented(),
+            seq("allow", vec![]).as_commented(),
+            Field::detached_block("tls", Fields::detached(vec![])).as_commented(),
+            Field::detached_value("svc", repeated).as_commented(),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        let uncommented = out.replace('#', "");
+        let round = reparse(&uncommented);
+        let mut report = Report::new();
+        assert_eq!(
+            parse_string_field(round.get("pid_file").unwrap(), &mut report)
+                .unwrap()
+                .value,
+            ""
+        );
+        assert!(
+            parse_string_list_field(round.get("allow").unwrap(), &mut report)
+                .unwrap()
+                .value
+                .is_empty()
+        );
+        let FieldKind::Value(value) = &round.get("svc").unwrap().kind else {
+            panic!("svc should be an attribute value");
+        };
+        let ValueKind::Seq(elements) = &value.kind else {
+            panic!("svc should uncomment to a sequence, got {:?}", value.kind);
+        };
+        assert_eq!(elements.len(), 1);
+        assert!(matches!(elements[0].kind, ValueKind::Map(_)));
+        assert!(!report.has_issues(), "{:?}", report.issues());
+    }
+
+    #[test]
+    fn emit_yaml_excludes_commented_fields_from_grouping() {
+        // Arrange
+        let fields = Fields::detached_entries(vec![
+            scalar("x", Scalar::Int(1)).into(),
+            scalar("x", Scalar::Int(2)).as_commented(),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "x: 1\n#x: 2\n");
+    }
+}
