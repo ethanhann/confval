@@ -8,7 +8,7 @@
 //! than maintained by hand.
 //!
 //! The traversal reads the field shapes the parser already classified, so the
-//! three nested spellings each get the call they need. Non-nested fields are
+//! three nested shapes each get the call they need. Non-nested fields are
 //! skipped.
 
 use super::shape::FieldShape;

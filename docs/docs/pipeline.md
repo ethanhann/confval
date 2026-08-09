@@ -15,7 +15,7 @@ The approach is inspired by ["Parse, don't validate"](https://lexi-lambda.github
 
 ### 1. Parse (structural)
 
-A frontend (`parse_hcl`, `parse_toml`, or `parse_kdl`) builds the neutral `Fields`, runs `FromFields`, and reports shape problems.
+A frontend (`parse_hcl`, `parse_toml`, `parse_kdl`, or `parse_json`) builds the neutral `Fields`, runs `FromFields`, and reports shape problems.
 
 Unknown fields, wrong types, missing required fields, and duplicate blocks are reported with spans.
 Parsing continues across inputs.
@@ -158,7 +158,7 @@ Tagged unions parse their discriminator first and dispatch.
 A free-form block can be captured as an arbitrary value rather than a struct by reading the neutral field model
 directly.
 
-## Both spellings normalize
+## Both forms normalize
 
 Operators write nested structures either as blocks or as attribute-with-object, and real configs mix the two:
 
@@ -172,16 +172,16 @@ limits = {
 }
 ```
 
-The `Fields` view normalizes both, so every nested spec accepts either spelling with identical spans and identical error
+The `Fields` view normalizes both, so every nested spec accepts either form with identical spans and identical error
 messages.
 
 ## Runnable examples
 
 End-to-end examples ship in `crates/confval/examples/`.
-`hcl.rs`, `toml.rs`, and `kdl.rs` each hold a source document and one parse call.
+`hcl.rs`, `toml.rs`, `kdl.rs`, and `json.rs` each hold a source document and the two format calls that parse and emit it.
 Everything after parsing lives in `common/mod.rs`: the spec types, the validators, the config types, and the lowering
 functions.
-All three share that file verbatim.
+All four share that file verbatim.
 The format-neutrality of the later stages is visible in the layout.
 `common/mod.rs` annotates it.
 `issue_severity.rs` reuses the same types to show a warning passing the gate.

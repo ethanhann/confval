@@ -193,7 +193,7 @@ mode = "log"
 #[test]
 fn a_kind_conflict_across_sources_is_reported_with_both_spans() {
     // Arrange
-    // The file spells `limits` as a block and the flag sets it as a value, a
+    // The file writes `limits` as a block and the flag sets it as a value, a
     // cross-source conflict the merge reports rather than swallowing.
     let base_text = "hostname = \"filehost\"\nport = 8080\n\n[limits]\nmode = \"log\"\n";
     let mut sources = SourceMap::new();
@@ -219,4 +219,104 @@ fn a_kind_conflict_across_sources_is_reported_with_both_spans() {
         "issues: {:?}",
         report.issues()
     );
+}
+
+/// A JSON level can carry two fields under one name, which the TOML sources in
+/// the rest of this file cannot write. These groups reach the merge from no
+/// other source here.
+#[cfg(feature = "json")]
+mod json_duplicate_groups {
+    use super::*;
+    use confval::format::json::parse_json_fields;
+
+    #[derive(confval::Spec, Debug)]
+    struct AllowSpec {
+        hostname: Located<String>,
+        allow: Option<Located<Vec<Located<String>>>>,
+        #[confval(nested)]
+        limits: Option<Located<LimitsSpec>>,
+    }
+
+    impl Validate for AllowSpec {
+        fn validate(&self, _report: &mut Report) {}
+    }
+
+    #[test]
+    fn a_json_base_layer_with_a_duplicated_list_key_accumulates_through_the_assembly() {
+        // Arrange
+        // The two `allow` members stay separate fields through the merge, and
+        // the walk resolves them by the spec's declared list shape.
+        let base_text = r#"{
+  "hostname": "filehost",
+  "allow": "10.0.0.0/8",
+  "allow": "192.168.0.0/16"
+}
+"#;
+        let mut sources = SourceMap::new();
+        let mut report = Report::new();
+        let base = sources.add("server.json", base_text);
+
+        // Act
+        let spec: Option<AllowSpec> = Assembly::new()
+            .merge(parse_json_fields(&sources, base, &mut report))
+            .merge(cli_fields(
+                &mut sources,
+                ["--hostname=clihost".to_string()],
+                &mut report,
+            ))
+            .assemble(&mut report);
+
+        // Assert
+        assert!(!report.has_issues(), "issues: {:?}", report.issues());
+        let spec = spec.unwrap();
+        assert_eq!(spec.hostname.value, "clihost");
+        let allow = spec.allow.expect("both occurrences should reach the walk");
+        let values: Vec<&str> = allow
+            .value
+            .iter()
+            .map(|element| element.value.as_str())
+            .collect();
+        assert_eq!(values, vec!["10.0.0.0/8", "192.168.0.0/16"]);
+    }
+
+    #[test]
+    fn a_heterogeneous_json_duplicate_group_is_reported_rather_than_dropped() {
+        // Arrange
+        // A scalar beside a nested object under one name is a group no other
+        // frontend delivers. The merge judges the group by its first field, so
+        // this pins that the mismatch is reported and the overlay still lands.
+        let base_text = r#"{
+  "hostname": "filehost",
+  "limits": 1,
+  "limits": {"mode": "log"}
+}
+"#;
+        let mut sources = SourceMap::new();
+        let mut report = Report::new();
+        let base = sources.add("server.json", base_text);
+
+        // Act
+        let spec: Option<AllowSpec> = Assembly::new()
+            .merge(parse_json_fields(&sources, base, &mut report))
+            .merge(cli_fields(
+                &mut sources,
+                ["--limits.mode=enforce".to_string()],
+                &mut report,
+            ))
+            .assemble(&mut report);
+
+        // Assert
+        assert!(
+            report.issues().iter().any(|issue| {
+                issue.message.starts_with("`limits` is a")
+                    && issue.message.contains("in one source and a")
+            }),
+            "issues: {:?}",
+            report.issues()
+        );
+        // The overlay's level stands, so nothing is lost without a diagnostic.
+        let spec = spec.expect("the assembly should still produce a spec");
+        let limits = spec.limits.expect("the overlay level should stand");
+        assert_eq!(limits.value.mode.value, "enforce");
+    }
 }

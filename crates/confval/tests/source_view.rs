@@ -320,7 +320,7 @@ fn the_three_views_answer_their_three_questions() {
         populated.contains("mode = \"log\""),
         "populated:\n{populated}"
     );
-    // The runtime view shows the lowered values, and the keyword spells as its
+    // The runtime view shows the lowered values, and the keyword serializes as its
     // keyword rather than the variant name.
     assert_eq!(runtime, r#"{"max_body_mb":16,"mode":"log"}"#);
 }

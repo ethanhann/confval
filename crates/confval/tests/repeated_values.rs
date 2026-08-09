@@ -192,7 +192,7 @@ fn a_repeated_defaulted_field_reports_a_duplicate_and_keeps_the_first() {
 fn a_repeated_bare_list_field_accumulates_in_document_order() {
     // Arrange
     // The second occurrence is a lone scalar, so this also exercises the
-    // widened one-element spelling inside an accumulation.
+    // widened one-element form inside an accumulation.
     let source = source();
     let fields = level(
         source,

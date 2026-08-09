@@ -1,7 +1,7 @@
 //! Deep merge of two neutral [`Fields`] levels.
 //!
 //! One rule covers the cross-product of value kinds. Two structural values,
-//! whichever spelling each used, recurse and unify their entries by name. A
+//! whichever form each used, recurse and unify their entries by name. A
 //! structural value against a non-structural one has no combined form and is
 //! reported as a cross-source conflict. Two non-structural values follow the
 //! value-level rule, where the higher-precedence side replaces the other.
@@ -154,9 +154,9 @@ fn combine_field(acc: Field, incoming: Field, verb: Verb, report: &mut Report) -
     }
 }
 
-/// The structural spelling a field used, so a merged inner level can be
-/// wrapped back in the spelling the base document had.
-enum Spelling {
+/// The structural form a field used, so a merged inner level can be
+/// wrapped back in the form the base document had.
+enum Nesting {
     Block,
     Map { value_span: Span },
 }
@@ -168,14 +168,14 @@ struct Shell {
     span: Span,
     source: SourceId,
     doc: Option<String>,
-    spelling: Spelling,
+    nesting: Nesting,
 }
 
 impl Shell {
     fn rewrap(self, inner: Fields) -> Field {
-        let kind = match self.spelling {
-            Spelling::Block => FieldKind::Block(inner),
-            Spelling::Map { value_span } => FieldKind::Value(Value {
+        let kind = match self.nesting {
+            Nesting::Block => FieldKind::Block(inner),
+            Nesting::Map { value_span } => FieldKind::Value(Value {
                 span: value_span,
                 kind: ValueKind::Map(inner),
             }),
@@ -207,12 +207,12 @@ fn split_structural(field: Field) -> Split {
         doc,
         kind,
     } = field;
-    let (spelling, inner) = match kind {
-        FieldKind::Block(inner) => (Spelling::Block, inner),
+    let (nesting, inner) = match kind {
+        FieldKind::Block(inner) => (Nesting::Block, inner),
         FieldKind::Value(Value {
             kind: ValueKind::Map(inner),
             span: value_span,
-        }) => (Spelling::Map { value_span }, inner),
+        }) => (Nesting::Map { value_span }, inner),
         kind => {
             return Split::Plain(Field {
                 name,
@@ -231,13 +231,13 @@ fn split_structural(field: Field) -> Split {
             span,
             source,
             doc,
-            spelling,
+            nesting,
         },
         inner,
     )
 }
 
-/// The inner level of a structural field, whichever spelling it used.
+/// The inner level of a structural field, whichever form it used.
 fn structural_fields(field: &Field) -> Option<&Fields> {
     match &field.kind {
         FieldKind::Block(fields) => Some(fields),
@@ -386,9 +386,9 @@ mod tests {
     fn a_repeated_object_group_against_a_repeated_block_group_is_no_conflict() {
         // Arrange
         // A repeated group is compared by kind rather than merged, and the two
-        // structural spellings are the same kind. An object written inline and
+        // structural forms are the same kind. An object written inline and
         // a block written out must therefore agree, which is what stops a
-        // spelling difference from reading as a cross-source conflict.
+        // difference in form from reading as a cross-source conflict.
         let base = level(
             A,
             sp(A, 0, 0),
@@ -567,7 +567,7 @@ mod tests {
     }
 
     #[test]
-    fn merge_unifies_block_and_object_spellings_keeping_the_base_spelling() {
+    fn merge_unifies_block_and_object_forms_keeping_the_base_form() {
         // Arrange
         let base = level(
             A,
@@ -589,7 +589,7 @@ mod tests {
 
         // Assert
         let FieldKind::Block(server) = &merged.get("server").unwrap().kind else {
-            panic!("expected the base block spelling to survive");
+            panic!("expected the base block form to survive");
         };
         assert!(server.get("port").is_some());
         assert!(server.get("host").is_some());

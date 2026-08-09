@@ -28,7 +28,7 @@ pub(crate) enum FieldShape {
     /// A single nested sub-struct, `Located<S>` or `Option<Located<S>>`, parsed
     /// by recursing into `S`'s own generated parser. `optional` is true when
     /// wrapped in `Option`. `spec_ty` is the inner type `S`, captured so the
-    /// populate walk can spell `<S as Default>::default()` when it fills an
+    /// populate walk can emit `<S as Default>::default()` when it fills an
     /// absent marked block. The parser and traversal ignore it. It is boxed
     /// because a `syn::Type` is large and would otherwise bloat every variant.
     Nested { optional: bool, spec_ty: Box<Type> },

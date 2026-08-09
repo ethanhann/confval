@@ -41,7 +41,7 @@ Field rules:
   Works for single, `Option`, and `Vec` shapes.
 - **`#[confval(nested, default)]`**: a non-optional config field lowered from an `Option<Located<S>>` spec field.
   When the source omits the block, `S::default()` is lowered in its place, so the runtime field is always populated while the spec stays source-faithful (an absent block stays `None`).
-  This spelling also exists on the spec side, where it fills the omitted block during parsing instead of at lowering.
+  This attribute also exists on the spec side, where it fills the omitted block during parsing instead of at lowering.
   See [Optional fields and defaults](./parsing.md#optional-fields-and-defaults) for the difference.
 - **`#[confval(lower(from = field, with = fn))]`**: explicit conversion through a function `fn(&SpecField, &mut Report) -> Option<Target>`.
   All narrowing (`i64` to `u16`, string to enum, string to `IpNet`) goes through these functions.

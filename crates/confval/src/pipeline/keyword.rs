@@ -122,7 +122,7 @@ const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
 /// - `TryFrom<&str>`, accepting exactly the keywords,
 /// - `Display`, printing through `as_str`,
 /// - `serde::Serialize` writing the keyword string, when confval's `serde`
-///   feature is enabled, so a serialized config spells `"log"` exactly as the
+///   feature is enabled, so a serialized config carries `"log"` exactly as the
 ///   config file does.
 ///
 /// The one artifact it does not generate is the `keyword_set().check_located(...)`

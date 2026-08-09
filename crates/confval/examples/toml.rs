@@ -3,10 +3,10 @@
 //! canonical TOML text.
 //!
 //! The spec types, validators, config types, and lowering functions all live in
-//! `common`, which the `hcl` and `kdl` examples share verbatim. Those two
-//! examples run the same steps in the same order as this one. Only the source
-//! text, its file name, and the two format calls, `parse_toml` and `emit_toml`,
-//! differ between the three.
+//! `common`, which the `hcl`, `kdl`, and `json` examples share verbatim. Those
+//! three examples run the same steps in the same order as this one. Only the
+//! source text, its file name, and the two format calls, `parse_toml` and
+//! `emit_toml`, differ between the four.
 //!
 //! A failing variant renders its diagnostics to stderr first, and the valid
 //! config then shows the lowered output and the write path. The failing report

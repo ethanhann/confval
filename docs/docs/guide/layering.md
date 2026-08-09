@@ -26,7 +26,7 @@ The feature brings in no external crate.
 ## Concept Overview
 
 Each configuration source becomes a layer through a provider function.
-A file uses `parse_hcl_fields`, `parse_toml_fields`, or `parse_kdl_fields`, the environment uses `env_fields`, and the command line uses `cli_fields`.
+A file uses `parse_hcl_fields`, `parse_toml_fields`, `parse_kdl_fields`, or `parse_json_fields`, the environment uses `env_fields`, and the command line uses `cli_fields`.
 You pass the layers to `Assembly` in precedence order and call `assemble` with the spec type you want:
 
 ```rust

@@ -1,24 +1,29 @@
-//! End-to-end example: parse an HCL config span-first, validate it, lower it to
+//! End-to-end example: parse a JSON config span-first, validate it, lower it to
 //! a runtime type, print the result, and emit the populated spec back to
-//! canonical HCL text.
+//! canonical JSON text.
 //!
 //! The spec types, validators, config types, and lowering functions all live in
-//! `common`, which the `toml`, `kdl`, and `json` examples share verbatim. Those
+//! `common`, which the `hcl`, `toml`, and `kdl` examples share verbatim. Those
 //! three examples run the same steps in the same order as this one. Only the
-//! source text, its file name, and the two format calls, `parse_hcl` and
-//! `emit_hcl`, differ between the four.
+//! source text, its file name, and the two format calls, `parse_json` and
+//! `emit_json`, differ between the four.
 //!
 //! A failing variant renders its diagnostics to stderr first, and the valid
 //! config then shows the lowered output and the write path. The failing report
 //! includes an error at a single list element, an unknown keyword in a nested
-//! block, and a cross-field warning whose related span points at the setting
+//! object, and a cross-field warning whose related span points at the setting
 //! that caused it.
 //!
-//! The valid config omits the `limits` block, so the lowered output shows the
+//! The valid config omits the `limits` member, so the lowered output shows the
 //! config-side `#[confval(nested, default)]` filling `LimitsSpec::default()`
 //! while the spec stays source-faithful.
 //!
-//! Run with: cargo run -p confval --example hcl --features derive,color,hcl
+//! JSON has one way to nest, the object, which the model reads wherever
+//! it accepts a block. The document root must be an object. The frontend
+//! accepts strict JSON alone, so a comment or a trailing comma is a syntax
+//! error.
+//!
+//! Run with: cargo run -p confval --example json --features derive,color,json
 
 mod common;
 
@@ -30,19 +35,20 @@ use confval::prelude::*;
 /// without stopping the program, so the run shows the report and the valid
 /// path in one pass.
 fn show_failing_variant() -> Result<(), String> {
-    let input = r#"hostname = ""
-port = 80
-tls = true
-allow = ["10.0.0.0/8", ""]
-
-limits {
-  mode = "yolo"
+    let input = r#"{
+  "hostname": "",
+  "port": 80,
+  "tls": true,
+  "allow": ["10.0.0.0/8", ""],
+  "limits": {
+    "mode": "yolo"
+  }
 }
 "#;
     let mut sources = SourceMap::new();
     let mut report = Report::new();
-    let id = sources.add("broken.hcl", input);
-    let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mut report);
+    let id = sources.add("broken.json", input);
+    let spec: Option<ServerSpec> = confval::format::json::parse_json(&sources, id, &mut report);
     if let Some(spec) = &spec {
         spec.validate_all(&mut report);
     }
@@ -58,19 +64,21 @@ limits {
 fn main() -> Result<(), String> {
     show_failing_variant()?;
 
-    let input = r#"hostname = "127.0.0.1"
-port = 8443
-workers = 8
-tls = true
-allow = ["10.0.0.0/8", "192.168.0.0/16"]
+    let input = r#"{
+  "hostname": "127.0.0.1",
+  "port": 8443,
+  "workers": 8,
+  "tls": true,
+  "allow": ["10.0.0.0/8", "192.168.0.0/16"]
+}
 "#;
 
     let mut sources = SourceMap::new();
     let mut report = Report::new();
-    let id = sources.add("server.hcl", input);
+    let id = sources.add("server.json", input);
 
-    // Parse (HCL)
-    let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mut report);
+    // Parse (JSON)
+    let spec: Option<ServerSpec> = confval::format::json::parse_json(&sources, id, &mut report);
 
     let spec = spec.ok_or("parse returned None without reporting an error")?;
 
@@ -82,10 +90,10 @@ allow = ["10.0.0.0/8", "192.168.0.0/16"]
         ServerConfig::lower(&spec, &mut report).ok_or("lowering failed despite a clean report")?;
     println!("{}", config);
 
-    // Emit the populated spec back to canonical HCL, the write path.
+    // Emit the populated spec back to canonical JSON, the write path.
     let text =
-        confval::format::hcl::emit_hcl(&spec.to_fields()).map_err(|error| error.to_string())?;
-    println!("+ Emitted HCL:");
+        confval::format::json::emit_json(&spec.to_fields()).map_err(|error| error.to_string())?;
+    println!("+ Emitted JSON:");
     print!("{text}");
 
     Ok(())

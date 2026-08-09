@@ -5,19 +5,20 @@
 //! format's text. Not every `Fields` is representable in every format, so emit
 //! is fallible. Emitting a populated spec to TOML never fails, because TOML has a
 //! literal for every value populate produces and quotes any key. Emitting a
-//! populated spec to HCL fails only for the two numeric values HCL cannot spell,
-//! an `i64::MIN` and a non-finite float. The remaining failures arise when you
+//! populated spec to HCL fails only for the two numeric values HCL cannot write,
+//! an `i64::MIN` and a non-finite float. Emitting a populated spec to JSON fails
+//! only for a non-finite float. The remaining failures arise when you
 //! emit a `Fields` a frontend parsed or built by hand, which can carry a name
-//! or a value the target format cannot spell, or use one name in conflicting
+//! or a value the target format cannot write, or use one name in conflicting
 //! ways at one level, such as a value next to a same-named block in TOML or
-//! two same-named values in either format.
+//! JSON, or two same-named values in HCL or TOML.
 //!
 //! A layered tree can carry [`Scalar::Unparsed`](super::Scalar) text from an
 //! environment variable or a flag. That text emits as a string literal, since
 //! its type was never decided, so a typed reparse of the emitted file reads
 //! those leaves as strings.
 
-#[cfg(any(feature = "toml", feature = "hcl"))]
+#[cfg(any(feature = "toml", feature = "hcl", feature = "json"))]
 use super::field::{Entry, Field, FieldKind, Fields};
 use std::fmt::{self, Display, Formatter};
 
@@ -32,7 +33,7 @@ pub enum EmitError {
     /// non-identifier attribute or block name in HCL. TOML quotes any key, so
     /// this arises only for HCL.
     UnrepresentableName {
-        /// The name that cannot be spelled.
+        /// The name that cannot be written.
         name: String,
         /// The dotted path of the enclosing level, empty at the root.
         path: String,
@@ -46,9 +47,9 @@ pub enum EmitError {
         /// The dotted path of the field holding the value.
         path: String,
     },
-    /// A name used at one level in a way the target format cannot spell twice:
-    /// two values under one name in either format, a value next to a block in
-    /// TOML, or any repetition inside an inline table or object. Emitting
+    /// A name used at one level in a way the target format cannot write twice:
+    /// two values under one name in HCL or TOML, a value next to a block in
+    /// TOML or JSON, or any repetition inside an inline table or object. Emitting
     /// would silently lose one of the uses, so emit refuses. Populate never
     /// produces these, so they arise only for a parsed or hand-built `Fields`.
     ConflictingName {
@@ -69,7 +70,7 @@ fn location(path: &str) -> String {
 }
 
 /// The dotted path of a field under `path`, which is empty at the root.
-#[cfg(any(feature = "toml", feature = "hcl", feature = "kdl"))]
+#[cfg(any(feature = "toml", feature = "hcl", feature = "kdl", feature = "json"))]
 pub(crate) fn child_path(path: &str, name: &str) -> String {
     if path.is_empty() {
         name.to_string()
@@ -83,13 +84,14 @@ pub(crate) fn child_path(path: &str, name: &str) -> String {
 ///
 /// HCL follows the Terraform convention of arguments before nested blocks.
 /// TOML's syntax forces the same order, because a bare key written after a
-/// table header would belong to that table. The two therefore agree, and one
-/// walk serves both.
+/// table header would belong to that table. JSON imposes no order of its own.
+/// The JSON emitter follows the same one, so the three formats read alike, and
+/// one walk serves all of them.
 ///
 /// This yields entries rather than fields, because an emitter renders the
 /// commented ones too and places each in the region its active twin would
 /// occupy.
-#[cfg(any(feature = "toml", feature = "hcl"))]
+#[cfg(any(feature = "toml", feature = "hcl", feature = "json"))]
 pub(crate) fn values_then_blocks(fields: &Fields) -> impl Iterator<Item = &Entry> {
     let values = fields
         .entries()
@@ -102,11 +104,11 @@ pub(crate) fn values_then_blocks(fields: &Fields) -> impl Iterator<Item = &Entry
 
 /// The first name at this level whose same-named group `rejects`.
 ///
-/// Each format refuses some repetition it cannot spell, and the formats differ
+/// Each format refuses some repetition it cannot write, and the formats differ
 /// only in which groups they refuse. `rejects` receives the fields sharing one
 /// name, in declaration order. A commented entry is comment text, so it never
 /// reaches here and conflicts with nothing.
-#[cfg(any(feature = "toml", feature = "hcl"))]
+#[cfg(any(feature = "toml", feature = "hcl", feature = "json"))]
 pub(crate) fn first_conflicting_name(
     fields: &Fields,
     rejects: impl Fn(&[&Field]) -> bool,
@@ -121,7 +123,7 @@ pub(crate) fn first_conflicting_name(
 }
 
 /// Any name repeated at a level with unique keys, an HCL object or a
-/// TOML inline table, where no spelling carries a repetition.
+/// TOML inline table, where no syntax carries a repetition.
 #[cfg(any(feature = "toml", feature = "hcl"))]
 pub(crate) fn repeated_name(fields: &Fields) -> Option<&str> {
     first_conflicting_name(fields, |group| group.len() > 1)

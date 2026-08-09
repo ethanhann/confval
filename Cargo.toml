@@ -40,3 +40,4 @@ owo-colors = { version = "4" }
 hcl-edit = { version = "0.9" }
 toml_edit = { version = "0.25" }
 kdl = { version = "6.7", default-features = false, features = ["span"] }
+jsonc-parser = { version = "0.33", default-features = false }

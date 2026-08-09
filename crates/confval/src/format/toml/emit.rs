@@ -39,7 +39,7 @@ pub fn emit_toml(fields: &Fields) -> Result<String, EmitError> {
     }
 }
 
-/// A name whose active uses at one level TOML cannot spell side by side.
+/// A name whose active uses at one level TOML cannot write side by side.
 /// Repeated blocks group into an array of tables, so a name repeated only by
 /// blocks is fine. Any other repetition, two values or a value next to a
 /// block, would silently overwrite one of them. Emit refuses instead. A
@@ -56,7 +56,7 @@ fn conflicting_name(fields: &Fields) -> Option<&str> {
 /// Fills a `toml_edit` table from a neutral level.
 ///
 /// `header` is the quoted dotted header of this level, empty at the root, so a
-/// commented entry can spell the `#[header.key]` line of a nested block.
+/// commented entry can write the `#[header.key]` line of a nested block.
 /// Returns the commented-out text still pending at the level's end. TOML has
 /// no per-table trailing position, so the caller attaches it before the next
 /// structure in document order. Text pending at the top attaches to the
@@ -246,7 +246,7 @@ pub(super) fn item_of_value(
 
 /// Maps one neutral value to an inline `toml_edit` value, for an array element
 /// or an inline-table entry. A sequence of maps is an inline array of inline
-/// tables here, because an array of tables has no inline spelling.
+/// tables here, because an array of tables has no inline form.
 fn toml_value_of(value: &Value, path: &str) -> Result<TomlValue, EmitError> {
     match &value.kind {
         ValueKind::Scalar(scalar) => Ok(toml_value_of_scalar(scalar)),
@@ -275,7 +275,7 @@ fn toml_inline_of(fields: &Fields, path: &str) -> Result<InlineTable, EmitError>
         });
     }
     let mut inline = InlineTable::new();
-    // An inline table has no comment spelling, and `iter` yields no commented
+    // An inline table has no comment syntax, and `iter` yields no commented
     // entry, so one renders nothing here.
     for field in fields.iter() {
         let child = child_path(path, &field.name);
@@ -355,7 +355,7 @@ mod tests {
     #[test]
     fn emit_toml_rejects_a_value_and_a_block_sharing_a_name() {
         // Arrange
-        // HCL spells `x = 1` next to `x { }`, so a parsed Fields can hold
+        // HCL writes `x = 1` next to `x { }`, so a parsed Fields can hold
         // both. A TOML key names one thing, so emitting the pair would lose
         // one of them silently.
         let fields = Fields::detached(vec![
@@ -446,7 +446,7 @@ mod tests {
         // Two same-named block fields group into an array of tables, and the
         // group's doc renders once, above the first element. This is the block
         // path rather than the sequence-of-maps path, which reaches the same
-        // spelling through a value field.
+        // form through a value field.
         let svc = |port: i64| {
             Field::detached_block(
                 "svc",
@@ -658,7 +658,7 @@ mod tests {
     fn emit_toml_rejects_a_repeated_name_inside_an_inline_table() {
         // Arrange
         // Nothing repeats inside an inline table, not even blocks, which have
-        // no array-of-tables spelling there.
+        // no array-of-tables form there.
         let pair = Fields::detached(vec![
             scalar("x", Scalar::Int(1)),
             scalar("x", Scalar::Int(2)),
@@ -715,7 +715,7 @@ mod tests {
         // Arrange
         // Escaping goes through toml_edit, so this guards the crate against a
         // regression in how quotes, backslashes, line breaks, tabs, unicode,
-        // and control characters are spelled.
+        // and control characters are escaped.
         let hostile = "quote\" backslash\\ newline\n tab\t snowman\u{2603} del\u{7f} bel\u{7}";
         let fields = Fields::detached(vec![scalar(
             "greeting",
@@ -770,7 +770,7 @@ mod tests {
 
     #[test]
     fn emit_toml_round_trips_a_non_finite_float() {
-        // TOML spells infinity and NaN as keywords, so these emit rather than
+        // TOML writes infinity and NaN as keywords, so these emit rather than
         // fail, unlike the HCL emitter which has no literal for them.
         for value in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
             // Arrange
@@ -860,7 +860,7 @@ mod tests {
     #[test]
     fn emit_toml_writes_a_commented_list_hint_as_an_array_of_tables_header() {
         // Arrange
-        // The nested-list shape, a sequence of one empty map, spells the
+        // The nested-list shape, a sequence of one empty map, writes the
         // repetition where a single block would not.
         let hint = Value::detached(ValueKind::Seq(vec![Value::detached(ValueKind::Map(
             Fields::detached(vec![]),
@@ -957,7 +957,7 @@ mod tests {
     #[test]
     fn emit_toml_prefixes_every_line_of_a_commented_multiline_string() {
         // Arrange
-        // TOML spells a string with line breaks as a multiline literal, and a
+        // TOML writes a string with line breaks as a multiline literal, and a
         // bare continuation line would break the template's own reparse.
         let fields = Fields::detached_entries(vec![
             scalar("port", Scalar::Int(8080)).into(),
@@ -991,7 +991,7 @@ mod tests {
     #[test]
     fn emit_toml_drops_a_commented_field_inside_an_inline_table() {
         // Arrange
-        // An inline table has no comment spelling, and the field reads as
+        // An inline table has no comment syntax, and the field reads as
         // absent.
         let map = Fields::detached_entries(vec![
             scalar("cert", Scalar::String("a.pem".to_string())).into(),

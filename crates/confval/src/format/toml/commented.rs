@@ -1,8 +1,8 @@
-//! The commented-out spellings of the TOML write path.
+//! The commented-out forms of the TOML write path.
 //!
 //! An absent optional field renders in a template as a commented-out entry,
 //! and TOML has no comment node, so these builders render the entry to text
-//! for [`emit_toml`](super::emit_toml) to attach as decor. Each spelling goes
+//! for [`emit_toml`](super::emit_toml) to attach as decor. Each form goes
 //! through the same value mapping an active field uses, so the two cannot
 //! drift.
 
@@ -22,9 +22,9 @@ pub(super) fn child_header(header: &str, name: &str) -> String {
     }
 }
 
-/// The commented-out spelling of one value field: its doc comment in the
+/// The commented-out form of one value field: its doc comment in the
 /// spaced form, then the entry behind a spaceless `#`. The nested-list shape,
-/// a non-empty sequence of maps, spells its repeated-block form so the
+/// a non-empty sequence of maps, writes its repeated-block form so the
 /// repetition stays visible.
 pub(super) fn commented_value_text(
     field: &Field,
@@ -70,7 +70,7 @@ pub(super) fn commented_value_text(
     Ok(out)
 }
 
-/// The commented-out spelling of one block field: its doc comment, the
+/// The commented-out form of one block field: its doc comment, the
 /// `#[header]` line, and the level's contents behind the same prefix.
 pub(super) fn commented_block_text(
     field: &Field,

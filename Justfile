@@ -32,8 +32,15 @@ mutants-diff base="main" jobs="4":
     if [ ! -s "$diff" ]; then echo "no source changes against {{ base }}"; exit 0; fi
     cargo mutants --in-diff "$diff" -j {{ jobs }}
 
+# Compile each format frontend alone, so a cfg gate the all-features build hides cannot drift.
+check-frontends:
+    cargo check -q -p confval --no-default-features --features derive,hcl
+    cargo check -q -p confval --no-default-features --features derive,toml
+    cargo check -q -p confval --no-default-features --features derive,kdl
+    cargo check -q -p confval --no-default-features --features derive,json
+
 # Test everything
-validate: format lint test validate-docs examples
+validate: format lint check-frontends test validate-docs examples
 
 # Run examples
 examples:
@@ -45,6 +52,7 @@ examples:
     cargo run -q -p confval --features derive,color,toml,layering --example layering
     cargo run -q -p confval --features derive,color,toml,hcl --example templates
     cargo run -q -p confval --features derive,color,kdl --example kdl
+    cargo run -q -p confval --features derive,color,json --example json
     cargo run -q -p confval --features derive,toml --example doc_fallback
     cargo run -q -p confval --features derive,serde,toml --example json_diagnostics
     cargo run -q -p confval --features derive,color,toml --example narrow

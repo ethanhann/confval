@@ -7,7 +7,7 @@
 //!
 //! The source sets only `mode`, leaving `max_body_mb` to its default, so the
 //! three views differ exactly where a default fills a gap. The `mode` field is
-//! a `keyword_enum!`, and every view spells it `"log"`, including the runtime
+//! a `keyword_enum!`, and every view shows it as `"log"`, including the runtime
 //! view's JSON, because the macro's serde impl writes the keyword rather than
 //! the Rust variant name.
 //!

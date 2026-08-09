@@ -100,7 +100,7 @@ pub(crate) fn field_parser(
         }
         FieldShape::BareStringList => {
             // A string list accumulates same-named occurrences in document
-            // order, so the repeated-node list spelling keeps every element.
+            // order, so the repeated-node list form keeps every element.
             out.slot_decls
                 .push(quote! { let mut #slot = ::core::option::Option::None; });
             if options.default.is_some() {

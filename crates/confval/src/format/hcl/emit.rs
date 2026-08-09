@@ -24,7 +24,7 @@ use hcl_edit::structure::{Attribute, Block, Body, Structure};
 /// key is quoted. Values emit before blocks at each level, each group in
 /// declaration order, with a blank line above every block that follows another
 /// structure. It fails on a non-identifier attribute or block name, which
-/// HCL cannot spell, on a [`ValueKind::Other`], on two same-named values at one
+/// HCL cannot write, on a [`ValueKind::Other`], on two same-named values at one
 /// level, which HCL rejects as duplicate attributes, and on any repeated name
 /// inside an object. Those arise only when you emit a parsed or hand-built
 /// `Fields`, not on the populate path. It also fails on the two numeric values
@@ -65,7 +65,7 @@ pub(super) fn emit_body(
     level: usize,
     path: &str,
 ) -> Result<(Body, String), EmitError> {
-    // HCL repeats blocks freely and spells a value next to a block, but it
+    // HCL repeats blocks freely and writes a value next to a block, but it
     // rejects a duplicate attribute, and hcl-edit would keep only the first.
     if let Some(name) = duplicate_attribute_name(fields) {
         return Err(EmitError::ConflictingName {
@@ -165,7 +165,7 @@ fn hcl_expr_of(value: &Value, path: &str) -> Result<Expression, EmitError> {
 }
 
 /// A name used by more than one active value field at one level, which HCL
-/// cannot spell as duplicate attributes. HCL repeats blocks freely, so only the
+/// cannot write as duplicate attributes. HCL repeats blocks freely, so only the
 /// value fields in a group count.
 fn duplicate_attribute_name(fields: &Fields) -> Option<&str> {
     first_conflicting_name(fields, |group| {
@@ -185,7 +185,7 @@ fn hcl_object_of(fields: &Fields, path: &str) -> Result<Object, EmitError> {
         });
     }
     let mut object = Object::new();
-    // An inline object has no comment spelling, and `iter` yields no commented
+    // An inline object has no comment syntax, and `iter` yields no commented
     // entry, so one renders nothing here.
     for field in fields.iter() {
         let child = child_path(path, &field.name);
@@ -236,7 +236,7 @@ fn hcl_expr_of_scalar(scalar: &Scalar, path: &str) -> Result<Expression, EmitErr
             }
             // hcl-edit's own float conversion turns a whole-valued float into
             // an integer with a saturating cast, which corrupts a magnitude of
-            // 2^63 or more and drops the float spelling everywhere else.
+            // 2^63 or more and drops the float form everywhere else.
             // Parsing the float's shortest round-trip text instead keeps the
             // emitted literal exact, because a parsed expression renders its
             // own text verbatim.
@@ -259,7 +259,7 @@ fn hcl_expr_of_scalar(scalar: &Scalar, path: &str) -> Result<Expression, EmitErr
 }
 
 /// An attribute or block name must be a valid HCL identifier, because HCL has no
-/// quoted spelling for one. A non-identifier name is unrepresentable.
+/// quoted form for one. A non-identifier name is unrepresentable.
 fn ident_of(name: &str, path: &str) -> Result<Ident, EmitError> {
     Ident::try_new(name).map_err(|_| EmitError::UnrepresentableName {
         name: name.to_string(),
@@ -355,8 +355,8 @@ mod tests {
     #[test]
     fn emit_hcl_writes_a_commented_list_hint_as_a_block() {
         // Arrange
-        // The nested-list shape spells the repeated-block form, the same
-        // spelling an active repeated block has.
+        // The nested-list shape writes the repeated-block form, the same
+        // form an active repeated block has.
         let hint = Value::detached(ValueKind::Seq(vec![Value::detached(ValueKind::Map(
             Fields::detached(vec![]),
         ))]));
@@ -881,7 +881,7 @@ mod tests {
     #[test]
     fn emit_hcl_keeps_a_value_and_a_block_sharing_a_name() {
         // Arrange
-        // HCL spells `x = 1` next to `x { }`, so the pair emits and reparses,
+        // HCL writes `x = 1` next to `x { }`, so the pair emits and reparses,
         // unlike in TOML where the same pair is refused.
         let fields = Fields::detached(vec![
             scalar("x", Scalar::Int(1)),
@@ -901,7 +901,7 @@ mod tests {
     #[test]
     fn emit_hcl_rejects_a_repeated_name_inside_an_object() {
         // Arrange
-        // An object is a map, so a repeated key has no faithful spelling.
+        // An object is a map, so a repeated key cannot be written faithfully.
         let pair = Fields::detached(vec![
             scalar("x", Scalar::Int(1)),
             scalar("x", Scalar::Int(2)),
@@ -957,7 +957,7 @@ mod tests {
         let text = emit_hcl(&fields).unwrap();
 
         // Assert
-        // A whole-valued float keeps a float spelling, so the neutral model's
+        // A whole-valued float keeps its float form, so the neutral model's
         // float kind survives the reparse instead of collapsing to an integer.
         assert_eq!(text, "whole = 4.0\nfractional = 1.5\n");
         let round = reparse(&text);
@@ -999,7 +999,7 @@ mod tests {
         // Arrange
         // Escaping goes through hcl-edit, so this guards the crate against a
         // regression in how quotes, backslashes, line breaks, tabs, unicode,
-        // and control characters are spelled.
+        // and control characters are escaped.
         let hostile = "quote\" backslash\\ newline\n tab\t snowman\u{2603} del\u{7f} bel\u{7}";
         let fields = Fields::detached(vec![scalar(
             "greeting",

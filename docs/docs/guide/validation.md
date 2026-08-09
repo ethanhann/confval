@@ -157,7 +157,7 @@ For the visibility you give it, the macro generates the enum (deriving `Debug, C
 set as `LimitMode::KEYWORDS`, a `LimitMode::keyword_set()` accessor, `as_str`, a `TryFrom<&str>` that accepts exactly the
 keywords, and `Display`.
 With confval's `serde` feature enabled it also generates a `Serialize` impl that writes the keyword string, so a
-serialized config spells `"log"` rather than the Rust variant name `Log`.
+serialized config carries `"log"` rather than the Rust variant name `Log`.
 If you already wrote a `Serialize` for the enum yourself, remove it, because the two impls conflict.
 
 You validate a keyword field through the accessor:

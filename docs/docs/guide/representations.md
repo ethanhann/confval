@@ -90,7 +90,7 @@ struct LimitsConfig {
 }
 ```
 
-A `keyword_enum!` type serializes as its keyword string rather than its Rust variant name, so the runtime view spells a mode `"log"` exactly as the config file and the other two views do.
+A `keyword_enum!` type serializes as its keyword string rather than its Rust variant name, so the runtime view shows a mode as `"log"`, exactly as the config file and the other two views do.
 This impl is behind confval's `serde` feature, so it appears only when you enable serde.
 
 ## Why a Separate Walk

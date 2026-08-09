@@ -3,10 +3,10 @@
 //! canonical KDL text.
 //!
 //! The spec types, validators, config types, and lowering functions all live in
-//! `common`, which the `hcl` and `toml` examples share verbatim. Those two
-//! examples run the same steps in the same order as this one. Only the source
-//! text, its file name, and the two format calls, `parse_kdl` and `emit_kdl`,
-//! differ between the three.
+//! `common`, which the `hcl`, `toml`, and `json` examples share verbatim. Those
+//! three examples run the same steps in the same order as this one. Only the
+//! source text, its file name, and the two format calls, `parse_kdl` and
+//! `emit_kdl`, differ between the four.
 //!
 //! A failing variant renders its diagnostics to stderr first, and the valid
 //! config then shows the lowered output and the write path. The failing report
@@ -18,7 +18,7 @@
 //! config-side `#[confval(nested, default)]` filling `LimitsSpec::default()`
 //! while the spec stays source-faithful.
 //!
-//! KDL spells the same field model differently from HCL and TOML. A scalar is
+//! KDL writes the same field model differently from HCL and TOML. A scalar is
 //! one argument, a list is repeated arguments or repeated nodes, and a nested
 //! structure is a children block or properties on one node.
 //!

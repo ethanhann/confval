@@ -1,9 +1,9 @@
-//! The commented-out spelling of the HCL write path.
+//! The commented-out form of the HCL write path.
 //!
 //! An absent optional field renders in a template as a commented-out entry,
 //! and HCL has no comment node, so this builder renders the entry to text for
 //! [`emit_hcl`](super::emit_hcl) to attach as decor. The entry goes through
-//! the same body builder an active field uses, so the two spellings cannot
+//! the same body builder an active field uses, so the two forms cannot
 //! drift.
 
 use super::emit::emit_body;
@@ -11,10 +11,10 @@ use crate::format::EmitError;
 use crate::format::emit::comment_lines;
 use crate::format::field::{Field, FieldKind, Fields, Value, ValueKind};
 
-/// The commented-out spelling of one field: its doc comment in the spaced
+/// The commented-out form of one field: its doc comment in the spaced
 /// form, then every rendered line behind a spaceless `#`. The entry renders
-/// through the same body builder an active field uses, so the two spellings
-/// cannot drift. The nested-list shape, a non-empty sequence of maps, spells
+/// through the same body builder an active field uses, so the two forms
+/// cannot drift. The nested-list shape, a non-empty sequence of maps, writes
 /// its repeated-block form, so the repetition stays visible.
 pub(super) fn commented_text(field: &Field, level: usize, path: &str) -> Result<String, EmitError> {
     let indent = "  ".repeat(level);

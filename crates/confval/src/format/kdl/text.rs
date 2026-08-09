@@ -1,4 +1,4 @@
-//! The value spellings of the KDL write path: the quoted string form, the
+//! The value forms of the KDL write path: the quoted string form, the
 //! scalar entry text, and the bare-name check.
 //!
 //! These decide the exact text a value renders as, kept apart from the
@@ -8,8 +8,8 @@
 use crate::format::field::Scalar;
 use kdl::{KdlEntry, KdlEntryFormat, KdlValue};
 
-/// Whether a name spells bare. The check is narrower than KDL's own identifier
-/// grammar, so a borderline name quotes rather than risking a spelling the
+/// Whether a name can be written bare. The check is narrower than KDL's own identifier
+/// grammar, so a borderline name quotes rather than risking text the
 /// parser reads differently.
 pub(super) fn is_plain_name(name: &str) -> bool {
     let mut chars = name.chars();
@@ -21,7 +21,7 @@ pub(super) fn is_plain_name(name: &str) -> bool {
 }
 
 /// One argument entry, with the canonical text set explicitly, because
-/// kdl-rs's own rendering spells an identifier-shaped string bare and the
+/// kdl-rs's own rendering writes an identifier-shaped string bare and the
 /// canonical form keeps every string quoted.
 pub(super) fn scalar_entry(scalar: &Scalar) -> KdlEntry {
     let (value, repr) = match scalar {
@@ -40,7 +40,7 @@ pub(super) fn scalar_entry(scalar: &Scalar) -> KdlEntry {
     entry
 }
 
-/// The quoted spelling of a string, with the escapes KDL 2.0 defines and a
+/// The quoted form of a string, with the escapes KDL 2.0 defines and a
 /// unicode escape for every code point its grammar bans from literal text, so
 /// an adversarial string still reparses.
 pub(super) fn quoted(string: &str) -> String {

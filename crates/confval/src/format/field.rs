@@ -59,7 +59,7 @@ pub enum ValueKind {
     /// An array. Elements keep their own spans so a bad element is reported at
     /// the element, not the whole list.
     Seq(Vec<Value>),
-    /// A nested structure spelled inline (an HCL object, a TOML inline table).
+    /// A nested structure written inline (an HCL object, a TOML inline table).
     Map(Fields),
     /// Present in source but outside the model: an HCL template or null, a
     /// TOML datetime. The label is the noun diagnostics use ("string

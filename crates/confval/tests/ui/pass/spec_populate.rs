@@ -1,7 +1,7 @@
 //! `ToFields` populate pass test.
 //!
 //! Covers every field shape, the per-leaf inverse into `Scalar`, the nested-list
-//! block spelling, the populate marker on an optional nested block, and that
+//! block form, the populate marker on an optional nested block, and that
 //! every span the walk produces is detached. A second assertion pins the
 //! fixed-point property: populate adds defaults, so the first reparse of a
 //! populated spec and the second agree.

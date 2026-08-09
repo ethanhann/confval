@@ -8,7 +8,7 @@
 //!
 //! The write path, [`emit_hcl`], lives in the sibling `emit` module.
 //!
-//! HCL offers two spellings for nested structures: blocks (`server { ... }`)
+//! HCL offers two ways to write a nested structure: blocks (`server { ... }`)
 //! and object-valued attributes (`server = { ... }`). A block becomes a
 //! [`FieldKind::Block`]. An object attribute becomes a [`FieldKind::Value`]
 //! whose value is a [`ValueKind::Map`]. Both reach the same `FromFields` impl,
@@ -213,7 +213,7 @@ fn value_of_expr(expr: &Expression, text: &str, source: SourceId, report: &mut R
 /// Converts a parsed number into a scalar. hcl-edit collapses a whole-valued
 /// float literal into an integer with a saturating cast, which corrupts a
 /// magnitude of 2^63 or more and drops the float kind everywhere else. The
-/// literal's text says which kind the author wrote, so a literal that spells a
+/// literal's text says which kind the author wrote, so a literal written as a
 /// float, with a dot or an exponent, is re-read from the source text.
 fn scalar_of_number(number: &hcl_edit::Number, span: Span, text: &str) -> Option<Scalar> {
     if let Some(literal) = text.get(span.start as usize..span.end as usize)
@@ -342,7 +342,7 @@ mod tests {
         let (_, _, fields) = parse(input);
 
         // Assert
-        // The literal spells a float, so the neutral model keeps the float
+        // The literal is written as a float, so the neutral model keeps the float
         // kind instead of collapsing to an integer.
         let FieldKind::Value(value) = &fields.get("ratio").unwrap().kind else {
             panic!("ratio should be a value");
