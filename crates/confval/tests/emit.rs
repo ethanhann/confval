@@ -276,7 +276,7 @@ fn parse_holder(text: &str) -> TlsHolder {
 #[test]
 fn toml_emit_alone_preserves_a_parsed_map() {
     // Arrange
-    // The source spells `tls` as an inline table, which parses as a `Map`, a
+    // The source writes `tls` as an inline table, which parses as a `Map`, a
     // shape populate never produces. Emitting the parsed `Fields` and reparsing
     // must reach the same spec, so emit alone inverts parse.
     let source = "tls = { cert = \"a.pem\" }\n";
@@ -297,7 +297,7 @@ fn toml_emit_alone_preserves_a_parsed_map() {
 }
 
 // A spec whose config keys collide with Rust keywords, so the fields must be
-// written as raw identifiers. The config key is `type`, not the `r#type` spelling
+// written as raw identifiers. The config key is `type`, not the `r#type` form
 // the raw identifier carries.
 #[derive(confval::Spec, PartialEq, Debug)]
 struct RawIdents {
@@ -353,7 +353,7 @@ fn raw_ident_fields_round_trip_in_both_formats() {
     let hcl = emit_hcl(&fields).expect("emit hcl");
 
     // Assert
-    // Emit spells the bare key, not the raw-identifier form.
+    // Emit writes the bare key, not the raw-identifier form.
     assert!(toml.contains("type = "), "raw-ident key leaked: {toml}");
     assert!(!toml.contains("r#type"), "raw-ident key leaked: {toml}");
     assert!(hcl.contains("type = "), "raw-ident key leaked: {hcl}");

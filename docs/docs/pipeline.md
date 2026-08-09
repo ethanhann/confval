@@ -158,7 +158,7 @@ Tagged unions parse their discriminator first and dispatch.
 A free-form block can be captured as an arbitrary value rather than a struct by reading the neutral field model
 directly.
 
-## Both spellings normalize
+## Both forms normalize
 
 Operators write nested structures either as blocks or as attribute-with-object, and real configs mix the two:
 
@@ -172,7 +172,7 @@ limits = {
 }
 ```
 
-The `Fields` view normalizes both, so every nested spec accepts either spelling with identical spans and identical error
+The `Fields` view normalizes both, so every nested spec accepts either form with identical spans and identical error
 messages.
 
 ## Runnable examples

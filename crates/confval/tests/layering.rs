@@ -193,7 +193,7 @@ mode = "log"
 #[test]
 fn a_kind_conflict_across_sources_is_reported_with_both_spans() {
     // Arrange
-    // The file spells `limits` as a block and the flag sets it as a value, a
+    // The file writes `limits` as a block and the flag sets it as a value, a
     // cross-source conflict the merge reports rather than swallowing.
     let base_text = "hostname = \"filehost\"\nport = 8080\n\n[limits]\nmode = \"log\"\n";
     let mut sources = SourceMap::new();
@@ -222,7 +222,7 @@ fn a_kind_conflict_across_sources_is_reported_with_both_spans() {
 }
 
 /// A JSON level can carry two fields under one name, which the TOML sources in
-/// the rest of this file cannot spell. These groups reach the merge from no
+/// the rest of this file cannot write. These groups reach the merge from no
 /// other source here.
 #[cfg(feature = "json")]
 mod json_duplicate_groups {

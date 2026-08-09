@@ -18,7 +18,7 @@
 //! config-side `#[confval(nested, default)]` filling `LimitsSpec::default()`
 //! while the spec stays source-faithful.
 //!
-//! KDL spells the same field model differently from HCL and TOML. A scalar is
+//! KDL writes the same field model differently from HCL and TOML. A scalar is
 //! one argument, a list is repeated arguments or repeated nodes, and a nested
 //! structure is a children block or properties on one node.
 //!

@@ -124,7 +124,7 @@ pub fn parse_bool_field(field: &Field, report: &mut Report) -> Option<Located<bo
 /// Parses a path field, reading a string and converting it.
 ///
 /// This is the conversion `#[derive(Spec)]` generates for a `Located<PathBuf>`
-/// field. Every format spells a path as a string, so any other kind of value
+/// field. Every format writes a path as a string, so any other kind of value
 /// surfaces as a type mismatch.
 pub fn parse_path_field(field: &Field, report: &mut Report) -> Option<Located<PathBuf>> {
     parse_string_field(field, report).map(|value| value.map(PathBuf::from))
@@ -136,7 +136,7 @@ pub fn parse_path_field(field: &Field, report: &mut Report) -> Option<Located<Pa
 /// missing.
 ///
 /// A lone string is accepted as a one-element list, because a format with no
-/// array literal, KDL, spells a one-element list as a single value, and
+/// array literal, KDL, writes a one-element list as a single value, and
 /// [`parse_struct_list_field`] already accepts a single block the same way. A
 /// lone [`Scalar::Unparsed`], the kind the environment and command line
 /// providers produce, stays a mismatch, so a single variable cannot set a list
@@ -176,7 +176,7 @@ pub fn parse_string_list_field(
 }
 
 /// Parses a nested structure via the inner type's [`FromFields`] impl. Accepts
-/// both spellings: a block, or an attribute whose value is a map. The returned
+/// both forms: a block, or an attribute whose value is a map. The returned
 /// `Located` carries the whole structure's span.
 pub fn parse_struct_field<S: FromFields>(field: &Field, report: &mut Report) -> Option<Located<S>> {
     match &field.kind {
@@ -196,7 +196,7 @@ pub fn parse_struct_field<S: FromFields>(field: &Field, report: &mut Report) -> 
 }
 
 /// Parses a repeated nested structure into `slot`, appending. Accepts both
-/// spellings and combinations of them: each repeated block appends one
+/// forms and combinations of them: each repeated block appends one
 /// element, and an array-of-maps attribute appends one element per map.
 /// Invalid array elements are reported individually and skipped.
 pub fn parse_struct_list_field<S: FromFields>(

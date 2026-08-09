@@ -14,14 +14,14 @@ use kdl::{KdlDocument, KdlDocumentFormat, KdlNode, KdlNodeFormat};
 ///
 /// This is the inverse of [`parse_kdl_fields`](super::parse_kdl_fields). It
 /// builds a kdl-rs document by structure and returns its text, dropping the
-/// comments and layout the neutral model never held. A scalar spells as one
+/// comments and layout the neutral model never held. A scalar writes as one
 /// argument, a sequence of scalars as repeated arguments, an empty sequence as
 /// a bare node, and a nested structure as a children block, with values before
 /// blocks and a blank line above every block node that follows another
-/// structure. Strings keep the quoted spelling. Repeated same-named value
+/// structure. Strings keep the quoted form. Repeated same-named value
 /// fields group into one node, so a parsed repeated-node list round-trips.
 ///
-/// It fails on a [`ValueKind::Other`] and on a sequence KDL cannot spell: one
+/// It fails on a [`ValueKind::Other`] and on a sequence KDL cannot write: one
 /// holding a nested sequence, one mixing maps with scalars, and a non-scalar
 /// inside a grouped repetition. Every name is representable, because KDL
 /// quotes any string as a node name, so neither
@@ -51,7 +51,7 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
         };
         let child = child_path(path, &field.name);
         // A commented entry renders through the same paths as an active one
-        // and gains the slashdash, KDL's own disabled-node spelling, which the
+        // and gains the slashdash, KDL's own disabled-node marker, which the
         // parser reads and discards. It joins no group, so it never blocks an
         // active field's emission.
         if entry.is_commented() {
@@ -180,15 +180,15 @@ fn emit_value_field(
     Ok(())
 }
 
-/// A sequence's one KDL spelling: repeated arguments when every element is a
+/// A sequence's one KDL form: repeated arguments when every element is a
 /// scalar, repeated nodes when every element is a map.
 enum Sequence<'a> {
     Scalars(Vec<&'a Scalar>),
     Maps(Vec<&'a Fields>),
 }
 
-/// Classifies a sequence into its spelling, or the label of the element KDL
-/// cannot spell. An argument must be a scalar and KDL has no inline array, so
+/// Classifies a sequence into its form, or the label of the element KDL
+/// cannot write. An argument must be a scalar and KDL has no inline array, so
 /// a nested sequence and a map mixed with scalars have no representation.
 fn classify_sequence<'a>(elements: &'a [Value], path: &str) -> Result<Sequence<'a>, EmitError> {
     let mut scalars = Vec::new();
@@ -222,7 +222,7 @@ fn classify_sequence<'a>(elements: &'a [Value], path: &str) -> Result<Sequence<'
 }
 
 /// Appends one grouped member's arguments to the shared node. A grouped
-/// repetition spells only scalars, because its one node carries arguments and
+/// repetition writes only scalars, because its one node carries arguments and
 /// an argument must be a scalar.
 fn push_grouped_arguments(node: &mut KdlNode, value: &Value, path: &str) -> Result<(), EmitError> {
     match &value.kind {
@@ -254,7 +254,7 @@ fn push_grouped_arguments(node: &mut KdlNode, value: &Value, path: &str) -> Resu
 }
 
 /// A node with its leading decor set and a newline terminator. The name's
-/// spelling is set here rather than left to kdl-rs, whose writer would pass a
+/// form is set here rather than left to kdl-rs, whose writer would pass a
 /// banned code point through raw, so every name reparses.
 fn node_with(name: &str, leading: String) -> KdlNode {
     let mut node = KdlNode::new(name);
@@ -521,7 +521,7 @@ mod tests {
         let text = emit_kdl(&fields).unwrap();
 
         // Assert
-        // Strings keep the quoted spelling, the block body is indented one
+        // Strings keep the quoted form, the block body is indented one
         // level, the closing brace lines up with the opener, and a blank line
         // separates the block from the value above it.
         assert_eq!(
@@ -587,7 +587,7 @@ mod tests {
     }
 
     #[test]
-    fn emit_kdl_collapses_a_one_element_sequence_to_a_scalar_spelling() {
+    fn emit_kdl_collapses_a_one_element_sequence_to_a_scalar() {
         // Arrange
         // The reparse reads one argument as a scalar, so round-trip equality
         // at the spec level rests on the widened list parser.
@@ -724,7 +724,7 @@ mod tests {
     fn emit_kdl_groups_repeated_value_fields_into_one_node() {
         // Arrange
         // Only a parsed KDL document produces this shape, so grouping keeps
-        // the repeated-node list spelling emittable.
+        // the repeated-node list form emittable.
         let fields = Fields::detached(vec![
             scalar("allow", Scalar::String("a".to_string())),
             scalar("name", Scalar::String("x".to_string())),
@@ -824,7 +824,7 @@ mod tests {
 
     #[test]
     fn emit_kdl_round_trips_non_finite_floats() {
-        // KDL 2.0 spells infinity and NaN as keywords, so these emit rather
+        // KDL 2.0 writes infinity and NaN as keywords, so these emit rather
         // than fail, matching TOML where HCL refuses.
         for value in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
             // Arrange
@@ -847,7 +847,7 @@ mod tests {
     }
 
     #[test]
-    fn emit_kdl_keeps_the_float_spelling() {
+    fn emit_kdl_keeps_the_float_form() {
         // Arrange
         let fields = Fields::detached(vec![
             scalar("whole", Scalar::Float(4.0)),
@@ -874,7 +874,7 @@ mod tests {
     #[test]
     fn emit_kdl_round_trips_an_adversarial_string() {
         // Arrange
-        // Escaping is this module's own, so this guards the quoted spelling
+        // Escaping is this module's own, so this guards the quoted form
         // against quotes, backslashes, line breaks, tabs, unicode, and control
         // characters, plus the code points KDL 2.0 bans from its text: the
         // bidi controls, the direction marks, the zero-width no-break space,
@@ -900,7 +900,7 @@ mod tests {
     #[test]
     fn emit_kdl_quotes_an_identifier_shaped_string() {
         // Arrange
-        // kdl-rs's own rendering would spell this bare, and the canonical form
+        // kdl-rs's own rendering would write this bare, and the canonical form
         // keeps every string quoted.
         let fields = Fields::detached(vec![scalar("mode", Scalar::String("enforce".to_string()))]);
 
@@ -915,7 +915,7 @@ mod tests {
     fn emit_kdl_escapes_a_banned_code_point_in_a_node_name() {
         // Arrange
         // KDL bans the bidi controls from its text entirely, so a name
-        // carrying one must spell it as an escape to reparse.
+        // carrying one must write it as an escape to reparse.
         let fields = Fields::detached(vec![scalar("k\u{202e}ey", Scalar::Int(1))]);
 
         // Act
@@ -1021,8 +1021,8 @@ mod tests {
     #[test]
     fn emit_kdl_writes_a_value_beside_a_same_named_block() {
         // Arrange
-        // HCL spells `x = 1` next to `x { }`, so a parsed Fields can hold
-        // both, and KDL spells the pair as two nodes.
+        // HCL writes `x = 1` next to `x { }`, so a parsed Fields can hold
+        // both, and KDL writes the pair as two nodes.
         let fields = Fields::detached(vec![
             scalar("x", Scalar::Int(1)),
             Field::detached_block("x", Fields::detached(vec![scalar("y", Scalar::Int(2))])),

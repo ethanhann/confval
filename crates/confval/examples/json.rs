@@ -18,7 +18,7 @@
 //! config-side `#[confval(nested, default)]` filling `LimitsSpec::default()`
 //! while the spec stays source-faithful.
 //!
-//! JSON accepts one nested spelling, the object, which the model reads wherever
+//! JSON has one way to nest, the object, which the model reads wherever
 //! it accepts a block. The document root must be an object. The frontend
 //! accepts strict JSON alone, so a comment or a trailing comma is a syntax
 //! error.

@@ -29,9 +29,9 @@ use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 ///
 /// It fails on a [`ValueKind::Other`], on a non-finite float, and on a value
 /// beside a same-named block. JSON has no literal for a non-finite float. Its
-/// only spelling for the value-beside-block pair is a duplicate key, which most
+/// only way to write the value-beside-block pair is a duplicate key, which most
 /// consumers collapse to one member. Every name is representable, because any
-/// key spells as a JSON string, so [`EmitError::UnrepresentableName`] never
+/// key writes as a JSON string, so [`EmitError::UnrepresentableName`] never
 /// arises. Emit of a populated spec fails only for a non-finite float default.
 pub fn emit_json(fields: &Fields) -> Result<String, EmitError> {
     let mut out = String::new();
@@ -48,7 +48,7 @@ enum Member<'a> {
 }
 
 /// A name used at one level both as a value and as a block. JSON's only
-/// spelling for the pair is a duplicate key, which most consumers collapse to
+/// way to write the pair is a duplicate key, which most consumers collapse to
 /// one member, so emit refuses rather than losing the other silently. A
 /// commented entry is dropped rather than rendered, so it conflicts with
 /// nothing.
@@ -132,7 +132,7 @@ fn write_object(
 }
 
 /// Writes one member's value. A lone field writes its own shape. Several
-/// same-named fields write one array, because JSON has no second spelling for a
+/// same-named fields write one array, because JSON has no second way to write a
 /// repeated name.
 fn write_member(
     out: &mut String,
@@ -264,18 +264,18 @@ fn write_scalar(out: &mut String, scalar: &Scalar, path: &str) -> Result<(), Emi
     Ok(())
 }
 
-/// A finite float's shortest text in a spelling that reparses as a float.
+/// A finite float's shortest text in a form that reparses as a float.
 ///
-/// The `Debug` formatting of an `f64` always spells a fraction or an exponent,
+/// The `Debug` formatting of an `f64` always writes a fraction or an exponent,
 /// `100.0` rather than `100` and `1e20` rather than its digit string, so the
-/// text never classifies as an integer on reparse. The float spelling tests
+/// text never classifies as an integer on reparse. The float form tests
 /// pin that property against the parse mapping.
 fn float_text(float: f64) -> String {
     format!("{float:?}")
 }
 
 /// Writes a JSON string literal, escaping per RFC 8259: the quote, the
-/// backslash, and every control character, with the short spellings where they
+/// backslash, and every control character, with the short escapes where they
 /// exist. Everything else emits as raw UTF-8, which JSON permits, so non-ASCII
 /// text stays readable.
 fn write_string(out: &mut String, text: &str) {
@@ -656,9 +656,9 @@ mod tests {
     }
 
     #[test]
-    fn emit_json_keeps_the_float_spelling() {
+    fn emit_json_keeps_the_float_form() {
         // Arrange
-        // Rust's shortest form of 1e20 spells an exponent rather than a
+        // Rust's shortest form of 1e20 uses an exponent rather than a
         // point, and the exponent is enough for the reparse to read a float.
         let fields = Fields::detached(vec![
             scalar("whole", Scalar::Float(1.0)),
@@ -701,7 +701,7 @@ mod tests {
     fn emit_json_escapes_per_rfc_8259() {
         // Arrange
         // A quote, a backslash, each short escape, a control character with no
-        // short spelling, and raw UTF-8 that must pass through unescaped.
+        // short escape, and raw UTF-8 that must pass through unescaped.
         let hostile = "quote\" backslash\\ nl\n tab\t cr\r bs\u{8} ff\u{c} \
                        nul\u{0} unit\u{1f} snowman\u{2603}";
         let fields = Fields::detached(vec![scalar(

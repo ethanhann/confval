@@ -272,7 +272,7 @@ tls cert="a.pem" cert="b.pem" key="k.pem"
 }
 
 #[test]
-fn emit_alone_inverts_parse_for_the_kdl_only_spellings() {
+fn emit_alone_inverts_parse_for_the_kdl_only_forms() {
     // Arrange
     // The repeated-node list and the property block are shapes populate never
     // produces, so this pins that emit inverts parse without populate in the
@@ -309,7 +309,7 @@ tls cert="cert.pem" key="key.pem"
 }
 
 #[test]
-fn a_property_spelled_block_parses_like_a_children_block() {
+fn a_property_written_block_parses_like_a_children_block() {
     // Arrange
     let input = r#"hostname "127.0.0.1"
 port 8080

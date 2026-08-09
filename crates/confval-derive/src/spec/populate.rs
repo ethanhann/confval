@@ -172,7 +172,7 @@ pub(crate) fn field_emit(
                 }
             } else if options.default.is_some() {
                 // The populate marker: fill an absent block from `S::default()`,
-                // spelling the inner type so the `Fields` return can infer it.
+                // naming the inner type so the `Fields` return can infer it.
                 let spec_ty = &**spec_ty;
                 let child_doc = nested_doc(quote! { &__child.value });
                 let filled_doc = nested_doc(quote! { &__filled });
@@ -226,7 +226,7 @@ pub(crate) fn field_emit(
             let doc = nested_doc(quote! { &__child.value });
             // The hint for an empty list is the model's nested-list shape, a
             // sequence of one empty map, so each emitter renders its own
-            // repeated-block spelling. TOML can tell it from a single block.
+            // repeated-block form. TOML can tell it from a single block.
             let absent = if annotate {
                 let absent_doc = absent_block_doc(options, spec_ty);
                 quote! {

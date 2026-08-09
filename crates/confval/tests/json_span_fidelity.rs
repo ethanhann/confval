@@ -178,7 +178,7 @@ fn string_values_carry_decoded_text_and_source_ranges() {
 #[test]
 fn number_values_carry_their_raw_text() {
     // Arrange
-    // The frontend classifies a number by its spelling, which needs the source
+    // The frontend classifies a number by how it is written, which needs the source
     // text rather than a parsed value.
     let input = r#"{"whole": 4.0, "count": 4}"#;
 

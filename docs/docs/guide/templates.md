@@ -169,10 +169,10 @@ Each shape renders a placeholder you overwrite when uncommenting:
 - An optional string list shows an empty list.
 - An unmarked optional block shows an empty block, because filling its contents needs an instance only the marker provides.
 - An empty repeated block shows one empty element.
-  TOML's array-of-tables spelling keeps the repetition visible.
+  TOML's array-of-tables syntax keeps the repetition visible.
   HCL and KDL show a single block.
 
-The spelling is each format's own.
+The marker is each format's own.
 TOML and HCL prefix every line with a spaceless `#`, so an entry stays distinguishable from a `# ` doc comment.
 Uncommenting is deleting that one character:
 
@@ -229,14 +229,14 @@ The marker changes populate only, so parsing still leaves an absent block `None`
 
 ## When Emit Fails
 
-Emit returns a `Result`, because not every field model has a faithful spelling in every format.
+Emit returns a `Result`, because not every field model can be written faithfully in every format.
 On the populate path the risk is small.
 
 Emitting a populated spec to TOML always succeeds.
 TOML has a literal for every value populate produces and quotes any key, so `emit_toml(&spec.to_template())?` cannot fail on a populated model.
 
 Emitting a populated spec to HCL fails only for two numeric values HCL has no literal for.
-The first is `i64::MIN`, which HCL would spell as a negation that overflows when it is read back.
+The first is `i64::MIN`, which HCL would write as a negation that overflows when it is read back.
 The second is a non-finite float, an infinity or a NaN, which HCL has no keyword for.
 A spec that holds neither emits to HCL without failing.
 
@@ -246,15 +246,15 @@ for.
 
 [Format Limitations](./format-limitations.md) collects every format's gaps in one place.
 
-Emit can also fail on a `Fields` that a frontend parsed rather than populated, because a parsed model can carry a name or a value the target format cannot spell.
+Emit can also fail on a `Fields` that a frontend parsed rather than populated, because a parsed model can carry a name or a value the target format cannot write.
 A value with no representation, such as a TOML datetime, fails in any format.
 A name that is not a valid identifier fails when you emit HCL, which has no way to quote it, while TOML and KDL quote it without trouble.
-HCL also spells a value and a block side by side under one name.
+HCL also writes a value and a block side by side under one name.
 A TOML key names one thing, so `emit_toml` refuses that pair rather than silently dropping one of the two.
-A name used twice for plain values has no spelling in either format, so both emitters refuse it as well.
+Neither format can write one name twice for plain values, so both emitters refuse that as well.
 `emit_json` groups a repeated name into one member holding an array, so a name used twice for plain values emits.
 It refuses a value beside a same-named block.
-The only JSON spelling for that pair is a duplicate key, and most consumers keep one of the two members.
+The only way JSON can write that pair is a duplicate key, and most consumers keep one of the two members.
 Each emit error names the dotted path of the field responsible, so a failure in a large tree points at its location.
 
 A tree assembled by layering can carry unparsed text from an environment variable or a command line flag.

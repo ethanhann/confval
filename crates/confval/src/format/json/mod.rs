@@ -29,7 +29,7 @@
 //!   returns `None`.
 //! - A root that is not an object and an empty document each report
 //!   `expected an object at the document root` and return `None`.
-//! - The frontend classifies a number by its spelling. Raw text carrying a `.`,
+//! - The frontend classifies a number by how it is written. Raw text with a `.`,
 //!   an `e`, or an `E` is a float, and any other number is an integer.
 //! - Values outside the neutral model (`null`, an integer beyond `i64`, a
 //!   number whose `f64` value is not finite) become [`ValueKind::Other`]
@@ -183,7 +183,7 @@ fn field_of_property(property: &ObjectProp, source: SourceId) -> Field {
     )
 }
 
-/// A property name's text. The unquoted spelling is a JSONC extension this
+/// A property name's text. The unquoted form is a JSONC extension this
 /// frontend turns off, so only the quoted arm is reachable through
 /// [`parse_json_fields`].
 fn name_text<'p>(name: &'p ObjectPropName<'_>) -> &'p str {
@@ -200,7 +200,7 @@ fn value_of(value: &JsonValue, source: SourceId) -> Value {
     let span = span_of(value.range(), source);
     let kind = match value {
         // jsonc-parser resolves escape sequences, so the model holds the text
-        // the operator meant rather than its spelling.
+        // the operator meant rather than the escape text.
         JsonValue::StringLit(literal) => {
             ValueKind::Scalar(Scalar::String(literal.value.to_string()))
         }
@@ -219,7 +219,7 @@ fn value_of(value: &JsonValue, source: SourceId) -> Value {
     Value { span, kind }
 }
 
-/// Classifies a number by its spelling. A fraction or an exponent makes a
+/// Classifies a number by how it is written. A fraction or an exponent makes a
 /// float, and any other number is an integer. TOML draws the same distinction
 /// syntactically, and the emitter preserves it.
 ///
@@ -411,9 +411,9 @@ mod tests {
     }
 
     #[test]
-    fn numbers_classify_by_spelling() {
+    fn numbers_classify_by_how_they_are_written() {
         // Arrange
-        // A whole-valued float keeps its float kind, so the emitted spelling
+        // A whole-valued float keeps its float kind, so the emitted text
         // round-trips.
         let input = r#"{"count": 4, "whole": 4.0, "scaled": 4e2}"#;
 
@@ -520,7 +520,7 @@ mod tests {
     fn a_scalar_where_a_nested_spec_is_expected_reports_the_shared_wording() {
         // Arrange
         // The expected side keeps the shared parsers' noun, so the message
-        // names a block even though JSON has no block spelling.
+        // names a block even though JSON has no blocks.
         let input = r#"{"tls": "a.pem"}"#;
 
         // Act

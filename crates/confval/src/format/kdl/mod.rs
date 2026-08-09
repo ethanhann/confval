@@ -10,7 +10,7 @@
 //!
 //! A KDL node maps to one field by its shape. A node with only arguments is a
 //! value. One scalar argument is a scalar, more are a sequence, and a bare node
-//! is an empty sequence, the only spelling KDL has for an empty list. A node
+//! is an empty sequence, the only form KDL has for an empty list. A node
 //! with properties or children is a block, with the properties as leading
 //! fields, so `tls cert="a.pem"` and `tls { cert "a.pem" }` reach the same
 //! `FromFields` impl. Repeated same-named nodes stay separate fields, and the
@@ -315,7 +315,7 @@ mod tests {
     #[test]
     fn identifier_strings_parse_like_quoted_strings() {
         // Arrange
-        // KDL 2.0 allows an identifier spelling for a string value.
+        // KDL 2.0 lets a string value be written as a bare identifier.
         let input = "mode enforce\n";
 
         // Act
@@ -408,17 +408,17 @@ mod tests {
         let FieldKind::Block(inner) = &fields.get("tls").unwrap().kind else {
             panic!("tls should be a block");
         };
-        let spelled = |name: &str| {
+        let written = |name: &str| {
             let FieldKind::Value(value) = &inner.get(name).unwrap().kind else {
                 panic!("{name} should be a value");
             };
             &input[value.span.start as usize..value.span.end as usize]
         };
-        assert_eq!(spelled("plain"), "\"a.pem\"");
-        assert_eq!(spelled("padded"), "8443");
-        assert_eq!(spelled("inner"), "\"a=b\"");
-        assert_eq!(spelled("odd key"), "1");
-        assert_eq!(spelled("typed"), "7");
+        assert_eq!(written("plain"), "\"a.pem\"");
+        assert_eq!(written("padded"), "8443");
+        assert_eq!(written("inner"), "\"a=b\"");
+        assert_eq!(written("odd key"), "1");
+        assert_eq!(written("typed"), "7");
     }
 
     #[test]
@@ -563,7 +563,7 @@ mod tests {
     #[test]
     fn a_v1_only_document_is_a_syntax_error() {
         // Arrange
-        // KDL 1.0 spells null bare. 2.0 requires #null, and the frontend
+        // KDL 1.0 writes null bare. 2.0 requires #null, and the frontend
         // parses 2.0 alone with no fallback.
         let input = "pid_file null\n";
         let mut sources = SourceMap::new();

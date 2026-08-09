@@ -40,7 +40,7 @@ It also refuses to emit to every format, because there is nothing faithful to wr
 ## Values a format cannot write
 
 The model can hold a value that a target format has no literal for.
-Emitting one returns an `EmitError` rather than inventing a spelling.
+Emitting one returns an `EmitError` rather than inventing a syntax for it.
 
 | Target | Cannot write                                                                                         | Writes without trouble                                |
 |--------|------------------------------------------------------------------------------------------------------|-------------------------------------------------------|
@@ -50,7 +50,7 @@ Emitting one returns an `EmitError` rather than inventing a spelling.
 | JSON   | a non-finite float                                                                                   | everything else, `i64::MIN` included                  |
 
 KDL's gaps all follow from one rule.
-A KDL argument must be a scalar, and the language has no inline array literal, so an inner array and an object inside a grouped repetition have no spelling.
+A KDL argument must be a scalar, and the language has no inline array literal, so there is no way to write an inner array or an object inside a grouped repetition.
 HCL rejects `i64::MIN` because its parser reads the literal as a negation applied to a number that overflows on the way back in.
 
 For example, a KDL config with `rate #inf` converts to TOML, where it emits as `inf`.
@@ -58,7 +58,7 @@ Converting the same config to JSON returns an error at `rate`, because JSON's gr
 
 ## Names and repetition
 
-A name can also have no spelling in the target.
+A name can also be one the target cannot write.
 
 HCL attribute and block names must be identifiers.
 TOML, KDL, and JSON quote any name, so a field named `not an ident` emits to all three and fails to HCL alone.
@@ -67,9 +67,9 @@ This is the only source of an `UnrepresentableName` error.
 Repetition is format-specific, because each format refuses the shapes it would otherwise collapse silently.
 
 - TOML refuses a value beside a same-named block, two same-named values, and any repetition inside an inline table.
-- HCL repeats blocks freely and spells a value next to a same-named block, but it refuses a duplicate attribute name and any repetition inside an object.
-- JSON refuses a value beside a same-named block, because its only spelling would be a duplicate key, which most consumers collapse to one member. Repeated values and repeated blocks group into arrays instead.
-- KDL spells every repetition but one. Repeated values group into one node's arguments, repeated blocks are the native list spelling, and a value beside a same-named block emits as two nodes. A grouped repetition holding an object has no spelling, because an argument must be a scalar.
+- HCL repeats blocks freely and writes a value next to a same-named block, but it refuses a duplicate attribute name and any repetition inside an object.
+- JSON refuses a value beside a same-named block, because the only way to write it is a duplicate key, which most consumers collapse to one member. Repeated values and repeated blocks group into arrays instead.
+- KDL writes every repetition but one. Repeated values group into one node's arguments, repeated blocks are the native list form, and a value beside a same-named block emits as two nodes. A grouped repetition holding an object cannot be written, because an argument must be a scalar.
 
 These shapes cannot come from a populated spec.
 They arise only when you emit a tree parsed from a format that permits them, or one you built by hand.
@@ -95,6 +95,6 @@ A few things are lost in conversion without an error, because they are presentat
 
 - Operator layout and comments. Emit writes canonical text, and a parsed file's formatting is never held in the model.
 - Doc comments in JSON. The other formats render template annotations as comments, and JSON has no comment syntax, so a JSON template equals the populated output.
-- The spelling of nesting. A TOML `[table]` and an inline table, or an HCL block and an object attribute, read as the same structure and emit in the target's canonical spelling.
+- Which of two nesting syntaxes the source used. A TOML `[table]` and an inline table, or an HCL block and an object attribute, read as the same structure and emit in the target's canonical form.
 - Separate duplicate keys. JSON and KDL group repeated names into one list on emit, so a list-shaped field reads the same list it would have. A single-value field trades its `duplicate field` report for a type mismatch on reparse, because the grouped member is an array where a scalar is expected.
 - The type of a layered override. Text from an environment variable or a command line flag reaches the model unparsed, and every format writes it as a string, so a typed reparse of the emitted file reads those leaves as strings.

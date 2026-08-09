@@ -71,7 +71,7 @@ fn sample() -> ServerSpec {
 #[test]
 fn a_doc_attribute_wins_over_a_rustdoc_on_the_same_field() {
     // Arrange
-    // `port` carries both spellings, so this pins the precedence at
+    // `port` carries both forms, so this pins the precedence at
     // `options.rs`, where the attribute is consulted before the harvested
     // rustdoc.
     let spec = sample();

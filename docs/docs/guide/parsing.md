@@ -139,7 +139,7 @@ A string list accepts only the bare form, where the default is the empty list.
 There is no `default = expr` for a list.
 
 :::caution
-The spelling `#[confval(nested, default)]` also exists on the config side, where it means something different.
+The attribute `#[confval(nested, default)]` also exists on the config side, where it means something different.
 On a spec it fills the omitted block during parsing, so the spec itself holds the default.
 On a config it leaves the spec field `None` and lowers `S::default()` in its place, so the spec stays faithful to the
 source and only the runtime value is filled in.
@@ -230,16 +230,16 @@ let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mu
 
 The result is the same whichever format you read, so validation and lowering never depend on which frontend ran.
 
-Both HCL spellings of a nested block parse into the same thing.
+HCL has two ways to write a nested block, and both parse into the same thing.
 A block, `bind { port = 8080 }`, and an attribute set to an object, `bind = { port = 8080 }`, are equivalent.
 TOML lines up with this: a `[table]` is a block, an inline `{ ... }` is an object, and an array of tables (`[[x]]`) is a
 repeating block, so a `Vec` of nested structs reads from it the same way it reads from an HCL list of objects.
 
-KDL spells the same shapes with nodes.
+KDL writes the same shapes with nodes.
 It parses with the KDL 2.0 grammar alone.
 A children block, `bind { port 8080 }`, and properties on one node, `bind port=8080`, are the same nested structure.
 A list is repeated arguments on one node, `allow "a" "b"`, or repeated same-named nodes, and a bare node is an empty
-list, the only spelling KDL has for one.
+list, the only form KDL has for one.
 
 For example, this document fills the same spec the HCL and TOML snippets above fill:
 
@@ -259,10 +259,10 @@ let spec: Option<ServerSpec> = confval::format::kdl::parse_kdl(&sources, id, &mu
 
 A repeated node is a list when the field is a list and a `duplicate field` error when it is not.
 An argument on a node that also has properties or children is an error, because the model has no block labels.
-A bare node where a single value is expected reports `expected string, found array`, because the bare spelling means an
+A bare node where a single value is expected reports `expected string, found array`, because a bare node means an
 empty list.
 
-JSON has one nested spelling, the object, which the model reads wherever it accepts a block.
+JSON has one way to nest, the object, which the model reads wherever it accepts a block.
 An array is a list.
 Its elements keep their own spans, so a bad entry is reported at that entry.
 The document root must be an object, because a configuration is a set of named fields.
@@ -292,7 +292,7 @@ hexadecimal number, and a number with a unary plus are each a syntax error.
 A file this frontend accepts carries nothing a strict JSON parser rejects, so a configuration written for confval also
 loads in tooling that does not use it.
 
-The frontend classifies a number by its spelling.
+The frontend classifies a number by how it is written.
 `1` is an integer, and `1.0` and `1e3` are floats.
 An integer beyond the range of an `i64` becomes an oversized integer, so an `i64` field reports
 `expected integer, found oversized integer`.
@@ -308,8 +308,7 @@ A duplicate key is a list when the field is a list and a `duplicate field` error
 A repeated KDL node follows the same rule.
 
 A scalar where a nested object is expected reports `expected block, found string`.
-The expected side of a mismatch is shared across formats, so the message names a block even though JSON has no block
-spelling.
+The expected side of a mismatch is shared across formats, so the message names a block even though JSON has no blocks.
 
 Writing the model back out with `confval::format::json::emit_json` produces pretty-printed JSON with two-space
 indentation, values before nested objects, and a trailing newline:
@@ -322,7 +321,7 @@ JSON has no comment syntax, so emitted JSON carries no comments.
 [Templates](./templates.md#generating-a-template) covers what that costs a template.
 
 A list field also accepts a single string as a one-element list, in every format.
-KDL forces the question, because it has no array literal and spells a one-element list as a single value, and the
+KDL forces the question, because it has no array literal and writes a one-element list as a single value, and the
 answer is uniform so the same configuration means the same thing whichever frontend read it.
 
 :::note
