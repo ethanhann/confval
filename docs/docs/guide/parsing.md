@@ -403,6 +403,7 @@ A frontend builds it, and from there nothing knows which format the text was.
 - **`Other(label)`** is a value that exists in the file but falls outside the model, such as an HCL template or a TOML
   datetime.
   It always surfaces as a plain type mismatch named by the label, for example `expected string, found datetime`.
+  [Format Limitations](./format-limitations.md) lists every one of them, for every format.
 
 ### Helpers
 

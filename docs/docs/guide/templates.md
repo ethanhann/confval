@@ -244,6 +244,8 @@ Emitting a populated spec to JSON fails only for a non-finite float, an infinity
 for.
 `i64::MIN` emits, because JSON writes it as a plain integer.
 
+[Format Limitations](./format-limitations.md) collects every format's gaps in one place.
+
 Emit can also fail on a `Fields` that a frontend parsed rather than populated, because a parsed model can carry a name or a value the target format cannot spell.
 A value with no representation, such as a TOML datetime, fails in any format.
 A name that is not a valid identifier fails when you emit HCL, which has no way to quote it, while TOML and KDL quote it without trouble.
