@@ -5,6 +5,7 @@ sidebar_position: 4
 # Examples
 
 The crate ships thirteen runnable examples in `crates/confval/examples/`.
+
 `hcl`, `toml`, `kdl`, and `json` are the same program four times.
 Each renders the diagnostics for a failing variant to stderr, feeds a valid document, prints the lowered config, and emits the populated spec back to canonical text.
 They differ in the source text, its file name, and the two format calls that parse and emit it.
