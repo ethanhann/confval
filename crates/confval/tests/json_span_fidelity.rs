@@ -13,8 +13,8 @@ use jsonc_parser::common::Ranged;
 use jsonc_parser::parse_to_ast;
 
 /// The euro sign ahead of every other member makes a char count disagree with
-/// a byte index by two from `port` onward, so each assertion below fails if the
-/// ranges are anything but byte indices.
+/// a byte index by two from `port` onward, so an assertion over this input
+/// fails if the ranges are anything but byte indices.
 const INPUT: &str = r#"{
   "cost": "€",
   "port": 8080,

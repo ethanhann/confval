@@ -221,8 +221,9 @@ fn a_kind_conflict_across_sources_is_reported_with_both_spans() {
     );
 }
 
-/// JSON is the one file frontend whose grammar lets a level carry two fields
-/// under one name, so these levels reach the merge from no other source.
+/// A JSON level can carry two fields under one name, which the TOML sources in
+/// the rest of this file cannot spell. These groups reach the merge from no
+/// other source here.
 #[cfg(feature = "json")]
 mod json_duplicate_groups {
     use super::*;

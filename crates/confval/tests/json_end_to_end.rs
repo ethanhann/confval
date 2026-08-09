@@ -180,8 +180,8 @@ fn valid_config_parses_and_lowers() {
 #[test]
 fn all_problems_are_reported_in_one_pass() {
     // Arrange
-    // The type mismatch is on an optional field so the tree still builds and
-    // validation runs.
+    // The type mismatch is on an optional field, so the tree still builds and
+    // validation still runs.
     let input = r#"{
   "hostname": "127.0.0.1",
   "port": 99999,
