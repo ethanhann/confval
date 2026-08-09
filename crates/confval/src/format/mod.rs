@@ -12,6 +12,14 @@ pub mod hcl;
 pub mod json;
 #[cfg(feature = "kdl")]
 pub mod kdl;
+#[cfg(any(
+    feature = "hcl",
+    feature = "toml",
+    feature = "kdl",
+    feature = "json",
+    feature = "yaml"
+))]
+mod syntax;
 #[cfg(feature = "toml")]
 pub mod toml;
 #[cfg(feature = "yaml")]

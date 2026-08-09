@@ -34,6 +34,7 @@
 
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
+use crate::format::syntax::syntax_error;
 use crate::source::{SourceId, SourceMap, Span};
 use kdl::{KdlDocument, KdlEntry, KdlIdentifier, KdlNode, KdlValue};
 
@@ -63,14 +64,10 @@ pub fn parse_kdl_fields(sources: &SourceMap, id: SourceId, report: &mut Report) 
         }
         Err(error) => {
             for diagnostic in &error.diagnostics {
-                // A diagnostic with no message still names the failure class,
-                // mirroring kdl-rs's own fallback without leaking its wording.
-                let message = match &diagnostic.message {
-                    Some(text) => format!("syntax error: {text}"),
-                    None => "syntax error".to_string(),
-                };
                 report
-                    .error(message)
+                    .error(syntax_error(
+                        diagnostic.message.as_deref().unwrap_or_default(),
+                    ))
                     .at(span_from(
                         diagnostic.span.offset(),
                         diagnostic.span.len(),

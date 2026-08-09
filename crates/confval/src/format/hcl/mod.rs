@@ -25,6 +25,7 @@
 
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
+use crate::format::syntax::syntax_error;
 use crate::source::{SourceId, SourceMap, Span};
 use hcl_edit::expr::{Expression, Object, ObjectKey};
 use hcl_edit::structure::{Body, Structure};
@@ -67,7 +68,7 @@ pub fn parse_hcl_fields(sources: &SourceMap, id: SourceId, report: &mut Report) 
         Ok(Err(error)) => {
             let offset = error.location().offset() as u32;
             report
-                .error(format!("syntax error: {}", error.message()))
+                .error(syntax_error(error.message()))
                 .at(Span::new(id, offset, offset.saturating_add(1)))
                 .emit();
             None

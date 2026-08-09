@@ -41,6 +41,7 @@
 
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
+use crate::format::syntax::syntax_error;
 use crate::source::{SourceId, SourceMap, Span};
 use jsonc_parser::CollectOptions;
 use jsonc_parser::ParseOptions;
@@ -74,7 +75,7 @@ pub fn parse_json_fields(sources: &SourceMap, id: SourceId, report: &mut Report)
         Ok(parsed) => parsed,
         Err(error) => {
             report
-                .error(format!("syntax error: {}", lead_lowercase(error.kind())))
+                .error(syntax_error(&error.kind().to_string()))
                 .at(error_span(error.range(), id))
                 .emit();
             return None;
@@ -123,18 +124,6 @@ fn strict() -> ParseOptions {
         allow_single_quoted_strings: false,
         allow_hexadecimal_numbers: false,
         allow_unary_plus_numbers: false,
-    }
-}
-
-/// A parse error's message with its first character lowercased, so it reads as
-/// a continuation of `syntax error:`. jsonc-parser writes each message as a
-/// standalone sentence.
-fn lead_lowercase(kind: &jsonc_parser::errors::ParseErrorKind) -> String {
-    let text = kind.to_string();
-    let mut characters = text.chars();
-    match characters.next() {
-        Some(first) => first.to_lowercase().chain(characters).collect(),
-        None => text,
     }
 }
 

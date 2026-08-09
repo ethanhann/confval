@@ -42,6 +42,7 @@
 
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Value, ValueKind};
+use crate::format::syntax::syntax_error;
 use crate::source::{SourceId, SourceMap, Span};
 use resolve::{reads_through, scalar_kind};
 use saphyr_parser::{Event, Parser, Span as YamlSpan, StrInput};
@@ -151,7 +152,7 @@ impl<'input> Reader<'input, '_> {
             Some(Err(error)) => {
                 let at = self.offsets.at(error.marker().index());
                 self.report
-                    .error(format!("syntax error: {}", lead_lowercase(error.info())))
+                    .error(syntax_error(error.info()))
                     .at(widen(Span::new(self.source, at, at)))
                     .emit();
                 None
@@ -366,17 +367,6 @@ fn widen(span: Span) -> Span {
         return span;
     }
     Span::new(span.source, span.start, span.start.saturating_add(1))
-}
-
-/// A scan error's message with its first character lowercased, so it reads as a
-/// continuation of `syntax error:`. saphyr-parser writes lowercase messages
-/// today, and this keeps an upgrade that changes one from regressing the prefix.
-fn lead_lowercase(message: &str) -> String {
-    let mut characters = message.chars();
-    match characters.next() {
-        Some(first) => first.to_lowercase().chain(characters).collect(),
-        None => message.to_string(),
-    }
 }
 
 #[cfg(test)]
