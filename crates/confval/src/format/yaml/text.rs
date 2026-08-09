@@ -62,8 +62,8 @@ pub(super) fn write_scalar(out: &mut String, scalar: &Scalar) {
 /// A float's text, in a form the core schema reads back as a float.
 ///
 /// The `Debug` formatting of a finite `f64` always writes a fraction or an
-/// exponent, so the resolution never reads it as an integer. YAML 1.2 spells
-/// the three non-finite values natively.
+/// exponent, so the resolution never reads it as an integer. YAML 1.2 has a
+/// literal for each of the three non-finite values.
 pub(super) fn float_text(float: f64) -> String {
     if float.is_nan() {
         return ".nan".to_string();

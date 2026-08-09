@@ -759,7 +759,7 @@ mod tests {
     fn emit_yaml_round_trips_non_finite_floats() {
         // YAML 1.2 writes all three natively, so YAML joins TOML and KDL where
         // JSON and HCL refuse.
-        for (value, spelled) in [
+        for (value, written) in [
             (f64::INFINITY, ".inf"),
             (f64::NEG_INFINITY, "-.inf"),
             (f64::NAN, ".nan"),
@@ -771,7 +771,7 @@ mod tests {
             let out = emit_yaml(&fields).unwrap();
 
             // Assert
-            assert_eq!(out, format!("rate: {spelled}\n"));
+            assert_eq!(out, format!("rate: {written}\n"));
             let round = reparse(&out);
             let mut report = Report::new();
             let parsed = parse_float_field(round.get("rate").unwrap(), &mut report).unwrap();

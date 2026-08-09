@@ -317,7 +317,7 @@ mod tests {
     #[test]
     fn a_signed_or_uppercase_base_prefix_is_a_string() {
         // Arrange
-        // The core patterns carry no sign on a based literal and spell the
+        // The core patterns carry no sign on a based literal and write the
         // prefix lowercase, so each of these near-misses is text.
         let forms = ["-0x10", "+0x10", "0X1F", "0O17", "0x", "0o", "0xzz"];
 
