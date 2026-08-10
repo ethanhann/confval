@@ -40,8 +40,12 @@ check-frontends:
     cargo check -q -p confval --no-default-features --features derive,json
     cargo check -q -p confval --no-default-features --features derive,yaml
 
+# Check the bin compiles under the empty default feature set, so it stays free of a feature dependency.
+check-bin:
+    cargo check -p confval --no-default-features --bin confval
+
 # Test everything
-validate: format lint check-frontends test validate-docs examples
+validate: format lint check-frontends check-bin test validate-docs examples
 
 # Run examples
 examples:
@@ -72,8 +76,11 @@ check-doc-programs:
     dir=target/doc-programs
     rm -rf "$dir"
     mkdir -p "$dir/src/bin"
-    for f in $(find docs/docs docs/releases -name '*.md'); do
-      prefix=$(basename "$f" .md | tr -c 'a-zA-Z0-9' '_')
+    for f in $(find docs/docs docs/releases crates/confval/skills -name '*.md'); do
+      # Derive the prefix from the whole path, not the basename, so two files
+      # sharing a basename (both SKILL.md, references/pipeline.md and docs/docs/pipeline.md)
+      # get distinct output files instead of one silently overwriting the other.
+      prefix=$(echo "$f" | tr -c 'a-zA-Z0-9' '_')
       awk -v outdir="$dir/src/bin" -v prefix="$prefix" '
         /^```rust$/ { inblock = 1; buf = ""; next }
         /^```/ { if (inblock) { inblock = 0; if (buf ~ /fn main/) { count++; printf "%s", buf > (outdir "/" prefix count ".rs") } } next }
@@ -90,7 +97,7 @@ check-doc-programs:
 check-doc-snippets:
     #!/usr/bin/env bash
     set -euo pipefail
-    files=$(find docs/docs docs/releases -name '*.md')
+    files=$(find docs/docs docs/releases crates/confval/skills -name '*.md')
     [ -z "$files" ] && exit 0
     hits=$(awk '
       FNR == 1 { inrust = 0; incode = 0 }

@@ -29,6 +29,9 @@ Or, the HCL format, derive macros, and plain output:
 cargo add confval --features "hcl,derive"
 ```
 
+confval also ships a binary that installs agent skills for setting up and maintaining a pipeline.
+Install it with `cargo install confval`, and see [Agent Skills](./agent-skills.md).
+
 ### Feature flags
 
 | Flag       | Default | Brings in        | Enables                                                                                  |
