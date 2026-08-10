@@ -177,15 +177,25 @@ limits {
         spec.validate_all(&mut report);
     }
 
-    if report.has_errors() {
+    // Validation ran, so lower only when the spec parsed and the report is
+    // clean. A syntax error left `spec` as None, and validation may have added
+    // errors.
+    let config = if report.has_errors() {
+        None
+    } else {
+        spec.as_ref()
+            .and_then(|spec| ServerConfig::lower(spec, &mut report))
+    };
+
+    let Some(config) = config else {
+        // Render every problem the report collected, then stop. A bad
+        // configuration file is reported, never a panic.
         let mut out = String::new();
-        report.render_pretty(&sources, &mut out).unwrap();
+        let _ = report.render_pretty(&sources, &mut out);
         eprint!("{out}");
         std::process::exit(1);
-    }
+    };
 
-    let spec = spec.expect("parse returned None without reporting an error");
-    let config = ServerConfig::lower(&spec, &mut report).expect("validated config lowers");
     println!(
         "listening on {}:{} with {} workers",
         config.hostname, config.port, config.workers
@@ -211,6 +221,7 @@ Each maps to one stage of the [pipeline](pipeline.md) and has its own guide page
 - The config types, `ServerConfig` and `LimitsConfig`, are the runtime form the validated spec lowers into.
   See [Lowering](./guide/lowering.md).
 - The `main` function runs the stages in order: parse, validate, check `has_errors`, then lower.
+  It handles the parse and lower `Option` values rather than unwrapping them, so a bad file is reported and the program exits rather than panicking.
   See [Diagnostics](./guide/diagnostics.md) for how the report renders.
 
 To watch the report work, put some bad values in the input: an empty `hostname`, a `port` of `99999`, an unknown `mode`.
