@@ -57,9 +57,9 @@ Emitting one returns an `EmitError` rather than inventing a syntax for it.
 
 KDL's gaps all follow from one rule.
 A KDL argument must be a scalar, and the language has no inline array literal, so there is no way to write an inner array or an object inside a grouped repetition.
-YAML has no gap in this table, and it carries three markers no other format produces.
-An alias is not expanded, a tag outside the core schema has no reading, and a decimal that overflows `f64` refuses
-rather than becoming an infinity the operator never wrote.
+YAML has no gap in this table, and it carries two markers no other format produces.
+An alias is not expanded, and a tag outside the core schema has no reading.
+A decimal that overflows `f64` refuses rather than becoming an infinity the operator never wrote, which JSON does too.
 
 HCL rejects `i64::MIN` because its parser reads the literal as a negation applied to a number that overflows on the way back in.
 
@@ -71,7 +71,7 @@ Converting the same config to JSON returns an error at `rate`, because JSON's gr
 A name can also be one the target cannot write.
 
 HCL attribute and block names must be identifiers.
-TOML, KDL, and JSON quote any name, so a field named `not an ident` emits to all three and fails to HCL alone.
+TOML, KDL, JSON, and YAML quote any name, so a field named `not an ident` emits to all four and fails to HCL alone.
 This is the only source of an `UnrepresentableName` error.
 
 Repetition is format-specific, because each format refuses the shapes it would otherwise collapse silently.
