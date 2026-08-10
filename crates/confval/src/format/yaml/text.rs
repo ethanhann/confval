@@ -14,22 +14,34 @@ use crate::format::field::Scalar;
 ///
 /// A doc comment above that first entry keeps its own indentation and renders
 /// before the marker, because a marker inside a comment would hide the element.
+///
+/// A body with no line the marker can take gets `- {}` on a line of its own,
+/// with the body below it. That is an empty body, which a repeated empty block
+/// produces, and one holding only comments, which a template produces for an
+/// element that sets nothing. Writing the body unmarked would drop the element
+/// from the sequence with no diagnostic.
 pub(super) fn splice_dash(out: &mut String, body: &str, level: usize) {
     let column = level * 2;
     let mut spliced = false;
+    let mut lines = String::new();
     for line in body.lines() {
         let content = line.trim_start();
         if !spliced && !content.is_empty() && !content.starts_with('#') && line.len() >= column + 2
         {
-            out.push_str(&line[..column]);
-            out.push_str("- ");
-            out.push_str(&line[column + 2..]);
+            lines.push_str(&line[..column]);
+            lines.push_str("- ");
+            lines.push_str(&line[column + 2..]);
             spliced = true;
         } else {
-            out.push_str(line);
+            lines.push_str(line);
         }
-        out.push('\n');
+        lines.push('\n');
     }
+    if !spliced {
+        indent(out, level);
+        out.push_str("- {}\n");
+    }
+    out.push_str(&lines);
 }
 
 /// Comments out a rendered entry, putting the `#` after each line's
@@ -82,7 +94,7 @@ pub(super) fn float_text(float: f64) -> String {
 /// Writes a key bare when it is an ASCII identifier, and double-quoted
 /// otherwise.
 pub(super) fn write_key(out: &mut String, name: &str) {
-    if plain_key(name) {
+    if is_plain_name(name) {
         out.push_str(name);
     } else {
         write_string(out, name);
@@ -92,7 +104,7 @@ pub(super) fn write_key(out: &mut String, name: &str) {
 /// Whether a key is plainly safe: ASCII letters, digits, `_`, and `-`, opening
 /// with a letter or `_`. The check is deliberately narrow, because a key that
 /// resolves to something other than a string would change meaning.
-fn plain_key(name: &str) -> bool {
+fn is_plain_name(name: &str) -> bool {
     let mut characters = name.chars();
     match characters.next() {
         Some(first) if first.is_ascii_alphabetic() || first == '_' => {}
@@ -110,8 +122,8 @@ pub(super) fn write_string(out: &mut String, text: &str) {
         match character {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\u000a"),
-            '\t' => out.push_str("\\u0009"),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
             '\r' => out.push_str("\\r"),
             '\u{8}' => out.push_str("\\b"),
             '\u{c}' => out.push_str("\\f"),
@@ -128,5 +140,127 @@ pub(super) fn write_string(out: &mut String, text: &str) {
 pub(super) fn indent(out: &mut String, level: usize) {
     for _ in 0..level {
         out.push_str("  ");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_plain_name_is_an_ascii_identifier() {
+        // Arrange
+        let plain = ["port", "max_body-mb", "_ok", "a1"];
+        let quoted = ["9lives", "weird key", "", "a.b", "kéy", "-lead"];
+
+        // Act
+        let answers: Vec<bool> = plain
+            .iter()
+            .chain(&quoted)
+            .map(|n| is_plain_name(n))
+            .collect();
+
+        // Assert
+        assert_eq!(answers[..plain.len()], [true; 4], "plain: {plain:?}");
+        assert!(
+            answers[plain.len()..].iter().all(|answer| !answer),
+            "quoted: {quoted:?}"
+        );
+    }
+
+    #[test]
+    fn a_float_always_carries_a_point_or_an_exponent() {
+        // Arrange
+        // The core schema reads a bare digit string as an integer, so a float
+        // that wrote one would change kind on reparse.
+        let values = [1.0, 0.5, 1e20, -1e-7, f64::MAX];
+
+        // Act
+        let written: Vec<String> = values.iter().map(|value| float_text(*value)).collect();
+
+        // Assert
+        for (value, text) in values.iter().zip(&written) {
+            assert!(
+                text.contains(['.', 'e', 'E']),
+                "{value} wrote {text}, which reads back as an integer"
+            );
+        }
+    }
+
+    #[test]
+    fn a_non_finite_float_writes_its_yaml_literal() {
+        // Arrange
+        let values = [f64::INFINITY, f64::NEG_INFINITY, f64::NAN];
+
+        // Act
+        let written: Vec<String> = values.iter().map(|value| float_text(*value)).collect();
+
+        // Assert
+        assert_eq!(written, vec![".inf", "-.inf", ".nan"]);
+    }
+
+    #[test]
+    fn the_short_escapes_are_used_where_they_exist() {
+        // Arrange
+        let mut out = String::new();
+
+        // Act
+        write_string(
+            &mut out,
+            "q\" b\\ nl\n tab\t cr\r bs\u{8} ff\u{c} unit\u{1f} raw\u{2603}",
+        );
+
+        // Assert
+        assert_eq!(
+            out,
+            "\"q\\\" b\\\\ nl\\n tab\\t cr\\r bs\\b ff\\f unit\\u001f raw\u{2603}\""
+        );
+    }
+
+    #[test]
+    fn comment_out_puts_the_marker_after_the_indentation() {
+        // Arrange
+        // Uncommenting is deleting the marker, so the entry must keep its
+        // column.
+        let body = "limits:\n  mode: \"log\"\n";
+        let mut out = String::new();
+
+        // Act
+        out.push_str(&comment_out(body));
+
+        // Assert
+        assert_eq!(out, "#limits:\n  #mode: \"log\"\n");
+    }
+
+    #[test]
+    fn splice_dash_marks_the_first_content_line() {
+        // Arrange
+        // The body renders one level deeper than the marker, and a doc comment
+        // above the first entry keeps its own column.
+        let body = "    # The port.\n    port: 1\n    host: \"h\"\n";
+        let mut out = String::new();
+
+        // Act
+        splice_dash(&mut out, body, 1);
+
+        // Assert
+        assert_eq!(out, "    # The port.\n  - port: 1\n    host: \"h\"\n");
+    }
+
+    #[test]
+    fn splice_dash_keeps_an_element_whose_body_offers_no_target() {
+        // Arrange
+        // An empty body and one holding only comments both reach here, and
+        // writing either unmarked would drop the element from the sequence.
+        let mut empty = String::new();
+        let mut commented = String::new();
+
+        // Act
+        splice_dash(&mut empty, "", 1);
+
+        // Assert
+        splice_dash(&mut commented, "    #port: 1\n", 1);
+        assert_eq!(empty, "  - {}\n");
+        assert_eq!(commented, "  - {}\n    #port: 1\n");
     }
 }

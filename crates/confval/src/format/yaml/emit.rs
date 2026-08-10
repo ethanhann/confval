@@ -11,10 +11,11 @@
 //! scalar, a key, and a string are written, and how a rendered block gains a
 //! sequence marker or a comment marker.
 
+use super::member::{Member, Rendered, Shape, members_of, shape_of, shape_of_value};
 use super::text::{comment_out, indent, splice_dash, write_key, write_scalar};
 use crate::format::EmitError;
-use crate::format::emit::{child_path, comment_lines, first_conflicting_name, values_then_blocks};
-use crate::format::field::{Field, FieldKind, Fields, Value, ValueKind};
+use crate::format::emit::{child_path, comment_lines, grouped_elements, value_beside_block};
+use crate::format::field::{Fields, Value, ValueKind};
 
 /// Serializes a [`Fields`] tree to canonical YAML text.
 ///
@@ -50,112 +51,6 @@ pub fn emit_yaml(fields: &Fields) -> Result<String, EmitError> {
     Ok(out)
 }
 
-/// One member of an emitted mapping: the same-named fields sharing its name.
-enum Member<'a> {
-    Values(Vec<&'a Value>),
-    Blocks(Vec<&'a Fields>),
-}
-
-/// How a member renders, which decides its layout.
-///
-/// The distinction turns on the rendering rather than on the field's kind. A
-/// kind-keyed rule would make emit non-idempotent, because a parse of the
-/// emitted text yields `Map` values where the original held blocks.
-#[derive(PartialEq, Clone, Copy)]
-enum Shape {
-    /// The whole member fits after `key: `.
-    Inline,
-    /// The member's body renders on the lines below `key:`.
-    Block,
-}
-
-/// One member ready to render, with the annotation a template carries.
-struct Rendered<'a> {
-    name: &'a str,
-    doc: Option<&'a str>,
-    commented: bool,
-    member: Member<'a>,
-}
-
-/// A name used at one level both as a value and as a block. YAML's only form
-/// for the pair is a duplicate key, so emit refuses rather than losing one of
-/// them. A commented entry is comment text, so it conflicts with nothing.
-fn conflicting_name(fields: &Fields) -> Option<&str> {
-    first_conflicting_name(fields, |group| {
-        group
-            .iter()
-            .any(|field| matches!(field.kind, FieldKind::Value(_)))
-            && group
-                .iter()
-                .any(|field| matches!(field.kind, FieldKind::Block(_)))
-    })
-}
-
-/// The members of one level, values before blocks, each group at its first
-/// occurrence's position. A commented entry stands alone, so it never joins a
-/// group and never blocks an active field.
-fn members_of(fields: &Fields) -> Vec<Rendered<'_>> {
-    let mut members: Vec<Rendered> = Vec::new();
-    let mut grouped: Vec<&str> = Vec::new();
-    for entry in values_then_blocks(fields) {
-        let field = entry.field();
-        if entry.is_commented() {
-            members.push(Rendered {
-                name: &field.name,
-                doc: field.doc.as_deref(),
-                commented: true,
-                member: lone(field),
-            });
-            continue;
-        }
-        if grouped.contains(&field.name.as_str()) {
-            continue;
-        }
-        grouped.push(&field.name);
-        let group: Vec<&Field> = fields
-            .iter()
-            .filter(|other| other.name == field.name)
-            .collect();
-        let member = match field.kind {
-            FieldKind::Value(_) => Member::Values(
-                group
-                    .iter()
-                    .filter_map(|other| match &other.kind {
-                        FieldKind::Value(value) => Some(value),
-                        FieldKind::Block(_) => None,
-                    })
-                    .collect(),
-            ),
-            FieldKind::Block(_) => Member::Blocks(
-                group
-                    .iter()
-                    .filter_map(|other| match &other.kind {
-                        FieldKind::Block(inner) => Some(inner),
-                        FieldKind::Value(_) => None,
-                    })
-                    .collect(),
-            ),
-        };
-        members.push(Rendered {
-            name: &field.name,
-            // Only one comment renders above the grouped member, so the group
-            // takes the first doc any of its fields carries.
-            doc: group.iter().find_map(|other| other.doc.as_deref()),
-            commented: false,
-            member,
-        });
-    }
-    members
-}
-
-/// The member one field forms on its own.
-fn lone(field: &Field) -> Member<'_> {
-    match &field.kind {
-        FieldKind::Value(value) => Member::Values(vec![value]),
-        FieldKind::Block(inner) => Member::Blocks(vec![inner]),
-    }
-}
-
 /// Writes one mapping level, each entry at `level`.
 fn write_level(
     out: &mut String,
@@ -163,7 +58,7 @@ fn write_level(
     level: usize,
     path: &str,
 ) -> Result<(), EmitError> {
-    if let Some(name) = conflicting_name(fields) {
+    if let Some(name) = value_beside_block(fields) {
         return Err(EmitError::ConflictingName {
             name: name.to_string(),
             path: path.to_string(),
@@ -232,60 +127,35 @@ fn write_doc(out: &mut String, doc: Option<&str>, level: usize) {
     }
 }
 
-/// How a member renders. A lone scalar, an empty collection, and a sequence of
-/// scalars all fit on the key's line.
-fn shape_of(member: &Member) -> Shape {
-    match member {
-        Member::Values(group) => match group.as_slice() {
-            [only] => shape_of_value(only),
-            _ => shape_of_elements(&flattened(group)),
-        },
-        Member::Blocks(group) => match group.as_slice() {
-            [only] if only.entries().len() == 0 => Shape::Inline,
-            [_] => Shape::Block,
-            _ => Shape::Block,
-        },
-    }
-}
-
-fn shape_of_value(value: &Value) -> Shape {
-    match &value.kind {
-        ValueKind::Seq(elements) => shape_of_elements(&elements.iter().collect::<Vec<_>>()),
-        ValueKind::Map(inner) => {
-            if inner.entries().len() == 0 {
-                Shape::Inline
-            } else {
-                Shape::Block
-            }
-        }
-        ValueKind::Scalar(_) | ValueKind::Other(_) => Shape::Inline,
-    }
-}
-
-/// A sequence renders flow when it is empty or holds scalars alone.
-fn shape_of_elements(elements: &[&Value]) -> Shape {
-    let structural = elements
-        .iter()
-        .any(|element| matches!(element.kind, ValueKind::Map(_) | ValueKind::Seq(_)));
-    if structural {
-        Shape::Block
-    } else {
-        Shape::Inline
-    }
-}
-
 /// Writes a member that fits after `key: `.
 fn write_inline(out: &mut String, member: &Member, path: &str) -> Result<(), EmitError> {
     match member {
         Member::Values(group) => match group.as_slice() {
             [only] => write_value_inline(out, only, path),
-            _ => write_flow(out, &flattened(group), path),
+            _ => write_flow(out, &grouped_elements(group), path),
         },
-        Member::Blocks(_) => {
-            out.push_str("{}");
-            Ok(())
-        }
+        // `shape_of` sends only an empty block here. Refusing a non-empty one
+        // means a change to that predicate fails loudly rather than writing an
+        // empty mapping over real entries.
+        Member::Blocks(group) => empty_or_refuse(out, group.first().copied(), path),
     }
+}
+
+/// Writes an empty collection as `{}`, and refuses a non-empty one.
+///
+/// Every caller reaches this only for a level the shape classification called
+/// inline, which it does only when the level is empty. Refusing rather than
+/// writing `{}` means a classifier that stops agreeing with its writer reports
+/// instead of silently emitting an empty mapping over real entries.
+fn empty_or_refuse(out: &mut String, inner: Option<&Fields>, path: &str) -> Result<(), EmitError> {
+    if inner.is_some_and(|fields| members_of(fields).is_empty()) {
+        out.push_str("{}");
+        return Ok(());
+    }
+    Err(EmitError::UnrepresentableValue {
+        label: "misclassified mapping",
+        path: path.to_string(),
+    })
 }
 
 /// Writes a member whose body renders on the lines below `key:`.
@@ -298,7 +168,7 @@ fn write_block(
     match member {
         Member::Values(group) => match group.as_slice() {
             [only] => write_value_block(out, only, level + 1, path),
-            _ => write_sequence(out, &flattened(group), level + 1, path),
+            _ => write_sequence(out, &grouped_elements(group), level + 1, path),
         },
         Member::Blocks(group) => match group.as_slice() {
             [only] => write_level(out, only, level + 1, path),
@@ -314,22 +184,6 @@ fn write_block(
     }
 }
 
-/// The elements a repeated value field contributes to its grouped sequence. A
-/// sequence occurrence contributes its elements in document order, and a scalar
-/// or a mapping contributes itself as one element. This is the accumulation the
-/// walk performs, so a list-shaped field reads the same resolved list either
-/// way.
-fn flattened<'a>(group: &[&'a Value]) -> Vec<&'a Value> {
-    let mut elements: Vec<&Value> = Vec::new();
-    for value in group {
-        match &value.kind {
-            ValueKind::Seq(inner) => elements.extend(inner.iter()),
-            _ => elements.push(value),
-        }
-    }
-    elements
-}
-
 /// Writes one value on the key's line.
 fn write_value_inline(out: &mut String, value: &Value, path: &str) -> Result<(), EmitError> {
     match &value.kind {
@@ -338,10 +192,7 @@ fn write_value_inline(out: &mut String, value: &Value, path: &str) -> Result<(),
             Ok(())
         }
         ValueKind::Seq(elements) => write_flow(out, &elements.iter().collect::<Vec<_>>(), path),
-        ValueKind::Map(_) => {
-            out.push_str("{}");
-            Ok(())
-        }
+        ValueKind::Map(inner) => empty_or_refuse(out, Some(inner), path),
         ValueKind::Other(label) => Err(EmitError::UnrepresentableValue {
             label,
             path: path.to_string(),
@@ -361,9 +212,16 @@ fn write_value_block(
         ValueKind::Seq(elements) => {
             write_sequence(out, &elements.iter().collect::<Vec<_>>(), level, path)
         }
-        // A scalar and an `Other` are never block-shaped, so this arm exists
-        // only to keep the match total.
-        _ => write_value_inline(out, value, path),
+        // `shape_of_value` sends only a map or a sequence here, so a scalar
+        // reaching this arm means the two disagree.
+        ValueKind::Scalar(_) => Err(EmitError::UnrepresentableValue {
+            label: "misclassified scalar",
+            path: path.to_string(),
+        }),
+        ValueKind::Other(label) => Err(EmitError::UnrepresentableValue {
+            label,
+            path: path.to_string(),
+        }),
     }
 }
 
@@ -411,7 +269,7 @@ mod tests {
     use super::super::parse_yaml_fields;
     use super::*;
     use crate::diagnostic::Report;
-    use crate::format::field::Scalar;
+    use crate::format::field::{Field, FieldKind, Scalar};
     use crate::format::parse::{parse_float_field, parse_string_field, parse_string_list_field};
     use crate::source::SourceMap;
 
@@ -452,6 +310,7 @@ mod tests {
         let fields = Fields::detached(vec![
             text("hostname", "api"),
             scalar("port", Scalar::Int(8080)),
+            scalar("daemon", Scalar::Bool(false)),
             Field::detached_block(
                 "limits",
                 Fields::detached(vec![scalar("max_body_mb", Scalar::Int(16))]),
@@ -466,7 +325,7 @@ mod tests {
         // newline.
         assert_eq!(
             out,
-            "hostname: \"api\"\nport: 8080\n\nlimits:\n  max_body_mb: 16\n"
+            "hostname: \"api\"\nport: 8080\ndaemon: false\n\nlimits:\n  max_body_mb: 16\n"
         );
         reparse(&out);
     }
@@ -694,6 +553,62 @@ mod tests {
     }
 
     #[test]
+    fn emit_yaml_keeps_a_repeated_empty_block_as_an_element() {
+        // Arrange
+        // An HCL, TOML, or KDL parse of two same-named empty blocks reaches
+        // emit as this shape. Writing the group without a marker for the empty
+        // one would drop it from the sequence with no diagnostic.
+        let block = |inner: Vec<Field>| Field::detached_block("svc", Fields::detached(inner));
+        let fields = Fields::detached(vec![
+            block(vec![text("name", "a")]),
+            block(vec![]),
+            block(vec![text("name", "c")]),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "svc:\n  - name: \"a\"\n  - {}\n  - name: \"c\"\n");
+        let round = reparse(&out);
+        let FieldKind::Value(value) = &round.get("svc").unwrap().kind else {
+            panic!("svc should be an attribute value");
+        };
+        let ValueKind::Seq(elements) = &value.kind else {
+            panic!("svc should reparse as a sequence");
+        };
+        assert_eq!(elements.len(), 3, "every element must survive");
+    }
+
+    #[test]
+    fn emit_yaml_keeps_an_all_commented_element_as_an_element() {
+        // Arrange
+        // A template renders an element that sets nothing. Its body is comment
+        // text alone, which carries no line the sequence marker can take.
+        let block = |inner: Fields| Field::detached_block("svc", inner);
+        let fields = Fields::detached(vec![
+            block(Fields::detached(vec![scalar("port", Scalar::Int(9))])),
+            block(Fields::detached_entries(vec![
+                scalar("port", Scalar::Int(1)).as_commented(),
+            ])),
+        ]);
+
+        // Act
+        let out = emit_yaml(&fields).unwrap();
+
+        // Assert
+        assert_eq!(out, "svc:\n  - port: 9\n  - {}\n    #port: 1\n");
+        let round = reparse(&out);
+        let FieldKind::Value(value) = &round.get("svc").unwrap().kind else {
+            panic!("svc should be an attribute value");
+        };
+        let ValueKind::Seq(elements) = &value.kind else {
+            panic!("svc should reparse as a sequence");
+        };
+        assert_eq!(elements.len(), 2, "the commented element must survive");
+    }
+
+    #[test]
     fn emit_yaml_groups_repeated_blocks_into_one_block_sequence() {
         // Arrange
         let block = |port: i64| {
@@ -715,10 +630,11 @@ mod tests {
     #[test]
     fn emit_yaml_rejects_a_value_beside_a_same_named_block() {
         // Arrange
-        let fields = Fields::detached(vec![
+        let inner = Fields::detached(vec![
             scalar("x", Scalar::Int(1)),
             Field::detached_block("x", Fields::detached(vec![scalar("y", Scalar::Int(2))])),
         ]);
+        let fields = Fields::detached(vec![Field::detached_block("tls", inner)]);
 
         // Act
         let result = emit_yaml(&fields);
@@ -728,7 +644,7 @@ mod tests {
             result,
             Err(EmitError::ConflictingName {
                 name: "x".to_string(),
-                path: String::new(),
+                path: "tls".to_string(),
             })
         );
     }

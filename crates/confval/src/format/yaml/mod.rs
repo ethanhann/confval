@@ -8,7 +8,8 @@
 //!
 //! The core schema resolution, which decides what a scalar's text, style, and
 //! tag mean, lives in the sibling `resolve` module. The write path,
-//! [`emit_yaml`], lives in `emit` and its text mechanics in `text`.
+//! [`emit_yaml`], lives in `emit`, its member model in `member`, and its text
+//! mechanics in `text`.
 //!
 //! The frontend drives the parser's pull API rather than loading a document
 //! model. A loader stores a mapping in a hash map, which drops one value of a
@@ -44,10 +45,11 @@ use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Value, ValueKind};
 use crate::format::syntax::syntax_error;
 use crate::source::{SourceId, SourceMap, Span};
-use resolve::{reads_through, scalar_kind};
+use resolve::{TAGGED, reads_through, scalar_kind};
 use saphyr_parser::{Event, Parser, Span as YamlSpan, StrInput};
 
 mod emit;
+mod member;
 mod resolve;
 mod text;
 pub use emit::emit_yaml;
@@ -58,8 +60,6 @@ const ROOT_MUST_BE_A_MAPPING: &str = "expected a mapping at the document root";
 const ONE_DOCUMENT: &str = "expected a single document";
 /// The message a key the model has no name for reports.
 const SCALAR_KEY: &str = "expected a scalar key";
-/// The label every tag the frontend refuses carries.
-const TAGGED: &str = "tagged value";
 
 /// Parses one registered source into the neutral [`Fields`] tree.
 ///
@@ -150,10 +150,11 @@ impl<'input> Reader<'input, '_> {
         match self.parser.next_event() {
             Some(Ok(step)) => Some(step),
             Some(Err(error)) => {
-                let at = error.marker().index() as u32;
+                let at = self.offsets.at(error.marker().index());
+                let span = self.widen(Span::new(self.source, at, at));
                 self.report
                     .error(syntax_error(error.info()))
-                    .at(widen(Span::new(self.source, at, at)))
+                    .at(span)
                     .emit();
                 None
             }
@@ -196,7 +197,7 @@ impl<'input> Reader<'input, '_> {
             return None;
         };
         let (items, _) = self.entries(span)?;
-        let fields = Fields::new(self.source, Span::new(self.source, 0, 1), items);
+        let fields = Fields::new(self.source, document, items);
         loop {
             let (event, span) = self.next()?;
             match event {
@@ -347,7 +348,27 @@ impl<'input> Reader<'input, '_> {
     fn range(&self, start: YamlSpan, end: YamlSpan) -> Span {
         let from = self.offsets.at(start.start.index());
         let to = self.offsets.at(end.end.index()).max(from);
-        widen(Span::new(self.source, from, to))
+        self.widen(Span::new(self.source, from, to))
+    }
+
+    /// Widens a zero-width span to one byte, so it stays visible when rendered,
+    /// and keeps it inside the source.
+    ///
+    /// A valueless key, `key:`, reads as a null whose scalar has no extent. An
+    /// error at the end of input has none either, and nothing ahead to widen
+    /// into, so that one widens backward.
+    fn widen(&self, span: Span) -> Span {
+        if span.end > span.start {
+            return span;
+        }
+        if span.start < self.offsets.len {
+            return Span::new(span.source, span.start, span.start + 1);
+        }
+        Span::new(
+            span.source,
+            self.offsets.len.saturating_sub(1),
+            self.offsets.len,
+        )
     }
 }
 
@@ -358,15 +379,6 @@ fn opens(event: &Event<'_>) -> u32 {
         event,
         Event::SequenceStart(..) | Event::MappingStart(..)
     ))
-}
-
-/// Widens a zero-width span to one byte, so it stays visible when rendered. A
-/// valueless key, `key:`, reads as a null whose scalar has no extent.
-fn widen(span: Span) -> Span {
-    if span.end > span.start {
-        return span;
-    }
-    Span::new(span.source, span.start, span.start.saturating_add(1))
 }
 
 #[cfg(test)]
@@ -408,7 +420,7 @@ mod tests {
         report
     }
 
-    fn kind_of<'f>(fields: &'f Fields, name: &str) -> &'f ValueKind {
+    fn value_kind<'f>(fields: &'f Fields, name: &str) -> &'f ValueKind {
         let FieldKind::Value(value) = &fields.get(name).unwrap().kind else {
             panic!("{name} should be an attribute value");
         };
@@ -489,7 +501,7 @@ mod tests {
             let parsed: Option<Located<Probe>> =
                 parse_struct_field(fields.get("tls").unwrap(), &mut report);
             assert!(parsed.is_some());
-            let ValueKind::Map(inner) = kind_of(fields, "tls") else {
+            let ValueKind::Map(inner) = value_kind(fields, "tls") else {
                 panic!("a nested mapping should be a map, never a block");
             };
             assert_eq!(
@@ -511,7 +523,7 @@ mod tests {
         let fields = parse(input);
 
         // Assert
-        let ValueKind::Map(inner) = kind_of(&fields, "tls") else {
+        let ValueKind::Map(inner) = value_kind(&fields, "tls") else {
             panic!("tls should be a map");
         };
         // A missing-field error inside `tls` points at the block's entries
@@ -714,7 +726,31 @@ mod tests {
                 ROOT_MUST_BE_A_MAPPING,
                 "input: {input:?}"
             );
+            let span = report.issues()[0].span.unwrap();
+            // The root node opens the document, and its span stays sliceable.
+            // A block sequence carries a zero-width opening marker, so only its
+            // start is meaningful, where a scalar carries its whole extent.
+            assert_eq!(span.start, 0, "input: {input:?}");
+            assert!(
+                input.get(span.start as usize..span.end as usize).is_some(),
+                "input: {input:?}"
+            );
         }
+    }
+
+    #[test]
+    fn a_root_scalar_reports_across_its_whole_extent() {
+        // Arrange
+        // A scalar root has an extent where a block sequence has only an
+        // opening marker, so this is where the root error underlines the node.
+        let input = "just text\n";
+
+        // Act
+        let report = reject(input);
+
+        // Assert
+        let span = report.issues()[0].span.unwrap();
+        assert_eq!(&input[span.start as usize..span.end as usize], "just text");
     }
 
     #[test]
@@ -734,6 +770,7 @@ mod tests {
             );
             let span = report.issues()[0].span.unwrap();
             assert_eq!(span.start, 0);
+            assert_eq!(span.end as usize, input.len(), "input: {input:?}");
         }
     }
 
