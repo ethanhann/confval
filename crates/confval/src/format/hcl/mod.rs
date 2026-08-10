@@ -536,6 +536,23 @@ mod tests {
     }
 
     #[test]
+    fn null_value_becomes_other_with_its_own_label() {
+        // Arrange
+        // The model has no null, and the label is what the format limitations
+        // page names as HCL's observable, so it needs its own pin. Without one,
+        // dropping the arm lets `null` report as a generic expression.
+        let (_, _, fields) = parse("pid_file = null\n");
+
+        // Act
+        let mut report = Report::new();
+        let parsed = parse_string_field(fields.get("pid_file").unwrap(), &mut report);
+
+        // Assert
+        assert!(parsed.is_none());
+        assert_eq!(report.issues()[0].message, "expected string, found null");
+    }
+
+    #[test]
     fn template_value_becomes_other() {
         // A string interpolation has no static value, so it must surface as a
         // type mismatch, not silently parse.
