@@ -135,7 +135,9 @@ fn main() {
     let spec = LimitsSpec::default();
     let mut report = Report::new();
     spec.validate_all(&mut report);
-    let config = LimitsConfig::lower(&spec, &mut report).expect("defaults lower");
-    println!("{} {}", config.max_body_mb, config.mode);
+    // Handle the lowering result rather than unwrapping.
+    if let Some(config) = LimitsConfig::lower(&spec, &mut report) {
+        println!("{} {}", config.max_body_mb, config.mode);
+    }
 }
 ```

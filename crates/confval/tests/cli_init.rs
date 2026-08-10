@@ -292,6 +292,41 @@ fn help_and_version_exit_zero() {
 }
 
 #[test]
+fn the_help_screen_documents_flags_and_exit_codes() {
+    // Arrange
+    let dir = TempDir::new("help-screen");
+
+    // Act
+    let top = run(dir.path(), dir.path(), &["--help"]);
+    let sub = run(dir.path(), dir.path(), &["init", "--help"]);
+
+    // Assert
+    assert_eq!(top.code, 0);
+    assert_eq!(sub.code, 0);
+    assert_eq!(top.stdout, sub.stdout);
+    assert!(top.stdout.contains("--scope"));
+    assert!(top.stdout.contains("Example"));
+    assert!(top.stdout.contains("Exit codes"));
+}
+
+#[test]
+fn an_inline_flag_value_installs_like_a_spaced_one() {
+    // Arrange
+    let dir = TempDir::new("inline");
+
+    // Act
+    let result = run(dir.path(), dir.path(), &["init", "--agent=claude"]);
+
+    // Assert
+    assert_eq!(result.code, 0);
+    assert!(
+        skills_dir(dir.path())
+            .join("confval-init/SKILL.md")
+            .exists()
+    );
+}
+
+#[test]
 fn a_bare_command_exits_two() {
     // Arrange
     let dir = TempDir::new("bare");

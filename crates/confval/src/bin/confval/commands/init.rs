@@ -2,6 +2,7 @@
 
 use crate::args::InitArgs;
 use crate::install::{self, CliError, Scope};
+use crate::output;
 use crate::skills::{self, SKILLS};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -18,7 +19,10 @@ pub(crate) fn run(init: &InitArgs) -> Result<i32, CliError> {
     let skills_dir = base.join(init.agent.directory()).join("skills");
     let width = column_width();
 
-    println!("installed confval skills into {}", skills_dir.display());
+    output::line(format_args!(
+        "installed confval skills into {}",
+        skills_dir.display()
+    ));
 
     let mut any_skip = false;
     for skill in SKILLS {
@@ -27,14 +31,18 @@ pub(crate) fn run(init: &InitArgs) -> Result<i32, CliError> {
             let rendered = skills::render(file);
             let outcome = install::plan(&dest, &rendered, init.force)?;
             install::apply(&dest, &rendered, &outcome)?;
-            println!("  {:<width$}{}", file.relative_path, outcome.label());
+            output::line(format_args!(
+                "  {:<width$}{}",
+                file.relative_path,
+                outcome.label()
+            ));
             any_skip |= outcome.is_skip();
         }
     }
 
     if any_skip {
-        eprintln!();
-        eprintln!("Pass --force to overwrite.");
+        output::eline(format_args!(""));
+        output::eline(format_args!("Pass --force to overwrite."));
         return Ok(1);
     }
 
@@ -42,8 +50,10 @@ pub(crate) fn run(init: &InitArgs) -> Result<i32, CliError> {
         return launch(init, &base, &cwd);
     }
 
-    println!();
-    println!("Run claude in this project and invoke /confval-init, or rerun with --launch.");
+    output::line(format_args!(""));
+    output::line(format_args!(
+        "Run claude in this project and invoke /confval-init, or rerun with --launch."
+    ));
     Ok(0)
 }
 
@@ -51,8 +61,8 @@ pub(crate) fn run(init: &InitArgs) -> Result<i32, CliError> {
 fn list() -> Result<i32, CliError> {
     for skill in SKILLS {
         let description = skills::description(skill.skill_md().template).unwrap_or("");
-        println!("{}", skill.name);
-        println!("  {description}");
+        output::line(format_args!("{}", skill.name));
+        output::line(format_args!("  {description}"));
     }
     Ok(0)
 }

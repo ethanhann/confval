@@ -27,7 +27,7 @@ The result is the same whichever frontend ran, so validation and lowering never 
 The emit column matters only when you generate a template.
 Emitting a populated spec fails only for a numeric default the target format has no literal for.
 If your defaults are ordinary numbers, TOML, KDL, and YAML never fail, HCL fails only on `i64::MIN` or a non-finite float, and JSON fails only on a non-finite float.
-When your defaults are ordinary you may `expect` on the emit call.
+Even when your defaults are ordinary and the emit cannot fail, handle the `Result` rather than unwrapping, so the runtime path never panics.
 
 ## Duplicate keys
 
@@ -94,11 +94,16 @@ fn main() {
     let mut report = Report::new();
     let id = sources.add("server.toml", text);
 
-    let spec: ServerSpec = confval::format::toml::parse_toml(&sources, id, &mut report)
-        .expect("valid document parses");
+    let Some(spec): Option<ServerSpec> =
+        confval::format::toml::parse_toml(&sources, id, &mut report)
+    else {
+        return;
+    };
 
-    // A populated spec of ordinary scalars always emits to TOML.
-    let out = confval::format::toml::emit_toml(&spec.to_fields()).expect("populated spec emits");
-    println!("{out}");
+    // A populated spec of ordinary scalars always emits to TOML. Handle the
+    // result rather than unwrapping, so the path never panics.
+    if let Ok(out) = confval::format::toml::emit_toml(&spec.to_fields()) {
+        println!("{out}");
+    }
 }
 ```

@@ -69,6 +69,7 @@ let config = ServerConfig::lower(&spec, &mut report);
 ```
 
 Because the gate ran, the narrowing conversions inside lowering are safe.
+`lower` returns an `Option`, so handle the `None` and report it rather than unwrapping, because the runtime path never panics.
 Lowering does not accumulate.
 It reports one error and stops, because a lowering error means an earlier phase let something through rather than that the operator made a mistake.
 Say so in that error's message.
@@ -150,16 +151,24 @@ fn main() {
     let mut report = Report::new();
     let id = sources.add("server.toml", text);
 
-    let spec: Option<ServerSpec> = confval::format::toml::parse_toml(&sources, id, &mut report);
-    if let Some(spec) = &spec {
-        spec.validate_all(&mut report);
-    }
+    // A syntax error yields None, with the reason already in the report. Never
+    // panic on a misconfiguration.
+    let Some(spec): Option<ServerSpec> =
+        confval::format::toml::parse_toml(&sources, id, &mut report)
+    else {
+        return;
+    };
+
+    spec.validate_all(&mut report);
     if report.has_errors() {
+        // render the report and stop before lowering
         return;
     }
 
-    let spec = spec.expect("parse returned None without reporting an error");
-    let config = ServerConfig::lower(&spec, &mut report).expect("validated config lowers");
-    println!("{}:{}", config.hostname, config.port);
+    // A lowering error means a validation rule is missing, so report it rather
+    // than unwrapping.
+    if let Some(config) = ServerConfig::lower(&spec, &mut report) {
+        println!("{}:{}", config.hostname, config.port);
+    }
 }
 ```

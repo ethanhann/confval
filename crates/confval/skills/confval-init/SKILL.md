@@ -100,6 +100,7 @@ The config is the resolved form.
 It carries no `Located` wrapper and no `Option` on a field the runtime always needs.
 Use `Arc<str>` for an identifier cloned on a hot path.
 Derive the mapping with `#[derive(confval::Config)]` where it is mechanical, and write a `Lower` impl where lowering can fail in a way the derive cannot express.
+A lowering function reports through the `Report` and returns `None` on failure rather than panicking, which is what the `narrow` helpers already do.
 
 ```rust
 #[derive(confval::Config)]
@@ -116,24 +117,33 @@ struct ServerConfig {
 ### 6. Wire the entry point
 
 Run the phases in order: parse, validate, gate, then lower.
+The runtime path never panics, so it holds no `unwrap` and no `expect`.
+A misconfiguration is reported and the program exits or rejects the reload, rather than crashing a running service.
 The gate is one call, `report.has_errors()`, and it must run before lowering.
-What to do when it trips, exit or reject a reload, and whether a warning also stops the run, is the project's decision, so a `TODO` marks the action rather than the check.
+What to do when it trips, exit or reject a reload, and whether a warning also stops the run, is the project's decision.
 
 ```rust
 let spec: Option<ServerSpec> = confval::format::toml::parse_toml(&sources, id, &mut report);
-if let Some(spec) = &spec {
-    spec.validate_all(&mut report);
-}
+
+// A syntax error yields None, with the reason already in the report. Handle it
+// rather than unwrapping.
+let Some(spec) = spec else {
+    // render the report and stop, or reject the reload
+    return;
+};
+
+spec.validate_all(&mut report);
 
 // The gate. Stop before lowering while the report holds errors.
-// TODO(you): decide the action here, exit or reject the reload, and whether a
-// warning also stops the run.
 if report.has_errors() {
+    // render the report and stop, or reject the reload
     return;
 }
 
-let spec = spec.expect("parse returned None without reporting an error");
-let config = ServerConfig::lower(&spec, &mut report).expect("validated config lowers");
+// A lowering error means a validation rule is missing. Report it, never panic.
+if let Some(config) = ServerConfig::lower(&spec, &mut report) {
+    // use config
+}
 ```
 
 ### 7. Write a round-trip test

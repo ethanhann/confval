@@ -7,6 +7,7 @@
 mod args;
 mod commands;
 mod install;
+mod output;
 mod skills;
 
 use args::Command;
@@ -21,19 +22,19 @@ fn main() {
 fn run(argv: &[String]) -> i32 {
     match args::parse(argv) {
         Ok(Command::Help) => {
-            println!("{}", args::USAGE);
+            output::line(format_args!("{}", args::HELP));
             0
         }
         Ok(Command::Version) => {
-            println!("confval {}", env!("CARGO_PKG_VERSION"));
+            output::line(format_args!("confval {}", env!("CARGO_PKG_VERSION")));
             0
         }
         Ok(Command::Init(init)) => commands::init::run(&init).unwrap_or_else(|error| {
-            eprintln!("{error}");
+            output::eline(format_args!("{error}"));
             error.exit_code()
         }),
         Err(error) => {
-            eprintln!("{error}");
+            output::eline(format_args!("{error}"));
             error.exit_code()
         }
     }
