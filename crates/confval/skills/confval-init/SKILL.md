@@ -22,6 +22,9 @@ The [pipeline reference](references/pipeline.md) covers the four phases and wher
 The [frontends reference](references/frontends.md) covers the format features and what each format can express.
 The [patterns reference](references/patterns.md) covers `keyword_enum!`, `#[confval(derive_default)]`, the `narrow` helpers, and template mode.
 
+For anything the references do not cover, read the complete confval documentation at https://ethanhann.com/confval/llms-full.txt.
+That file tracks the latest release, so confirm any API against the confval version this project pins.
+
 ## Steps
 
 ### 1. Survey the project

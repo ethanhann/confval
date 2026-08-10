@@ -4,8 +4,9 @@ You are choosing the frontend feature that matches your project's configuration 
 This file carries one row per frontend and the per-format limitations that change what a spec can express.
 
 It does not restate how each format maps onto the field model.
-That detail is the confval Parsing guide at https://ethanhann.com/confval/docs/guide/parsing.
-Read that page when you need the exact spelling a format uses for a nested block or a list.
+That detail is in the complete confval documentation at https://ethanhann.com/confval/llms-full.txt.
+Read it when you need the exact spelling a format uses for a nested block or a list.
+That file tracks the latest release, so confirm any API against the confval version this project pins.
 
 ## One row per frontend
 

@@ -5,8 +5,9 @@ This file describes the four phases in order, the type each one produces, and wh
 It carries no format detail.
 Which frontend parses the file is the subject of `references/frontends.md`.
 
-The published contract for this sequence is the confval Pipeline page at https://ethanhann.com/confval/docs/pipeline.
-This file restates it for a reader who is writing the code rather than learning the library.
+The published contract for this sequence is in the complete confval documentation at https://ethanhann.com/confval/llms-full.txt.
+That file tracks the latest release, so confirm any API against the confval version this project pins.
+This file restates the contract for a reader who is writing the code rather than learning the library.
 
 ## The four phases
 

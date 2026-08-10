@@ -60,6 +60,7 @@ Leave both in place.
 
 Run `cargo check`, then `cargo test`.
 Read the new field back across all five layers against the current confval crate before you finish.
+For the confval API details, read the complete documentation at https://ethanhann.com/confval/llms-full.txt, which tracks the latest release.
 
 ## Provenance
 
