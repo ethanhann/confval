@@ -98,7 +98,9 @@ fn frontmatter_field<'a>(skill_md: &'a str, key: &str) -> Option<&'a str> {
         if line.starts_with(char::is_whitespace) {
             continue;
         }
-        let (name, value) = line.split_once(':')?;
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
         if name == key {
             let value = value.trim();
             return (!value.is_empty()).then_some(value);
@@ -124,6 +126,11 @@ mod tests {
 
     /// The confval API names the skills tell an agent to write, decided against
     /// the skill content rather than against the crate's export surface.
+    ///
+    /// This list is not the whole promised surface. Names such as
+    /// `range_constraint!`, `check_located`, `SourceMap`, and `to_fields` are
+    /// pinned instead by the compiled full-program fences in the reference
+    /// files. Keep both mechanisms in mind when editing a skill.
     const SKILL_API_NAMES: &[&str] = &[
         "Report",
         "Located",
@@ -208,9 +215,12 @@ mod tests {
     }
 
     // Guard: promised API names are pinned in a `use`. A rename or removal of
-    // any of these breaks this import. Gated on `derive`, without which `Spec`
-    // and `Config` are not exported and the bin's test harness fails to compile
-    // on the `no-default-features`, `serde`, and `layering` matrix rows.
+    // any of these breaks this import. The whole `use` is gated on `derive`,
+    // because `Spec` and `Config` are exported only under it. A consequence is
+    // that the nine always-available names are pinned by a compiling `use` only
+    // when a `derive` run compiles this test. Without the gate, the
+    // `no-default-features`, `serde`, and `layering` matrix rows would fail to
+    // compile the bin's test harness, since none of them enable `derive`.
     #[cfg(feature = "derive")]
     #[test]
     #[allow(unused_imports)]
@@ -222,16 +232,37 @@ mod tests {
     }
 
     // Guard: each API name appears inside a fenced code block of at least one
-    // skill file.
+    // skill file, as a whole token rather than a fragment of a larger
+    // identifier, so `Config` is not satisfied by `ServerConfig`.
     #[test]
     fn every_api_name_appears_in_a_fence() {
         let fences = all_fence_text();
         for name in SKILL_API_NAMES {
             assert!(
-                fences.contains(name),
-                "API name `{name}` appears in no skill code fence"
+                contains_token(&fences, name),
+                "API name `{name}` appears in no skill code fence as a whole token"
             );
         }
+    }
+
+    /// Whether `name` occurs in `text` as a whole token, not as a run of
+    /// characters inside a larger identifier. `Config` must not match inside
+    /// `ServerConfig`. A name ending in `!`, such as `keyword_enum!`, carries
+    /// its own trailing boundary.
+    fn contains_token(text: &str, name: &str) -> bool {
+        let is_ident = |c: char| c.is_alphanumeric() || c == '_';
+        let mut from = 0;
+        while let Some(rel) = text[from..].find(name) {
+            let start = from + rel;
+            let end = start + name.len();
+            let before_ok = start == 0 || !is_ident(text[..start].chars().next_back().unwrap());
+            let after_ok = end == text.len() || !is_ident(text[end..].chars().next().unwrap());
+            if before_ok && after_ok {
+                return true;
+            }
+            from = start + 1;
+        }
+        false
     }
 
     // Guard: feature names are pinned. Every feature the skills name appears in
@@ -340,7 +371,9 @@ mod tests {
                 if line.starts_with(char::is_whitespace) {
                     continue;
                 }
-                let key = line.split_once(':').expect("frontmatter line has a key").0;
+                let Some((key, _)) = line.split_once(':') else {
+                    continue;
+                };
                 assert!(
                     PORTABLE_FIELDS.contains(&key),
                     "frontmatter key `{key}` is outside the six portable fields"

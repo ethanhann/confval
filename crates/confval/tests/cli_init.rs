@@ -285,7 +285,10 @@ fn help_and_version_exit_zero() {
     assert_eq!(help.code, 0);
     assert!(help.stdout.contains("Usage:"));
     assert_eq!(version.code, 0);
-    assert!(version.stdout.contains("confval"));
+    assert_eq!(
+        version.stdout.trim(),
+        format!("confval {}", env!("CARGO_PKG_VERSION"))
+    );
 }
 
 #[test]
@@ -414,6 +417,7 @@ fn an_install_whose_parent_is_a_regular_file_exits_three() {
 
     // Assert
     assert_eq!(result.code, 3);
+    assert!(result.stderr.starts_with("confval:"));
 }
 
 #[test]

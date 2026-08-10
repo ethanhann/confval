@@ -26,7 +26,7 @@ The result is the same whichever frontend ran, so validation and lowering never 
 
 The emit column matters only when you generate a template.
 Emitting a populated spec fails only for a numeric default the target format has no literal for.
-If your defaults are ordinary numbers, TOML, KDL, and YAML never fail, and HCL and JSON fail only on the two values listed.
+If your defaults are ordinary numbers, TOML, KDL, and YAML never fail, HCL fails only on `i64::MIN` or a non-finite float, and JSON fails only on a non-finite float.
 When your defaults are ordinary you may `expect` on the emit call.
 
 ## Duplicate keys

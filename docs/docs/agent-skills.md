@@ -29,7 +29,8 @@ The skills answer two different questions.
 It surveys the project, reads the configuration format, adds the dependency, and writes the spec, validation, and runtime layers, stopping at the boundaries your domain rules begin.
 
 `confval-add-block` keeps the layers in sync when you add a field or block to a project that already has a pipeline.
-A new setting touches the spec type, the validation, the runtime type, the lowering, and the `Default` impl, and the skill's job is that none of the five is missed.
+A new setting runs through the spec type, the validation, the runtime type, the lowering, and the `Default` impl.
+The skill's job is that none of the five is missed.
 
 The skills are written to disk rather than injected into one session, because `confval-add-block` is a maintenance procedure you need long after anyone ran `confval init`.
 
@@ -92,7 +93,7 @@ The report describes the file as differing from the copy the binary ships rather
 | 0    | every file is present and current, and the agent exited 0 if one was launched |
 | 1    | at least one file was skipped                                                 |
 | 2    | a usage error, including no subcommand, an unknown flag, agent, or scope      |
-| 3    | an IO error, or an agent that could not be launched                           |
+| 3    | an IO error, a home directory that could not be determined, or an agent that could not be launched |
 | 4    | the agent ran and exited non-zero                                             |
 
 ## What you can observe

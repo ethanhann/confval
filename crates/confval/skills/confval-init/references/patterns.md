@@ -1,4 +1,4 @@
-# The patterns you reach for
+# The patterns you use
 
 You are writing the spec, validation, and lowering, and a few recurring shapes cover most of what a spec needs.
 This file gives each one its declaration, one use, and the situation that calls for it.
@@ -17,7 +17,7 @@ keyword_enum!(pub LimitMode, {
 });
 ```
 
-The macro generates the enum, a `KEYWORDS` slice, `as_str`, a `TryFrom<&str>`, a `Display`, and a `keyword_set()` you call from a `Validate` impl.
+The macro generates the enum, a `KEYWORDS` array, `as_str`, a `TryFrom<&str>`, a `Display`, and a `keyword_set()` you call from a `Validate` impl.
 It does not generate the check itself.
 You write `LimitMode::keyword_set().check_located(&self.mode, "mode", report)` in your validator, and lowering names `narrow::keyword::<LimitMode>` to read the `TryFrom`.
 Once the check is in place, a value that fails it never reaches the `TryFrom`, so the set and the enum cannot drift.
@@ -87,7 +87,7 @@ let dump = confval::format::toml::emit_toml(&spec.to_fields())?;
 let annotated = confval::format::toml::emit_toml(&spec.to_template())?;
 ```
 
-Reach for template mode when you build a command that writes a starter config or shows what the spec resolved to once its defaults applied.
+Use template mode when you build a command that writes a starter config or shows what the spec resolved to once its defaults applied.
 An optional block is filled in a template only when you mark it `#[confval(nested, default)]`, which fills it from its type's `Default`.
 JSON has no comment syntax, so a JSON template equals the plain dump.
 

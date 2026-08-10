@@ -273,6 +273,19 @@ mod tests {
     }
 
     #[test]
+    fn plan_reports_created_for_an_absent_path_even_with_force() {
+        // Arrange
+        let dir = TempDir::new("plan-absent-force");
+        let path = dir.path().join("SKILL.md");
+
+        // Act
+        let outcome = plan(&path, "body", true).unwrap();
+
+        // Assert
+        assert_eq!(outcome, Outcome::Created);
+    }
+
+    #[test]
     fn apply_writes_a_created_file_and_its_parents() {
         // Arrange
         let dir = TempDir::new("apply-created");
@@ -364,5 +377,26 @@ mod tests {
 
         // Assert
         assert!(matches!(resolved, Err(CliError::NoHome)));
+    }
+
+    #[test]
+    fn each_error_arm_maps_to_its_exit_code() {
+        // Arrange
+        let io = || std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+
+        // Assert
+        assert_eq!(CliError::Usage(String::new()).exit_code(), 2);
+        assert_eq!(CliError::NoHome.exit_code(), 3);
+        assert_eq!(
+            CliError::Io {
+                path: PathBuf::from("x"),
+                source: io(),
+            }
+            .exit_code(),
+            3
+        );
+        assert_eq!(CliError::AgentNotFound("claude".into()).exit_code(), 3);
+        assert_eq!(CliError::AgentSpawn(io()).exit_code(), 3);
+        assert_eq!(CliError::AgentStatus(7).exit_code(), 4);
     }
 }

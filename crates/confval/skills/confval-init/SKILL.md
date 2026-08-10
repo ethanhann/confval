@@ -115,17 +115,25 @@ struct ServerConfig {
 
 ### 6. Wire the entry point
 
-Run the phases in order: parse, validate, then lower.
-Leave the gate stage to the project, and mark where it belongs with a `TODO`, because whether a warning stops the run is the project's decision.
+Run the phases in order: parse, validate, gate, then lower.
+The gate is one call, `report.has_errors()`, and it must run before lowering.
+What to do when it trips, exit or reject a reload, and whether a warning also stops the run, is the project's decision, so a `TODO` marks the action rather than the check.
 
 ```rust
-let spec = confval::format::toml::parse_toml(&sources, id, &mut report);
+let spec: Option<ServerSpec> = confval::format::toml::parse_toml(&sources, id, &mut report);
 if let Some(spec) = &spec {
     spec.validate_all(&mut report);
 }
-// TODO(you): gate here. Return or reject the reload when report.has_errors().
+
+// The gate. Stop before lowering while the report holds errors.
+// TODO(you): decide the action here, exit or reject the reload, and whether a
+// warning also stops the run.
+if report.has_errors() {
+    return;
+}
+
 let spec = spec.expect("parse returned None without reporting an error");
-let config = ServerConfig::lower(&spec, &mut report);
+let config = ServerConfig::lower(&spec, &mut report).expect("validated config lowers");
 ```
 
 ### 7. Write a round-trip test
@@ -149,8 +157,10 @@ fn a_bad_fixture_reports_every_problem_at_once() {
     }
 
     // Assert
+    // The empty hostname and the out-of-range port are both reported, so the
+    // report carries more than one issue rather than stopping at the first.
     assert!(report.has_errors());
-    assert_eq!(report.issues().len(), 2);
+    assert!(report.issues().len() > 1);
 }
 ```
 

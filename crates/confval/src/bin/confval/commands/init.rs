@@ -26,9 +26,9 @@ pub(crate) fn run(init: &InitArgs) -> Result<i32, CliError> {
             let dest = skills_dir.join(file.relative_path);
             let rendered = skills::render(file);
             let outcome = install::plan(&dest, &rendered, init.force)?;
+            install::apply(&dest, &rendered, &outcome)?;
             println!("  {:<width$}{}", file.relative_path, outcome.label());
             any_skip |= outcome.is_skip();
-            install::apply(&dest, &rendered, &outcome)?;
         }
     }
 
