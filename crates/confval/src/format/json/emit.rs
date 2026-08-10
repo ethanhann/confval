@@ -6,7 +6,7 @@
 //! trailing newline.
 
 use crate::format::EmitError;
-use crate::format::emit::{child_path, first_conflicting_name, values_then_blocks};
+use crate::format::emit::{child_path, grouped_elements, value_beside_block, values_then_blocks};
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 
 /// Serializes a [`Fields`] tree to canonical JSON text.
@@ -45,22 +45,6 @@ pub fn emit_json(fields: &Fields) -> Result<String, EmitError> {
 enum Member<'a> {
     Values(Vec<&'a Value>),
     Blocks(Vec<&'a Fields>),
-}
-
-/// A name used at one level both as a value and as a block. JSON's only
-/// way to write the pair is a duplicate key, which most consumers collapse to
-/// one member, so emit refuses rather than losing the other silently. A
-/// commented entry is dropped rather than rendered, so it conflicts with
-/// nothing.
-fn conflicting_name(fields: &Fields) -> Option<&str> {
-    first_conflicting_name(fields, |group| {
-        group
-            .iter()
-            .any(|field| matches!(field.kind, FieldKind::Value(_)))
-            && group
-                .iter()
-                .any(|field| matches!(field.kind, FieldKind::Block(_)))
-    })
 }
 
 /// The members of one level, values before blocks, each group at its first
@@ -107,7 +91,7 @@ fn write_object(
     level: usize,
     path: &str,
 ) -> Result<(), EmitError> {
-    if let Some(name) = conflicting_name(fields) {
+    if let Some(name) = value_beside_block(fields) {
         return Err(EmitError::ConflictingName {
             name: name.to_string(),
             path: path.to_string(),
@@ -143,7 +127,7 @@ fn write_member(
     match member {
         Member::Values(group) => match group.as_slice() {
             [only] => write_value(out, only, level, path),
-            _ => write_array(out, &flattened(group), level, path),
+            _ => write_array(out, &grouped_elements(group), level, path),
         },
         Member::Blocks(group) => match group.as_slice() {
             [only] => write_object(out, only, level, path),
@@ -166,25 +150,6 @@ fn write_value(out: &mut String, value: &Value, level: usize, path: &str) -> Res
             path: path.to_string(),
         }),
     }
-}
-
-/// The elements a repeated value field contributes to its grouped array. An
-/// array occurrence contributes its elements in document order, and a scalar or
-/// an object contributes itself as one element.
-///
-/// This is the accumulation `parse_string_list_occurrence` and
-/// `parse_struct_list_field` perform, so a list-shaped field reads the same
-/// resolved list from the grouped member that the walk would have read from the
-/// separate fields.
-fn flattened<'a>(group: &[&'a Value]) -> Vec<&'a Value> {
-    let mut elements: Vec<&Value> = Vec::new();
-    for value in group {
-        match &value.kind {
-            ValueKind::Seq(inner) => elements.extend(inner.iter()),
-            _ => elements.push(value),
-        }
-    }
-    elements
 }
 
 /// Writes an array. An array of scalars stays on one line, and one holding an

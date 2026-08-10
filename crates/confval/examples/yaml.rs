@@ -1,28 +1,29 @@
-//! End-to-end example: parse a KDL config span-first, validate it, lower it to
+//! End-to-end example: parse a YAML config span-first, validate it, lower it to
 //! a runtime type, print the result, and emit the populated spec back to
-//! canonical KDL text.
+//! canonical YAML text.
 //!
 //! The spec types, validators, config types, and lowering functions all live in
-//! `common`, which the `hcl`, `toml`, `json`, and `yaml` examples share
+//! `common`, which the `hcl`, `toml`, `kdl`, and `json` examples share
 //! verbatim. Those four examples run the same steps in the same order as
 //! this one. Only the source text, its file name, and the two format calls,
-//! `parse_kdl` and `emit_kdl`, differ between the five.
+//! `parse_yaml` and `emit_yaml`, differ between the five.
 //!
 //! A failing variant renders its diagnostics to stderr first, and the valid
 //! config then shows the lowered output and the write path. The failing report
 //! includes an error at a single list element, an unknown keyword in a nested
-//! block, and a cross-field warning whose related span points at the setting
+//! object, and a cross-field warning whose related span points at the setting
 //! that caused it.
 //!
-//! The valid config omits the `limits` node, so the lowered output shows the
+//! The valid config omits the `limits` member, so the lowered output shows the
 //! config-side `#[confval(nested, default)]` filling `LimitsSpec::default()`
 //! while the spec stays source-faithful.
 //!
-//! KDL writes the same field model differently from HCL and TOML. A scalar is
-//! one argument, a list is repeated arguments or repeated nodes, and a nested
-//! structure is a children block or properties on one node.
+//! YAML nests two ways, the block mapping and the flow mapping, and the model
+//! reads both wherever it accepts a block. The document root must be a
+//! mapping. A plain scalar resolves through the YAML 1.2 core schema, so a
+//! quoted `"8080"` is a string where a plain `8080` is an integer.
 //!
-//! Run with: cargo run -p confval --example kdl --features derive,color,kdl
+//! Run with: cargo run -p confval --example yaml --features derive,color,yaml
 
 mod common;
 
@@ -34,19 +35,18 @@ use confval::prelude::*;
 /// without stopping the program, so the run shows the report and the valid
 /// path in one pass.
 fn show_failing_variant() -> Result<(), String> {
-    let input = r#"hostname ""
-port 80
-tls #true
-allow "10.0.0.0/8" ""
+    let input = r#"hostname: ""
+port: 80
+tls: true
+allow: ["10.0.0.0/8", ""]
 
-limits {
-  mode "yolo"
-}
+limits:
+  mode: "yolo"
 "#;
     let mut sources = SourceMap::new();
     let mut report = Report::new();
-    let id = sources.add("broken.kdl", input);
-    let spec: Option<ServerSpec> = confval::format::kdl::parse_kdl(&sources, id, &mut report);
+    let id = sources.add("broken.yaml", input);
+    let spec: Option<ServerSpec> = confval::format::yaml::parse_yaml(&sources, id, &mut report);
     if let Some(spec) = &spec {
         spec.validate_all(&mut report);
     }
@@ -62,19 +62,19 @@ limits {
 fn main() -> Result<(), String> {
     show_failing_variant()?;
 
-    let input = r#"hostname "127.0.0.1"
-port 8443
-workers 8
-tls #true
-allow "10.0.0.0/8" "192.168.0.0/16"
+    let input = r#"hostname: "127.0.0.1"
+port: 8443
+workers: 8
+tls: true
+allow: ["10.0.0.0/8", "192.168.0.0/16"]
 "#;
 
     let mut sources = SourceMap::new();
     let mut report = Report::new();
-    let id = sources.add("server.kdl", input);
+    let id = sources.add("server.yaml", input);
 
-    // Parse (KDL)
-    let spec: Option<ServerSpec> = confval::format::kdl::parse_kdl(&sources, id, &mut report);
+    // Parse (YAML)
+    let spec: Option<ServerSpec> = confval::format::yaml::parse_yaml(&sources, id, &mut report);
 
     let spec = spec.ok_or("parse returned None without reporting an error")?;
 
@@ -86,10 +86,10 @@ allow "10.0.0.0/8" "192.168.0.0/16"
         ServerConfig::lower(&spec, &mut report).ok_or("lowering failed despite a clean report")?;
     println!("{}", config);
 
-    // Emit the populated spec back to canonical KDL, the write path.
+    // Emit the populated spec back to canonical YAML, the write path.
     let text =
-        confval::format::kdl::emit_kdl(&spec.to_fields()).map_err(|error| error.to_string())?;
-    println!("+ Emitted KDL:");
+        confval::format::yaml::emit_yaml(&spec.to_fields()).map_err(|error| error.to_string())?;
+    println!("+ Emitted YAML:");
     print!("{text}");
 
     Ok(())

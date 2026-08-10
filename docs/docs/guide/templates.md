@@ -66,11 +66,13 @@ let spec: ServerSpec = parse_kdl(&sources, id, &mut report).unwrap();
 let template = emit_kdl(&spec.to_template())?;
 ```
 
+`emit_yaml` renders it as YAML, with each comment as a `#` line above its entry.
+
 JSON has no comment syntax, so `emit_json` renders no doc comments and skips commented entries.
 `emit_json(&spec.to_template())` therefore produces the same text as `emit_json(&spec.to_fields())`.
 A commented entry stands for a field the source does not set, so the emitted JSON still holds every value the spec
 carries, and it shows none of the settings the operator has not written.
-Use HCL, TOML, or KDL when you want an annotated template.
+Use HCL, TOML, KDL, or YAML when you want an annotated template.
 
 A comment is indented to line up with the field it documents, so a comment inside a block is at the block's indentation:
 
@@ -191,6 +193,20 @@ Uncommenting is deleting that one character:
 #}
 ```
 
+YAML uses the same spaceless `#`, with the marker after the indentation so deleting it leaves the entry at its own
+column:
+
+```yaml
+# The PID file path.
+#pid_file: ""
+
+#svc:
+  #- {}
+```
+
+An empty repeated block shows one `#- {}` element, because uncommenting must leave an empty instance of the right
+shape, and a bare `- ` would read as a null element.
+
 KDL uses its native slashdash, a disabled node the parser reads and discards.
 Uncommenting is deleting the `/-`:
 
@@ -244,6 +260,9 @@ Emitting a populated spec to JSON fails only for a non-finite float, an infinity
 for.
 `i64::MIN` emits, because JSON writes it as a plain integer.
 
+Emitting a populated spec to YAML never fails.
+YAML 1.2 writes an infinity and a NaN natively, and any key writes as a quoted string.
+
 [Format Limitations](./format-limitations.md) collects every format's gaps in one place.
 
 Emit can also fail on a `Fields` that a frontend parsed rather than populated, because a parsed model can carry a name or a value the target format cannot write.
@@ -252,9 +271,10 @@ A name that is not a valid identifier fails when you emit HCL, which has no way 
 HCL also writes a value and a block side by side under one name.
 A TOML key names one thing, so `emit_toml` refuses that pair rather than silently dropping one of the two.
 Neither format can write one name twice for plain values, so both emitters refuse that as well.
-`emit_json` groups a repeated name into one member holding an array, so a name used twice for plain values emits.
-It refuses a value beside a same-named block.
-The only way JSON can write that pair is a duplicate key, and most consumers keep one of the two members.
+`emit_json` and `emit_yaml` group a repeated name into one member holding a sequence, so a name used twice for plain
+values emits.
+Both refuse a value beside a same-named block.
+The only way either can write that pair is a duplicate key, which loses one of the two members.
 Each emit error names the dotted path of the field responsible, so a failure in a large tree points at its location.
 
 A tree assembled by layering can carry unparsed text from an environment variable or a command line flag.

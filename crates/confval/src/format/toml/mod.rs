@@ -24,6 +24,7 @@
 
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
+use crate::format::syntax::syntax_error;
 use crate::source::{SourceId, SourceMap, Span};
 use std::ops::Range;
 use toml_edit::{Document, InlineTable, Item, Table, Value as TomlValue};
@@ -53,7 +54,7 @@ pub fn parse_toml_fields(sources: &SourceMap, id: SourceId, report: &mut Report)
         }
         Err(error) => {
             report
-                .error(format!("syntax error: {}", error.message()))
+                .error(syntax_error(error.message()))
                 .at(span_of(error.span(), id))
                 .emit();
             None

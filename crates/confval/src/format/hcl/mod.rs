@@ -25,6 +25,7 @@
 
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
+use crate::format::syntax::syntax_error;
 use crate::source::{SourceId, SourceMap, Span};
 use hcl_edit::expr::{Expression, Object, ObjectKey};
 use hcl_edit::structure::{Body, Structure};
@@ -67,7 +68,7 @@ pub fn parse_hcl_fields(sources: &SourceMap, id: SourceId, report: &mut Report) 
         Ok(Err(error)) => {
             let offset = error.location().offset() as u32;
             report
-                .error(format!("syntax error: {}", error.message()))
+                .error(syntax_error(error.message()))
                 .at(Span::new(id, offset, offset.saturating_add(1)))
                 .emit();
             None
@@ -532,6 +533,23 @@ mod tests {
         report_unknown_field(fields.get("tsl").unwrap(), &mut report);
         assert_eq!(report.issues()[0].message, "unknown block: tsl");
         assert_eq!(report.issues()[0].span, Some(Span::new(id, 0, 3)));
+    }
+
+    #[test]
+    fn null_value_becomes_other_with_its_own_label() {
+        // Arrange
+        // The model has no null, and the label is what the format limitations
+        // page names as HCL's observable, so it needs its own pin. Without one,
+        // dropping the arm lets `null` report as a generic expression.
+        let (_, _, fields) = parse("pid_file = null\n");
+
+        // Act
+        let mut report = Report::new();
+        let parsed = parse_string_field(fields.get("pid_file").unwrap(), &mut report);
+
+        // Assert
+        assert!(parsed.is_none());
+        assert_eq!(report.issues()[0].message, "expected string, found null");
     }
 
     #[test]

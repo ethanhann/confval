@@ -38,6 +38,7 @@ check-frontends:
     cargo check -q -p confval --no-default-features --features derive,toml
     cargo check -q -p confval --no-default-features --features derive,kdl
     cargo check -q -p confval --no-default-features --features derive,json
+    cargo check -q -p confval --no-default-features --features derive,yaml
 
 # Test everything
 validate: format lint check-frontends test validate-docs examples
@@ -53,6 +54,7 @@ examples:
     cargo run -q -p confval --features derive,color,toml,hcl --example templates
     cargo run -q -p confval --features derive,color,kdl --example kdl
     cargo run -q -p confval --features derive,color,json --example json
+    cargo run -q -p confval --features derive,color,yaml --example yaml
     cargo run -q -p confval --features derive,toml --example doc_fallback
     cargo run -q -p confval --features derive,serde,toml --example json_diagnostics
     cargo run -q -p confval --features derive,color,toml --example narrow
@@ -80,7 +82,7 @@ check-doc-programs:
     done
     count=$(ls "$dir/src/bin" | wc -l | tr -d ' ')
     if [ "$count" -eq 0 ]; then echo "no full-program doc snippets found"; exit 0; fi
-    printf '[package]\nname = "doc-programs"\nversion = "0.0.0"\nedition = "2024"\n\n[dependencies]\nconfval = { path = "../../crates/confval", features = ["derive", "toml", "hcl", "color", "serde", "layering"] }\n\n[workspace]\n' > "$dir/Cargo.toml"
+    printf '[package]\nname = "doc-programs"\nversion = "0.0.0"\nedition = "2024"\n\n[dependencies]\nconfval = { path = "../../crates/confval", features = ["derive", "toml", "hcl", "kdl", "json", "yaml", "color", "serde", "layering"] }\n\n[workspace]\n' > "$dir/Cargo.toml"
     cargo build -q --manifest-path "$dir/Cargo.toml"
     echo "compiled $count doc program(s)"
 

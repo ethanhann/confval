@@ -215,12 +215,13 @@ handwritten parser.
 
 To parse, call the frontend for the format you enabled with the appropriate feature:
 
-| Entry point                         | Feature | Backed by      |
-|-------------------------------------|---------|----------------|
-| `confval::format::hcl::parse_hcl`   | `hcl`   | `hcl-edit`     |
-| `confval::format::toml::parse_toml` | `toml`  | `toml_edit`    |
-| `confval::format::kdl::parse_kdl`   | `kdl`   | `kdl`          |
-| `confval::format::json::parse_json` | `json`  | `jsonc-parser` |
+| Entry point                         | Feature | Backed by       |
+|-------------------------------------|---------|-----------------|
+| `confval::format::hcl::parse_hcl`   | `hcl`   | `hcl-edit`      |
+| `confval::format::toml::parse_toml` | `toml`  | `toml_edit`     |
+| `confval::format::kdl::parse_kdl`   | `kdl`   | `kdl`           |
+| `confval::format::json::parse_json` | `json`  | `jsonc-parser`  |
+| `confval::format::yaml::parse_yaml` | `yaml`  | `saphyr-parser` |
 
 Each takes a `SourceMap`, a `SourceId`, and a `&mut Report`, and returns your spec as an `Option`.
 
@@ -320,6 +321,72 @@ let text = confval::format::json::emit_json(&spec.to_fields())?;
 JSON has no comment syntax, so emitted JSON carries no comments.
 [Templates](./templates.md#generating-a-template) covers what that costs a template.
 
+YAML nests two ways, the block mapping and the flow mapping, and the model reads both wherever it accepts a block.
+The document root must be a mapping, and any other root reports `expected a mapping at the document root`.
+An empty document, a whitespace-only file, and a file holding only comments each report the same thing.
+A configuration file is one document, so a second one reports `expected a single document` rather than being discarded.
+
+For example, this document fills the same spec the snippets above fill:
+
+```yaml
+hostname: "127.0.0.1"
+port: 8080
+allow: ["10.0.0.0/8", "192.168.0.0/16"]
+
+bind:
+  port: 8080
+```
+
+```rust
+let spec: Option<ServerSpec> = confval::format::yaml::parse_yaml(&sources, id, &mut report);
+```
+
+A plain scalar resolves through the YAML 1.2 core schema, and a quoted, literal, or folded scalar is a string whatever
+its text.
+`port: 8080` is an integer and `port: "8080"` is a string.
+The 1.1 literals `yes`, `no`, `on`, and `off` are not in the 1.2 schema, so `country: no` is the string `no` rather
+than a boolean.
+The same exclusion makes `-.nan`, an uppercase or signed base prefix such as `0X1F` or `-0x10`, and an underscored
+number such as `1_000` strings as well.
+
+A `null`, written `null`, `~`, or as a key with no value, reports `expected string, found null` at the value that used
+it.
+An integer beyond the range of an `i64` reports `expected integer, found oversized integer`.
+A number whose magnitude no `f64` holds reports `expected number, found oversized number`, so `.inf` written by an
+operator is the only infinity the model holds from YAML.
+
+A duplicate key is a list when the field is a list and a `duplicate field` error when it is not.
+
+An alias is not expanded.
+It reports `expected string, found alias` at the alias, so the field that used it says what is wrong rather than
+reporting itself absent.
+An anchor is read through, because the anchored node is ordinary data wherever it stands.
+A merge key, `<<`, is an ordinary key, so a spec that does not declare it reports `unknown field: <<`.
+
+The core schema tags resolve their text, so `!!str 8080` is the string `8080` and the non-specific `!` resolves the
+same way on a scalar.
+Three things report `expected string, found tagged value`: a core scalar tag whose text it cannot read such as
+`!!int foo`, a core tag on the wrong node kind such as `!!int {a: 1}`, and any tag outside the core schema.
+
+A key that is a mapping, a sequence, or an explicit `? *alias` has no field name the model can hold.
+It reports `expected a scalar key` and the entry is skipped, so one exotic key does not hide the errors after it.
+An alias written as a plain key, `*a: 1`, is a syntax error instead, because the parser rejects it before the frontend
+sees it.
+A scalar key reads as its text whatever the schema would resolve it to, so `8080:` names the field `8080`.
+
+A scalar where a nested mapping is expected reports `expected block, found string`, because the expected side of a
+mismatch is shared across formats.
+
+Writing the model back out with `confval::format::yaml::emit_yaml` produces block-style YAML with two-space
+indentation, values before nested mappings, and a trailing newline:
+
+```rust
+let text = confval::format::yaml::emit_yaml(&spec.to_fields())?;
+```
+
+Every string emits double-quoted, so a value the schema would otherwise resolve, `no` or `123` or `null`, reads back as
+the string it was.
+
 A list field also accepts a single string as a one-element list, in every format.
 KDL forces the question, because it has no array literal and writes a one-element list as a single value, and the
 answer is uniform so the same configuration means the same thing whichever frontend read it.
@@ -331,7 +398,7 @@ A repeated block parses, and confval reports it with a related span pointing at 
 A repeated KDL value node follows the same rule.
 A list field accumulates the occurrences, and a single-value field
 reports the repeat with the related span.
-JSON's grammar permits the same key twice, so a duplicate key parses and the spec's declared shape decides what it
+JSON and YAML both permit the same key twice, so a duplicate key parses and the spec's declared shape decides what it
 means.
 :::
 

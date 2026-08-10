@@ -4,9 +4,9 @@ sidebar_position: 4
 
 # Examples
 
-The crate ships thirteen runnable examples in `crates/confval/examples/`.
+The crate ships fourteen runnable examples in `crates/confval/examples/`.
 
-`hcl`, `toml`, `kdl`, and `json` are the same program four times.
+`hcl`, `toml`, `kdl`, `json`, and `yaml` are the same program five times.
 Each renders the diagnostics for a failing variant to stderr, feeds a valid document, prints the lowered config, and emits the populated spec back to canonical text.
 They differ in the source text, its file name, and the two format calls that parse and emit it.
 The rest demonstrate one feature each, except `handwritten`, which runs the whole pipeline over a spec written without the derive.
@@ -43,6 +43,14 @@ The `json` example runs those steps over JSON.
 
 ```shell
 cargo run -q -p confval --example json --features derive,color,json
+```
+
+## yaml
+
+The `yaml` example runs those steps over YAML.
+
+```shell
+cargo run -q -p confval --example yaml --features derive,color,yaml
 ```
 
 ## issue_severity
