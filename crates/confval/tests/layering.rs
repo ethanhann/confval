@@ -332,6 +332,8 @@ mod yaml_duplicate_groups {
     struct AllowSpec {
         hostname: Located<String>,
         allow: Option<Located<Vec<Located<String>>>>,
+        #[confval(nested)]
+        limits: Option<Located<LimitsSpec>>,
     }
 
     impl Validate for AllowSpec {
@@ -381,8 +383,8 @@ allow: "192.168.0.0/16"
         // group by its first field, so this pins that the mismatch is reported
         // and the overlay still lands.
         let base_text = r#"hostname: "filehost"
-allow: 1
-allow: {mode: "log"}
+limits: 1
+limits: {mode: "log"}
 "#;
         let mut sources = SourceMap::new();
         let mut report = Report::new();
@@ -393,7 +395,7 @@ allow: {mode: "log"}
             .merge(parse_yaml_fields(&sources, base, &mut report))
             .merge(cli_fields(
                 &mut sources,
-                ["--allow.mode=enforce".to_string()],
+                ["--limits.mode=enforce".to_string()],
                 &mut report,
             ))
             .assemble(&mut report);
@@ -401,13 +403,15 @@ allow: {mode: "log"}
         // Assert
         assert!(
             report.issues().iter().any(|issue| {
-                issue.message.starts_with("`allow` is a")
+                issue.message.starts_with("`limits` is a")
                     && issue.message.contains("in one source and a")
             }),
             "issues: {:?}",
             report.issues()
         );
-        // The assembly still answers rather than panicking or dropping.
-        let _ = spec;
+        // The overlay's level stands, so nothing is lost without a diagnostic.
+        let spec = spec.expect("the assembly should still produce a spec");
+        let limits = spec.limits.expect("the overlay level should stand");
+        assert_eq!(limits.value.mode.value, "enforce");
     }
 }
