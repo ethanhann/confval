@@ -164,6 +164,7 @@ impl<'input> Reader<'input, '_> {
             None => {
                 self.report
                     .error("syntax error: unexpected end of input")
+                    .at(Span::new(self.source, 0, self.offsets.len))
                     .emit();
                 None
             }
@@ -708,6 +709,85 @@ mod tests {
             "port: 8080"
         );
         assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn a_scan_error_span_is_a_byte_offset() {
+        // Arrange
+        // saphyr-parser counts characters and a confval span counts bytes, so
+        // an error past multibyte text lands off a character boundary unless
+        // the frontend converts. The four euro signs put eight bytes between
+        // the two counts. The parser marks the character after the tab, so the
+        // assertion pins that character rather than the tab itself.
+        let input = "cost: \"\u{20ac}\u{20ac}\u{20ac}\u{20ac}\"\na:\n\tb: 1\n";
+
+        // Act
+        let report = reject(input);
+
+        // Assert
+        let span = report.issues()[0].span.unwrap();
+        assert!(
+            input.get(span.start as usize..span.end as usize).is_some(),
+            "span {}..{} is not on char boundaries",
+            span.start,
+            span.end
+        );
+        assert_eq!(&input[span.start as usize..span.end as usize], "b");
+    }
+
+    #[test]
+    fn the_root_level_encloses_the_whole_document() {
+        // Arrange
+        // A root-level missing-field error points at this span, so it names the
+        // file the way every sibling frontend does.
+        let input = "hostname: \"a\"\ndaemon: false\n";
+
+        // Act
+        let fields = parse(input);
+
+        // Assert
+        assert_eq!(fields.enclosing().start, 0);
+        assert_eq!(fields.enclosing().end as usize, input.len());
+    }
+
+    #[test]
+    fn a_span_at_the_end_of_input_stays_inside_the_source() {
+        // Arrange
+        // An unterminated collection reports at the end, where there is no byte
+        // ahead to widen into.
+        let input = "a: [1, 2";
+
+        // Act
+        let report = reject(input);
+
+        // Assert
+        let span = report.issues()[0].span.unwrap();
+        assert!(
+            input.get(span.start as usize..span.end as usize).is_some(),
+            "span {}..{} runs past the {}-byte source",
+            span.start,
+            span.end,
+            input.len()
+        );
+    }
+
+    #[test]
+    fn a_root_alias_is_a_syntax_error() {
+        // Arrange
+        // The root is the first node, so an anchor it could name cannot have
+        // been defined yet. The parser rejects it before the root check runs,
+        // which is why the root-error case does not list one.
+        let input = "*a\n";
+
+        // Act
+        let report = reject(input);
+
+        // Assert
+        assert!(
+            report.issues()[0].message.starts_with("syntax error: "),
+            "got: {:?}",
+            report.issues()
+        );
     }
 
     #[test]
