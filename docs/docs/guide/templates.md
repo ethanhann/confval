@@ -72,7 +72,7 @@ JSON has no comment syntax, so `emit_json` renders no doc comments and skips com
 `emit_json(&spec.to_template())` therefore produces the same text as `emit_json(&spec.to_fields())`.
 A commented entry stands for a field the source does not set, so the emitted JSON still holds every value the spec
 carries, and it shows none of the settings the operator has not written.
-Use HCL, TOML, or KDL when you want an annotated template.
+Use HCL, TOML, KDL, or YAML when you want an annotated template.
 
 A comment is indented to line up with the field it documents, so a comment inside a block is at the block's indentation:
 
