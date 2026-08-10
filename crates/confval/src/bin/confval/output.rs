@@ -3,8 +3,7 @@
 //!
 //! `println!` panics when it writes to a pipe whose reader has already closed,
 //! as in `confval init | head`. These helpers write through `writeln!` and exit
-//! cleanly on a broken pipe, so the binary stays a good pipeline citizen and
-//! never panics on output.
+//! cleanly on a broken pipe instead.
 
 use std::io::Write;
 

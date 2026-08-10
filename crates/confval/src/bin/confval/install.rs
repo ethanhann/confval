@@ -1,7 +1,7 @@
 //! Base resolution, the plan and apply pair, and the error type.
 //!
 //! `plan` decides an outcome for one file without touching the file system
-//! beyond a read, and `apply` carries it out. Splitting the two is what lets the
+//! beyond a read, and `apply` carries it out. Splitting the two lets the
 //! outcome table be unit tested without a spawned process.
 
 use std::fmt;

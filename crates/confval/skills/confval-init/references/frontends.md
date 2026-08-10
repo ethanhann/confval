@@ -26,7 +26,12 @@ The result is the same whichever frontend ran, so validation and lowering never 
 
 The emit column matters only when you generate a template.
 Emitting a populated spec fails only for a numeric default the target format has no literal for.
-If your defaults are ordinary numbers, TOML, KDL, and YAML never fail, HCL fails only on `i64::MIN` or a non-finite float, and JSON fails only on a non-finite float.
+If your defaults are ordinary numbers, the emit result depends on the format.
+
+- TOML, KDL, and YAML never fail.
+- HCL fails only on `i64::MIN` or a non-finite float.
+- JSON fails only on a non-finite float.
+
 Even when your defaults are ordinary and the emit cannot fail, handle the `Result` rather than unwrapping, so the runtime path never panics.
 
 ## Duplicate keys
@@ -44,7 +49,8 @@ Declare a field `Vec<Located<String>>` when the format may legitimately repeat i
 
 ## Nesting spellings
 
-Operators write a nested block in more than one way, and the field model normalizes them, so one nested spec accepts every spelling with identical spans.
+Operators write a nested block in more than one way.
+The field model normalizes them, so one nested spec accepts every spelling with identical spans.
 
 - HCL writes a block, `limits { ... }`, or an attribute set to an object, `limits = { ... }`.
 - TOML writes a `[table]`, an inline `{ ... }`, or an array of tables, `[[repeated]]`, which fills a `Vec` of nested structs.

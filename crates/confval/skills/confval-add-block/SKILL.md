@@ -53,7 +53,7 @@ A `narrow` helper in lowering checks the same bound again and reports the value 
 
 That duplication is deliberate.
 Validation accumulates every problem for the operator, and lowering is the safety net that catches a rule you forgot to write.
-Collapsing the two into one phase is a change in behavior, not a cleanup, because it removes the accumulating pass or the net.
+Collapsing the two into one phase changes behavior rather than cleaning anything up, because it removes the accumulating pass or the net.
 Leave both in place.
 
 ## Verify

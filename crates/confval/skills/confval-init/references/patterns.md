@@ -19,7 +19,8 @@ keyword_enum!(pub LimitMode, {
 
 The macro generates the enum, a `KEYWORDS` array, `as_str`, a `TryFrom<&str>`, a `Display`, and a `keyword_set()` you call from a `Validate` impl.
 It does not generate the check itself.
-You write `LimitMode::keyword_set().check_located(&self.mode, "mode", report)` in your validator, and lowering names `narrow::keyword::<LimitMode>` to read the `TryFrom`.
+You write `LimitMode::keyword_set().check_located(&self.mode, "mode", report)` in your validator.
+Lowering names `narrow::keyword::<LimitMode>` to read the `TryFrom`.
 Once the check is in place, a value that fails it never reaches the `TryFrom`, so the set and the enum cannot drift.
 
 When you check a set inline rather than from an enum, `KeywordSet` is the same check over a bare slice.
@@ -35,7 +36,8 @@ KeywordSet::new(&STRATEGIES).check_located(&strategy, "strategy", &mut report);
 
 When a field has a default, the parser fills it when the source omits the field.
 When a whole block is optional and marked to fill, the config side lowers the block's `Default`, so the spec type needs a `Default` impl.
-Writing that impl by hand repeats the attribute defaults, and nothing keeps the two in agreement.
+Writing that impl by hand repeats the attribute defaults.
+Nothing keeps the two in agreement.
 
 `#[confval(derive_default)]` on the struct generates the `Default` impl from the attribute defaults, so each default is declared once.
 

@@ -17,8 +17,6 @@ fn main() {
     std::process::exit(run(&argv));
 }
 
-/// Parses the arguments, dispatches the command, and maps the result to an exit
-/// code.
 fn run(argv: &[String]) -> i32 {
     match args::parse(argv) {
         Ok(Command::Help) => {

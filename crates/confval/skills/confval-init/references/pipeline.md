@@ -41,7 +41,8 @@ Calling `validate` instead checks the root and stops there.
 
 Validation never returns early on the first problem.
 Every rule appends its issues to the same `Report`, so one run reports every violation rather than the first.
-This is the property a round-trip test asserts, and it is the reason a validator holds no `?` and no early `return`.
+This is the property a round-trip test asserts.
+It is also why a validator holds no `?` and no early `return`.
 
 ### Gate
 

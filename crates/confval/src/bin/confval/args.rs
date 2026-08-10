@@ -58,14 +58,12 @@ pub(crate) enum Agent {
 }
 
 impl Agent {
-    /// The directory segment for this agent.
     pub(crate) fn directory(&self) -> &'static str {
         match self {
             Agent::Claude => ".claude",
         }
     }
 
-    /// The binary launched for this agent.
     pub(crate) fn binary(&self) -> &'static str {
         match self {
             Agent::Claude => "claude",

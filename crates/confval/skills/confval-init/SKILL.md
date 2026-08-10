@@ -6,7 +6,8 @@ description: Scaffold a confval configuration pipeline in a Rust project that ha
 # Set up a confval pipeline
 
 You are adding confval to a Rust project that parses a configuration file, or that should.
-confval turns a configuration file into validated runtime types, and keeps a source span on every value so a diagnostic points at the line and column the value came from.
+confval turns a configuration file into validated runtime types.
+It keeps a source span on every value, so a diagnostic points at the line and column the value came from.
 
 Your job is to build three layers around the project's domain model.
 The spec layer parses the file into span-tracked types.
@@ -68,12 +69,14 @@ Use one nested struct per block, marked `#[confval(nested)]`.
 Use `Vec<Located<T>>` for a block that may repeat.
 Hold a closed set of strings as a `Located<String>` and declare its enum with `keyword_enum!`.
 Add `#[confval(derive_default)]` where a block needs a `Default` built from its attribute defaults.
-Store the rawest type that parses without failing, which is `String`, `i64`, `f64`, `bool`, or `PathBuf`, and narrow it later at lowering.
+Store the rawest type that parses without failing, which is `String`, `i64`, `f64`, `bool`, or `PathBuf`.
+Narrow it later, at lowering.
 
 ### 4. Write validation
 
 Write a `Validate` impl for each spec type.
-Its `validate` reports the rules for that type's own fields, and `validate_all` reaches the children, so a validator never calls a child's validator by hand.
+Its `validate` reports the rules for that type's own fields.
+`validate_all` reaches the children, so a validator never calls a child's validator by hand.
 Accumulate into the `Report` with no early return, so one run reports every problem.
 Report at the offending field's span.
 
@@ -120,7 +123,9 @@ Run the phases in order: parse, validate, gate, then lower.
 The runtime path never panics, so it holds no `unwrap` and no `expect`.
 A misconfiguration is reported and the program exits or rejects the reload, rather than crashing a running service.
 The gate is one call, `report.has_errors()`, and it must run before lowering.
-What to do when it trips, exit or reject a reload, and whether a warning also stops the run, is the project's decision.
+Two things are the project's decision.
+The first is the action when the gate trips, whether to exit or to reject a reload.
+The second is whether a warning also stops the run.
 
 ```rust
 let spec: Option<ServerSpec> = confval::format::toml::parse_toml(&sources, id, &mut report);
