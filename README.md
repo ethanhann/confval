@@ -14,7 +14,7 @@ A frontend converts one syntax into a format-neutral field model.
 Everything after parsing works against that model.
 
 The [toml example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/toml.rs), [hcl example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/hcl.rs),
-[kdl example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/kdl.rs), and
+[kdl example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/kdl.rs),
 [json example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/json.rs), and
 [yaml example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/yaml.rs) demonstrate how this crate is meant to be used.
 The five run the same steps in the same order.
