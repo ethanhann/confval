@@ -12,8 +12,8 @@
 //! and quotes any key. The remaining failures arise when you
 //! emit a `Fields` a frontend parsed or built by hand, which can carry a name
 //! or a value the target format cannot write, or use one name in conflicting
-//! ways at one level, such as a value next to a same-named block in TOML or
-//! JSON, or two same-named values in HCL or TOML.
+//! ways at one level, such as a value next to a same-named block in TOML, JSON,
+//! or YAML, or two same-named values in HCL or TOML.
 //!
 //! A layered tree can carry [`Scalar::Unparsed`](super::Scalar) text from an
 //! environment variable or a flag. That text emits as a string literal, since
@@ -22,6 +22,8 @@
 
 #[cfg(any(feature = "toml", feature = "hcl", feature = "json", feature = "yaml"))]
 use super::field::{Entry, Field, FieldKind, Fields};
+#[cfg(any(feature = "json", feature = "yaml"))]
+use super::field::{Value, ValueKind};
 use std::fmt::{self, Display, Formatter};
 
 /// Why a `Fields` could not be emitted to a format.
@@ -127,6 +129,45 @@ pub(crate) fn first_conflicting_name(
             .filter(|other| other.name == field.name)
             .collect();
         rejects(&group).then_some(field.name.as_str())
+    })
+}
+
+/// The elements a repeated value field contributes to one grouped sequence.
+///
+/// A sequence occurrence contributes its elements in document order, and a
+/// scalar or a nested level contributes itself as one element. This is the
+/// accumulation the generated walk performs, so a list-shaped field reads the
+/// same resolved list from the grouped member that it would have read from the
+/// separate fields.
+///
+/// The formats that group a repeated name rather than refusing it, JSON and
+/// YAML, share this rule, because it belongs to the neutral model rather than
+/// to either syntax.
+#[cfg(any(feature = "json", feature = "yaml"))]
+pub(crate) fn grouped_elements<'a>(group: &[&'a Value]) -> Vec<&'a Value> {
+    let mut elements: Vec<&Value> = Vec::new();
+    for value in group {
+        match &value.kind {
+            ValueKind::Seq(inner) => elements.extend(inner.iter()),
+            _ => elements.push(value),
+        }
+    }
+    elements
+}
+
+/// The first name at this level used both as a value and as a block.
+///
+/// A format whose only way to write the pair is a duplicate key refuses it
+/// rather than losing one of the two. JSON and YAML are both such formats.
+#[cfg(any(feature = "json", feature = "yaml"))]
+pub(crate) fn value_beside_block(fields: &Fields) -> Option<&str> {
+    first_conflicting_name(fields, |group| {
+        group
+            .iter()
+            .any(|field| matches!(field.kind, FieldKind::Value(_)))
+            && group
+                .iter()
+                .any(|field| matches!(field.kind, FieldKind::Block(_)))
     })
 }
 
