@@ -28,13 +28,10 @@ fn run(argv: &[String]) -> i32 {
             println!("confval {}", env!("CARGO_PKG_VERSION"));
             0
         }
-        Ok(Command::Init(init)) => match commands::init::run(&init) {
-            Ok(code) => code,
-            Err(error) => {
-                eprintln!("{error}");
-                error.exit_code()
-            }
-        },
+        Ok(Command::Init(init)) => commands::init::run(&init).unwrap_or_else(|error| {
+            eprintln!("{error}");
+            error.exit_code()
+        }),
         Err(error) => {
             eprintln!("{error}");
             error.exit_code()
