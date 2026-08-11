@@ -9,6 +9,7 @@ use crate::children::{LimitsSpec, RouteSpec, TelemetrySpec};
 use crate::spec::{LogEvent, Phase, ServiceSpec};
 use crate::tls::{TlsChallenge, TlsSpec};
 use confval::prelude::*;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -33,6 +34,10 @@ pub struct ServiceConfig {
     pub events: Vec<LogEvent>,
     #[confval(lower(from = phases, with = narrow::opt_keyword_list::<Phase>))]
     pub phases: Option<Vec<Phase>>,
+    // The spec's `BTreeMap<String, Located<String>>` lowers to a plain runtime
+    // map through a handwritten converter that drops each value's span.
+    #[confval(lower(from = headers, with = lower_headers))]
+    pub headers: HashMap<String, String>,
     #[confval(nested)]
     pub limits: LimitsConfig,
     #[confval(nested)]
@@ -120,6 +125,20 @@ fn lower_f64(value: &Located<f64>, _report: &mut Report) -> Option<f64> {
 
 fn lower_bool(value: &Located<bool>, _report: &mut Report) -> Option<bool> {
     Some(value.value)
+}
+
+/// Lowers the handwritten map, dropping each value's span for a plain runtime
+/// map. This is the conversion the map's `LowerAuto` impl performs on the
+/// derive path, written out here.
+fn lower_headers(
+    map: &BTreeMap<String, Located<String>>,
+    _report: &mut Report,
+) -> Option<HashMap<String, String>> {
+    Some(
+        map.iter()
+            .map(|(key, value)| (key.clone(), value.value.clone()))
+            .collect(),
+    )
 }
 
 fn lower_opt_path(

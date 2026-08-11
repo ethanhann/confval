@@ -9,15 +9,21 @@
 //! and `parse_single_struct`. The derive guards every field it generates, so a
 //! production parser wraps the rest the same way. The two here show the shape
 //! for a leaf and for a block without repeating it eight more times.
+//!
+//! The `headers` map shows a third shape. The derive can express a string map,
+//! but the handwritten write path, `FieldsBuilder`, has no method for one, so
+//! this impl reads it with `parse_string_map_field` and builds the field to
+//! push by hand.
 
 use crate::children::{LimitsSpec, RouteSpec, TelemetrySpec};
 use confval::format::{
-    Fields, FieldsBuilder, FromFields, ToFields, Walk, first_occurrence, parse_bool_field,
-    parse_float_field, parse_int_field, parse_path_field, parse_single_struct, parse_string_field,
-    parse_string_list_field, parse_struct_field, parse_struct_list_field, report_missing_field,
-    report_unknown_field,
+    Field, Fields, FieldsBuilder, FromFields, Scalar, ToFields, Value, ValueKind, Walk,
+    first_occurrence, parse_bool_field, parse_float_field, parse_int_field, parse_path_field,
+    parse_single_struct, parse_string_field, parse_string_list_field, parse_string_map_field,
+    parse_struct_field, parse_struct_list_field, report_missing_field, report_unknown_field,
 };
 use confval::prelude::*;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 range_constraint!(WORKERS, i64, min: 1, max: 512);
@@ -44,6 +50,7 @@ pub struct ServiceSpec {
     pub pid_file: Option<Located<PathBuf>>,
     pub events: Vec<Located<String>>,
     pub phases: Option<Located<Vec<Located<String>>>>,
+    pub headers: BTreeMap<String, Located<String>>,
     pub limits: Located<LimitsSpec>,
     pub telemetry: Option<Located<TelemetrySpec>>,
     pub routes: Vec<Located<RouteSpec>>,
@@ -59,6 +66,8 @@ impl FromFields for ServiceSpec {
         let mut pid_file = None;
         let mut events = None;
         let mut phases = None;
+        let mut headers = None;
+        let mut headers_seen = None;
         let mut limits = None;
         let mut limits_seen = None;
         let mut telemetry = None;
@@ -79,6 +88,13 @@ impl FromFields for ServiceSpec {
                 "pid_file" => pid_file = parse_path_field(field, report),
                 "events" => events = parse_string_list_field(field, report),
                 "phases" => phases = parse_string_list_field(field, report),
+                // The map is single-occurrence, like a leaf. The read uses the
+                // public helper the derive would have called.
+                "headers" => {
+                    if first_occurrence(&mut headers_seen, "headers", field, report) {
+                        headers = parse_string_map_field(field, report);
+                    }
+                }
                 // A single-occurrence block reports a repeat the same way.
                 "limits" => {
                     parse_single_struct(&mut limits, &mut limits_seen, "limits", field, report);
@@ -109,6 +125,7 @@ impl FromFields for ServiceSpec {
             pid_file,
             events: events.map(|list| list.value).unwrap_or_default(),
             phases,
+            headers: headers.map(|map| map.value).unwrap_or_default(),
             limits: limits?,
             telemetry,
             routes,
@@ -120,19 +137,60 @@ impl ServiceSpec {
     /// The field list both write walks read. `Walk` decides what each method
     /// does with each span it is given, so the list is written once.
     fn build(&self, walk: Walk) -> Fields {
-        FieldsBuilder::new(walk)
+        let mut builder = FieldsBuilder::new(walk)
             .leaf("name", &self.name)
             .leaf("workers", &self.workers)
             .leaf("sample_rate", &self.sample_rate)
             .leaf("verbose", &self.verbose)
             .leaf_opt("pid_file", self.pid_file.as_ref())
             .string_list("events", &self.events)
-            .string_list_opt("phases", self.phases.as_ref())
+            .string_list_opt("phases", self.phases.as_ref());
+        // The builder shapes no map, so the field is built here and pushed. The
+        // walk decides whether a detached entry, one no source wrote, is kept.
+        if let Some(field) = string_map_field(walk, "headers", &self.headers) {
+            builder = builder.push(field);
+        }
+        builder
             .block("limits", &self.limits)
             .block_opt("telemetry", self.telemetry.as_ref())
             .block_list("route", &self.routes)
             .finish()
     }
+}
+
+/// Builds the `headers` map field for one walk.
+///
+/// The populated walk emits every entry with a detached value, the way
+/// `to_fields` does. The source walk keeps only the entries a source wrote,
+/// each with its span, and drops the field when none remain, the way
+/// `to_source_fields` does. A `BTreeMap` emits in key order, so the field is
+/// deterministic.
+fn string_map_field(
+    walk: Walk,
+    name: &str,
+    map: &BTreeMap<String, Located<String>>,
+) -> Option<Field> {
+    let source = matches!(walk, Walk::Source);
+    let mut entries = Vec::new();
+    for (key, value) in map {
+        if source && value.span.is_detached() {
+            continue;
+        }
+        let scalar = ValueKind::Scalar(Scalar::String(value.value.clone()));
+        let inner = if source {
+            Value::spanned(value.span, scalar)
+        } else {
+            Value::detached(scalar)
+        };
+        entries.push(Field::detached_value(key, inner));
+    }
+    if source && entries.is_empty() {
+        return None;
+    }
+    Some(Field::detached_value(
+        name,
+        Value::detached(ValueKind::Map(Fields::detached(entries))),
+    ))
 }
 
 impl ToFields for ServiceSpec {
@@ -153,6 +211,16 @@ impl Validate for ServiceSpec {
         LogEvent::keyword_set().check_each(&self.events, "event", report);
         if let Some(phases) = &self.phases {
             Phase::keyword_set().check_each(&phases.value, "phase", report);
+        }
+        // A per-entry rule over the map. Each value keeps its span, so an empty
+        // header value is reported at the entry the operator wrote.
+        for (key, value) in &self.headers {
+            if value.value.is_empty() {
+                report
+                    .error(format!("header \"{key}\" must not be empty"))
+                    .at(value.span)
+                    .emit();
+            }
         }
     }
 }

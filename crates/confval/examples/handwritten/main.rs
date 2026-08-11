@@ -41,6 +41,7 @@ use spec::ServiceSpec;
 /// differ.
 const DOCUMENT: &str = r#"name = "edge"
 events = ["started", "stopped"]
+headers = { "Content-Type" = "application/json", "cache.max-age" = "60" }
 
 [limits]
 max_body_mb = 32
