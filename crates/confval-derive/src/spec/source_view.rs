@@ -152,6 +152,43 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
                 }
             }
         }
+        // A map holds no wrapper span, so its entries carry the only locations
+        // it has. An entry whose value span is detached was never written by a
+        // source and is dropped, and a map with nothing left is omitted. A
+        // source-written empty map is therefore indistinguishable from an
+        // absent one, the same limitation the bare string list documents.
+        FieldShape::Map => {
+            quote! {
+                {
+                    let __entries: ::std::vec::Vec<::confval::format::Field> = self
+                        .#ident
+                        .iter()
+                        .filter(|(_, __value)| !__value.span.is_detached())
+                        .map(|(__key, __value)| {
+                            ::confval::format::Field::detached_value(
+                                __key,
+                                ::confval::format::Value::spanned(
+                                    __value.span,
+                                    ::confval::format::ValueKind::Scalar(
+                                        ::confval::format::Scalar::String(__value.value.clone()),
+                                    ),
+                                ),
+                            )
+                        })
+                        .collect();
+                    if !__entries.is_empty() {
+                        __items.push(::confval::format::Field::detached_value(
+                            #name,
+                            ::confval::format::Value::detached(
+                                ::confval::format::ValueKind::Map(
+                                    ::confval::format::Fields::detached(__entries),
+                                ),
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
     }
 }
 

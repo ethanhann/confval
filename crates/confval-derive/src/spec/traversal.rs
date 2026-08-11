@@ -39,9 +39,12 @@ pub(crate) fn nested_visit(shape: &FieldShape, ident: &Ident) -> Option<TokenStr
                 ::confval::pipeline::Validate::validate_all(&__child.value, report);
             }
         }),
+        // A string-valued map holds no child spec to descend into, so a
+        // per-entry rule stays in the author's own `Validate` impl.
         FieldShape::Leaf { .. }
         | FieldShape::BareStringList
-        | FieldShape::OptionalWrappedStringList => None,
+        | FieldShape::OptionalWrappedStringList
+        | FieldShape::Map => None,
     }
 }
 

@@ -47,6 +47,13 @@ pub(crate) fn field_ctor(
             }),
             Some(Some(_)) | None => Err(no_default_error(ident)),
         },
+        // A map is required unless it carries a bare `#[confval(default)]`,
+        // which the parser reads as the empty map. A `default = expr` has no
+        // meaning here, the same as on the string list.
+        FieldShape::Map => match options.default {
+            Some(None) => Ok(quote! { #ident: ::std::collections::BTreeMap::new(), }),
+            Some(Some(_)) | None => Err(no_default_error(ident)),
+        },
         // The parser fills these when absent, so no declaration is needed.
         FieldShape::OptionalWrappedStringList | FieldShape::Nested { optional: true, .. } => {
             Ok(quote! { #ident: ::core::option::Option::None, })
