@@ -294,7 +294,7 @@ pub(crate) fn reject_unsupported_default(
     Err(syn::Error::new(
         span,
         "#[confval(default)] is not supported here; a leaf field takes \
-         #[confval(default)] or #[confval(default = expr)], while a string list \
-         or a nested block accepts only a bare #[confval(default)]",
+         #[confval(default)] or #[confval(default = expr)], while a string list, \
+         a map, or a nested block accepts only a bare #[confval(default)]",
     ))
 }
