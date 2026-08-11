@@ -1,4 +1,5 @@
 use confval::prelude::*;
+use std::collections::BTreeMap;
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
@@ -22,6 +23,12 @@ pub struct ServerSpec {
     // element keeps its own span, so a bad entry is reported at that entry.
     #[confval(default)]
     pub allow: Vec<Located<String>>,
+    // An open-ended, string-keyed map. The bare `default` reads an absent map
+    // as empty. Each value keeps its span, so a bad entry is reported at that
+    // entry, and a key can be any string, including a non-identifier such as a
+    // header name.
+    #[confval(map, default)]
+    pub headers: BTreeMap<String, Located<String>>,
     // Optional in the source. When the block is omitted, the spec keeps it
     // `None`, so a spec dump stays source-faithful. The config side fills the
     // default at lowering time.
@@ -72,6 +79,19 @@ impl Validate for ServerSpec {
                     .error("allow entries must not be empty")
                     .at(entry.span)
                     .help("Remove the entry or set it to a network, e.g. \"10.0.0.0/8\".")
+                    .emit();
+            }
+        }
+
+        // A per-entry rule over the map. Each value keeps its span, so an empty
+        // header value is reported at the value the operator wrote, not at the
+        // whole `headers` field.
+        for (name, value) in &self.headers {
+            if value.value.is_empty() {
+                report
+                    .error(format!("header \"{name}\" must not be empty"))
+                    .at(value.span)
+                    .help("Set the header value, or remove the entry.")
                     .emit();
             }
         }
