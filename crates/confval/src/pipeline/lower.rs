@@ -62,7 +62,7 @@ impl<T: Clone> LowerAuto<Option<Vec<T>>> for Option<Located<Vec<Located<T>>>> {
 
 /// A `#[confval(map)]` field's `BTreeMap<String, Located<V>>` lowers to a plain
 /// `HashMap<String, V>`, dropping each value's span. The runtime map is what a
-/// consumer reads, and both iggy and snakeway hold theirs as a `HashMap`.
+/// consumer reads, and a plain `HashMap` is the common runtime shape.
 impl<V: Clone> LowerAuto<HashMap<String, V>> for BTreeMap<String, Located<V>> {
     fn lower_auto(&self) -> HashMap<String, V> {
         self.iter()

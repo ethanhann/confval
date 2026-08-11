@@ -117,8 +117,8 @@ fn expected(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
         .collect()
 }
 
-/// The two entries every round-trip test uses. One key is a valid identifier in
-/// no format's bare form, `cache.max-age`, so the emit must quote it.
+/// The two entries every round-trip test uses. One key, `cache.max-age`, is not
+/// a bare identifier in any format, so every emitter must quote it.
 const ENTRIES: &[(&str, &str)] = &[
     ("Content-Type", "application/json"),
     ("cache.max-age", "60"),
