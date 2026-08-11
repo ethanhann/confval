@@ -38,6 +38,12 @@ The confval crate was extracted from the [Snakeway reverse proxy](https://snakew
 - An example PR for [mini-redis](https://github.com/ethanhann/mini-redis/pull/1)
 - Snakeway reverse proxy's [snakeway-conf](https://github.com/snakewayhq/snakeway/tree/main/crates/snakeway-conf/src) crate (advanced usage)
 
+## Agent skills
+
+confval ships a binary that installs two agent skills into a project: one that scaffolds a pipeline and one that keeps its layers in sync as the configuration grows.
+Install the binary with `cargo install confval`, then run `confval init`.
+See [Agent Skills](https://ethanhann.com/confval/docs/agent-skills) for what each skill does, where the files land, and what the outcomes and exit codes mean.
+
 ## License
 
 Apache-2.0
