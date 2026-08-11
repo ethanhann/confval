@@ -1,4 +1,4 @@
-error: #[confval(default)] is not supported here; a leaf field takes #[confval(default)] or #[confval(default = expr)], while a string list or a nested block accepts only a bare #[confval(default)]
+error: #[confval(default)] is not supported here; a leaf field takes #[confval(default)] or #[confval(default = expr)], while a string list, a map, or a nested block accepts only a bare #[confval(default)]
   --> tests/ui/fail/spec_expr_default_on_optional_nested.rs:13:33
    |
 13 |     #[confval(nested, default = 1)]

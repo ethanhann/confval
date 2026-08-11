@@ -1,0 +1,5 @@
+error: map fields must be BTreeMap<String, Located<String>>
+ --> tests/ui/fail/spec_map_non_string_value.rs:7:14
+  |
+7 |     headers: BTreeMap<String, Located<i64>>,
+  |              ^^^^^^^^

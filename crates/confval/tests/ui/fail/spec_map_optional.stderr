@@ -1,0 +1,5 @@
+error: optional maps are not supported; use a bare BTreeMap<String, Located<String>>
+ --> tests/ui/fail/spec_map_optional.rs:7:14
+  |
+7 |     headers: Option<BTreeMap<String, Located<String>>>,
+  |              ^^^^^^
