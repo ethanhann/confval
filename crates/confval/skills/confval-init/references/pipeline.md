@@ -12,6 +12,20 @@ This file restates the contract for a reader who is writing the code rather than
 ## The four phases
 
 A configuration file moves through parse, validate, gate, and lower, in that order.
+
+```text
+configuration file
+  │  parse     a frontend reads the text, structural and span-first
+  ▼
+spec          every leaf a Located<T> that holds its span
+  │  validate  semantic rules, collected into a Report
+  ▼
+Report        errors and warnings, each at its span
+  │  gate      lowering never runs while the report holds errors
+  ▼
+config        the resolved runtime types
+```
+
 Each phase may assume the phases before it have run.
 
 ### Parse

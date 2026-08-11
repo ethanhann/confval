@@ -58,6 +58,10 @@ The standard derive fills an undeclared field with `T::default()` without report
 
 ## Narrowing at the lowering boundary
 
+A config field whose type already matches the spec field needs no attribute.
+It auto-maps and strips the `Located` wrapper, so `Located<T>` becomes `T` and `Option<Located<T>>` becomes `Option<T>`.
+Reserve `with` for a field that narrows or parses.
+
 A spec stores every integer as `i64`, the widest a source format produces, and a runtime type uses the width it needs.
 The `narrow` helpers convert between the two and slot directly into `#[confval(lower(from = ..., with = ...))]`.
 Each reports at the value's span and returns `None` when the value does not fit, because a value that does not fit means a validation rule is missing rather than that the operator made a typo.

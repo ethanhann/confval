@@ -78,6 +78,16 @@ Add `#[confval(derive_default)]` where a block needs a `Default` built from its 
 Store the rawest type that parses without failing, which is `String`, `i64`, `f64`, `bool`, or `PathBuf`.
 Narrow it later, at lowering.
 
+The derive handles plain structs.
+A shape it cannot express needs a handwritten `FromFields` impl.
+The cases are:
+
+- a tagged block that dispatches on a discriminator field
+- a free-form block held as an arbitrary value
+- a string-keyed map
+
+See the complete documentation for the handwritten path.
+
 ### 4. Write validation
 
 Write a `Validate` impl for each spec type.
@@ -102,6 +112,13 @@ impl Validate for ServerSpec {
 
 Check a numeric range with a `range_constraint!` and a closed set with a keyword set.
 Leave numeric narrowing and keyword-to-enum conversion to lowering, where the `narrow` helpers report an out-of-range value that a rule missed.
+Add a second location to a diagnostic with `.related(span, label)`.
+For example, point a duplicate at the line that declared it first.
+
+A `validate` impl sees only `&self`.
+A rule that needs a sibling field's span, an enclosing span, or another file does not belong there.
+Write it as a function that takes the surrounding values.
+Call it yourself.
 
 ### 5. Write the runtime type
 

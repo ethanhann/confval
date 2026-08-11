@@ -11,6 +11,14 @@ It runs through the spec, the validation, the runtime type, the lowering, and th
 
 Your job is that none of the five is missed.
 
+The compiler catches some of the five for you.
+The spec and the runtime type must agree.
+The generated lowering destructures the spec exhaustively, so a field on one side and not the other is a compile error.
+The validation is the silent one.
+A field with no rule parses and lowers with no complaint.
+A missing check is a no-op rather than an error.
+Give the validation the most attention.
+
 ## The five places
 
 Work through each one for the field or block you are adding.
