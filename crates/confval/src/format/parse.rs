@@ -240,7 +240,7 @@ pub fn parse_struct_list_field<S: FromFields>(
 /// layer both parse. A repeated key is a duplicate reported at the second key,
 /// pointing back at the first, so a map never silently overwrites an entry. A
 /// non-string entry is a type mismatch at its value. Every invalid entry is
-/// reported, and if any entry is invalid the field is treated as missing, its
+/// reported, and if any entry is invalid the function returns `None` with the
 /// error already in the report. The returned `Located` carries the whole
 /// field's span.
 pub fn parse_string_map_field(
