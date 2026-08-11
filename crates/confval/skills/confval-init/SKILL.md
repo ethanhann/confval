@@ -32,8 +32,14 @@ That file tracks the latest release, so confirm any API against the confval vers
 
 Find where configuration already lives.
 Look for an existing configuration struct, a hand-rolled parser, or a sample configuration file.
-Read the format from the file extension, `.toml`, `.hcl`, `.kdl`, `.json`, or `.yaml`.
-When nothing in the project settles the format, ask which one to target rather than assuming.
+Read the format from the file extension: `.toml`, `.hcl`, `.kdl`, `.json`, or `.yaml`.
+When no file settles the format, ask which one to target.
+Offer all five formats: HCL, TOML, KDL, JSON, and YAML.
+
+A project that already has a configuration system forces two more choices.
+First, decide which configuration surface to target when the project has more than one.
+Second, decide whether the confval layer runs beside the existing loader or replaces it.
+Ask the operator to settle each choice before you write code.
 
 ### 2. Add the dependency
 
