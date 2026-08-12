@@ -205,110 +205,58 @@ impl ToFields for ServiceSpec {
 }
 
 /// The type-level schema, written by hand the way `#[derive(Spec)]` would emit
-/// it. It names each config key, its declared type, and whether it is required
-/// once the default is folded in. `workers`, `sample_rate`, `verbose`, `events`,
-/// and `headers` fill a default when absent, so they are not required. `route`
-/// is the config key the `routes` field reads. Every node is built through the
-/// `Schema::new` and `SchemaField::new` constructors, because the node structs
-/// are `#[non_exhaustive]`.
+/// it. `SchemaField::new` folds each field's structural requiredness and its
+/// default into the `required` a consumer reads, so a defaulted field passes
+/// `true, true` and comes out not required. `route` is the `routes` field's key,
+/// and every node is built through the `Schema::new` and `SchemaField::new`
+/// constructors, because the node structs are `#[non_exhaustive]`.
 impl ToSchema for ServiceSpec {
     fn schema() -> Schema {
-        let scalar = |leaf: ScalarType, constraint: Option<Constraint>| SchemaType::Scalar {
-            leaf,
-            constraint,
-        };
         let block = |schema: Schema, repeated: bool| SchemaType::Block {
             schema: Box::new(schema),
             repeated,
         };
+        let leaf = |leaf| SchemaType::Scalar {
+            leaf,
+            constraint: None,
+        };
+        let sf = |name: &str, structurally_required: bool, has_default: bool, ty: SchemaType| {
+            SchemaField::new(
+                name.to_string(),
+                None,
+                structurally_required,
+                has_default,
+                ty,
+            )
+        };
+        let workers = SchemaType::Scalar {
+            leaf: ScalarType::Int,
+            constraint: Some(Constraint::Range {
+                min: WORKERS.min.to_string(),
+                max: WORKERS.max.to_string(),
+                units: WORKERS.units,
+                help: WORKERS.help,
+            }),
+        };
         Schema::new(
             None,
             vec![
-                SchemaField::new(
-                    "name".to_string(),
-                    None,
-                    true,
-                    false,
-                    scalar(ScalarType::String, None),
-                ),
-                SchemaField::new(
-                    "workers".to_string(),
-                    None,
-                    false,
-                    true,
-                    scalar(
-                        ScalarType::Int,
-                        Some(Constraint::Range {
-                            min: WORKERS.min.to_string(),
-                            max: WORKERS.max.to_string(),
-                            units: WORKERS.units,
-                            help: WORKERS.help,
-                        }),
-                    ),
-                ),
-                SchemaField::new(
-                    "sample_rate".to_string(),
-                    None,
-                    false,
-                    true,
-                    scalar(ScalarType::Float, None),
-                ),
-                SchemaField::new(
-                    "verbose".to_string(),
-                    None,
-                    false,
-                    true,
-                    scalar(ScalarType::Bool, None),
-                ),
-                SchemaField::new(
-                    "pid_file".to_string(),
-                    None,
-                    false,
-                    false,
-                    scalar(ScalarType::Path, None),
-                ),
-                SchemaField::new(
-                    "events".to_string(),
-                    None,
-                    false,
-                    true,
-                    SchemaType::StringList,
-                ),
-                SchemaField::new(
-                    "phases".to_string(),
-                    None,
-                    false,
-                    false,
-                    SchemaType::StringList,
-                ),
-                SchemaField::new(
-                    "headers".to_string(),
-                    None,
-                    false,
-                    true,
-                    SchemaType::StringMap,
-                ),
-                SchemaField::new(
-                    "limits".to_string(),
-                    None,
-                    true,
-                    false,
-                    block(LimitsSpec::schema(), false),
-                ),
-                SchemaField::new(
-                    "telemetry".to_string(),
-                    None,
+                sf("name", true, false, leaf(ScalarType::String)),
+                sf("workers", true, true, workers),
+                sf("sample_rate", true, true, leaf(ScalarType::Float)),
+                sf("verbose", true, true, leaf(ScalarType::Bool)),
+                sf("pid_file", false, false, leaf(ScalarType::Path)),
+                sf("events", true, true, SchemaType::StringList),
+                sf("phases", false, false, SchemaType::StringList),
+                sf("headers", true, true, SchemaType::StringMap),
+                sf("limits", true, false, block(LimitsSpec::schema(), false)),
+                sf(
+                    "telemetry",
                     false,
                     false,
                     block(TelemetrySpec::schema(), false),
                 ),
-                SchemaField::new(
-                    "route".to_string(),
-                    None,
-                    false,
-                    false,
-                    block(RouteSpec::schema(), true),
-                ),
+                sf("route", false, false, block(RouteSpec::schema(), true)),
             ],
         )
     }

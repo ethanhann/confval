@@ -24,6 +24,13 @@ confval::keyword_enum!(pub TlsChallenge, {
     Dns01  => "dns-01",
 });
 
+/// The tag's own closed set. `from_fields` matches these strings to decide the
+/// variant, and the schema records them so an editor can complete the
+/// discriminant, the completion the recording attributes deliver for a derived
+/// spec. The two places are unguarded, so a value added here is added to the
+/// match by hand.
+const TLS_MODES: [&str; 2] = ["manual", "acme"];
+
 /// A tagged block: `mode = "manual"` takes a certificate pair, and
 /// `mode = "acme"` takes a domain list and a challenge type.
 #[derive(Debug)]
@@ -185,7 +192,7 @@ impl ToSchema for TlsSpec {
                     false,
                     SchemaType::Scalar {
                         leaf: ScalarType::String,
-                        constraint: None,
+                        constraint: Some(Constraint::Keywords(&TLS_MODES)),
                     },
                 ),
                 SchemaField::new(
