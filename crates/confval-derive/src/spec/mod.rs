@@ -86,10 +86,11 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let mut match_arms = Vec::new();
     let mut missing_checks = Vec::new();
     let mut constructors = Vec::new();
-    // The fifth bucket belongs to the separate `ValidateNested` impl below,
-    // and holds one descent per nested field, plus one recorded-constraint
-    // check per field that carries a `range` or `keywords` attribute.
+    // Two buckets feed the separate `ValidateNested` impl below. `visits` holds
+    // one descent per nested field, for `validate_nested`.
     let mut visits = Vec::new();
+    // `recorded_checks` holds one constraint check per field that carries a
+    // `range` or `keywords` attribute, for `validate_recorded`.
     let mut recorded_checks = Vec::new();
     // `#[confval(derive_default)]` fills this with one fragment per field, used
     // to build the generated `Default` impl.
