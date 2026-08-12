@@ -97,8 +97,9 @@ pub(crate) struct FieldOptions {
     pub(crate) default: Option<Option<Expr>>,
     /// The path a `#[confval(keywords = PATH)]` names, or `None`. It records the
     /// association from a `String` leaf to a `keyword_enum!` type, whose
-    /// `KEYWORDS` const the schema walk reads. The leaf-type pairing is checked
-    /// in `spec/schema.rs`, where the classified shape is available, not here.
+    /// `KEYWORDS` const the schema walk reads. The leaf-type pairing is not
+    /// checked here. It is checked in `spec/schema.rs`, where the classified
+    /// shape is available.
     pub(crate) keywords: Option<Path>,
     /// The path a `#[confval(range = PATH)]` names, or `None`. It records the
     /// association from an `Int` or `Float` leaf to a `RangeConstraint` value,

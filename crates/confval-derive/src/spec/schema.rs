@@ -9,7 +9,7 @@
 //! in `options.rs`. A `#[confval(keywords = ...)]` requires a `String` leaf and
 //! a `#[confval(range = ...)]` requires an `Int` or `Float` leaf. `options.rs`
 //! reads the attribute tokens and never classifies the field type, so the pairing
-//! rule can only run where the `Leaf` is known, which is here.
+//! rule runs in this module, the only place the `Leaf` is known.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};

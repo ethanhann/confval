@@ -1,5 +1,5 @@
 //! `#[derive(Spec)]`: generates the structural walks over a spec. It emits an
-//! `impl confval::format::FromFields` that parses a spec out of the field model,
+//! `impl confval::format::FromFields` that parses a spec out of the `Fields` view,
 //! the three `impl confval::format::ToFields` walks that write one back, an
 //! `impl confval::schema::ToSchema` that describes the type, and the
 //! `impl confval::pipeline::ValidateNested` that walks the nested blocks during

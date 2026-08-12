@@ -207,9 +207,9 @@ impl ToFields for ServiceSpec {
 /// The type-level schema, written by hand the way `#[derive(Spec)]` would emit
 /// it. `SchemaField::new` folds each field's structural requiredness and its
 /// default into the `required` a consumer reads, so a defaulted field passes
-/// `true, true` and comes out not required. `route` is the `routes` field's key,
-/// and every node is built through the `Schema::new` and `SchemaField::new`
-/// constructors, because the node structs are `#[non_exhaustive]`.
+/// `true, true` and is not required. `route` is the `routes` field's key. Every
+/// node is built through the `Schema::new` and `SchemaField::new` constructors,
+/// because the node structs are `#[non_exhaustive]`.
 impl ToSchema for ServiceSpec {
     fn schema() -> Schema {
         let block = |schema: Schema, repeated: bool| SchemaType::Block {

@@ -1,8 +1,8 @@
-//! The shape the derive cannot express, written end to end.
+//! A tagged block, written by hand to show a spec without the derive.
 //!
-//! `mode` decides which fields the rest of the block has. No `#[derive(Spec)]`
-//! field shape covers that, so this type implements the five traits the derive
-//! would have generated, plus `Default`, which a required nested slot needs.
+//! `mode` decides which fields the rest of the block has. This type implements
+//! the five traits `#[derive(Spec)]` would generate, plus `Default`, which a
+//! required nested slot needs.
 //!
 //! It is a field of `RouteSpec`, which is derived. The generated parser calls
 //! `TlsSpec::from_fields`, the generated write walks call its `to_fields` and
@@ -25,9 +25,9 @@ confval::keyword_enum!(pub TlsChallenge, {
 });
 
 /// The tag's own closed set. `from_fields` matches these strings to decide the
-/// variant, and the schema records them so an editor can complete the
-/// discriminant, the completion the recording attributes deliver for a derived
-/// spec. The two places are unguarded, so a value added here is added to the
+/// variant. The schema records them so an editor can complete the discriminant,
+/// matching what the recording attributes deliver for a derived spec. The two
+/// places are unguarded, so a value added here must be added to the `from_fields`
 /// match by hand.
 const TLS_MODES: [&str; 2] = ["manual", "acme"];
 
@@ -175,11 +175,11 @@ impl ValidateNested for TlsSpec {
     fn validate_nested(&self, _report: &mut Report) {}
 }
 
-/// The type-level schema, written by hand because the derive would have written
-/// it. A tag decides which fields a variant has, so no instance describes the
-/// type. The schema lists `mode` and every field a variant can carry, each built
-/// through the `Schema::new` and `SchemaField::new` constructors, because the
-/// node structs are `#[non_exhaustive]`.
+/// The type-level schema, written by hand the way `#[derive(Spec)]` would emit
+/// it. A tag decides which fields a variant has, so any one instance shows only
+/// one variant's fields. The schema lists `mode` and every field a variant can
+/// carry, each built through the `Schema::new` and `SchemaField::new`
+/// constructors, because the node structs are `#[non_exhaustive]`.
 impl ToSchema for TlsSpec {
     fn schema() -> Schema {
         Schema::new(

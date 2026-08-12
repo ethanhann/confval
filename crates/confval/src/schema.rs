@@ -28,8 +28,8 @@
 /// The walk is eager. A `Block` field builds its child's schema at once, so
 /// `schema()` requires a spec whose block nesting terminates. A spec that nests
 /// itself, directly or through a chain, such as a field of `Vec<Located<Self>>`,
-/// recurses without bound. The value walks bound their recursion by the data
-/// they read, so this limit belongs to the schema walk alone.
+/// recurses until it overflows the stack. The value walks bound their recursion
+/// by the data they read, so this limit belongs to the schema walk alone.
 pub trait ToSchema {
     /// The schema of this spec level.
     fn schema() -> Schema;
@@ -68,8 +68,8 @@ pub struct SchemaField {
     pub required: bool,
     /// Whether the field declares a `#[confval(default)]`. For an optional
     /// nested block this records the `#[confval(nested, default)]` populate
-    /// marker, where the spec field stays absent and the config side fills the
-    /// default, so a hover should not read it as "filled when absent" there.
+    /// marker. There the spec field stays absent and the config side fills the
+    /// default, so a hover should not read it as filled when absent.
     pub has_default: bool,
     /// The field's declared type.
     pub ty: SchemaType,
@@ -97,8 +97,8 @@ pub enum SchemaType {
     },
     /// An open-ended, string-keyed map with string values. Keys are open, so the
     /// node names no key or value type, mirroring [`StringList`](SchemaType::StringList).
-    /// m14 ships only the string-valued map, so a typed-value map is a later
-    /// variant.
+    /// The current release ships only the string-valued map, so a typed-value map
+    /// is a later variant.
     StringMap,
 }
 
@@ -148,7 +148,7 @@ impl Schema {
     /// Builds a level. The generated walk and a handwritten impl call this rather
     /// than a struct literal, because [`Schema`] is `#[non_exhaustive]` and a
     /// struct literal is a compile error outside this crate. This mirrors the
-    /// constructors [`Field`](crate::format::Field) ships.
+    /// constructors [`Field`](crate::format::Field) provides.
     pub fn new(doc: Option<String>, fields: Vec<SchemaField>) -> Self {
         Self { doc, fields }
     }

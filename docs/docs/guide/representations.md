@@ -7,15 +7,14 @@ sidebar_position: 7
 Sometimes you need to see what your service loaded, which may differ from the file on disk.
 This is especially true when you are examining a running service's configuration state.
 
-Three representations of one loaded spec are available:
+Three value representations of one loaded spec are available:
 
 1. The source view shows the configuration exactly as the operator wrote it, with no defaults applied.
 2. The populated view shows the configuration the service resolved to, with every default filled.
 3. The runtime view shows the typed values the program uses.
 
-A fourth representation reads the type rather than a value.
-The schema view describes the spec type itself, so it needs no instance and answers which fields are legal, which are required, and what kind each one holds.
-It is the sibling of the three value views, and the [schema IR](./schema-ir.md) page covers it.
+A fourth view, the schema view, reads the type rather than a value.
+See [The Schema View](#the-schema-view) below.
 
 The `representations` example prints all three value views from one spec.
 
@@ -101,7 +100,9 @@ This impl is behind confval's `serde` feature, so it appears only when you enabl
 
 The three views above read a value.
 The schema view reads the type, so `ServerSpec::schema()` is an associated function with no instance.
-It returns a `Schema` that names each field, whether it is required, and the kind it holds, which is what an editor needs before an operator writes a value.
+It returns a `Schema` that names each field, whether it is required, and the kind it holds.
+
+For example, ask a spec type for its schema:
 
 ```rust
 use confval::schema::ToSchema;
