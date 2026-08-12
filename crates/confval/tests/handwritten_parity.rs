@@ -4,22 +4,26 @@
 //! One spec is written twice over the same fields, once with `#[derive(Spec)]`
 //! and once by hand. Both parse the same document.
 //! The comparison covers the rendered TOML, the field names, and the span of
-//! every field, value, and list element. Each row of the builder's semantics
-//! table is a claim about generated code, so this test checks every row against
-//! what the derive emits.
+//! every field, value, list element, and map entry. Each row of the builder's
+//! semantics table is a claim about generated code, so this test checks every
+//! row against what the derive emits. The `headers` map is a shape the derive
+//! expresses but the builder has no method for, so the handwritten side builds
+//! and pushes it, and its parity is checked the same way.
 
 use confval::format::toml::{emit_toml, parse_toml};
 use confval::format::{
-    Field, FieldKind, Fields, FieldsBuilder, FromFields, ToFields, ValueKind, Walk,
-    parse_int_field, parse_string_field, parse_string_list_field, parse_struct_field,
-    parse_struct_list_field, report_missing_field, report_unknown_field,
+    Field, FieldKind, Fields, FieldsBuilder, FromFields, Scalar, ToFields, Value, ValueKind, Walk,
+    parse_int_field, parse_string_field, parse_string_list_field, parse_string_map_field,
+    parse_struct_field, parse_struct_list_field, report_missing_field, report_unknown_field,
 };
 use confval::prelude::*;
+use std::collections::BTreeMap;
 
 const DOCUMENT: &str = r#"name = "alpha"
 port = 9090
 tags = ["x", "y"]
 allow = []
+headers = { a = "1", b = "2" }
 
 [limits]
 size = 3
@@ -48,6 +52,8 @@ struct Derived {
     #[confval(default)]
     tags: Vec<Located<String>>,
     allow: Option<Located<Vec<Located<String>>>>,
+    #[confval(map, default)]
+    headers: BTreeMap<String, Located<String>>,
     #[confval(nested)]
     limits: Located<Child>,
     #[confval(nested)]
@@ -65,14 +71,16 @@ impl Validate for Derived {
 }
 
 /// The same fields, parsed and emitted by hand. The parse half uses the leaf
-/// helpers and the emit half uses the builder. A spec with a shape the derive
-/// cannot express writes that pair.
+/// helpers and the emit half uses the builder. A handwritten spec writes that
+/// pair, whether for a shape the derive cannot express or for a map the builder
+/// has no method for.
 #[derive(Debug)]
 struct Handwritten {
     name: Located<String>,
     port: Option<Located<i64>>,
     tags: Vec<Located<String>>,
     allow: Option<Located<Vec<Located<String>>>>,
+    headers: BTreeMap<String, Located<String>>,
     limits: Located<Child>,
     extra: Option<Located<Child>>,
     fallback: Option<Located<Child>>,
@@ -85,6 +93,7 @@ impl FromFields for Handwritten {
         let mut port = None;
         let mut tags = None;
         let mut allow = None;
+        let mut headers = None;
         let mut limits = None;
         let mut extra = None;
         let mut fallback = None;
@@ -96,6 +105,7 @@ impl FromFields for Handwritten {
                 "port" => port = parse_int_field(field, report),
                 "tags" => tags = parse_string_list_field(field, report),
                 "allow" => allow = parse_string_list_field(field, report),
+                "headers" => headers = parse_string_map_field(field, report),
                 "limits" => limits = parse_struct_field(field, report),
                 "extra" => extra = parse_struct_field(field, report),
                 "fallback" => fallback = parse_struct_field(field, report),
@@ -116,6 +126,7 @@ impl FromFields for Handwritten {
             port,
             tags: tags.map(|list| list.value).unwrap_or_default(),
             allow,
+            headers: headers.map(|map| map.value).unwrap_or_default(),
             limits: limits?,
             extra,
             fallback,
@@ -126,17 +137,54 @@ impl FromFields for Handwritten {
 
 impl Handwritten {
     fn build(&self, walk: Walk) -> Fields {
-        FieldsBuilder::new(walk)
+        let mut builder = FieldsBuilder::new(walk)
             .leaf("name", &self.name)
             .leaf_opt("port", self.port.as_ref())
             .string_list("tags", &self.tags)
-            .string_list_opt("allow", self.allow.as_ref())
+            .string_list_opt("allow", self.allow.as_ref());
+        // The builder shapes no map, so the map field is built by hand and
+        // pushed in the field's declaration position, where the derive emits it.
+        if let Some(field) = string_map_field(walk, "headers", &self.headers) {
+            builder = builder.push(field);
+        }
+        builder
             .block("limits", &self.limits)
             .block_opt("extra", self.extra.as_ref())
             .block_opt_default("fallback", self.fallback.as_ref())
             .block_list("services", &self.services)
             .finish()
     }
+}
+
+/// Builds a `headers` map field for one walk, the shape the derive's `Map` arm
+/// emits. The populated walk emits every entry detached, and the source walk
+/// keeps only source-written entries and drops the field when none remain.
+fn string_map_field(
+    walk: Walk,
+    name: &str,
+    map: &BTreeMap<String, Located<String>>,
+) -> Option<Field> {
+    let source = matches!(walk, Walk::Source);
+    let mut entries = Vec::new();
+    for (key, value) in map {
+        if source && value.span.is_detached() {
+            continue;
+        }
+        let scalar = ValueKind::Scalar(Scalar::String(value.value.clone()));
+        let inner = if source {
+            Value::spanned(value.span, scalar)
+        } else {
+            Value::detached(scalar)
+        };
+        entries.push(Field::detached_value(key, inner));
+    }
+    if source && entries.is_empty() {
+        return None;
+    }
+    Some(Field::detached_value(
+        name,
+        Value::detached(ValueKind::Map(Fields::detached(entries))),
+    ))
 }
 
 impl ToFields for Handwritten {
@@ -175,10 +223,16 @@ fn spans(fields: &Fields) -> Vec<(String, Span)> {
             FieldKind::Block(inner) => out.extend(spans(inner)),
             FieldKind::Value(value) => {
                 out.push((format!("{}.value", field.name), value.span));
-                if let ValueKind::Seq(elements) = &value.kind {
-                    for (index, element) in elements.iter().enumerate() {
-                        out.push((format!("{}[{index}]", field.name), element.span));
+                match &value.kind {
+                    ValueKind::Seq(elements) => {
+                        for (index, element) in elements.iter().enumerate() {
+                            out.push((format!("{}[{index}]", field.name), element.span));
+                        }
                     }
+                    // A map value's entries carry the only per-key locations it
+                    // has, so the parity tests descend into them too.
+                    ValueKind::Map(inner) => out.extend(spans(inner)),
+                    _ => {}
                 }
             }
         }
