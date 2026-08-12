@@ -13,7 +13,11 @@ Three representations of one loaded spec are available:
 2. The populated view shows the configuration the service resolved to, with every default filled.
 3. The runtime view shows the typed values the program uses.
 
-The `representations` example prints all three from one spec.
+A fourth representation reads the type rather than a value.
+The schema view describes the spec type itself, so it needs no instance and answers which fields are legal, which are required, and what kind each one holds.
+It is the sibling of the three value views, and the [schema IR](./schema-ir.md) page covers it.
+
+The `representations` example prints all three value views from one spec.
 
 Run it with:
 
@@ -92,6 +96,20 @@ struct LimitsConfig {
 
 A `keyword_enum!` type serializes as its keyword string rather than its Rust variant name, so the runtime view shows a mode as `"log"`, exactly as the config file and the other two views do.
 This impl is behind confval's `serde` feature, so it appears only when you enable serde.
+
+## The Schema View
+
+The three views above read a value.
+The schema view reads the type, so `ServerSpec::schema()` is an associated function with no instance.
+It returns a `Schema` that names each field, whether it is required, and the kind it holds, which is what an editor needs before an operator writes a value.
+
+```rust
+use confval::schema::ToSchema;
+
+let schema = ServerSpec::schema();
+```
+
+The [schema IR](./schema-ir.md) page covers what it carries, the two recording attributes that link a field to its constraint, and why it needs no instance.
 
 ## Why a Separate Walk
 
