@@ -26,6 +26,7 @@ mod shape;
 mod source_view;
 mod to_fields;
 mod traversal;
+mod validate_recorded;
 
 use options::{parse_options, parse_struct_options};
 use parser::{field_parser, reject_unsupported_default};
@@ -35,6 +36,7 @@ use shape::classify;
 use source_view::field_source_emit;
 use to_fields::to_fields_impl;
 use traversal::{nested_visit, validate_nested_impl};
+use validate_recorded::field_recorded_check;
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -85,8 +87,10 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let mut missing_checks = Vec::new();
     let mut constructors = Vec::new();
     // The fifth bucket belongs to the separate `ValidateNested` impl below,
-    // and holds one descent per nested field.
+    // and holds one descent per nested field, plus one recorded-constraint
+    // check per field that carries a `range` or `keywords` attribute.
     let mut visits = Vec::new();
+    let mut recorded_checks = Vec::new();
     // `#[confval(derive_default)]` fills this with one fragment per field, used
     // to build the generated `Default` impl.
     let mut default_ctors = Vec::new();
@@ -126,6 +130,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         to_source_emits.push(field_source_emit(ident, &shape));
         to_template_emits.push(field_emit(ident, &shape, &options, true));
         to_schema_emits.push(field_schema(ident, &shape, &options)?);
+        recorded_checks.extend(field_recorded_check(ident, &shape, &options));
 
         // Emit the parsing fragments for this field, tailored to its shape, and
         // splice each into its bucket.
@@ -136,7 +141,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         constructors.extend(parsed.constructors);
     }
 
-    let validate_nested = validate_nested_impl(name, &visits);
+    let validate_nested = validate_nested_impl(name, &visits, &recorded_checks);
     let default_impl = if struct_options.derive_default {
         default::default_impl(name, &default_ctors)
     } else {
