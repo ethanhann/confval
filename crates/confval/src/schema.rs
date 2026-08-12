@@ -24,6 +24,12 @@
 /// The type-level walk. `#[derive(Spec)]` implements it, and a handwritten spec
 /// can too. The method is associated, not a `&self` method, because the IR
 /// describes a type and needs no instance.
+///
+/// The walk is eager. A `Block` field builds its child's schema at once, so
+/// `schema()` requires a spec whose block nesting terminates. A spec that nests
+/// itself, directly or through a chain, such as a field of `Vec<Located<Self>>`,
+/// recurses without bound. The value walks bound their recursion by the data
+/// they read, so this limit belongs to the schema walk alone.
 pub trait ToSchema {
     /// The schema of this spec level.
     fn schema() -> Schema;
@@ -34,7 +40,7 @@ pub trait ToSchema {
 /// Build it with [`Schema::new`]. The struct is `#[non_exhaustive]`, so a later
 /// release can add a field without a break, and a producer outside this crate
 /// cannot use a struct literal.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Schema {
     /// The spec type's own doc comment, or `None`.
@@ -47,7 +53,7 @@ pub struct Schema {
 ///
 /// Build it with [`SchemaField::new`]. The struct is `#[non_exhaustive]` for the
 /// same reason [`Schema`] is.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct SchemaField {
     /// The field name as it appears in a config file.
@@ -70,7 +76,7 @@ pub struct SchemaField {
 }
 
 /// A field's declared type.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SchemaType {
     /// A single scalar leaf, with the constraint it declares, if any.
@@ -99,7 +105,7 @@ pub enum SchemaType {
 /// The scalar leaf types the derive can classify. `Path` is the config-level
 /// name for a `PathBuf` field, because the IR names the string an operator
 /// writes rather than the Rust wrapper.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ScalarType {
     /// A `String` leaf.
@@ -116,7 +122,7 @@ pub enum ScalarType {
 }
 
 /// A mechanical constraint the derive can read from a recording attribute.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Constraint {
     /// The allowed strings of a `keyword_enum!`, in declaration order.
@@ -150,17 +156,25 @@ impl Schema {
 
 impl SchemaField {
     /// Builds a field. The generated walk and a handwritten impl call this.
+    ///
+    /// `structurally_required` is whether the field's shape makes an absent
+    /// field a parse error before the default is folded in, true for a required
+    /// leaf, a bare string list, a required block, or a map, and false for an
+    /// `Option` field or a zero-or-more block list. The [`required`](SchemaField::required)
+    /// field is computed as `structurally_required && !has_default`, so a
+    /// defaulted field is never required and the contradictory "required and
+    /// defaulted" state cannot be built.
     pub fn new(
         name: String,
         doc: Option<String>,
-        required: bool,
+        structurally_required: bool,
         has_default: bool,
         ty: SchemaType,
     ) -> Self {
         Self {
             name,
             doc,
-            required,
+            required: structurally_required && !has_default,
             has_default,
             ty,
         }
