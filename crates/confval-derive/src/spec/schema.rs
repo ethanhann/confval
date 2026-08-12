@@ -46,8 +46,9 @@ pub(crate) fn to_schema_impl(
 /// when a recording attribute is paired with the wrong leaf or a non-scalar
 /// shape.
 ///
-/// `required` folds the default in: it is `structurally_required && !has_default`,
-/// so a defaulted field is not required whatever its shape.
+/// The constructor folds the default into `required`, so this passes the
+/// field's `structurally_required` flag and lets `SchemaField::new` compute
+/// `required` as `structurally_required && !has_default`.
 pub(crate) fn field_schema(
     ident: &Ident,
     shape: &FieldShape,
@@ -56,13 +57,13 @@ pub(crate) fn field_schema(
     let name = ident.unraw().to_string();
     let doc = option_string(&options.doc);
     let has_default = options.default.is_some();
-    let required = structurally_required(shape) && !has_default;
+    let structurally_required = structurally_required(shape);
     let ty = schema_type(shape, options)?;
     Ok(quote! {
         ::confval::schema::SchemaField::new(
             #name.to_string(),
             #doc,
-            #required,
+            #structurally_required,
             #has_default,
             #ty,
         )
