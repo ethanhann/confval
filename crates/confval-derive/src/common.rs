@@ -38,6 +38,36 @@ pub(crate) fn unwrap_generic<'a>(ty: &'a Type, name: &str) -> Option<&'a Type> {
     }
 }
 
+/// Peels the two type arguments off a two-parameter generic.
+///
+/// If `ty` is written as `Name<First, Second>` with exactly two types inside
+/// the angle brackets, returns `(First, Second)`. Otherwise it returns `None`.
+/// Calling `two_generic_args(ty, "BTreeMap")` on `BTreeMap<String,
+/// Located<String>>` yields `(String, Located<String>)`. The classifier uses it
+/// to recognize a map field.
+pub(crate) fn two_generic_args<'a>(ty: &'a Type, name: &str) -> Option<(&'a Type, &'a Type)> {
+    let Type::Path(path) = ty else {
+        return None;
+    };
+    let segment = path.path.segments.last()?;
+    if segment.ident != name {
+        return None;
+    }
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return None;
+    };
+    if arguments.args.len() != 2 {
+        return None;
+    }
+    let mut args = arguments.args.iter();
+    match (args.next()?, args.next()?) {
+        (syn::GenericArgument::Type(first), syn::GenericArgument::Type(second)) => {
+            Some((first, second))
+        }
+        _ => None,
+    }
+}
+
 /// The bare name at the end of a type path.
 ///
 /// Returns the last segment's identifier as a string, so both `String` and

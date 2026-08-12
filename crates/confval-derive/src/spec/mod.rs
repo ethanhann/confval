@@ -99,7 +99,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         // Read the field's attributes, work out its parsing shape, and reject a
         // `default` on a shape that cannot honor it.
         let options = parse_options(field)?;
-        let shape = classify(field, options.nested)?;
+        let shape = classify(field, options.nested, options.map)?;
         reject_unsupported_default(field, &shape, &options)?;
         if struct_options.derive_default {
             default_ctors.push(default::field_ctor(ident, &shape, &options)?);

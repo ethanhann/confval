@@ -10,6 +10,7 @@
 use super::field::{Field, FieldKind, FromFields, Scalar, Value, ValueKind};
 use crate::diagnostic::Report;
 use crate::source::{Located, Span};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 fn describe(value: &Value) -> &'static str {
@@ -226,6 +227,54 @@ pub fn parse_struct_list_field<S: FromFields>(
             _ => report_type_mismatch(value, "block or array of objects", report),
         },
     }
+}
+
+/// Parses a string-keyed map field, `#[confval(map)]`, into a `BTreeMap` whose
+/// values keep their spans.
+///
+/// Accepts both forms, a block or an attribute whose value is a map, the way
+/// [`parse_struct_field`] does, so KDL's children block and an inline object
+/// both read. Anything else is a type mismatch at the value. Every entry must
+/// be a string, read the way [`parse_string_field`] reads one, so a quoted
+/// value from a file and an unparsed value from an environment or command line
+/// layer both parse. A repeated key is a duplicate reported at the second key,
+/// pointing back at the first, so a map never silently overwrites an entry. A
+/// non-string entry is a type mismatch at its value. Every invalid entry is
+/// reported, and if any entry is invalid the function returns `None` with the
+/// error already in the report. The returned `Located` carries the whole
+/// field's span.
+pub fn parse_string_map_field(
+    field: &Field,
+    report: &mut Report,
+) -> Option<Located<BTreeMap<String, Located<String>>>> {
+    let fields = match &field.kind {
+        FieldKind::Block(fields) => fields,
+        FieldKind::Value(value) => match &value.kind {
+            ValueKind::Map(fields) => fields,
+            _ => {
+                report_type_mismatch(value, "block", report);
+                return None;
+            }
+        },
+    };
+    let mut map = BTreeMap::new();
+    let mut seen: BTreeMap<String, Span> = BTreeMap::new();
+    let mut all_valid = true;
+    for entry in fields.iter() {
+        if let Some(first) = seen.get(&entry.name) {
+            report_duplicate_field(&entry.name, entry.name_span, *first, report);
+            all_valid = false;
+            continue;
+        }
+        seen.insert(entry.name.clone(), entry.name_span);
+        match parse_string_field(entry, report) {
+            Some(value) => {
+                map.insert(entry.name.clone(), value);
+            }
+            None => all_valid = false,
+        }
+    }
+    all_valid.then(|| Located::new(map, field.span))
 }
 
 /// Appends one occurrence of a string-list field into `slot`, so a name
@@ -828,5 +877,146 @@ mod tests {
             report.issues()[0].message,
             "expected string, found datetime"
         );
+    }
+
+    fn string_entry(key: &str, value: &str) -> Field {
+        scalar_field(key, Scalar::String(value.to_string()))
+    }
+
+    fn inline_map_field(name: &str, entries: Vec<Field>) -> Field {
+        Field {
+            name: name.to_string(),
+            name_span: span(0, name.len() as u32),
+            span: span(0, 10),
+            source: SOURCE,
+            doc: None,
+            kind: FieldKind::Value(map_value(entries)),
+        }
+    }
+
+    fn block_map_field(name: &str, entries: Vec<Field>) -> Field {
+        Field {
+            name: name.to_string(),
+            name_span: span(0, name.len() as u32),
+            span: span(0, 10),
+            source: SOURCE,
+            doc: None,
+            kind: FieldKind::Block(Fields::new(SOURCE, span(0, 10), entries)),
+        }
+    }
+
+    #[test]
+    fn map_field_reads_an_inline_map() {
+        // Arrange
+        let field = inline_map_field(
+            "headers",
+            vec![
+                string_entry("Content-Type", "application/json"),
+                string_entry("X-Env", "prod"),
+            ],
+        );
+        let mut report = Report::new();
+
+        // Act
+        let map = parse_string_map_field(&field, &mut report);
+
+        // Assert
+        let map = map.expect("parses").value;
+        assert!(!report.has_issues());
+        assert_eq!(map.len(), 2);
+        assert_eq!(map["Content-Type"].value, "application/json");
+        assert_eq!(map["X-Env"].value, "prod");
+    }
+
+    #[test]
+    fn map_field_reads_a_block() {
+        // Arrange
+        let field = block_map_field("headers", vec![string_entry("a", "1")]);
+        let mut report = Report::new();
+
+        // Act
+        let map = parse_string_map_field(&field, &mut report);
+
+        // Assert
+        assert_eq!(map.expect("parses").value["a"].value, "1");
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn map_field_accepts_an_unparsed_value() {
+        // A layered environment or command line source yields `Unparsed`, which
+        // the entry parser coerces the way `parse_string_field` does.
+        // Arrange
+        let field = inline_map_field(
+            "headers",
+            vec![scalar_field("X-Env", Scalar::Unparsed("prod".to_string()))],
+        );
+        let mut report = Report::new();
+
+        // Act
+        let map = parse_string_map_field(&field, &mut report);
+
+        // Assert
+        assert_eq!(map.expect("parses").value["X-Env"].value, "prod");
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn map_field_reports_a_non_string_value() {
+        // Arrange
+        let field = inline_map_field("headers", vec![scalar_field("port", Scalar::Int(8080))]);
+        let mut report = Report::new();
+
+        // Act
+        let map = parse_string_map_field(&field, &mut report);
+
+        // Assert
+        assert!(map.is_none());
+        assert_eq!(report.issues()[0].message, "expected string, found number");
+    }
+
+    #[test]
+    fn map_field_reports_a_duplicate_key() {
+        // Arrange
+        let field = inline_map_field(
+            "headers",
+            vec![string_entry("a", "1"), string_entry("a", "2")],
+        );
+        let mut report = Report::new();
+
+        // Act
+        let map = parse_string_map_field(&field, &mut report);
+
+        // Assert
+        assert!(map.is_none());
+        assert_eq!(report.issues()[0].message, "duplicate field: a");
+    }
+
+    #[test]
+    fn map_field_reads_an_empty_map() {
+        // Arrange
+        let field = inline_map_field("headers", vec![]);
+        let mut report = Report::new();
+
+        // Act
+        let map = parse_string_map_field(&field, &mut report);
+
+        // Assert
+        assert!(map.expect("parses").value.is_empty());
+        assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn map_field_rejects_a_scalar_in_the_field_position() {
+        // Arrange
+        let field = scalar_field("headers", Scalar::String("nope".to_string()));
+        let mut report = Report::new();
+
+        // Act
+        let map = parse_string_map_field(&field, &mut report);
+
+        // Assert
+        assert!(map.is_none());
+        assert_eq!(report.issues()[0].message, "expected block, found string");
     }
 }

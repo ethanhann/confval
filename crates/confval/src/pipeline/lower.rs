@@ -1,5 +1,6 @@
 use crate::diagnostic::Report;
 use crate::source::Located;
+use std::collections::{BTreeMap, HashMap};
 
 /// Conversion from a Spec type to its runtime Config type.
 ///
@@ -56,6 +57,27 @@ impl<T: Clone> LowerAuto<Vec<T>> for Located<Vec<Located<T>>> {
 impl<T: Clone> LowerAuto<Option<Vec<T>>> for Option<Located<Vec<Located<T>>>> {
     fn lower_auto(&self) -> Option<Vec<T>> {
         self.as_ref().map(|list| list.value.lower_auto())
+    }
+}
+
+/// A `#[confval(map)]` field's `BTreeMap<String, Located<V>>` lowers to a plain
+/// `HashMap<String, V>`, dropping each value's span. The runtime map is what a
+/// consumer reads, and a plain `HashMap` is the common runtime shape.
+impl<V: Clone> LowerAuto<HashMap<String, V>> for BTreeMap<String, Located<V>> {
+    fn lower_auto(&self) -> HashMap<String, V> {
+        self.iter()
+            .map(|(key, value)| (key.clone(), value.value.clone()))
+            .collect()
+    }
+}
+
+/// The same map lowers to a `BTreeMap<String, V>` for a consumer that wants a
+/// sorted runtime map instead.
+impl<V: Clone> LowerAuto<BTreeMap<String, V>> for BTreeMap<String, Located<V>> {
+    fn lower_auto(&self) -> BTreeMap<String, V> {
+        self.iter()
+            .map(|(key, value)| (key.clone(), value.value.clone()))
+            .collect()
     }
 }
 

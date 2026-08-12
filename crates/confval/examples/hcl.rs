@@ -63,6 +63,7 @@ port = 8443
 workers = 8
 tls = true
 allow = ["10.0.0.0/8", "192.168.0.0/16"]
+headers = { "Content-Type" = "application/json", "X-Env" = "prod" }
 "#;
 
     let mut sources = SourceMap::new();

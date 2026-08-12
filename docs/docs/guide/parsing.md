@@ -98,6 +98,7 @@ These are the types you can use:
 - **Scalars**: `Located<String>`, `Located<i64>`, `Located<f64>`, `Located<bool>`, and `Located<PathBuf>`.
 - **Lists of strings**: `Vec<Located<String>>`, or `Option<Located<Vec<Located<String>>>>` for an optional list.
 - **Nested structs**: another `Spec` type marked with `#[confval(nested)]`, described below.
+- **Maps**: an open-ended, string-keyed map, `BTreeMap<String, Located<String>>` marked with `#[confval(map)]`, described below.
 
 ### Optional fields and defaults
 
@@ -121,6 +122,7 @@ Which form a field accepts depends on its shape.
 | `Located<T>`                                   | `T::default()`        | `expr`                       |
 | `Option<Located<T>>`                           | `Some(T::default())`  | `Some(expr)`                 |
 | `Vec<Located<String>>`                         | empty list            | compile error                |
+| `BTreeMap<...>` with `#[confval(map)]`         | empty map             | compile error                |
 | `Located<S>` with `#[confval(nested)]`         | `S::default()`        | compile error                |
 | `Option<Located<S>>` with `#[confval(nested)]` | compile error         | compile error                |
 | `Vec<Located<S>>` with `#[confval(nested)]`    | compile error         | compile error                |
@@ -193,6 +195,21 @@ It works three ways:
 - a single struct, `Located<T>`
 - an optional struct, `Option<Located<T>>`
 - a list of structs, `Vec<Located<T>>`, which reads a block that may repeat
+
+### Maps
+
+`#[confval(map)]` reads a field as an open-ended, string-keyed map, `BTreeMap<String, Located<String>>`.
+Use it for a setting whose keys are not known ahead of time, such as HTTP request headers or URL templates.
+
+The keys are open, so the parser reports no unknown field inside the map, and a duplicate key is an error.
+Each value keeps its span, so a `Validate` impl reports a bad entry at the entry.
+An operator writes the map as a block or as an inline map, and both read the same.
+
+A bare `#[confval(map, default)]` reads an absent map as empty.
+On the config side the map lowers to a plain `HashMap<String, String>` or `BTreeMap<String, String>` with no lowering function, because the two `LowerAuto` impls drop each value's span.
+
+Only a string-keyed map with string values is supported.
+A map of another value type, or a map of nested structs, needs a handwritten parser.
 
 ### Unknown fields
 
@@ -579,7 +596,8 @@ match self {
 
 Both walks emit it, because a source view that dropped the tag would not reparse.
 
-The builder does not cover every shape a spec can hold, a string-keyed map among them.
+The builder does not cover every shape a spec can hold.
+A string-keyed map has a derive form, `#[confval(map)]`, so it needs no handwritten walk, but the builder has no method for one.
 Build such a field directly with `Field::detached_value` or `Field::detached_block`.
 Locate it with `at` when it carries a span, then `push` it into the builder where it belongs:
 

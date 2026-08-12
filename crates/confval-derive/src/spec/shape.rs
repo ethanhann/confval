@@ -6,7 +6,7 @@
 //! type and returning a [`FieldShape`]. The generator in the parent module then
 //! switches on that shape.
 
-use crate::common::{last_segment, unwrap_generic};
+use crate::common::{last_segment, two_generic_args, unwrap_generic};
 use syn::{Field, Type, spanned::Spanned};
 
 /// The kind of a spec field, which decides how it is parsed.
@@ -36,6 +36,10 @@ pub(crate) enum FieldShape {
     /// `spec_ty` is the element type `S`, captured so the template walk can
     /// read `S`'s own doc for the commented entry an empty list renders.
     NestedList { spec_ty: Box<Type> },
+    /// An open-ended, string-keyed map, `BTreeMap<String, Located<String>>`,
+    /// marked `#[confval(map)]`. The value keeps its span, and the key is a
+    /// plain `String`. Only the bare form ships in this release.
+    Map,
 }
 
 /// The scalar leaf types confval knows how to parse directly.
@@ -51,10 +55,12 @@ pub(crate) enum Leaf {
 ///
 /// `nested` is the field's `#[confval(nested)]` flag. When set, the field is
 /// expected to be a sub-struct (or list of them) and is matched against the
-/// nested shapes. When unset, it must be a leaf scalar or a string list. A type
-/// that fits none of the supported shapes is a compile error whose message
-/// names what was expected, pointing at the field's type.
-pub(crate) fn classify(field: &Field, nested: bool) -> syn::Result<FieldShape> {
+/// nested shapes. `map` is the `#[confval(map)]` flag, mutually exclusive with
+/// `nested`, and when set the field must be a `BTreeMap<String,
+/// Located<String>>`. When neither is set, the field must be a leaf scalar or a
+/// string list. A type that fits none of the supported shapes is a compile
+/// error whose message names what was expected, pointing at the field's type.
+pub(crate) fn classify(field: &Field, nested: bool, map: bool) -> syn::Result<FieldShape> {
     let ty = &field.ty;
     // First peel off an outer `Option`, if there is one. That wrapper is what
     // makes a field optional. Everything below classifies what is inside it.
@@ -62,6 +68,30 @@ pub(crate) fn classify(field: &Field, nested: bool) -> syn::Result<FieldShape> {
         Some(inner) => (true, inner),
         None => (false, ty),
     };
+
+    // A `#[confval(map)]` field is a bare `BTreeMap<String, Located<String>>`.
+    // Only the bare form ships, so an `Option` wrapper is rejected.
+    if map {
+        if optional {
+            return Err(syn::Error::new(
+                ty.span(),
+                "optional maps are not supported; use a bare \
+                 BTreeMap<String, Located<String>>",
+            ));
+        }
+        let string_key = two_generic_args(inner, "BTreeMap").is_some_and(|(key, value)| {
+            last_segment(key).as_deref() == Some("String")
+                && unwrap_generic(value, "Located")
+                    .is_some_and(|inner| last_segment(inner).as_deref() == Some("String"))
+        });
+        if !string_key {
+            return Err(syn::Error::new(
+                ty.span(),
+                "map fields must be BTreeMap<String, Located<String>>",
+            ));
+        }
+        return Ok(FieldShape::Map);
+    }
 
     // A `#[confval(nested)]` field must be a sub-struct: either a list of them
     // (`Vec<Located<S>>`) or a single one (`Located<S>`).

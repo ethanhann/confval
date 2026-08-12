@@ -188,6 +188,36 @@ pub(crate) fn field_parser(
             });
             out.constructors.push(quote! { #ident: #slot, });
         }
+        FieldShape::Map => {
+            // A map is single-occurrence, like a leaf or a nested block. The
+            // seen span records the first occurrence, so a repeated map field
+            // is a duplicate and a present-but-failed map is not also reported
+            // missing.
+            let seen = format_ident!("__{}_seen", ident);
+            out.slot_decls.push(quote! {
+                let mut #slot = ::core::option::Option::None;
+                let mut #seen: ::core::option::Option<::confval::source::Span> =
+                    ::core::option::Option::None;
+            });
+            out.match_arms.push(quote! {
+                #field_name => {
+                    if ::confval::format::first_occurrence(
+                        &mut #seen, #field_name, __field, report,
+                    ) {
+                        #slot = ::confval::format::parse_string_map_field(__field, report);
+                    }
+                }
+            });
+            if options.default.is_some() {
+                out.constructors.push(quote! {
+                    #ident: #slot.map(|__map| __map.value).unwrap_or_default(),
+                });
+            } else {
+                out.missing_checks
+                    .push(seen_missing_check(&field_name, &seen));
+                out.constructors.push(quote! { #ident: #slot?.value, });
+            }
+        }
     }
 
     out
@@ -249,6 +279,9 @@ pub(crate) fn reject_unsupported_default(
             optional: false, ..
         }
         | FieldShape::Nested { optional: true, .. } => default.is_none(),
+        // A map's only meaningful default is the empty map, a bare
+        // `#[confval(default)]`. A `default = expr` for a whole map is refused.
+        FieldShape::Map => default.is_none(),
         FieldShape::NestedList { .. } | FieldShape::OptionalWrappedStringList => false,
     };
     if supported {
@@ -261,7 +294,7 @@ pub(crate) fn reject_unsupported_default(
     Err(syn::Error::new(
         span,
         "#[confval(default)] is not supported here; a leaf field takes \
-         #[confval(default)] or #[confval(default = expr)], while a string list \
-         or a nested block accepts only a bare #[confval(default)]",
+         #[confval(default)] or #[confval(default = expr)], while a string list, \
+         a map, or a nested block accepts only a bare #[confval(default)]",
     ))
 }

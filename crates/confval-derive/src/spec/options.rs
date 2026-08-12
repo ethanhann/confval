@@ -85,6 +85,9 @@ pub(crate) struct FieldOptions {
     /// `true` if the field was marked `#[confval(nested)]`, i.e. it is a
     /// sub-struct rather than a scalar.
     pub(crate) nested: bool,
+    /// `true` if the field was marked `#[confval(map)]`, i.e. it is an
+    /// open-ended, string-keyed map. Mutually exclusive with `nested`.
+    pub(crate) map: bool,
     /// Whether a `default` was requested, and with what value. The two `Option`
     /// layers mean different things:
     ///
@@ -106,6 +109,7 @@ pub(crate) struct FieldOptions {
 pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
     let mut options = FieldOptions {
         nested: false,
+        map: false,
         default: None,
         doc: None,
     };
@@ -120,6 +124,12 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                     return Err(meta.error("duplicate confval attribute `nested`"));
                 }
                 options.nested = true;
+                Ok(())
+            } else if meta.path.is_ident("map") {
+                if options.map {
+                    return Err(meta.error("duplicate confval attribute `map`"));
+                }
+                options.map = true;
                 Ok(())
             } else if meta.path.is_ident("default") {
                 if options.default.is_some() {
@@ -140,9 +150,20 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 confval_doc = Some(text.value());
                 Ok(())
             } else {
-                Err(meta.error("unknown confval attribute; expected `nested`, `default`, or `doc`"))
+                Err(meta.error(
+                    "unknown confval attribute; expected `nested`, `map`, `default`, or `doc`",
+                ))
             }
         })?;
+    }
+    // A map is not a nested sub-struct, so the two markers cannot both apply to
+    // one field.
+    if options.map && options.nested {
+        return Err(syn::Error::new_spanned(
+            field,
+            "#[confval(map)] and #[confval(nested)] cannot be combined; \
+             a map holds scalar values, not a sub-struct",
+        ));
     }
     // A `#[confval(doc = "...")]` overrides the harvested `///` comment.
     options.doc = confval_doc.or_else(|| harvest_doc_comment(&field.attrs));

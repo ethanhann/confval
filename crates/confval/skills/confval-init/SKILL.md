@@ -84,7 +84,8 @@ The cases are:
 
 - a tagged block that dispatches on a discriminator field
 - a free-form block held as an arbitrary value
-- a string-keyed map
+
+A string-keyed map has a derive form, `#[confval(map)]` over a `BTreeMap<String, Located<String>>`, so it needs no handwritten impl.
 
 See the complete documentation for the handwritten path.
 

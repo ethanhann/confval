@@ -258,6 +258,35 @@ pub(crate) fn field_emit(
                 #absent
             }
         }
+        FieldShape::Map => {
+            // A map emits as a map value, one detached string entry per key, in
+            // the `BTreeMap`'s sorted order. An empty map emits an empty map
+            // value, the way the bare string list emits an empty sequence.
+            quote! {
+                __items.push(::confval::format::Field::detached_value(
+                    #name,
+                    ::confval::format::Value::detached(::confval::format::ValueKind::Map(
+                        ::confval::format::Fields::detached(
+                            self.#ident
+                                .iter()
+                                .map(|(__key, __value)| {
+                                    ::confval::format::Field::detached_value(
+                                        __key,
+                                        ::confval::format::Value::detached(
+                                            ::confval::format::ValueKind::Scalar(
+                                                ::confval::format::Scalar::String(
+                                                    __value.value.clone(),
+                                                ),
+                                            ),
+                                        ),
+                                    )
+                                })
+                                .collect(),
+                        ),
+                    )),
+                )#doc #wrap);
+            }
+        }
     }
 }
 

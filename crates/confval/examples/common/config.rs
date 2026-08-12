@@ -1,5 +1,6 @@
 use super::spec::*;
 use confval::prelude::*;
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
@@ -16,6 +17,10 @@ pub struct ServerConfig {
     pub tls: bool,
     #[confval(lower(from = allow, with = allow_to_vec))]
     pub allow: Vec<String>,
+    // Auto-mapped from the spec's `BTreeMap<String, Located<String>>`. The
+    // `LowerAuto` impl drops each value's span and hands back a plain runtime
+    // map.
+    pub headers: HashMap<String, String>,
     // The spec field is `Option<Located<LimitsSpec>>`. With `default` an absent
     // block lowers `LimitsSpec::default()` instead of producing a missing-field
     // error, and the runtime field stays non-optional.
@@ -48,6 +53,15 @@ impl Display for ServerConfig {
         )?;
         if !self.allow.is_empty() {
             writeln!(f, "allow: {}", self.allow.join(", "))?;
+        }
+        if !self.headers.is_empty() {
+            let mut entries: Vec<_> = self
+                .headers
+                .iter()
+                .map(|(key, value)| format!("{key}={value}"))
+                .collect();
+            entries.sort();
+            writeln!(f, "headers: {}", entries.join(", "))?;
         }
         writeln!(
             f,
