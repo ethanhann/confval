@@ -14,8 +14,9 @@ keyword_enum!(pub LimitMode, {
 #[derive(confval::Spec)]
 pub struct ServerSpec {
     pub hostname: Located<String>,
+    #[confval(range = PORT)]
     pub port: Located<i64>,
-    #[confval(default = 4)]
+    #[confval(default = 4, range = WORKERS)]
     pub workers: Located<i64>,
     #[confval(default = false)]
     pub tls: Located<bool>,
@@ -39,9 +40,9 @@ pub struct ServerSpec {
 #[derive(confval::Spec)]
 #[confval(derive_default)]
 pub struct LimitsSpec {
-    #[confval(default = 16)]
+    #[confval(default = 16, range = MAX_BODY_MB)]
     pub max_body_mb: Located<i64>,
-    #[confval(default = "enforce".to_string())]
+    #[confval(default = "enforce".to_string(), keywords = LimitMode)]
     pub mode: Located<String>,
 }
 
