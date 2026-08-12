@@ -1,9 +1,9 @@
 //! The handwritten root, end to end.
 //!
-//! One type and five impls: `FromFields`, an inherent `build` that both write
-//! walks share, `ToFields`, `Validate`, and `ValidateNested`. Every helper the
-//! read half uses is the one `#[derive(Spec)]` would have called from generated
-//! code.
+//! One type and six impls: `FromFields`, an inherent `build` that both write
+//! walks share, `ToFields`, `ToSchema`, `Validate`, and `ValidateNested`. Every
+//! helper the read half uses is the one `#[derive(Spec)]` would have called from
+//! generated code.
 //!
 //! `name` and `limits` are guarded against a repeat, through `first_occurrence`
 //! and `parse_single_struct`. The derive guards every field it generates, so a
@@ -23,6 +23,7 @@ use confval::format::{
     parse_struct_field, parse_struct_list_field, report_missing_field, report_unknown_field,
 };
 use confval::prelude::*;
+use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -200,6 +201,116 @@ impl ToFields for ServiceSpec {
 
     fn to_source_fields(&self) -> Fields {
         self.build(Walk::Source)
+    }
+}
+
+/// The type-level schema, written by hand the way `#[derive(Spec)]` would emit
+/// it. It names each config key, its declared type, and whether it is required
+/// once the default is folded in. `workers`, `sample_rate`, `verbose`, `events`,
+/// and `headers` fill a default when absent, so they are not required. `route`
+/// is the config key the `routes` field reads. Every node is built through the
+/// `Schema::new` and `SchemaField::new` constructors, because the node structs
+/// are `#[non_exhaustive]`.
+impl ToSchema for ServiceSpec {
+    fn schema() -> Schema {
+        let scalar = |leaf: ScalarType, constraint: Option<Constraint>| SchemaType::Scalar {
+            leaf,
+            constraint,
+        };
+        let block = |schema: Schema, repeated: bool| SchemaType::Block {
+            schema: Box::new(schema),
+            repeated,
+        };
+        Schema::new(
+            None,
+            vec![
+                SchemaField::new(
+                    "name".to_string(),
+                    None,
+                    true,
+                    false,
+                    scalar(ScalarType::String, None),
+                ),
+                SchemaField::new(
+                    "workers".to_string(),
+                    None,
+                    false,
+                    true,
+                    scalar(
+                        ScalarType::Int,
+                        Some(Constraint::Range {
+                            min: WORKERS.min.to_string(),
+                            max: WORKERS.max.to_string(),
+                            units: WORKERS.units,
+                            help: WORKERS.help,
+                        }),
+                    ),
+                ),
+                SchemaField::new(
+                    "sample_rate".to_string(),
+                    None,
+                    false,
+                    true,
+                    scalar(ScalarType::Float, None),
+                ),
+                SchemaField::new(
+                    "verbose".to_string(),
+                    None,
+                    false,
+                    true,
+                    scalar(ScalarType::Bool, None),
+                ),
+                SchemaField::new(
+                    "pid_file".to_string(),
+                    None,
+                    false,
+                    false,
+                    scalar(ScalarType::Path, None),
+                ),
+                SchemaField::new(
+                    "events".to_string(),
+                    None,
+                    false,
+                    true,
+                    SchemaType::StringList,
+                ),
+                SchemaField::new(
+                    "phases".to_string(),
+                    None,
+                    false,
+                    false,
+                    SchemaType::StringList,
+                ),
+                SchemaField::new(
+                    "headers".to_string(),
+                    None,
+                    false,
+                    true,
+                    SchemaType::StringMap,
+                ),
+                SchemaField::new(
+                    "limits".to_string(),
+                    None,
+                    true,
+                    false,
+                    block(LimitsSpec::schema(), false),
+                ),
+                SchemaField::new(
+                    "telemetry".to_string(),
+                    None,
+                    false,
+                    false,
+                    block(TelemetrySpec::schema(), false),
+                ),
+                SchemaField::new(
+                    "route".to_string(),
+                    None,
+                    false,
+                    false,
+                    block(RouteSpec::schema(), true),
+                ),
+            ],
+        )
     }
 }
 

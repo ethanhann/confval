@@ -10,8 +10,10 @@
 //! handwritten again. Generated code therefore calls handwritten impls, and
 //! handwritten code calls generated impls, over one document in one run.
 //!
-//! A handwritten spec type implements four traits. `FromFields` and `ToFields`
-//! are the read and write halves. `Validate` holds the rules.
+//! A handwritten spec type implements five traits. `FromFields` and `ToFields`
+//! are the read and write halves. `ToSchema` is the type-level walk, which a
+//! derived parent's generated `schema()` calls on a handwritten child, so a
+//! child that omits it stops the parent compiling. `Validate` holds the rules.
 //! `ValidateNested` is the traversal the derive would have written. The
 //! `Self: ValidateNested` bound on `validate_all` makes omitting
 //! `ValidateNested` a compile error rather than a silently skipped subtree. A

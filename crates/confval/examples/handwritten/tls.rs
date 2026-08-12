@@ -1,18 +1,22 @@
 //! The shape the derive cannot express, written end to end.
 //!
 //! `mode` decides which fields the rest of the block has. No `#[derive(Spec)]`
-//! field shape covers that, so this type implements the four traits the derive
+//! field shape covers that, so this type implements the five traits the derive
 //! would have generated, plus `Default`, which a required nested slot needs.
 //!
 //! It is a field of `RouteSpec`, which is derived. The generated parser calls
-//! `TlsSpec::from_fields` and the generated write walks call its `to_fields`
-//! and `to_source_fields`. None of them distinguishes it from a derived type.
+//! `TlsSpec::from_fields`, the generated write walks call its `to_fields` and
+//! `to_source_fields`, and the generated `schema()` calls its `ToSchema`. None
+//! of them distinguishes it from a derived type, so a handwritten child nested
+//! under a derived parent implements `ToSchema` by hand or the parent does not
+//! compile.
 
 use confval::format::{
     Fields, FieldsBuilder, FromFields, ToFields, Walk, parse_path_field, parse_string_field,
     parse_string_list_field, report_missing_field, report_unknown_field,
 };
 use confval::prelude::*;
+use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 use std::path::PathBuf;
 
 confval::keyword_enum!(pub TlsChallenge, {
@@ -162,4 +166,66 @@ impl Validate for TlsSpec {
 /// `validate_all` requires the trait on every spec type, including the leaves.
 impl ValidateNested for TlsSpec {
     fn validate_nested(&self, _report: &mut Report) {}
+}
+
+/// The type-level schema, written by hand because the derive would have written
+/// it. A tag decides which fields a variant has, so no instance describes the
+/// type. The schema lists `mode` and every field a variant can carry, each built
+/// through the `Schema::new` and `SchemaField::new` constructors, because the
+/// node structs are `#[non_exhaustive]`.
+impl ToSchema for TlsSpec {
+    fn schema() -> Schema {
+        Schema::new(
+            None,
+            vec![
+                SchemaField::new(
+                    "mode".to_string(),
+                    None,
+                    true,
+                    false,
+                    SchemaType::Scalar {
+                        leaf: ScalarType::String,
+                        constraint: None,
+                    },
+                ),
+                SchemaField::new(
+                    "cert".to_string(),
+                    None,
+                    false,
+                    false,
+                    SchemaType::Scalar {
+                        leaf: ScalarType::Path,
+                        constraint: None,
+                    },
+                ),
+                SchemaField::new(
+                    "key".to_string(),
+                    None,
+                    false,
+                    false,
+                    SchemaType::Scalar {
+                        leaf: ScalarType::Path,
+                        constraint: None,
+                    },
+                ),
+                SchemaField::new(
+                    "domains".to_string(),
+                    None,
+                    false,
+                    false,
+                    SchemaType::StringList,
+                ),
+                SchemaField::new(
+                    "challenge".to_string(),
+                    None,
+                    false,
+                    false,
+                    SchemaType::Scalar {
+                        leaf: ScalarType::String,
+                        constraint: Some(Constraint::Keywords(&TlsChallenge::KEYWORDS)),
+                    },
+                ),
+            ],
+        )
+    }
 }
