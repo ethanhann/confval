@@ -81,9 +81,8 @@ struct ServerSpec {
 
 An attribute on the wrong leaf, or on a list, a map, or a block, is a compile error.
 
-The attribute records the constraint for the schema.
-It does not run the check.
-Your `Validate` body still calls the check, and nothing links the two, so when you add or change a recording attribute, update the matching check in the same edit.
+The attribute records the constraint for the schema, and on a derived spec the derive also runs the check during validation, so the attribute is the single source and the `Validate` body carries no line for it.
+A handwritten spec still calls the check itself, because the derive generates nothing for it.
 
 ## Building and reading a schema
 
