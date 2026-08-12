@@ -18,6 +18,7 @@ mod default;
 mod options;
 mod parser;
 mod populate;
+mod schema;
 mod shape;
 mod source_view;
 mod to_fields;
@@ -26,6 +27,7 @@ mod traversal;
 use options::{parse_options, parse_struct_options};
 use parser::{field_parser, reject_unsupported_default};
 use populate::field_emit;
+use schema::{field_schema, to_schema_impl};
 use shape::classify;
 use source_view::field_source_emit;
 use to_fields::to_fields_impl;
@@ -91,6 +93,10 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let mut to_fields_emits = Vec::new();
     let mut to_source_emits = Vec::new();
     let mut to_template_emits = Vec::new();
+    // One `SchemaField` fragment per field for the always-emitted `ToSchema`
+    // walk. Building it here also runs the constraint leaf-pairing check, where
+    // the classified shape and leaf are available.
+    let mut to_schema_fields = Vec::new();
 
     for field in &fields.named {
         let ident = field.ident.as_ref().ok_or_else(|| {
@@ -116,6 +122,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         to_fields_emits.push(field_emit(ident, &shape, &options, false));
         to_source_emits.push(field_source_emit(ident, &shape));
         to_template_emits.push(field_emit(ident, &shape, &options, true));
+        to_schema_fields.push(field_schema(ident, &shape, &options)?);
 
         // Emit the parsing fragments for this field, tailored to its shape, and
         // splice each into its bucket.
@@ -139,6 +146,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         &to_template_emits,
         &struct_options.doc,
     );
+    let to_schema = to_schema_impl(name, &struct_options.doc, &to_schema_fields);
 
     // Splice the four parsing buckets into the generated parser. This is the
     // code that runs at the caller's runtime, once per parsed struct.
@@ -173,5 +181,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         #default_impl
 
         #to_fields
+
+        #to_schema
     })
 }
