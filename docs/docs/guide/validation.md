@@ -19,8 +19,8 @@ confval provides only two domain-agnostic checks: `RangeConstraint` and `Keyword
 
 ## Concept Overview
 
-A spec type checks its own fields in a `Validate` impl.
-Numeric bounds use `RangeConstraint`, closed sets use `KeywordSet`, and each problem is reported at the field's span.
+A spec type checks its own fields.
+The two mechanical checks, a numeric range and a closed keyword set, are recorded on the field, and the derive runs them.
 
 ```rust
 range_constraint!(PORT, i64, min: 1, max: 65535);
@@ -30,25 +30,30 @@ keyword_enum!(pub LimitMode, {
     Off     => "off",
 });
 
-impl Validate for ServerSpec {
-    fn validate(&self, report: &mut Report) {
-        PORT.check_located(&self.port, "port", report);
-    }
+#[derive(confval::Spec)]
+struct ServerSpec {
+    #[confval(range = PORT)]
+    port: Located<i64>,
 }
 
-impl Validate for LimitsSpec {
-    fn validate(&self, report: &mut Report) {
-        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
-    }
+#[derive(confval::Spec)]
+struct LimitsSpec {
+    #[confval(keywords = LimitMode)]
+    mode: Located<String>,
 }
 ```
 
+A rule an attribute cannot express stays in a `Validate` impl.
+It reads the type's own fields and reports each problem at the field's span, so a rule that reads two fields lives here.
+
 You call `validate_all` once on the root spec.
-It runs each type's `validate` and descends into every nested block.
+It runs each type's recorded checks and its `validate`, then descends into every nested block.
 
 ```rust
 spec.validate_all(&mut report);
 ```
+
+[Recording a constraint on the field](#recording-a-constraint-on-the-field) covers the attributes, and the sections after it cover the hand-written rules.
 
 ## Where a rule lives
 
@@ -134,6 +139,35 @@ whole list.
 Both list shapes pass a slice, so a bare `Vec<Located<String>>` passes itself and a wrapped
 `Option<Located<Vec<Located<String>>>>` passes `&list.value`.
 
+## Recording a constraint on the field
+
+The two checks above are written once in a `Validate` body.
+A scalar field on a derived spec can instead record its constraint on the field, and the derive runs the check for you.
+
+`#[confval(range = PATH)]` on an `Int` or `Float` leaf, and `#[confval(keywords = PATH)]` on a `String` leaf, name the constraint the field must satisfy.
+`validate_all` runs the recorded check, so the field needs no line in `validate`.
+
+```rust
+#[derive(confval::Spec)]
+struct LimitsSpec {
+    #[confval(range = MAX_BODY_MB)]
+    max_body_mb: Located<i64>,
+    #[confval(keywords = LimitMode)]
+    mode: Located<String>,
+}
+
+impl Validate for LimitsSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+```
+
+The attribute is then the single source for that field.
+It records the constraint for the [schema IR](./schema-ir.md) and runs the check, so the two cannot disagree.
+
+Only a scalar `range` or `keywords` field is recorded this way.
+A cross-field rule, an emptiness check, and a keyword list checked with `check_each` have no attribute, so they stay in the `Validate` body.
+Removing a `check_each` line because you recorded other fields drops that check with no compile error, so leave a keyword-list check in place.
+
 ## keyword_enum!
 
 A closed-set field is otherwise declared three times.
@@ -160,19 +194,24 @@ With confval's `serde` feature enabled it also generates a `Serialize` impl that
 serialized config carries `"log"` rather than the Rust variant name `Log`.
 If you already wrote a `Serialize` for the enum yourself, remove it, because the two impls conflict.
 
-You validate a keyword field through the accessor:
+You check a keyword field in one of two ways.
+On a derived spec, record the set on the field and let the derive run the check:
 
 ```rust
-impl Validate for LimitsSpec {
-    fn validate(&self, report: &mut Report) {
-        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
-    }
+#[derive(confval::Spec)]
+struct LimitsSpec {
+    #[confval(keywords = LimitMode)]
+    mode: Located<String>,
 }
 ```
 
-The one artifact the macro does not generate is that `keyword_set().check_located(...)` call.
-Wire it into the `Validate` impl.
-A value that fails the check then never reaches the `TryFrom`, so the enum and its allowed set cannot drift.
+On a handwritten spec, or from a validator function, call the accessor yourself:
+
+```rust
+LimitMode::keyword_set().check_located(&self.mode, "mode", report);
+```
+
+Either way, a value that fails the check never reaches the `TryFrom`, so the enum and its allowed set cannot drift.
 To lower the validated string into the enum, name `narrow::keyword::<LimitMode>` as the `with` function, which the
 [lowering](./lowering.md#narrowing-helpers) guide covers.
 

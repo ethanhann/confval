@@ -27,14 +27,12 @@ keyword_enum!(Mode, {
 struct LimitsSpec {
     #[confval(default = 16)]
     max_body_mb: Located<i64>,
-    #[confval(default = "enforce".to_string())]
+    #[confval(keywords = Mode, default = "enforce".to_string())]
     mode: Located<String>,
 }
 
 impl Validate for LimitsSpec {
-    fn validate(&self, report: &mut Report) {
-        Mode::keyword_set().check_located(&self.mode, "mode", report);
-    }
+    fn validate(&self, _report: &mut Report) {}
 }
 
 #[derive(confval::Config, serde::Serialize)]

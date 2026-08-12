@@ -34,16 +34,27 @@ use core::ops::ControlFlow;
 /// every nested block unchecked.
 /// Closing that gap is what the traversal is for.
 ///
+/// `validate_all` also runs the recorded constraint checks through
+/// [`validate_recorded`](ValidateNested::validate_recorded), so a scalar field
+/// that declares `#[confval(range = ...)]` or `#[confval(keywords = ...)]` is
+/// checked without a line in `validate`. `validate` then holds only the rules an
+/// attribute cannot express, such as a cross-field rule or a keyword list.
+///
 /// ```ignore
-/// // Written by hand, once per spec type.
-/// impl Validate for LimitsSpec {
-///     fn validate(&self, report: &mut Report) {
-///         MAX_BODY_MB.check_located(&self.max_body_mb, "max_body_mb", report);
-///     }
+/// // The range is recorded on the field, so the derive checks it and the
+/// // `Validate` body carries no line for it.
+/// #[derive(confval::Spec)]
+/// struct LimitsSpec {
+///     #[confval(range = MAX_BODY_MB)]
+///     max_body_mb: Located<i64>,
 /// }
 ///
-/// // Called once, at the top of the pipeline. It validates LimitsSpec
-/// // without a separate call.
+/// impl Validate for LimitsSpec {
+///     fn validate(&self, _report: &mut Report) {}
+/// }
+///
+/// // Called once, at the top of the pipeline. It runs the recorded check,
+/// // then `validate`, then descends into every nested block.
 /// spec.validate_all(&mut report);
 /// ```
 pub trait Validate {
@@ -92,6 +103,7 @@ pub trait Validate {
     where
         Self: ValidateNested,
     {
+        self.validate_recorded(report);
         self.validate(report);
         if let ControlFlow::Continue(()) = self.descend() {
             self.validate_nested(report);
@@ -129,4 +141,17 @@ pub trait Validate {
 pub trait ValidateNested {
     /// Runs [`Validate::validate_all`] on every nested child of this value.
     fn validate_nested(&self, report: &mut Report);
+
+    /// Runs this level's own recorded constraint checks, the ones a scalar field
+    /// declares with `#[confval(range = ...)]` or `#[confval(keywords = ...)]`.
+    ///
+    /// The default runs nothing, so a handwritten impl keeps its checks in its
+    /// own `Validate` body and is unaffected. `#[derive(Spec)]` overrides it for
+    /// a spec that has a recorded field, so the attribute alone enforces the
+    /// constraint and the `Validate` body carries no line for it.
+    ///
+    /// [`validate_all`](Validate::validate_all) calls this beside `validate`, so
+    /// it runs on the type's own fields whether or not `descend` prunes the
+    /// children.
+    fn validate_recorded(&self, _report: &mut Report) {}
 }

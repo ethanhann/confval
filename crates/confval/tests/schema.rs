@@ -29,8 +29,8 @@ keyword_enum!(LimitMode, {
 
 /// The `common` fixture, mirrored here with the two recording attributes so the
 /// IR is pinned against a representative Spec rather than only its first
-/// consumer. The `Validate` bodies check the same constraints the attributes
-/// name, so the fixture shows the schema and the checker agree.
+/// consumer. The recording attributes drive the checks, so the `Validate`
+/// bodies carry no line for them.
 #[derive(confval::Spec)]
 struct ServerSpec {
     hostname: Located<String>,
@@ -49,10 +49,7 @@ struct ServerSpec {
 }
 
 impl Validate for ServerSpec {
-    fn validate(&self, report: &mut Report) {
-        PORT.check_located(&self.port, "port", report);
-        WORKERS.check_located(&self.workers, "workers", report);
-    }
+    fn validate(&self, _report: &mut Report) {}
 }
 
 #[derive(confval::Spec)]
@@ -65,10 +62,7 @@ struct LimitsSpec {
 }
 
 impl Validate for LimitsSpec {
-    fn validate(&self, report: &mut Report) {
-        MAX_BODY_MB.check_located(&self.max_body_mb, "max_body_mb", report);
-        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
-    }
+    fn validate(&self, _report: &mut Report) {}
 }
 
 /// The shapes and leaf types the fixture does not hold: an optional leaf, an

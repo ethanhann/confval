@@ -48,13 +48,12 @@ impl Validate for UpstreamSpec {
 
 #[derive(Default, confval::Spec)]
 struct RetrySpec {
+    #[confval(range = ATTEMPTS)]
     attempts: Located<i64>,
 }
 
 impl Validate for RetrySpec {
-    fn validate(&self, report: &mut Report) {
-        ATTEMPTS.check_located(&self.attempts, "attempts", report);
-    }
+    fn validate(&self, _report: &mut Report) {}
 }
 
 /// Parses one config, validates it, and prints whatever the report collected.
