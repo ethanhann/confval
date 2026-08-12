@@ -32,8 +32,7 @@ struct LimitsSpec {
 }
 
 impl Validate for LimitsSpec {
-    fn validate(&self, report: &mut Report) {
-        Mode::keyword_set().check_located(&self.mode, "mode", report);
+    fn validate(&self, _report: &mut Report) {
     }
 }
 
