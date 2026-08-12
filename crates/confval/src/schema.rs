@@ -97,8 +97,6 @@ pub enum SchemaType {
     },
     /// An open-ended, string-keyed map with string values. Keys are open, so the
     /// node names no key or value type, mirroring [`StringList`](SchemaType::StringList).
-    /// The current release ships only the string-valued map, so a typed-value map
-    /// is a later variant.
     StringMap,
 }
 
@@ -127,11 +125,9 @@ pub enum ScalarType {
 pub enum Constraint {
     /// The allowed strings of a `keyword_enum!`, in declaration order.
     Keywords(&'static [&'static str]),
-    /// An inclusive numeric range. The bounds are rendered to text, because the
-    /// only v0 consumer of them is a text-facing hover or diagnostic line. A
-    /// later release that needs numeric bounds, for JSON Schema or a docs page,
-    /// adds a typed variant. `help` carries the constraint's custom help line
-    /// for the hover, or `None`.
+    /// An inclusive numeric range, with its bounds rendered to text for a
+    /// text-facing hover or diagnostic line. `help` carries the constraint's
+    /// custom help line for the hover, or `None`.
     Range {
         /// The smallest allowed value, rendered to text.
         min: String,
