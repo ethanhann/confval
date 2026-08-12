@@ -125,9 +125,11 @@ const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
 ///   feature is enabled, so a serialized config carries `"log"` exactly as the
 ///   config file does.
 ///
-/// The one artifact it does not generate is the `keyword_set().check_located(...)`
-/// call in your `Validate` impl. Once that call is in place, a value that fails
-/// the check never reaches the `TryFrom`, so the enum and its set cannot drift.
+/// The macro does not run the check. On a derived spec, record the set on the
+/// field with `#[confval(keywords = LimitMode)]`, and the derive runs the
+/// `keyword_set().check_located(...)` call during validation. On a handwritten
+/// spec, call it in your `Validate` impl. Either way, a value that fails the
+/// check never reaches the `TryFrom`, so the enum and its set cannot drift.
 ///
 /// A table that maps two variants to one keyword is a compile error, because
 /// its `TryFrom` could never return the second variant.
