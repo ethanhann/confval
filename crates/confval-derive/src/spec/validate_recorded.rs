@@ -41,12 +41,12 @@ pub(crate) fn field_recorded_check(
     // `keyword_enum!` type whose `keyword_set()` yields the check.
     let call = |value: &TokenStream2| -> Option<TokenStream2> {
         if let Some(path) = &options.range {
-            Some(quote! { #path.check_located(#value, #name, report); })
-        } else if let Some(path) = &options.keywords {
-            Some(quote! { #path::keyword_set().check_located(#value, #name, report); })
-        } else {
-            None
+            return Some(quote! { #path.check_located(#value, #name, report); });
         }
+        options
+            .keywords
+            .as_ref()
+            .map(|path| quote! { #path::keyword_set().check_located(#value, #name, report); })
     };
 
     if matches!(shape, FieldShape::Leaf { optional: true, .. }) {
