@@ -5,19 +5,18 @@ sidebar_position: 8
 # The Schema IR
 
 Sometimes you need the type of a spec rather than a value of it.
-An editor writing completions needs exactly this.
-Before an operator writes a value, the editor needs to know which fields are legal here, which are required, what kind each one holds, and which values a closed-set field accepts.
+An editor writing completions is one example.
+Before an operator writes a value, the editor needs to know which fields are legal, which are required, what kind each one holds, and which values a closed-set field accepts.
 
-The two value walks cannot answer that.
-`FromFields` reads a `Fields` and builds a spec, and `ToFields` walks a spec instance and builds a `Fields`.
-Both need an instance, because both read a value.
-A populated `Fields` carries values, not declared types.
+The value walks cannot answer that.
+`FromFields` reads a `Fields` and builds a spec, and `ToFields` walks a spec and builds a `Fields`.
+Both need an instance, and a populated `Fields` holds values, not declared types.
 
-The schema IR is a third walk that reads the type.
-`ToSchema::schema()` returns a `Schema`, a type-level description derived from the struct rather than from an instance.
-It is an associated function with no `self`, because it describes a type and needs no value to read.
+The schema IR reads the type instead.
+`ToSchema::schema()` returns a `Schema` that describes the spec.
+It is an associated function with no `self`, so you call it without a value.
 
-For example, read the top-level fields and whether each is required:
+For example, list the top-level fields and whether each is required:
 
 ```rust
 use confval::schema::ToSchema;
@@ -28,57 +27,46 @@ for field in &schema.fields {
 }
 ```
 
-## What the IR carries
+## What a schema carries
 
-A `Schema` is one structural level: the spec type's own doc comment and its fields in declaration order.
-Each `SchemaField` carries the field name as it appears in a config file, the field's own doc comment, whether it is required, whether it declares a default, and its declared type.
+A `Schema` is one level of a spec: the type's doc comment and its fields in declaration order.
+Each `SchemaField` carries the field name as it appears in a config file, the field's doc comment, whether it is required, whether it declares a default, and its declared type.
 
 The declared type is a `SchemaType`.
-A scalar leaf carries its `ScalarType` and the constraint it declares, if any.
-A string list is `StringList`, and an open-ended string-keyed map is `StringMap`.
-A nested block is `Block`, which holds the child level's own `Schema` and a `repeated` flag.
-The flag is true for a zero-or-more block list.
+A scalar leaf carries its `ScalarType` and any constraint it declares.
+A string list is `StringList`, and a string-keyed map is `StringMap`.
+A nested block is `Block`, which holds the child level's own `Schema` and a `repeated` flag for a zero-or-more block list.
 
-Each leaf reads its `ScalarType` from the Rust type, so `port: Located<i64>` is `Int` and `hostname: Located<String>` is `String`, with no dependence on any value.
-A `PathBuf` leaf reads as `Path`, because the IR names the config-level type an operator writes, a path string, rather than the Rust wrapper.
+A leaf reads its `ScalarType` from the Rust type, so `port: Located<i64>` is `Int` and `hostname: Located<String>` is `String`.
+A `PathBuf` leaf reads as `Path`, the name for the path string an operator writes.
 
-The `Block` variant recurses into the child's own `schema()` through the `ToSchema` bound, so one call at the root builds the whole tree.
+A block recurses into the child's own `schema()`, so one call at the root builds the whole tree.
 
-## `required` folds in the default
+The schema does not carry rendered default values.
+It records only whether a field has a default.
+To read the concrete default text, use the [template](./templates.md) walk, `ServerSpec::default().to_template()`.
+
+## When a field is required
 
 `required` answers whether an absent field is a parse error.
-It is `structurally_required && !has_default`.
-A field with a `#[confval(default)]` is filled when absent rather than reported missing, whatever its shape.
-A filled field is not a parse error, so it is not required.
+A field is required when its shape needs a value and it declares no default.
+An `Option` field, a zero-or-more block list, and any field with a `#[confval(default)]` are not required.
 
-So an `Option` field is not required, a zero-or-more block list is not required, and a defaulted field is not required even when its shape alone would make an absent field a parse error.
-A defaulted list, a defaulted map, and a defaulted scalar all report `required` as false.
-Each reports `has_default` as true.
+A defaulted field therefore reports `required` as false and `has_default` as true, whatever its shape.
+An editor reads `required` to report only the fields the parser would reject as missing.
 
-If `required` read the shape alone, an editor would report every defaulted field as missing.
-The flag folds the default in so the editor reports only fields the parser would reject.
+## Recording constraints
 
-## Why the IR carries no default value
-
-The IR records whether a field has a default, not what the default renders to.
-The value walks already produce the rendered text.
-`ServerSpec::default().to_template()` fills each default into a `Fields`, so a consumer that wants the concrete default reads the [template](./templates.md) walk.
-
-This division keeps the derive from evaluating an arbitrary `#[confval(default = expr)]` at the type level, where no instance exists to evaluate it against.
-
-## The two recording attributes
-
-A constraint in confval is imperative.
-It is in a `Validate` impl body, where the derive cannot read it, so a closed-set field is a plain `Located<String>` to a type-level walk and a numeric range is invisible.
-Two recording attributes link a scalar leaf to its declared constraint so the IR can carry it.
+The derive cannot read a `Validate` body, so a closed-set field looks like a plain `Located<String>` and a numeric range is invisible to the schema.
+Two attributes record a constraint on a scalar leaf so the schema can carry it.
 
 `#[confval(keywords = PATH)]` names a `keyword_enum!` type and requires a `String` leaf.
-The walk reads the `KEYWORDS` const the macro generates and carries it as `Constraint::Keywords`.
+The schema carries its allowed strings as `Constraint::Keywords`.
 
-`#[confval(range = PATH)]` names a `RangeConstraint` value and requires an `Int` or `Float` leaf.
-The walk renders the bounds to text and carries them as `Constraint::Range`, with the constraint's units and help line.
+`#[confval(range = PATH)]` names a `RangeConstraint` and requires an `Int` or `Float` leaf.
+The schema carries its bounds, units, and help line as `Constraint::Range`.
 
-For example, a spec attaches the attributes like this:
+For example, attach a range to two integer fields:
 
 ```rust
 #[derive(confval::Spec)]
@@ -91,38 +79,24 @@ struct ServerSpec {
 }
 ```
 
-An attribute on the wrong leaf, or on a list, a map, or a nested block, is a compile error that names the mismatch.
-A `keywords` and a `range` on one field is such an error, because one leaf cannot be both a string and a number.
+An attribute on the wrong leaf, or on a list, a map, or a block, is a compile error.
 
-## One checker, and the drift it leaves
+The attribute records the constraint for the schema.
+It does not run the check.
+Your `Validate` body still calls the check, and nothing links the two, so when you add or change a recording attribute, update the matching check in the same edit.
 
-The recording attribute records the association only.
-The `Validate` body still performs the check, so the IR reads which constraint a field declares without moving the check that enforces it.
-This keeps the `Validate` body as the single checker and changes no validation behavior.
+## Building and reading a schema
 
-The association then appears in two places, the attribute and the `Validate` body, and no guard links them.
-A fixture test can assert the two agree in one spec, but it proves nothing about a downstream spec.
-A spec author who omits the attribute gets no completion for that field.
-One who names a keyword set the `Validate` body does not check gets a wrong completion.
-Neither mistake is a compile error.
-Keeping the `Validate` body as the single checker leaves this drift unguarded.
-
-## The nodes are a published surface
-
-Every node type is `#[non_exhaustive]`.
-A later release can add a variant to `SchemaType`, `ScalarType`, or `Constraint`, and a field to `Schema` or `SchemaField`, without a break.
-No crate outside confval builds a `Schema` or `SchemaField` with a struct literal.
-
-A producer builds through the `Schema::new` and `SchemaField::new` constructors, the way the generated walk does.
-A consumer reads the fields, so a test asserts by reading a field rather than by constructing an expected node.
+The node types are `#[non_exhaustive]`.
+Build a `Schema` or a `SchemaField` through `Schema::new` and `SchemaField::new` rather than a struct literal.
+Read a node by its fields, and match a `SchemaType`, `ScalarType`, or `Constraint` with a wildcard arm.
+Your code then keeps compiling when a release adds a variant or a field.
 
 ## Handwritten specs
 
-`#[derive(Spec)]` emits an `impl ToSchema` for every spec, the way it emits `impl ToFields`.
-A parent's generated `schema()` calls the child's, so a handwritten spec nested inside a derived parent implements `ToSchema` by hand, exactly as it already implements `ToFields`.
-A handwritten spec then implements five traits, `FromFields`, `ToFields`, `ToSchema`, `Validate`, and `ValidateNested`, and it builds its `Schema` through the constructors.
-
-For example, a handwritten spec builds its schema through the constructors:
+`#[derive(Spec)]` writes `ToSchema` for you.
+A spec you write by hand implements it too, because a derived parent's `schema()` calls its child's.
+Build the tree through the same constructors.
 
 ```rust
 use confval::schema::{Constraint, Schema, SchemaField, SchemaType, ScalarType, ToSchema};
