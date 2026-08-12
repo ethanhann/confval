@@ -47,17 +47,16 @@ pub struct LimitsSpec {
 }
 
 impl Validate for LimitsSpec {
-    fn validate(&self, report: &mut Report) {
-        MAX_BODY_MB.check_located(&self.max_body_mb, "max_body_mb", report);
-        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
-    }
+    // `max_body_mb` and `mode` record their constraints with `#[confval(range)]`
+    // and `#[confval(keywords)]`, so the derive checks them. Every rule this
+    // block has is recorded, so its `Validate` body is empty.
+    fn validate(&self, _report: &mut Report) {}
 }
 
 impl Validate for ServerSpec {
     fn validate(&self, report: &mut Report) {
-        PORT.check_located(&self.port, "port", report);
-        WORKERS.check_located(&self.workers, "workers", report);
-
+        // `port` and `workers` record their ranges, so the derive checks them.
+        // This body holds only the rules an attribute cannot express.
         if self.hostname.value.is_empty() {
             report
                 .error("hostname must not be empty")
