@@ -32,8 +32,7 @@ struct LimitsSpec {
 }
 
 impl Validate for LimitsSpec {
-    fn validate(&self, _report: &mut Report) {
-    }
+    fn validate(&self, _report: &mut Report) {}
 }
 
 #[derive(confval::Config, serde::Serialize)]

@@ -15,7 +15,7 @@ range_constraint!(PORT, i64, min: 1, max: 65535);
 #[derive(confval::Spec)]
 struct ServerSpec {
     hostname: Located<String>,
-    #[confval(range=PORT)]
+    #[confval(range = PORT)]
     port: Located<i64>,
 }
 
