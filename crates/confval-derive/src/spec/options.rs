@@ -8,7 +8,7 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{DeriveInput, Expr, Field};
+use syn::{DeriveInput, Expr, Field, Path};
 
 /// The struct-level `#[confval(...)]` options for `#[derive(Spec)]`.
 pub(crate) struct StructOptions {
@@ -95,6 +95,17 @@ pub(crate) struct FieldOptions {
     /// - `Some(None)`        `#[confval(default)]`, use the type's `Default`.
     /// - `Some(Some(expr))`  `#[confval(default = expr)]`, use `expr`.
     pub(crate) default: Option<Option<Expr>>,
+    /// The path a `#[confval(keywords = PATH)]` names, or `None`. It records the
+    /// association from a `String` leaf to a `keyword_enum!` type, whose
+    /// `KEYWORDS` const the schema walk reads. The leaf-type pairing is not
+    /// checked here. It is checked in `spec/schema.rs`, where the classified
+    /// shape is available.
+    pub(crate) keywords: Option<Path>,
+    /// The path a `#[confval(range = PATH)]` names, or `None`. It records the
+    /// association from an `Int` or `Float` leaf to a `RangeConstraint` value,
+    /// whose bounds the schema walk renders. The leaf-type pairing is checked in
+    /// `spec/schema.rs`.
+    pub(crate) range: Option<Path>,
     /// The doc comment `to_template` renders above the field, or `None`. Comes
     /// from `#[confval(doc = "...")]` if present, otherwise the field's `///`
     /// doc comments joined into one string.
@@ -111,6 +122,8 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
         nested: false,
         map: false,
         default: None,
+        keywords: None,
+        range: None,
         doc: None,
     };
     let mut confval_doc = None;
@@ -142,6 +155,18 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                     options.default = Some(None);
                 }
                 Ok(())
+            } else if meta.path.is_ident("keywords") {
+                if options.keywords.is_some() {
+                    return Err(meta.error("duplicate confval attribute `keywords`"));
+                }
+                options.keywords = Some(meta.value()?.parse()?);
+                Ok(())
+            } else if meta.path.is_ident("range") {
+                if options.range.is_some() {
+                    return Err(meta.error("duplicate confval attribute `range`"));
+                }
+                options.range = Some(meta.value()?.parse()?);
+                Ok(())
             } else if meta.path.is_ident("doc") {
                 if confval_doc.is_some() {
                     return Err(meta.error("duplicate confval attribute `doc`"));
@@ -151,7 +176,8 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 Ok(())
             } else {
                 Err(meta.error(
-                    "unknown confval attribute; expected `nested`, `map`, `default`, or `doc`",
+                    "unknown confval attribute; expected `nested`, `map`, `default`, \
+                     `keywords`, `range`, or `doc`",
                 ))
             }
         })?;
@@ -195,5 +221,142 @@ fn harvest_doc_comment(attrs: &[syn::Attribute]) -> Option<String> {
         None
     } else {
         Some(lines.join("\n"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    /// The first field of a parsed struct, the input the attribute reader reads.
+    fn first_field(item: syn::ItemStruct) -> Field {
+        item.fields
+            .into_iter()
+            .next()
+            .expect("the struct has a field")
+    }
+
+    #[test]
+    fn keywords_records_the_named_path() {
+        // Arrange
+        let field = first_field(parse_quote! {
+            struct Cfg {
+                #[confval(keywords = LimitMode)]
+                mode: Located<String>,
+            }
+        });
+
+        // Act
+        let options = parse_options(&field).expect("the attributes read");
+
+        // Assert
+        let path = options.keywords.expect("keywords is recorded");
+        assert!(path.is_ident("LimitMode"));
+        assert!(options.range.is_none());
+    }
+
+    #[test]
+    fn range_records_the_named_path() {
+        // Arrange
+        let field = first_field(parse_quote! {
+            struct Cfg {
+                #[confval(range = PORT)]
+                port: Located<i64>,
+            }
+        });
+
+        // Act
+        let options = parse_options(&field).expect("the attributes read");
+
+        // Assert
+        let path = options.range.expect("range is recorded");
+        assert!(path.is_ident("PORT"));
+        assert!(options.keywords.is_none());
+    }
+
+    #[test]
+    fn a_module_qualified_range_path_is_recorded() {
+        // Arrange
+        let field = first_field(parse_quote! {
+            struct Cfg {
+                #[confval(range = limits::MAX_BODY_MB)]
+                max_body_mb: Located<i64>,
+            }
+        });
+
+        // Act
+        let options = parse_options(&field).expect("the attributes read");
+
+        // Assert
+        let path = options.range.expect("range is recorded");
+        assert_eq!(path.segments.len(), 2);
+        assert_eq!(path.segments.last().unwrap().ident, "MAX_BODY_MB");
+    }
+
+    #[test]
+    fn keywords_and_range_are_both_recorded_here() {
+        // The reader records both keys. The leaf-type pairing that rejects the
+        // combination runs later, in `spec/schema.rs`, where the leaf is known.
+        // Arrange
+        let field = first_field(parse_quote! {
+            struct Cfg {
+                #[confval(keywords = LimitMode, range = PORT)]
+                mode: Located<String>,
+            }
+        });
+
+        // Act
+        let options = parse_options(&field).expect("the attributes read");
+
+        // Assert
+        assert!(options.keywords.is_some());
+        assert!(options.range.is_some());
+    }
+
+    #[test]
+    fn duplicate_keywords_is_an_error() {
+        // Arrange
+        let field = first_field(parse_quote! {
+            struct Cfg {
+                #[confval(keywords = LimitMode, keywords = OtherMode)]
+                mode: Located<String>,
+            }
+        });
+
+        // Act
+        let error = parse_options(&field)
+            .err()
+            .expect("a duplicate is rejected");
+
+        // Assert
+        assert!(
+            error
+                .to_string()
+                .contains("duplicate confval attribute `keywords`")
+        );
+    }
+
+    #[test]
+    fn duplicate_range_is_an_error() {
+        // Arrange
+        let field = first_field(parse_quote! {
+            struct Cfg {
+                #[confval(range = PORT, range = WORKERS)]
+                port: Located<i64>,
+            }
+        });
+
+        // Act
+        let error = parse_options(&field)
+            .err()
+            .expect("a duplicate is rejected");
+
+        // Assert
+        assert!(
+            error
+                .to_string()
+                .contains("duplicate confval attribute `range`")
+        );
     }
 }

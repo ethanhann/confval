@@ -1,24 +1,35 @@
-//! The shape the derive cannot express, written end to end.
+//! A tagged block, written by hand to show a spec without the derive.
 //!
-//! `mode` decides which fields the rest of the block has. No `#[derive(Spec)]`
-//! field shape covers that, so this type implements the four traits the derive
-//! would have generated, plus `Default`, which a required nested slot needs.
+//! `mode` decides which fields the rest of the block has. This type implements
+//! the five traits `#[derive(Spec)]` would generate, plus `Default`, which a
+//! required nested slot needs.
 //!
 //! It is a field of `RouteSpec`, which is derived. The generated parser calls
-//! `TlsSpec::from_fields` and the generated write walks call its `to_fields`
-//! and `to_source_fields`. None of them distinguishes it from a derived type.
+//! `TlsSpec::from_fields`, the generated write walks call its `to_fields` and
+//! `to_source_fields`, and the generated `schema()` calls its `ToSchema`. None
+//! of them distinguishes it from a derived type, so a handwritten child nested
+//! under a derived parent implements `ToSchema` by hand or the parent does not
+//! compile.
 
 use confval::format::{
     Fields, FieldsBuilder, FromFields, ToFields, Walk, parse_path_field, parse_string_field,
     parse_string_list_field, report_missing_field, report_unknown_field,
 };
 use confval::prelude::*;
+use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 use std::path::PathBuf;
 
 confval::keyword_enum!(pub TlsChallenge, {
     Http01 => "http-01",
     Dns01  => "dns-01",
 });
+
+/// The tag's own closed set. `from_fields` matches these strings to decide the
+/// variant. The schema records them so an editor can complete the discriminant,
+/// matching what the recording attributes deliver for a derived spec. The two
+/// places are unguarded, so a value added here must be added to the `from_fields`
+/// match by hand.
+const TLS_MODES: [&str; 2] = ["manual", "acme"];
 
 /// A tagged block: `mode = "manual"` takes a certificate pair, and
 /// `mode = "acme"` takes a domain list and a challenge type.
@@ -162,4 +173,66 @@ impl Validate for TlsSpec {
 /// `validate_all` requires the trait on every spec type, including the leaves.
 impl ValidateNested for TlsSpec {
     fn validate_nested(&self, _report: &mut Report) {}
+}
+
+/// The type-level schema, written by hand the way `#[derive(Spec)]` would emit
+/// it. A tag decides which fields a variant has, so any one instance shows only
+/// one variant's fields. The schema lists `mode` and every field a variant can
+/// carry, each built through the `Schema::new` and `SchemaField::new`
+/// constructors, because the node structs are `#[non_exhaustive]`.
+impl ToSchema for TlsSpec {
+    fn schema() -> Schema {
+        Schema::new(
+            None,
+            vec![
+                SchemaField::new(
+                    "mode".to_string(),
+                    None,
+                    true,
+                    false,
+                    SchemaType::Scalar {
+                        leaf: ScalarType::String,
+                        constraint: Some(Constraint::Keywords(&TLS_MODES)),
+                    },
+                ),
+                SchemaField::new(
+                    "cert".to_string(),
+                    None,
+                    false,
+                    false,
+                    SchemaType::Scalar {
+                        leaf: ScalarType::Path,
+                        constraint: None,
+                    },
+                ),
+                SchemaField::new(
+                    "key".to_string(),
+                    None,
+                    false,
+                    false,
+                    SchemaType::Scalar {
+                        leaf: ScalarType::Path,
+                        constraint: None,
+                    },
+                ),
+                SchemaField::new(
+                    "domains".to_string(),
+                    None,
+                    false,
+                    false,
+                    SchemaType::StringList,
+                ),
+                SchemaField::new(
+                    "challenge".to_string(),
+                    None,
+                    false,
+                    false,
+                    SchemaType::Scalar {
+                        leaf: ScalarType::String,
+                        constraint: Some(Constraint::Keywords(&TlsChallenge::KEYWORDS)),
+                    },
+                ),
+            ],
+        )
+    }
 }

@@ -1,0 +1,5 @@
+error: #[confval(keywords = ...)] requires a String leaf
+ --> tests/ui/fail/schema_keywords_on_float.rs:5:26
+  |
+5 |     #[confval(keywords = LimitMode)]
+  |                          ^^^^^^^^^

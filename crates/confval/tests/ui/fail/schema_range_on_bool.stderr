@@ -1,0 +1,5 @@
+error: #[confval(range = ...)] requires an Int or Float leaf
+ --> tests/ui/fail/schema_range_on_bool.rs:5:23
+  |
+5 |     #[confval(range = PORT)]
+  |                       ^^^^

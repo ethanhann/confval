@@ -7,13 +7,16 @@ sidebar_position: 7
 Sometimes you need to see what your service loaded, which may differ from the file on disk.
 This is especially true when you are examining a running service's configuration state.
 
-Three representations of one loaded spec are available:
+Three value representations of one loaded spec are available:
 
 1. The source view shows the configuration exactly as the operator wrote it, with no defaults applied.
 2. The populated view shows the configuration the service resolved to, with every default filled.
 3. The runtime view shows the typed values the program uses.
 
-The `representations` example prints all three from one spec.
+A fourth view, the schema view, reads the type rather than a value.
+See [The Schema View](#the-schema-view) below.
+
+The `representations` example prints all three value views from one spec.
 
 Run it with:
 
@@ -92,6 +95,22 @@ struct LimitsConfig {
 
 A `keyword_enum!` type serializes as its keyword string rather than its Rust variant name, so the runtime view shows a mode as `"log"`, exactly as the config file and the other two views do.
 This impl is behind confval's `serde` feature, so it appears only when you enable serde.
+
+## The Schema View
+
+The three views above read a value.
+The schema view reads the type, so `ServerSpec::schema()` is an associated function with no instance.
+It returns a `Schema` that names each field, whether it is required, and the kind it holds.
+
+For example, ask a spec type for its schema:
+
+```rust
+use confval::schema::ToSchema;
+
+let schema = ServerSpec::schema();
+```
+
+The [schema IR](./schema-ir.md) page covers what it carries, the two recording attributes that link a field to its constraint, and why it needs no instance.
 
 ## Why a Separate Walk
 

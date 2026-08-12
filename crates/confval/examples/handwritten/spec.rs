@@ -1,9 +1,9 @@
 //! The handwritten root, end to end.
 //!
-//! One type and five impls: `FromFields`, an inherent `build` that both write
-//! walks share, `ToFields`, `Validate`, and `ValidateNested`. Every helper the
-//! read half uses is the one `#[derive(Spec)]` would have called from generated
-//! code.
+//! One type and six impls: `FromFields`, an inherent `build` that both write
+//! walks share, `ToFields`, `ToSchema`, `Validate`, and `ValidateNested`. Every
+//! helper the read half uses is the one `#[derive(Spec)]` would have called from
+//! generated code.
 //!
 //! `name` and `limits` are guarded against a repeat, through `first_occurrence`
 //! and `parse_single_struct`. The derive guards every field it generates, so a
@@ -23,6 +23,7 @@ use confval::format::{
     parse_struct_field, parse_struct_list_field, report_missing_field, report_unknown_field,
 };
 use confval::prelude::*;
+use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -200,6 +201,64 @@ impl ToFields for ServiceSpec {
 
     fn to_source_fields(&self) -> Fields {
         self.build(Walk::Source)
+    }
+}
+
+/// The type-level schema, written by hand the way `#[derive(Spec)]` would emit
+/// it. `SchemaField::new` folds each field's structural requiredness and its
+/// default into the `required` a consumer reads, so a defaulted field passes
+/// `true, true` and is not required. `route` is the `routes` field's key. Every
+/// node is built through the `Schema::new` and `SchemaField::new` constructors,
+/// because the node structs are `#[non_exhaustive]`.
+impl ToSchema for ServiceSpec {
+    fn schema() -> Schema {
+        let block = |schema: Schema, repeated: bool| SchemaType::Block {
+            schema: Box::new(schema),
+            repeated,
+        };
+        let leaf = |leaf| SchemaType::Scalar {
+            leaf,
+            constraint: None,
+        };
+        let sf = |name: &str, structurally_required: bool, has_default: bool, ty: SchemaType| {
+            SchemaField::new(
+                name.to_string(),
+                None,
+                structurally_required,
+                has_default,
+                ty,
+            )
+        };
+        let workers = SchemaType::Scalar {
+            leaf: ScalarType::Int,
+            constraint: Some(Constraint::Range {
+                min: WORKERS.min.to_string(),
+                max: WORKERS.max.to_string(),
+                units: WORKERS.units,
+                help: WORKERS.help,
+            }),
+        };
+        Schema::new(
+            None,
+            vec![
+                sf("name", true, false, leaf(ScalarType::String)),
+                sf("workers", true, true, workers),
+                sf("sample_rate", true, true, leaf(ScalarType::Float)),
+                sf("verbose", true, true, leaf(ScalarType::Bool)),
+                sf("pid_file", false, false, leaf(ScalarType::Path)),
+                sf("events", true, true, SchemaType::StringList),
+                sf("phases", false, false, SchemaType::StringList),
+                sf("headers", true, true, SchemaType::StringMap),
+                sf("limits", true, false, block(LimitsSpec::schema(), false)),
+                sf(
+                    "telemetry",
+                    false,
+                    false,
+                    block(TelemetrySpec::schema(), false),
+                ),
+                sf("route", false, false, block(RouteSpec::schema(), true)),
+            ],
+        )
     }
 }
 
