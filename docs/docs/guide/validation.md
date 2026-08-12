@@ -19,8 +19,8 @@ confval provides only two domain-agnostic checks: `RangeConstraint` and `Keyword
 
 ## Concept Overview
 
-A spec type checks its own fields in a `Validate` impl.
-Numeric bounds use `RangeConstraint`, closed sets use `KeywordSet`, and each problem is reported at the field's span.
+A spec type checks its own fields.
+The two mechanical checks, a numeric range and a closed keyword set, are recorded on the field, and the derive runs them.
 
 ```rust
 range_constraint!(PORT, i64, min: 1, max: 65535);
@@ -30,28 +30,30 @@ keyword_enum!(pub LimitMode, {
     Off     => "off",
 });
 
-impl Validate for ServerSpec {
-    fn validate(&self, report: &mut Report) {
-        PORT.check_located(&self.port, "port", report);
-    }
+#[derive(confval::Spec)]
+struct ServerSpec {
+    #[confval(range = PORT)]
+    port: Located<i64>,
 }
 
-impl Validate for LimitsSpec {
-    fn validate(&self, report: &mut Report) {
-        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
-    }
+#[derive(confval::Spec)]
+struct LimitsSpec {
+    #[confval(keywords = LimitMode)]
+    mode: Located<String>,
 }
 ```
 
+A rule an attribute cannot express stays in a `Validate` impl.
+It reads the type's own fields and reports each problem at the field's span, so a rule that reads two fields lives here.
+
 You call `validate_all` once on the root spec.
-It runs each type's `validate` and descends into every nested block.
+It runs each type's recorded checks and its `validate`, then descends into every nested block.
 
 ```rust
 spec.validate_all(&mut report);
 ```
 
-A scalar field can also record its range or keyword set on the field, so the derive runs the check and the `Validate` body carries no line for it.
-See [Recording a constraint on the field](#recording-a-constraint-on-the-field).
+[Recording a constraint on the field](#recording-a-constraint-on-the-field) covers the attributes, and the sections after it cover the hand-written rules.
 
 ## Where a rule lives
 
