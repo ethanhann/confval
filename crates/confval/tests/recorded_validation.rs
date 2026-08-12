@@ -10,10 +10,18 @@ use confval::prelude::*;
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(LEVEL, i64, min: 0, max: 10);
+range_constraint!(WORKERS, i64, min: 1, max: 512);
+range_constraint!(MAX_BODY_MB, i64, min: 1, max: 1024);
 
 keyword_enum!(Mode, {
     On  => "on",
     Off => "off",
+});
+
+keyword_enum!(LimitMode, {
+    Enforce => "enforce",
+    Log     => "log",
+    Off     => "off",
 });
 
 /// A root with a recorded range, a recorded keyword, an optional recorded range,
@@ -102,7 +110,7 @@ impl Validate for Plain {
     fn validate(&self, _report: &mut Report) {}
 }
 
-/// A handwritten spec with a manual check and a hand-written `ValidateNested`
+/// A handwritten spec with a manual check and a handwritten `ValidateNested`
 /// that does not override `validate_recorded`.
 struct Handwritten {
     port: Located<i64>,
@@ -116,6 +124,36 @@ impl Validate for Handwritten {
 
 impl ValidateNested for Handwritten {
     fn validate_nested(&self, _report: &mut Report) {}
+}
+
+/// Mirrors the `common` fixture's recorded fields: a top-level range and an
+/// optional nested block whose range and keyword are enforced only through the
+/// parent's descent. Every rule is recorded, so both `Validate` bodies are empty.
+#[derive(confval::Spec)]
+struct FixtureServer {
+    #[confval(range = PORT)]
+    port: Located<i64>,
+    #[confval(default = 4, range = WORKERS)]
+    workers: Located<i64>,
+    #[confval(nested)]
+    limits: Option<Located<FixtureLimits>>,
+}
+
+impl Validate for FixtureServer {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[derive(confval::Spec)]
+#[confval(derive_default)]
+struct FixtureLimits {
+    #[confval(default = 16, range = MAX_BODY_MB)]
+    max_body_mb: Located<i64>,
+    #[confval(default = "enforce".to_string(), keywords = LimitMode)]
+    mode: Located<String>,
+}
+
+impl Validate for FixtureLimits {
+    fn validate(&self, _report: &mut Report) {}
 }
 
 /// Runs the whole validation walk and returns the report.
@@ -332,4 +370,45 @@ fn the_generated_check_reports_at_the_field_span() {
     // Assert
     assert_eq!(report.issues()[0].message, "port must be at most 65535");
     assert_eq!(report.issues()[0].span, Some(span));
+}
+
+#[test]
+fn the_migrated_fixture_reports_the_same_ordered_diagnostics() {
+    // Arrange
+    // A top-level range violation, and a populated nested block with a range and
+    // a keyword violation. The recorded checks fire the whole set through one
+    // `validate_all`: the top level first, then the descended block, in field
+    // order.
+    let mut sources = SourceMap::new();
+    let id = sources.add("server.hcl", "port = 99999");
+    let port_span = Span {
+        source: id,
+        start: 7,
+        end: 12,
+    };
+    let spec = FixtureServer {
+        port: Located {
+            value: 99999,
+            span: port_span,
+        },
+        workers: Located::detached(4),
+        limits: Some(Located::detached(FixtureLimits {
+            max_body_mb: Located::detached(9999),
+            mode: Located::detached("nope".to_string()),
+        })),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "port must be at most 65535",
+            "max_body_mb must be at most 1024",
+            "unknown mode: nope",
+        ]
+    );
+    assert_eq!(report.issues()[0].span, Some(port_span));
 }
