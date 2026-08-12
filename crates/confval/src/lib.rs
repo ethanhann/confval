@@ -17,6 +17,7 @@ pub mod format;
 #[cfg(feature = "layering")]
 pub mod layering;
 pub mod pipeline;
+pub mod schema;
 /// Source registration and location: [`SourceMap`](source::SourceMap),
 /// [`Span`](source::Span), and [`Located`](source::Located).
 pub mod source;
@@ -54,6 +55,9 @@ pub mod __private {
 /// because you call `spec.to_fields()` as a method and the trait must be in
 /// scope. Its parse counterpart [`FromFields`](format::FromFields) stays out,
 /// because a frontend calls it through its module path rather than as a method.
+/// The type-level trait [`ToSchema`](schema::ToSchema) is in the prelude for the
+/// same reason as `ToFields`: you call `Spec::schema()` and the trait must be in
+/// scope.
 ///
 /// Format adapters stay out of the prelude. Use their explicit module path
 /// (`confval::format::hcl`). The diagnostic internals
@@ -66,6 +70,7 @@ pub mod prelude {
     pub use crate::diagnostic::Report;
     pub use crate::format::ToFields;
     pub use crate::pipeline::{Lower, Validate, ValidateNested, narrow};
+    pub use crate::schema::ToSchema;
     pub use crate::source::{Located, SourceMap, Span};
     pub use crate::{KeywordSet, RangeConstraint, keyword_enum, range_constraint};
 
