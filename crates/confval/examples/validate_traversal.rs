@@ -53,8 +53,7 @@ struct RetrySpec {
 }
 
 impl Validate for RetrySpec {
-    fn validate(&self, _report: &mut Report) {
-    }
+    fn validate(&self, _report: &mut Report) {}
 }
 
 /// Parses one config, validates it, and prints whatever the report collected.
