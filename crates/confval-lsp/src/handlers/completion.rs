@@ -190,13 +190,18 @@ fn apply_edit(
     snippets: bool,
 ) {
     let (mut start, end) = ctx.token;
+    let bytes = text.as_bytes();
     // A bracketed header insert (a TOML table) replaces the bracket the operator
     // has already typed, so `[lim` becomes `[limits]` rather than `[[limits]`.
     if new_text.starts_with('[') {
-        let bytes = text.as_bytes();
         while start > 0 && bytes[start - 1] == b'[' {
             start -= 1;
         }
+    } else if new_text.starts_with('"') && start > 0 && bytes[start - 1] == b'"' {
+        // A JSON member insert `"key": ` replaces the opening quote the operator
+        // has already typed, so `"por` becomes `"port": ` rather than a doubled
+        // quote.
+        start -= 1;
     }
     let is_snippet = snippets && new_text.contains("$0");
     let new_text = if snippets {
