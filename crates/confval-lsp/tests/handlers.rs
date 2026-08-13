@@ -589,7 +589,15 @@ fn completing_a_typed_toml_header_replaces_the_bracket() {
     let schema = ServerSpec::schema();
 
     // Act
-    let items = completion(&Toml, &schema, tree.as_ref(), &context, text, &index, ENCODING);
+    let items = completion(
+        &Toml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    );
 
     // Assert
     let limits = items
@@ -601,7 +609,11 @@ fn completing_a_typed_toml_header_replaces_the_bracket() {
     };
     let start = index.offset_of(text, edit.range.start, ENCODING);
     let end = index.offset_of(text, edit.range.end, ENCODING);
-    assert_eq!(&text[start..end], "[lim", "the edit covers the typed bracket");
+    assert_eq!(
+        &text[start..end],
+        "[lim",
+        "the edit covers the typed bracket"
+    );
     assert_eq!(edit.new_text, "[limits]");
 }
 
@@ -615,10 +627,21 @@ fn value_completion_at_a_non_keyword_field_offers_nothing() {
     let schema = ServerSpec::schema();
 
     // Act
-    let items = completion(&Hcl, &schema, tree.as_ref(), &context, text, &index, ENCODING);
+    let items = completion(
+        &Hcl,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    );
 
     // Assert
-    assert!(items.is_empty(), "a range field's value offers no completion");
+    assert!(
+        items.is_empty(),
+        "a range field's value offers no completion"
+    );
 }
 
 #[test]
@@ -669,7 +692,13 @@ fn a_spanless_warning_maps_to_the_first_line_with_related_information() {
         .find(|diagnostic| diagnostic.message.contains("general warning"))
         .expect("a warning");
     assert_eq!(warning.severity, Some(DiagnosticSeverity::WARNING));
-    assert_eq!(warning.range.start, Position { line: 0, character: 0 });
+    assert_eq!(
+        warning.range.start,
+        Position {
+            line: 0,
+            character: 0
+        }
+    );
     let related = warning
         .related_information
         .as_ref()

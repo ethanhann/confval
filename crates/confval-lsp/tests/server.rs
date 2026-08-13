@@ -6,14 +6,16 @@ use std::str::FromStr;
 
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
-    DidOpenTextDocument, Exit, Initialized, Notification as _, PublishDiagnostics,
+    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Exit, Initialized,
+    Notification as _, PublishDiagnostics,
 };
-use lsp_types::request::{Completion, Initialize, Request as _, Shutdown};
+use lsp_types::request::{Completion, HoverRequest, Initialize, Request as _, Shutdown};
 use lsp_types::{
-    CompletionItem, CompletionParams, DidOpenTextDocumentParams, InitializeParams,
-    InitializedParams, PartialResultParams, Position, PublishDiagnosticsParams,
+    CompletionItem, CompletionParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, Hover, HoverParams, InitializeParams, InitializedParams,
+    PartialResultParams, Position, PublishDiagnosticsParams, TextDocumentContentChangeEvent,
     TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, Uri,
-    WorkDoneProgressParams,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 
 use confval_lsp::{Hcl, Server};
@@ -106,6 +108,75 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
         _ => None,
     });
 
+    // Act, request hover on the port value.
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(4),
+            HoverRequest::METHOD.to_string(),
+            HoverParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier { uri: uri.clone() },
+                    position: Position {
+                        line: 1,
+                        character: 8,
+                    },
+                },
+                work_done_progress_params: WorkDoneProgressParams::default(),
+            },
+        )))
+        .unwrap();
+    let hover: Response = recv_until(&client, |message| match message {
+        Message::Response(response) if response.id == RequestId::from(4) => Some(response.clone()),
+        _ => None,
+    });
+
+    // Act, change the document to a valid one.
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            DidChangeTextDocument::METHOD.to_string(),
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 2,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "hostname = \"api\"\nport = 8080\n".to_string(),
+                }],
+            },
+        )))
+        .unwrap();
+    let changed: PublishDiagnosticsParams = recv_until(&client, |message| match message {
+        Message::Notification(notification)
+            if notification.method == PublishDiagnostics::METHOD =>
+        {
+            Some(serde_json::from_value(notification.params.clone()).unwrap())
+        }
+        _ => None,
+    });
+
+    // Act, close the document.
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            DidCloseTextDocument::METHOD.to_string(),
+            DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            },
+        )))
+        .unwrap();
+    let closed: PublishDiagnosticsParams = recv_until(&client, |message| match message {
+        Message::Notification(notification)
+            if notification.method == PublishDiagnostics::METHOD =>
+        {
+            Some(serde_json::from_value(notification.params.clone()).unwrap())
+        }
+        _ => None,
+    });
+
     // Act, shut down.
     client
         .sender
@@ -138,6 +209,21 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
     assert!(
         labels.contains(&"workers"),
         "the root body offers an unset field, got: {labels:?}"
+    );
+    let hover_result: Option<Hover> =
+        serde_json::from_value(hover.result.expect("a hover result")).unwrap();
+    assert!(
+        hover_result.is_some(),
+        "hover on the port value returns content"
+    );
+    assert!(
+        changed.diagnostics.is_empty(),
+        "the corrected document has no diagnostics, got: {:?}",
+        changed.diagnostics
+    );
+    assert!(
+        closed.diagnostics.is_empty(),
+        "closing clears the document's diagnostics"
     );
     handle.join().unwrap().unwrap();
 }
