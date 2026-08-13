@@ -1,4 +1,5 @@
 use crate::Frontend;
+use crate::frontend::Recovery;
 use crate::frontends::is_block;
 use confval::diagnostic::Report;
 use confval::format::Fields;
@@ -19,6 +20,12 @@ impl Frontend for Toml {
         // A TOML `[table]` header spans only the header, not its entries, so a
         // table's body extends to the next sibling rather than to the span end.
         false
+    }
+
+    fn recovery(&self) -> Recovery {
+        // TOML addresses a table by a `[header]`, so the text recovery
+        // reconstructs the path from the last header rather than open braces.
+        Recovery::Header
     }
 
     fn insert_text(&self, field: &SchemaField, path: &[String]) -> String {
