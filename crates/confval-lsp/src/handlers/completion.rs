@@ -17,7 +17,7 @@ use confval::schema::{Constraint, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, Frontend, PositionKind, Recovery};
-use crate::text_scan::skip_string;
+use crate::scan::skip_string;
 use crate::walk::{fields_at, repeated_block_at, schema_at};
 
 /// Produces the completion items for a resolved cursor.

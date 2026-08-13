@@ -4,7 +4,7 @@
 //! and the property key before the cursor, so completion still resolves inside
 //! the object or the array element the cursor sits in while the buffer is broken.
 
-use crate::text_scan::skip_string;
+use super::text::skip_string;
 
 /// The enclosing object path in a JSON document: the keys of the objects whose
 /// braces are open at the offset. An array element's object contributes no key,

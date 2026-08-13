@@ -13,8 +13,7 @@ use confval::schema::SchemaField;
 use confval::source::{SourceId, SourceMap};
 
 use crate::resolve::{resolve_in_tree, value_span_token};
-use crate::text_scan::resolve_in_text;
-use crate::yaml_scan::resolve_in_yaml;
+use crate::scan::{resolve_in_text, resolve_in_yaml};
 
 /// The raw-text recovery a frontend's syntax needs.
 ///

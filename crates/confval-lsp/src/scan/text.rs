@@ -7,8 +7,8 @@
 //! the value the cursor sits on. It reads only the current text, so its offsets
 //! are always current.
 
+use super::json::object_path;
 use crate::frontend::{CursorContext, Recovery, ValueSeparator};
-use crate::json_scan::object_path;
 use crate::resolve::{identifier_token, value_token};
 
 /// Resolves an offset from raw text.

@@ -19,12 +19,10 @@ mod capabilities;
 mod encoding;
 mod frontend;
 mod frontends;
-mod json_scan;
 mod resolve;
+mod scan;
 mod server;
-mod text_scan;
 mod walk;
-mod yaml_scan;
 
 pub mod handlers;
 

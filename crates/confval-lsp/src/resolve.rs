@@ -6,8 +6,8 @@
 //! whose span contains the offset and reads the position kind from the field the
 //! offset lands on. When the offset lands between fields, it scans the raw text
 //! for the identifier under the cursor. Recovery for a buffer that does not parse
-//! is in [`text_scan`](crate::text_scan), and YAML resolves from indentation in
-//! [`yaml_scan`](crate::yaml_scan).
+//! is in [`text`](crate::scan::text), and YAML resolves from indentation in
+//! [`yaml`](crate::scan::yaml).
 
 use confval::format::{Field, FieldKind, Fields, Value, ValueKind};
 use confval::source::Span;
