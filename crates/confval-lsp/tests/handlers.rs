@@ -1314,3 +1314,136 @@ fn json_field_in_an_array_element_position_opens_an_object() {
         Some(InsertTextFormat::SNIPPET)
     );
 }
+
+#[test]
+fn json_list_and_map_completion_open_the_container() {
+    // Arrange
+    let text = "{\n  \n}";
+    let offset = text.find("\n  \n").unwrap() + "\n  ".len();
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let allow = items
+        .iter()
+        .find(|i| i.label == "allow")
+        .expect("allow offered");
+    assert_eq!(inserted(allow), "\"allow\": []");
+    let headers = items
+        .iter()
+        .find(|i| i.label == "headers")
+        .expect("headers offered");
+    assert_eq!(inserted(headers), "\"headers\": {  }");
+}
+
+#[test]
+fn yaml_list_and_map_completion_open_the_container() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Yaml, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let allow = items
+        .iter()
+        .find(|i| i.label == "allow")
+        .expect("allow offered");
+    assert_eq!(inserted(allow), "allow:\n  - ");
+    let headers = items
+        .iter()
+        .find(|i| i.label == "headers")
+        .expect("headers offered");
+    assert_eq!(inserted(headers), "headers:\n  ");
+}
+
+#[test]
+fn toml_list_and_map_completion_open_the_container() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Toml, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Toml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let allow = items
+        .iter()
+        .find(|i| i.label == "allow")
+        .expect("allow offered");
+    assert_eq!(inserted(allow), "allow = []");
+    let headers = items
+        .iter()
+        .find(|i| i.label == "headers")
+        .expect("headers offered");
+    assert_eq!(inserted(headers), "headers = {  }");
+}
+
+#[test]
+fn hcl_list_and_map_completion_open_the_container() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Hcl, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Hcl,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let allow = items
+        .iter()
+        .find(|i| i.label == "allow")
+        .expect("allow offered");
+    assert_eq!(inserted(allow), "allow = []");
+    let headers = items
+        .iter()
+        .find(|i| i.label == "headers")
+        .expect("headers offered");
+    assert_eq!(inserted(headers), "headers = {  }");
+}

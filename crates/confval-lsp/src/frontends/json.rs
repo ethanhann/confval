@@ -41,6 +41,8 @@ impl Frontend for Json {
                 format!("\"{}\": [{{ $0 }}]", field.name)
             }
             SchemaType::Block { .. } => format!("\"{}\": {{\n  $0\n}}", field.name),
+            SchemaType::StringList => format!("\"{}\": [$0]", field.name),
+            SchemaType::StringMap => format!("\"{}\": {{ $0 }}", field.name),
             _ => format!("\"{}\": ", field.name),
         }
     }

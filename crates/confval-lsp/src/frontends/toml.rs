@@ -38,6 +38,8 @@ impl Frontend for Toml {
             // header.
             SchemaType::Block { repeated: true, .. } => format!("[[{qualified}]]"),
             SchemaType::Block { .. } => format!("[{qualified}]"),
+            SchemaType::StringList => format!("{} = [$0]", field.name),
+            SchemaType::StringMap => format!("{} = {{ $0 }}", field.name),
             _ => format!("{} = ", field.name),
         }
     }

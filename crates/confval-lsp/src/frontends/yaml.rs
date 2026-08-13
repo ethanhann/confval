@@ -28,11 +28,14 @@ impl Frontend for Yaml {
 
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> String {
         match &field.ty {
-            // A repeated block is a sequence, so the insert opens the first
-            // element with a `-` marker.
-            SchemaType::Block { repeated: true, .. } => format!("{}:\n  - $0", field.name),
-            // A single nested mapping opens its body on the next indented line.
-            SchemaType::Block { .. } => format!("{}:\n  $0", field.name),
+            // A repeated block and a string list are both sequences, so the
+            // insert opens the first element with a `-` marker.
+            SchemaType::Block { repeated: true, .. } | SchemaType::StringList => {
+                format!("{}:\n  - $0", field.name)
+            }
+            // A single nested mapping and a map both open a body on the next
+            // indented line.
+            SchemaType::Block { .. } | SchemaType::StringMap => format!("{}:\n  $0", field.name),
             _ => format!("{}: ", field.name),
         }
     }
