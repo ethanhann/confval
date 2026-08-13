@@ -11,7 +11,7 @@ use confval::format::Fields;
 use confval::schema::SchemaField;
 use confval::source::{SourceId, SourceMap};
 
-use crate::resolve::resolve_in_tree;
+use crate::resolve::{resolve_in_tree, value_span_token};
 use crate::text_scan::resolve_in_text;
 use crate::yaml_scan::resolve_in_yaml;
 
@@ -132,7 +132,22 @@ pub trait Frontend {
         // child and an empty key parses as null, so the tree does not cover a
         // pending body position.
         if matches!(self.recovery(), Recovery::Indentation) {
-            return resolve_in_yaml(text, offset);
+            let mut context = resolve_in_yaml(text, offset);
+            // The reader reads the path and kind from indentation, but a parsed
+            // value's exact span replaces the whole value, so completing a
+            // spaced or quoted value does not stop at a space.
+            if let Some(tree) = tree {
+                let field = match &context.kind {
+                    PositionKind::AttributeValue { field } => Some(field.clone()),
+                    _ => None,
+                };
+                if let Some(field) = field
+                    && let Some(token) = value_span_token(tree, &context.path, &field, text)
+                {
+                    context.token = token;
+                }
+            }
+            return context;
         }
         match tree {
             Some(tree) => resolve_in_tree(tree, text, offset, self.block_span_covers_body()),
