@@ -4,11 +4,11 @@ mod fixture;
 
 use std::str::FromStr;
 
-use lsp_types::{CompletionItemKind, HoverContents, Uri};
+use lsp_types::{CompletionItemKind, CompletionTextEdit, HoverContents, Position, Range, Uri};
 
 use confval::schema::ToSchema;
 use confval_lsp::handlers::{completion, diagnostics, hover};
-use confval_lsp::{Frontend, Hcl, LineIndex, PositionEncoding};
+use confval_lsp::{Frontend, Hcl, Kdl, LineIndex, PositionEncoding, Toml};
 
 use fixture::ServerSpec;
 
@@ -50,11 +50,18 @@ fn diagnostics_report_the_pipeline_issues_at_their_ranges() {
         messages.iter().any(|m| m.contains("mode")),
         "expected a keyword diagnostic, got: {messages:?}"
     );
-    // Every diagnostic points at a real span, not the zero-width default.
-    assert!(
-        found
-            .iter()
-            .all(|d| d.range.end.character > 0 || d.range.end.line > 0)
+    // The unknown-field diagnostic points at the exact span the pipeline
+    // produced: `bogus` starts the third line.
+    let bogus = found
+        .iter()
+        .find(|d| d.message.contains("bogus"))
+        .expect("an unknown-field diagnostic");
+    assert_eq!(
+        bogus.range.start,
+        Position {
+            line: 2,
+            character: 0
+        }
     );
 }
 
@@ -159,6 +166,10 @@ fn hover_renders_a_set_field_with_its_type_and_constraint() {
     // Assert
     let value = markdown(hover.expect("a hover for port"));
     assert!(value.contains("integer"), "got: {value}");
+    assert!(
+        value.contains("The TCP port the server listens on"),
+        "the doc comment renders: {value}"
+    );
     assert!(value.contains("Between 1 and 65535"), "got: {value}");
     assert!(value.contains("Set by the configuration."), "got: {value}");
 }
@@ -178,7 +189,196 @@ fn hover_states_a_defaulted_field_is_not_set() {
 
     // Assert
     let value = markdown(hover.expect("a hover for workers"));
-    assert!(value.contains("Not set; uses its default."), "got: {value}");
+    assert!(value.contains("Has a default."), "got: {value}");
+    assert!(value.contains("Not set. Uses its default."), "got: {value}");
+}
+
+#[test]
+fn a_repeated_block_stays_offered_while_a_single_block_is_dropped() {
+    // Arrange
+    let text = "limits {\n}\nrules {\n  prefix = \"/a\"\n}\n";
+    let (tree, context) = at(text, text.len());
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Hcl,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let labels = labels(&items);
+    assert!(
+        labels.contains(&"rules".to_string()),
+        "a repeated block stays offered: {labels:?}"
+    );
+    assert!(
+        !labels.contains(&"limits".to_string()),
+        "an already-set single block is dropped: {labels:?}"
+    );
+}
+
+#[test]
+fn a_map_body_offers_no_keys() {
+    // Arrange
+    let text = "headers = {\n  \n}\n";
+    let offset = text.find("{\n").unwrap() + 3;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Hcl,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    assert!(
+        items.is_empty(),
+        "a map has open keys, so its body offers nothing"
+    );
+}
+
+#[test]
+fn toml_block_completion_inserts_a_table_header() {
+    // Arrange
+    let text = "";
+    let tree = Toml.parse_tree(text);
+    let context = Toml.resolve(tree.as_ref(), text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Toml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let limits = items
+        .iter()
+        .find(|item| item.label == "limits")
+        .expect("limits offered");
+    assert_eq!(limits.insert_text.as_deref(), Some("[limits]"));
+}
+
+#[test]
+fn kdl_scalar_completion_inserts_the_bare_name_form() {
+    // Arrange
+    let text = "";
+    let tree = Kdl.parse_tree(text);
+    let context = Kdl.resolve(tree.as_ref(), text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Kdl,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let port = items
+        .iter()
+        .find(|item| item.label == "port")
+        .expect("port offered");
+    assert_eq!(port.insert_text.as_deref(), Some("port "));
+}
+
+#[test]
+fn toml_enum_value_completion_offers_the_allowed_strings() {
+    // Arrange
+    let text = "[limits]\nmode = \"e\"\n";
+    let offset = text.find("\"e\"").unwrap() + 1;
+    let tree = Toml.parse_tree(text);
+    let context = Toml.resolve(tree.as_ref(), text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Toml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let mut labels = labels(&items);
+    labels.sort();
+    assert_eq!(labels, vec!["enforce", "log", "off"]);
+}
+
+#[test]
+fn a_half_typed_name_completes_over_a_replace_range() {
+    // Arrange
+    // A half-typed name does not parse, so resolution scans the token and the
+    // completion replaces it rather than inserting after it.
+    let text = "wor";
+    let (tree, context) = at(text, text.len());
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Hcl,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let workers = items
+        .iter()
+        .find(|item| item.label == "workers")
+        .expect("workers offered");
+    match &workers.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => {
+            assert_eq!(
+                edit.range,
+                Range {
+                    start: Position {
+                        line: 0,
+                        character: 0
+                    },
+                    end: Position {
+                        line: 0,
+                        character: 3
+                    },
+                }
+            );
+            assert_eq!(edit.new_text, "workers = ");
+        }
+        other => panic!("expected a replace edit, got: {other:?}"),
+    }
 }
 
 /// The Markdown body of a hover.
