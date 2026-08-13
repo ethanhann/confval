@@ -1,7 +1,7 @@
 //! The five format frontends: HCL, TOML, KDL, JSON, and YAML.
 //!
 //! Each binds its `confval` parse function, its recovery strategy, and its
-//! insert text. Everything else, parsing and resolving a cursor, is the shared
+//! insert text. Everything else, building the tree and resolving a cursor, is the shared
 //! default on [`Frontend`]. The YAML frontend uses that same default `resolve`,
 //! which routes its indentation recovery to the YAML reader in both parse states.
 
