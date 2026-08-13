@@ -27,11 +27,21 @@ pub(crate) fn resolve_in_yaml(text: &str, offset: usize) -> CursorContext {
 /// its indented content is not read as structure.
 fn yaml_path(text: &str, offset: usize) -> Vec<String> {
     let line_start = text[..offset].rfind('\n').map(|i| i + 1).unwrap_or(0);
-    let cursor_indent = line_indent(&text[line_start..offset]);
+    let cursor_slice = &text[line_start..offset];
+    let cursor_line = cursor_slice.strip_suffix('\r').unwrap_or(cursor_slice);
+    let cursor_indent = line_indent(cursor_line);
 
     let mut stack: Vec<(usize, String)> = Vec::new();
     let mut block_scalar: Option<usize> = None;
-    for line in text[..line_start].split('\n') {
+    let mut flow_depth: i32 = 0;
+    for raw in text[..line_start].split('\n') {
+        let line = raw.strip_suffix('\r').unwrap_or(raw);
+        // A multi-line flow collection nests inline, not by indentation, so its
+        // interior lines are skipped until the flow closes.
+        if flow_depth > 0 {
+            flow_depth += flow_delta(line);
+            continue;
+        }
         let trimmed = line.trim_start();
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
@@ -56,12 +66,42 @@ fn yaml_path(text: &str, offset: usize) -> Vec<String> {
             }
             stack.push((col, name));
         }
+        flow_depth += flow_delta(line);
+        if flow_depth < 0 {
+            flow_depth = 0;
+        }
     }
     stack
         .into_iter()
         .filter(|(col, _)| *col < cursor_indent)
         .map(|(_, name)| name)
         .collect()
+}
+
+/// The net flow-bracket balance of a line, counting `{` and `[` as open and `}`
+/// and `]` as close, outside a quoted string or a comment. A positive running
+/// total means a flow collection is open across lines.
+fn flow_delta(line: &str) -> i32 {
+    let bytes = line.as_bytes();
+    let mut index = 0;
+    let mut delta = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => index = skip_double(bytes, index),
+            b'\'' => index = skip_single(bytes, index),
+            b'#' => break,
+            b'{' | b'[' => {
+                delta += 1;
+                index += 1;
+            }
+            b'}' | b']' => {
+                delta -= 1;
+                index += 1;
+            }
+            _ => index += 1,
+        }
+    }
+    delta
 }
 
 /// The attribute whose value the cursor sits in, or `None` for a body position.
@@ -71,7 +111,8 @@ fn yaml_path(text: &str, offset: usize) -> Vec<String> {
 /// which is where a value on the next line leaves the cursor.
 fn yaml_attribute(text: &str, offset: usize) -> Option<String> {
     let line_start = text[..offset].rfind('\n').map(|i| i + 1).unwrap_or(0);
-    let prefix = &text[line_start..offset];
+    let slice = &text[line_start..offset];
+    let prefix = slice.strip_suffix('\r').unwrap_or(slice);
     let trimmed = prefix.trim_start();
     let rest = trimmed
         .strip_prefix("- ")
