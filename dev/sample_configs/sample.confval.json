@@ -6,7 +6,9 @@
     "max_body_mb": 10,
     "mode": "log"
   },
-  "rules": {
-    "prefix": "/api"
-  }
+  "rules": [
+    {
+      "prefix": "/api"
+    }
+  ]
 }
