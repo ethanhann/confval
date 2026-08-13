@@ -153,6 +153,25 @@ fn value_replace_token(field: &Field, value: &Value, text: &str, offset: usize) 
     (start.max(name_end), end.max(name_end))
 }
 
+/// The completion replace token for the value of `name` at `path` in the parsed
+/// tree, or `None` when the field or its value is absent. YAML resolution reads
+/// its path and kind from indentation, but takes the value token from the tree
+/// when the buffer parses, so a completion replaces the whole value rather than
+/// stopping at a space.
+pub(crate) fn value_span_token(
+    tree: &Fields,
+    path: &[String],
+    name: &str,
+    text: &str,
+) -> Option<(usize, usize)> {
+    let level = crate::walk::fields_at(tree, path)?;
+    let field = level.get(name)?;
+    match &field.kind {
+        FieldKind::Value(value) if !value.span.is_detached() => Some(span_token(value.span, text)),
+        _ => None,
+    }
+}
+
 /// The completion replace range for a parsed value: its exact span, clamped to
 /// the cursor's line so a value with a space is replaced whole and a multi-line
 /// value does not overreach.
