@@ -1,18 +1,19 @@
-//! Position resolution: a byte offset to a [`CursorContext`].
+//! Position resolution over a parsed tree: a byte offset to a [`CursorContext`].
 //!
 //! The block-structured formats converge on `confval`'s neutral [`Fields`] tree,
 //! which already carries the name span, value span, and block span of every
-//! field. So the walk is shared: it descends the tree following the block whose
-//! span contains the offset, and it reads the position kind from the field the
-//! offset lands on. When no tree is available, or the offset lands between
-//! fields, it scans the raw text for the identifier under the cursor.
+//! field. The walk is therefore shared. It descends the tree following the block
+//! whose span contains the offset and reads the position kind from the field the
+//! offset lands on. When the offset lands between fields, it scans the raw text
+//! for the identifier under the cursor. Recovery for a buffer that does not parse
+//! is in [`text_scan`](crate::text_scan).
 
 use confval::format::{Field, FieldKind, Fields, Value, ValueKind};
 use confval::source::Span;
 
 use crate::frontend::CursorContext;
 
-/// Resolves `offset` against the retained tree, falling back to a text scan.
+/// Resolves `offset` against the parsed tree.
 pub(crate) fn resolve_in_tree(
     tree: Option<&Fields>,
     text: &str,
@@ -57,17 +58,11 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
     let fields: Vec<&Field> = level.iter().collect();
     let enclosing_end = end_of(level.enclosing());
     for (index, &field) in fields.iter().enumerate() {
+        let next = fields.get(index + 1).map(|sibling| start_of(sibling.span));
         match &field.kind {
             FieldKind::Block(inner) => {
-                let next = fields.get(index + 1).map(|sibling| start_of(sibling.span));
                 if in_block_body(field, inner, covers_body, next, enclosing_end, offset) {
                     return Step::Enter(field.name.clone(), inner);
-                }
-                if contains(field.name_span, offset) {
-                    return Step::Here(CursorContext::body(
-                        Vec::new(),
-                        identifier_token(text, offset),
-                    ));
                 }
             }
             FieldKind::Value(value) => match &value.kind {
@@ -75,10 +70,16 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
                     if contains(value.span, offset) {
                         return Step::Enter(field.name.clone(), inner);
                     }
-                    if contains(field.name_span, offset) {
-                        return Step::Here(CursorContext::body(
+                }
+                ValueKind::Seq(elements) => {
+                    if let Some(inner) = seq_element_body(elements, next, enclosing_end, offset) {
+                        return Step::Enter(field.name.clone(), inner);
+                    }
+                    if contains(value.span, offset) {
+                        return Step::Here(CursorContext::attribute_value(
                             Vec::new(),
-                            identifier_token(text, offset),
+                            field.name.clone(),
+                            span_token(value.span, text),
                         ));
                     }
                 }
@@ -87,23 +88,69 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
                         return Step::Here(CursorContext::attribute_value(
                             Vec::new(),
                             field.name.clone(),
-                            value_token(text, offset),
-                        ));
-                    }
-                    if contains(field.name_span, offset) {
-                        return Step::Here(CursorContext::body(
-                            Vec::new(),
-                            identifier_token(text, offset),
+                            span_token(value.span, text),
                         ));
                     }
                 }
             },
+        }
+        if contains(field.name_span, offset) {
+            return Step::Here(CursorContext::body(
+                Vec::new(),
+                identifier_token(text, offset),
+            ));
         }
     }
     Step::Here(CursorContext::body(
         Vec::new(),
         identifier_token(text, offset),
     ))
+}
+
+/// The body of the array-of-tables element that contains `offset`, if any.
+///
+/// Each element is a header-only block, so its body runs to the next element, or
+/// to the array field's next sibling or the enclosing end for the last element.
+fn seq_element_body(
+    elements: &[Value],
+    next_sibling_start: Option<u32>,
+    enclosing_end: u32,
+    offset: usize,
+) -> Option<&Fields> {
+    for (index, element) in elements.iter().enumerate() {
+        let ValueKind::Map(inner) = &element.kind else {
+            continue;
+        };
+        let start = start_of(element.span) as usize;
+        let within = match elements.get(index + 1) {
+            Some(following) => offset < start_of(following.span) as usize,
+            None => {
+                offset
+                    <= next_sibling_start
+                        .unwrap_or(enclosing_end)
+                        .max(deepest_end(inner)) as usize
+            }
+        };
+        if start <= offset && within {
+            return Some(inner);
+        }
+    }
+    None
+}
+
+/// The completion replace range for a parsed value: its exact span, clamped to
+/// the cursor's line so a value with a space is replaced whole and a multi-line
+/// value does not overreach.
+fn span_token(span: Span, text: &str) -> (usize, usize) {
+    if span.is_detached() {
+        return (text.len(), text.len());
+    }
+    let start = (span.start as usize).min(text.len());
+    let mut end = (span.end as usize).min(text.len());
+    if let Some(newline) = text.get(start..).and_then(|rest| rest.find('\n')) {
+        end = end.min(start + newline);
+    }
+    (start, end)
 }
 
 /// Whether `offset` sits inside a block's body, past its name.
@@ -127,7 +174,10 @@ fn in_block_body(
     }
     match next_sibling_start {
         Some(start) => offset < start as usize,
-        None => offset <= enclosing_end as usize,
+        // The last header-only block extends to the enclosing end, or past it to
+        // its own furthest child, because a nested table's enclosing span is only
+        // the parent header.
+        None => offset <= enclosing_end.max(deepest_end(inner)) as usize,
     }
 }
 
@@ -188,9 +238,9 @@ fn contains(span: Span, offset: usize) -> bool {
 /// The completion replace range for a body position: the identifier the cursor
 /// sits in or at the end of, scanned from the current text, or a zero-width range
 /// at the cursor when no identifier is adjacent. Reading the current text rather
-/// than the retained tree keeps the range valid and on the cursor's line even
-/// when the buffer does not parse.
-fn identifier_token(text: &str, offset: usize) -> (usize, usize) {
+/// than the parse keeps the range valid and on the cursor's line even when the
+/// buffer does not parse.
+pub(crate) fn identifier_token(text: &str, offset: usize) -> (usize, usize) {
     let bytes = text.as_bytes();
     let offset = offset.min(bytes.len());
     let mut start = offset;
@@ -207,7 +257,7 @@ fn identifier_token(text: &str, offset: usize) -> (usize, usize) {
 /// The completion replace range for a value position: the run of value
 /// characters the cursor sits in, scanned from the current text and bounded to
 /// the cursor's line, so replacing an enum value never reaches across a line.
-fn value_token(text: &str, offset: usize) -> (usize, usize) {
+pub(crate) fn value_token(text: &str, offset: usize) -> (usize, usize) {
     let bytes = text.as_bytes();
     let offset = offset.min(bytes.len());
     let mut start = offset;
