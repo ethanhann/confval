@@ -27,6 +27,19 @@ serve::<ServerSpec, Hcl>(Hcl)
 The core needs only the traits the derive emits, `FromFields`, `Validate`, `ValidateNested`, and `ToSchema`, so nothing in it is specific to one spec.
 A subcommand that names your root spec and its frontend is the whole binding.
 
+## Trying it against an editor
+
+The crate ships a `serve` example that binds the core to a demo spec, so you can point an editor at a running server before writing your own.
+Run it and choose a format:
+
+```
+cargo run -p confval-lsp --example serve hcl
+```
+
+The example serves over stdin and stdout, so an LSP client launches the built binary at `target/debug/examples/serve` and speaks to it.
+The example uses a demo spec, so it is a way to see the feature set, not a deployment.
+The real server names your own root spec.
+
 ## The feature set
 
 The core answers the editor's schema-driven questions.
