@@ -8,8 +8,8 @@
 //!
 //! The core is three layers. The pure [`handlers`] are the center, each a
 //! function of the document, the schema, and a resolved cursor context. The
-//! [`Frontend`] trait is the one format-dependent seam, with an implementation
-//! for each block-structured format ([`Hcl`], [`Toml`], [`Kdl`]). The transport
+//! [`Frontend`] trait is the one format-dependent boundary, with an implementation
+//! for each format confval parses ([`Hcl`], [`Toml`], [`Kdl`], [`Json`], [`Yaml`]). The transport
 //! shell wires the handlers and a document store into a runnable server.
 //!
 //! The core is generic over the root spec `S`, needing only the traits the
@@ -23,10 +23,11 @@ mod resolve;
 mod server;
 mod text_scan;
 mod walk;
+mod yaml_scan;
 
 pub mod handlers;
 
 pub use encoding::{LineIndex, PositionEncoding};
-pub use frontend::{CursorContext, Frontend, PositionKind};
-pub use frontends::{Hcl, Kdl, Toml};
+pub use frontend::{CursorContext, Frontend, PositionKind, Recovery, ValueSeparator};
+pub use frontends::{Hcl, Json, Kdl, Toml, Yaml};
 pub use server::{Server, serve};
