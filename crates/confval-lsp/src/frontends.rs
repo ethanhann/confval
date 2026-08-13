@@ -1,8 +1,7 @@
 //! The three block-structured frontends: HCL, TOML, and KDL.
 //!
 //! Each binds its `confval` parse function and its insert spelling. Everything
-//! else, parsing into the retained tree and resolving a cursor, is the shared
-//! default on [`Frontend`].
+//! else, parsing and resolving a cursor, is the shared default on [`Frontend`].
 
 use confval::diagnostic::Report;
 use confval::format::Fields;
@@ -78,5 +77,15 @@ impl Frontend for Kdl {
         } else {
             format!("{} ", field.name)
         }
+    }
+
+    fn attribute_uses_equals(&self) -> bool {
+        // KDL writes a node argument as `name value`, with no `=`.
+        false
+    }
+
+    fn hash_is_comment(&self) -> bool {
+        // KDL spells booleans `#true` and `#false`, so `#` is not a comment.
+        false
     }
 }
