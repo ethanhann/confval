@@ -204,14 +204,14 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
         "the open document publishes at least one diagnostic"
     );
     let items: Vec<CompletionItem> =
-        serde_json::from_value(completion.result.expect("a completion result")).unwrap();
+        serde_json::from_value(completion.response_result.expect("a completion result")).unwrap();
     let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
     assert!(
         labels.contains(&"workers"),
         "the root body offers an unset field, got: {labels:?}"
     );
     let hover_result: Option<Hover> =
-        serde_json::from_value(hover.result.expect("a hover result")).unwrap();
+        serde_json::from_value(hover.response_result.expect("a hover result")).unwrap();
     assert!(
         hover_result.is_some(),
         "hover on the port value returns content"
