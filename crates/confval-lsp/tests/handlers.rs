@@ -71,6 +71,27 @@ fn diagnostics_report_the_pipeline_issues_at_their_ranges() {
             character: 0
         }
     );
+    // The keyword help is carried as related information, not appended to the
+    // message, so the message stays a single clean line.
+    let mode = found
+        .iter()
+        .find(|d| d.message.contains("mode"))
+        .expect("a keyword diagnostic");
+    assert!(
+        !mode.message.contains("expected one of"),
+        "help is not in the message: {}",
+        mode.message
+    );
+    let related = mode
+        .related_information
+        .as_ref()
+        .expect("the help as related information");
+    assert!(
+        related
+            .iter()
+            .any(|note| note.message.contains("expected one of: enforce, log, off")),
+        "help appears in related information"
+    );
 }
 
 #[test]
