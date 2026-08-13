@@ -197,10 +197,15 @@ fn apply_edit(
         while start > 0 && bytes[start - 1] == b'[' {
             start -= 1;
         }
-    } else if new_text.starts_with('"') && start > 0 && bytes[start - 1] == b'"' {
-        // A JSON member insert `"key": ` replaces the opening quote the operator
-        // has already typed, so `"por` becomes `"port": ` rather than a doubled
-        // quote.
+    } else if matches!(ctx.kind, PositionKind::Body)
+        && new_text.starts_with('"')
+        && start > 0
+        && bytes[start - 1] == b'"'
+    {
+        // A JSON member insert `"key": ` at a body position replaces the opening
+        // quote the operator has already typed, so `"por` becomes `"port": `
+        // rather than a doubled quote. The body guard keeps it from eating the
+        // closing quote of an adjacent value.
         start -= 1;
     }
     let is_snippet = snippets && new_text.contains("$0");
