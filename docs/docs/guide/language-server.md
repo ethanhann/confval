@@ -4,7 +4,7 @@ sidebar_position: 10
 
 # The language server core
 
-confval rejects an unknown field at process startup, so a mistake in a configuration written by hand surfaces as a hard failure rather than a silently ignored key.
+confval rejects an unknown field at process startup, so a mistake in a handwritten configuration surfaces as a hard failure rather than a silently ignored key.
 A language server moves that feedback into the editor.
 It makes the legal surface visible at the point of authorship, so an operator sees which fields are legal, what each one holds, and where the file is wrong before the program runs.
 
