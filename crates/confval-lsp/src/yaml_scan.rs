@@ -384,4 +384,20 @@ mod tests {
         assert_eq!(context.path, Vec::<String>::new());
         assert_eq!(context.kind, PositionKind::Body);
     }
+
+    #[test]
+    fn a_block_sequence_with_the_dash_at_the_key_indent_resolves_into_the_element() {
+        // Arrange
+        // A block sequence may place the dash at the parent key's indentation
+        // rather than indented under it, so both forms resolve into the element.
+        let text = "rules:\n- prefix: /api\n  \n";
+        let offset = text.len() - 1;
+
+        // Act
+        let context = resolve_in_yaml(text, offset);
+
+        // Assert
+        assert_eq!(context.path, vec!["rules".to_string()]);
+        assert_eq!(context.kind, PositionKind::Body);
+    }
 }
