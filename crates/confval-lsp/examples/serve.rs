@@ -1,6 +1,6 @@
 //! A runnable language server over stdio, for trying the core against an editor.
 //!
-//! Run it with `cargo run -p confval-lsp --example serve [hcl|toml|kdl]`, then
+//! Run it with `cargo run -p confval-lsp --example serve [hcl|toml|kdl|json|yaml]`, then
 //! point an LSP client at the built binary. It binds the core to the demo spec
 //! below, so it is a testing convenience rather than a real deployment. The real
 //! server names its own root spec and lives in the snakeway repository.
@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 
 use confval::prelude::*;
 
-use confval_lsp::{Hcl, Kdl, Toml, serve};
+use confval_lsp::{Hcl, Json, Kdl, Toml, Yaml, serve};
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
@@ -100,6 +100,8 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     match std::env::args().nth(1).as_deref() {
         Some("toml") => serve::<ServerSpec, Toml>(Toml),
         Some("kdl") => serve::<ServerSpec, Kdl>(Kdl),
+        Some("json") => serve::<ServerSpec, Json>(Json),
+        Some("yaml") => serve::<ServerSpec, Yaml>(Yaml),
         _ => serve::<ServerSpec, Hcl>(Hcl),
     }
 }
