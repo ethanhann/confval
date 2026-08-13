@@ -184,6 +184,46 @@ fn enum_value_completion_offers_the_allowed_strings() {
 }
 
 #[test]
+fn kdl_value_completion_on_a_valueless_node_does_not_replace_the_name() {
+    // Arrange
+    // A bare KDL node parses as an empty argument list whose span covers the
+    // node name. Completing its value must insert at the cursor, so the edit is
+    // zero-width and `mode ` becomes `mode "enforce"` rather than `"enforce"`.
+    let text = "limits {\n  mode \n}\n";
+    let offset = text.find("mode ").unwrap() + "mode ".len();
+    let tree = Kdl.parse_tree(text);
+    let context = Kdl.resolve(tree.as_ref(), text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Kdl,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let enforce = items
+        .iter()
+        .find(|item| item.label == "enforce")
+        .expect("the enforce keyword is offered");
+    assert_eq!(inserted(enforce), "\"enforce\"");
+    let range = match &enforce.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit.range,
+        other => panic!("an explicit replace edit, got {other:?}"),
+    };
+    assert_eq!(
+        range.start, range.end,
+        "the edit is a zero-width insert, so it never overwrites the node name"
+    );
+}
+
+#[test]
 fn hover_renders_a_set_field_with_its_type_and_constraint() {
     // Arrange
     let text = "port = 8080\n";

@@ -76,7 +76,7 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
                         return Step::Here(CursorContext::attribute_value(
                             Vec::new(),
                             field.name.clone(),
-                            span_token(value.span, text),
+                            value_replace_token(field, value, text, offset),
                         ));
                     }
                 }
@@ -85,7 +85,7 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
                         return Step::Here(CursorContext::attribute_value(
                             Vec::new(),
                             field.name.clone(),
-                            span_token(value.span, text),
+                            value_replace_token(field, value, text, offset),
                         ));
                     }
                 }
@@ -133,6 +133,24 @@ fn seq_element_body(
         }
     }
     None
+}
+
+/// The completion replace range for an attribute value.
+///
+/// A value that begins after the node name is a real value, replaced whole. A
+/// KDL node with no argument parses with its value span on the node name, so
+/// there is no value to replace. It inserts at the cursor instead, clamped to
+/// stay past the name, so completing the value never overwrites the name.
+fn value_replace_token(field: &Field, value: &Value, text: &str, offset: usize) -> (usize, usize) {
+    let has_value = !field.name_span.is_detached()
+        && !value.span.is_detached()
+        && value.span.start > field.name_span.end;
+    if has_value {
+        return span_token(value.span, text);
+    }
+    let name_end = field.name_span.end as usize;
+    let (start, end) = value_token(text, offset);
+    (start.max(name_end), end.max(name_end))
 }
 
 /// The completion replace range for a parsed value: its exact span, clamped to

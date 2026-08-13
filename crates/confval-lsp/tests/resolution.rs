@@ -116,6 +116,35 @@ fn kdl_offset_table_maps_each_offset() {
 }
 
 #[test]
+fn kdl_value_completion_on_a_valueless_node_inserts_after_the_name() {
+    // Arrange
+    // A KDL node with no argument parses, and its value span sits on the node
+    // name. Value completion must insert after the name, so `mode ` becomes
+    // `mode "enforce"` and never replaces `mode` with the value.
+    let frontend = Kdl;
+    let text = "limits {\n  mode \n}\n";
+    let offset = text.find("mode ").expect("mode present") + "mode ".len();
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(
+        context.kind,
+        PositionKind::AttributeValue {
+            field: "mode".to_string()
+        }
+    );
+    let (start, end) = context.token;
+    assert_eq!(
+        (start, end),
+        (offset, offset),
+        "the token is a zero-width insert at the cursor, not the node name, got {:?}",
+        &text[start..end]
+    );
+}
+
+#[test]
 fn toml_array_of_tables_body_resolves_into_the_element() {
     // Arrange
     let frontend = Toml;
