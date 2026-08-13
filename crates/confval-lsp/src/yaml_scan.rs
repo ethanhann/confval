@@ -352,4 +352,36 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn crlf_line_endings_do_not_collapse_the_path() {
+        // Arrange
+        // A Windows-authored file uses CRLF, so each parent key line ends `\r`.
+        // The reader must still read the enclosing path.
+        let text = "limits:\r\n  mode: enforce\r\n  \r\n";
+        let offset = text.rfind('\r').expect("a carriage return");
+
+        // Act
+        let context = resolve_in_yaml(text, offset);
+
+        // Assert
+        assert_eq!(context.path, vec!["limits".to_string()]);
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn a_multi_line_flow_collection_is_not_read_as_structure() {
+        // Arrange
+        // `headers` is a multi-line flow map, so its inner keys nest inline, not
+        // by indentation, and must not become ancestors of the cursor below it.
+        let text = "headers: {\n  x-env: prod\n}\nport\n";
+        let offset = text.find("port").unwrap() + "port".len();
+
+        // Act
+        let context = resolve_in_yaml(text, offset);
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(context.kind, PositionKind::Body);
+    }
 }
