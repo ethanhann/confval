@@ -24,7 +24,8 @@ use confval_lsp::{serve, Hcl};
 serve::<ServerSpec, Hcl>(Hcl)
 ```
 
-The core needs only the traits the derive emits, `FromFields`, `Validate`, `ValidateNested`, and `ToSchema`, so nothing in it is specific to one spec.
+The core needs only the traits the derive emits: `FromFields`, `Validate`, `ValidateNested`, and `ToSchema`.
+Nothing in it is specific to one spec.
 A subcommand that names your root spec and its frontend is the whole binding.
 
 ## Trying it against an editor
@@ -53,15 +54,16 @@ A value position for a field with a keyword set offers the allowed strings, whic
 
 Hover reads the field under the cursor.
 It renders the field's doc comment, its declared type, whether it has a default, and its constraint.
-It also states whether the field is set by the configuration or left to its default, which it reads from the field's presence in the parsed file.
+It also states whether the field is set by the configuration or left to its default.
+This state comes from the field's presence in the parsed file.
 
 ## The formats it serves
 
 The core ships a frontend for the three block-structured formats confval parses: HCL, TOML, and KDL.
 Each resolves a cursor through a block-and-attribute tree.
 
-JSON and YAML parse to a different substrate, so their frontends are a later addition rather than part of this core.
-Until then, the server serves the three block-structured formats.
+The server does not yet serve JSON or YAML.
+Support for them is planned.
 
 ## A note on encoding
 
@@ -74,5 +76,5 @@ The server validates the open buffer as a standalone file.
 When you assemble a configuration from several layers, a later layer can supply a value the open file omits.
 A diagnostic that reports a missing required field is then a false positive, because the field is present once the layers combine.
 
-This is a known boundary of the core, not a defect.
-Layer-aware validation reads the whole layer stack, which is the assembling program's concern rather than the schema's, so it is a later addition.
+Layer-aware validation needs the whole layer stack, which only the assembling program holds.
+It is planned as a later addition.
