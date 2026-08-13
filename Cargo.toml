@@ -2,6 +2,7 @@
 members = [
     "crates/confval",
     "crates/confval-derive",
+    "crates/confval-lsp",
 ]
 resolver = "2"
 
@@ -43,3 +44,5 @@ toml_edit = { version = "0.25" }
 kdl = { version = "6.7", default-features = false, features = ["span"] }
 jsonc-parser = { version = "0.33", default-features = false }
 saphyr-parser = { version = "0.0.11", default-features = false }
+lsp-types = { version = "0.97" }
+lsp-server = { version = "0.7" }

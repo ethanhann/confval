@@ -1,0 +1,30 @@
+//! The schema-generic language server core for confval configuration files.
+//!
+//! confval rejects an unknown field at process startup, so the cost of not
+//! knowing the legal surface while editing is a hard failure rather than a
+//! silently ignored key. This crate answers the editor's questions before the
+//! program runs: which fields are legal here, what each one holds, which values a
+//! closed-set field accepts, and where the file is wrong.
+//!
+//! The core is three layers. The pure [`handlers`] are the center, each a
+//! function of the document, the schema, and a resolved cursor context. The
+//! [`Frontend`] trait is the one format-dependent seam, with an implementation
+//! for each block-structured format ([`Hcl`], [`Toml`], [`Kdl`]). The transport
+//! shell wires the handlers and a document store into a runnable server.
+//!
+//! The core is generic over the root spec `S`, needing only the traits the
+//! derive emits: `FromFields`, `Validate`, `ValidateNested`, and `ToSchema`.
+
+mod encoding;
+mod frontend;
+mod frontends;
+mod resolve;
+mod server;
+mod walk;
+
+pub mod handlers;
+
+pub use encoding::{LineIndex, PositionEncoding};
+pub use frontend::{CursorContext, Frontend, PositionKind};
+pub use frontends::{Hcl, Kdl, Toml};
+pub use server::{Server, serve};

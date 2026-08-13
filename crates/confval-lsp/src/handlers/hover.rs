@@ -1,0 +1,134 @@
+//! The hover handler.
+//!
+//! It resolves the field under the cursor and renders its doc comment, declared
+//! type, whether it has a default, and its constraint. The IR records only that
+//! a field has a default, not the rendered value, so hover states that a default
+//! applies rather than printing it. It reads operator-set versus defaulted from
+//! the field's presence in the parsed fields, not from a sentinel span.
+
+use lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind};
+
+use confval::format::Fields;
+use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
+
+use crate::encoding::{LineIndex, PositionEncoding};
+use crate::frontend::{CursorContext, PositionKind};
+use crate::walk::{fields_at, schema_at};
+
+/// Produces the hover for a resolved cursor, or `None` when the cursor sits on
+/// no field.
+pub fn hover(
+    schema: &Schema,
+    fields: Option<&Fields>,
+    ctx: &CursorContext,
+    text: &str,
+    index: &LineIndex,
+    encoding: PositionEncoding,
+) -> Option<Hover> {
+    let enclosing = schema_at(schema, &ctx.path)?;
+    let name = match &ctx.kind {
+        PositionKind::AttributeValue { field } => field.clone(),
+        PositionKind::Body => {
+            let (start, end) = ctx.token?;
+            text.get(start..end)?.to_string()
+        }
+        PositionKind::BlockLabel => return None,
+    };
+    let field = enclosing.fields.iter().find(|field| field.name == name)?;
+    let set = fields
+        .and_then(|tree| fields_at(tree, &ctx.path))
+        .map(|level| level.has(&name))
+        .unwrap_or(false);
+    Some(Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: render(field, set),
+        }),
+        range: ctx
+            .token
+            .map(|range| index.range_of_bytes(text, range, encoding)),
+    })
+}
+
+/// Renders a field's hover as Markdown.
+fn render(field: &SchemaField, set: bool) -> String {
+    let mut out = format!("**{}**: {}\n\n", field.name, type_label(&field.ty));
+    if let Some(doc) = &field.doc {
+        out.push_str(doc);
+        out.push_str("\n\n");
+    }
+    if let Some(constraint) = constraint_of(&field.ty) {
+        out.push_str(&constraint_label(constraint));
+        out.push_str("\n\n");
+    }
+    if field.has_default {
+        out.push_str("Has a default.\n\n");
+    }
+    out.push_str(state_label(set, field.has_default));
+    out
+}
+
+/// The state line: operator-set, defaulted, or absent.
+fn state_label(set: bool, has_default: bool) -> &'static str {
+    if set {
+        "Set by the configuration."
+    } else if has_default {
+        "Not set; uses its default."
+    } else {
+        "Not set."
+    }
+}
+
+/// A human label for a field's declared type.
+fn type_label(ty: &SchemaType) -> &'static str {
+    match ty {
+        SchemaType::Scalar { leaf, .. } => scalar_label(leaf),
+        SchemaType::StringList => "string list",
+        SchemaType::Block { repeated: true, .. } => "block (repeatable)",
+        SchemaType::Block { .. } => "block",
+        SchemaType::StringMap => "map",
+        _ => "value",
+    }
+}
+
+/// A human label for a scalar leaf type.
+fn scalar_label(leaf: &ScalarType) -> &'static str {
+    match leaf {
+        ScalarType::String => "string",
+        ScalarType::Int => "integer",
+        ScalarType::Float => "float",
+        ScalarType::Bool => "boolean",
+        ScalarType::Path => "path",
+        _ => "scalar",
+    }
+}
+
+/// The constraint of a scalar field, if any.
+fn constraint_of(ty: &SchemaType) -> Option<&Constraint> {
+    match ty {
+        SchemaType::Scalar { constraint, .. } => constraint.as_ref(),
+        _ => None,
+    }
+}
+
+/// A human label for a constraint.
+fn constraint_label(constraint: &Constraint) -> String {
+    match constraint {
+        Constraint::Keywords(words) => format!("One of: {}.", words.join(", ")),
+        Constraint::Range {
+            min,
+            max,
+            units,
+            help,
+        } => {
+            let unit = units.map(|unit| format!(" {unit}")).unwrap_or_default();
+            let mut label = format!("Between {min} and {max}{unit}.");
+            if let Some(help) = help {
+                label.push(' ');
+                label.push_str(help);
+            }
+            label
+        }
+        _ => String::new(),
+    }
+}
