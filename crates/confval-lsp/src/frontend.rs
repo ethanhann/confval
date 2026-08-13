@@ -42,15 +42,17 @@ pub struct CursorContext {
     pub path: Vec<String>,
     /// The kind of position the cursor sits in.
     pub kind: PositionKind,
-    /// The byte range of the identifier or value under the cursor, if any, which
-    /// a completion uses as its replace range so the half-typed text is replaced
-    /// rather than duplicated.
-    pub token: Option<(usize, usize)>,
+    /// The byte range in the current text that a completion replaces: the
+    /// identifier or value under the cursor, or a zero-width range at the cursor
+    /// when it sits on no token. It is scanned from the current text, not the
+    /// retained tree, so it stays valid and on the cursor's line even when the
+    /// buffer does not parse.
+    pub token: (usize, usize),
 }
 
 impl CursorContext {
     /// A body position at `path` with the given replace token.
-    pub(crate) fn body(path: Vec<String>, token: Option<(usize, usize)>) -> Self {
+    pub(crate) fn body(path: Vec<String>, token: (usize, usize)) -> Self {
         Self {
             path,
             kind: PositionKind::Body,
@@ -59,11 +61,7 @@ impl CursorContext {
     }
 
     /// An attribute-value position for `field` at `path`.
-    pub(crate) fn attribute_value(
-        path: Vec<String>,
-        field: String,
-        token: Option<(usize, usize)>,
-    ) -> Self {
+    pub(crate) fn attribute_value(path: Vec<String>, field: String, token: (usize, usize)) -> Self {
         Self {
             path,
             kind: PositionKind::AttributeValue { field },

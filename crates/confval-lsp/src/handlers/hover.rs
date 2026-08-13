@@ -29,7 +29,7 @@ pub fn hover(
     let name = match &ctx.kind {
         PositionKind::AttributeValue { field } => field.clone(),
         PositionKind::Body => {
-            let (start, end) = ctx.token?;
+            let (start, end) = ctx.token;
             text.get(start..end)?.to_string()
         }
         PositionKind::BlockLabel => return None,
@@ -44,9 +44,7 @@ pub fn hover(
             kind: MarkupKind::Markdown,
             value: render(field, set),
         }),
-        range: ctx
-            .token
-            .map(|range| index.range_of_bytes(text, range, encoding)),
+        range: Some(index.range_of_bytes(text, ctx.token, encoding)),
     })
 }
 

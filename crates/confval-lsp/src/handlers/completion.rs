@@ -139,14 +139,22 @@ fn keyword_item(
     let mut item = CompletionItem {
         label: word.to_string(),
         kind: Some(CompletionItemKind::ENUM_MEMBER),
+        // Keep the item visible when the cursor sits on a value the enum members
+        // do not prefix-match, such as `loud`, by filtering against that value
+        // rather than the label. Without this a client discards every keyword.
+        filter_text: text
+            .get(ctx.token.0..ctx.token.1)
+            .filter(|current| !current.is_empty())
+            .map(str::to_string),
         ..CompletionItem::default()
     };
     apply_edit(&mut item, format!("\"{word}\""), ctx, text, index, encoding);
     item
 }
 
-/// Attaches the insert text as a replace edit over the cursor's token, or as
-/// plain insert text when the cursor sits on no token.
+/// Attaches the insert text as a replace edit over the cursor's token. The token
+/// is a zero-width range at the cursor when there is nothing to replace, so the
+/// edit inserts at the cursor rather than leaving the client to place it.
 fn apply_edit(
     item: &mut CompletionItem,
     new_text: String,
@@ -155,14 +163,8 @@ fn apply_edit(
     index: &LineIndex,
     encoding: PositionEncoding,
 ) {
-    match ctx.token {
-        Some(range) => {
-            let edit = TextEdit {
-                range: index.range_of_bytes(text, range, encoding),
-                new_text,
-            };
-            item.text_edit = Some(CompletionTextEdit::Edit(edit));
-        }
-        None => item.insert_text = Some(new_text),
-    }
+    item.text_edit = Some(CompletionTextEdit::Edit(TextEdit {
+        range: index.range_of_bytes(text, ctx.token, encoding),
+        new_text,
+    }));
 }

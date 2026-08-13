@@ -55,10 +55,9 @@ impl LineIndex {
 
     /// The zero-based line containing `offset`.
     fn line_at(&self, offset: usize) -> usize {
-        match self.line_starts.binary_search(&offset) {
-            Ok(line) => line,
-            Err(insertion) => insertion.saturating_sub(1),
-        }
+        self.line_starts
+            .binary_search(&offset)
+            .unwrap_or_else(|insertion| insertion.saturating_sub(1))
     }
 
     /// The LSP position of a byte offset in the negotiated encoding.

@@ -22,7 +22,7 @@ pub(crate) fn resolve_in_tree(
     let mut path = Vec::new();
     let mut level = match tree {
         Some(level) => level,
-        None => return CursorContext::body(path, scan_identifier(text, offset)),
+        None => return CursorContext::body(path, identifier_token(text, offset)),
     };
 
     loop {
@@ -64,7 +64,10 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
                     return Step::Enter(field.name.clone(), inner);
                 }
                 if contains(field.name_span, offset) {
-                    return Step::Here(CursorContext::body(Vec::new(), token_of(field.name_span)));
+                    return Step::Here(CursorContext::body(
+                        Vec::new(),
+                        identifier_token(text, offset),
+                    ));
                 }
             }
             FieldKind::Value(value) => match &value.kind {
@@ -75,7 +78,7 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
                     if contains(field.name_span, offset) {
                         return Step::Here(CursorContext::body(
                             Vec::new(),
-                            token_of(field.name_span),
+                            identifier_token(text, offset),
                         ));
                     }
                 }
@@ -84,13 +87,13 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
                         return Step::Here(CursorContext::attribute_value(
                             Vec::new(),
                             field.name.clone(),
-                            token_of(value.span),
+                            value_token(text, offset),
                         ));
                     }
                     if contains(field.name_span, offset) {
                         return Step::Here(CursorContext::body(
                             Vec::new(),
-                            token_of(field.name_span),
+                            identifier_token(text, offset),
                         ));
                     }
                 }
@@ -99,7 +102,7 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
     }
     Step::Here(CursorContext::body(
         Vec::new(),
-        scan_identifier(text, offset),
+        identifier_token(text, offset),
     ))
 }
 
@@ -182,14 +185,12 @@ fn contains(span: Span, offset: usize) -> bool {
     !span.is_detached() && (span.start as usize) <= offset && offset <= (span.end as usize)
 }
 
-/// The byte range of a span, for a completion replace range.
-fn token_of(span: Span) -> Option<(usize, usize)> {
-    (!span.is_detached()).then_some((span.start as usize, span.end as usize))
-}
-
-/// The identifier the cursor sits in or at the end of, scanned from raw text.
-/// Returns `None` when no identifier character is adjacent.
-fn scan_identifier(text: &str, offset: usize) -> Option<(usize, usize)> {
+/// The completion replace range for a body position: the identifier the cursor
+/// sits in or at the end of, scanned from the current text, or a zero-width range
+/// at the cursor when no identifier is adjacent. Reading the current text rather
+/// than the retained tree keeps the range valid and on the cursor's line even
+/// when the buffer does not parse.
+fn identifier_token(text: &str, offset: usize) -> (usize, usize) {
     let bytes = text.as_bytes();
     let offset = offset.min(bytes.len());
     let mut start = offset;
@@ -200,10 +201,33 @@ fn scan_identifier(text: &str, offset: usize) -> Option<(usize, usize)> {
     while end < bytes.len() && is_identifier_byte(bytes[end]) {
         end += 1;
     }
-    (start != end).then_some((start, end))
+    (start, end)
+}
+
+/// The completion replace range for a value position: the run of value
+/// characters the cursor sits in, scanned from the current text and bounded to
+/// the cursor's line, so replacing an enum value never reaches across a line.
+fn value_token(text: &str, offset: usize) -> (usize, usize) {
+    let bytes = text.as_bytes();
+    let offset = offset.min(bytes.len());
+    let mut start = offset;
+    while start > 0 && is_value_byte(bytes[start - 1]) {
+        start -= 1;
+    }
+    let mut end = offset;
+    while end < bytes.len() && is_value_byte(bytes[end]) {
+        end += 1;
+    }
+    (start, end)
 }
 
 /// Whether a byte is part of a config field identifier.
 fn is_identifier_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
+}
+
+/// Whether a byte is part of a scalar value token. Whitespace and the structural
+/// delimiters bound the token, so it stays within one value on one line.
+fn is_value_byte(byte: u8) -> bool {
+    !byte.is_ascii_whitespace() && !matches!(byte, b'=' | b'{' | b'}' | b'[' | b']' | b',')
 }

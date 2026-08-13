@@ -158,7 +158,9 @@ fn empty_document_resolves_to_the_root_body() {
     // Assert
     assert_eq!(context.path, Vec::<String>::new());
     assert_eq!(context.kind, PositionKind::Body);
-    assert_eq!(context.token, None);
+    // An empty document has no token, so the replace range is zero-width at the
+    // cursor.
+    assert_eq!(context.token, (0, 0));
 }
 
 #[test]
@@ -175,7 +177,7 @@ fn a_buffer_that_does_not_parse_falls_back_to_a_text_scan() {
     // Assert
     assert_eq!(context.path, Vec::<String>::new());
     assert_eq!(context.kind, PositionKind::Body);
-    let (start, end) = context.token.expect("the scanned identifier");
+    let (start, end) = context.token;
     assert_eq!(&text[start..end], "work");
 }
 
@@ -202,6 +204,37 @@ fn resolution_uses_the_last_good_tree_when_the_current_buffer_is_invalid() {
     // Assert
     assert_eq!(context.path, vec!["limits".to_string()]);
     assert_eq!(context.kind, PositionKind::Body);
+}
+
+#[test]
+fn the_replace_token_is_read_from_the_current_text_not_the_stale_tree() {
+    // Arrange
+    // The good buffer parses. The edited buffer lengthens the value and does not
+    // parse, so the tree is stale. The value token must describe the current
+    // text, so a completion edit lands on the current value, not the old span.
+    let frontend = Hcl;
+    let good = "mode = \"x\"\n";
+    let editing = "mode = \"xyz\n";
+    let good_tree = frontend.parse_tree(good);
+    assert!(good_tree.is_some(), "the good buffer parses");
+    assert!(
+        frontend.parse_tree(editing).is_none(),
+        "the edited buffer does not parse"
+    );
+    let offset = editing.find("xyz").expect("value present") + 2;
+
+    // Act
+    let context = frontend.resolve(good_tree.as_ref(), editing, offset);
+
+    // Assert
+    assert_eq!(
+        context.kind,
+        PositionKind::AttributeValue {
+            field: "mode".to_string()
+        }
+    );
+    let (start, end) = context.token;
+    assert_eq!(&editing[start..end], "\"xyz");
 }
 
 #[test]
