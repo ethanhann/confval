@@ -1,0 +1,19 @@
+{
+  "hostname": "127.0.0.1",
+  "port": 8080,
+  "workers": 8,
+  "tls": true,
+  "allow": ["10.0.0.0/8", "192.168.0.0/16"],
+  "headers": {
+    "X-Env": "prod",
+    "X-Team": "platform"
+  },
+  "limits": {
+    "max_body_mb": 64,
+    "mode": "enforce"
+  },
+  "rules": [
+    { "prefix": "/api" },
+    { "prefix": "/admin" }
+  ]
+}
