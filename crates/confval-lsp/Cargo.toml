@@ -1,0 +1,20 @@
+[package]
+name = "confval-lsp"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Schema-generic language server core for confval configuration files"
+
+[lints]
+workspace = true
+
+[dependencies]
+confval = { path = "../confval", features = ["hcl", "toml", "kdl"] }
+lsp-types = { workspace = true }
+lsp-server = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+confval = { path = "../confval", features = ["hcl", "toml", "kdl", "derive"] }

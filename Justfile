@@ -44,8 +44,12 @@ check-frontends:
 check-bin:
     cargo check -p confval --no-default-features --bin confval
 
+# Check the LSP example server
+check-lsp-example:
+    cargo check -p confval-lsp --example serve
+
 # Test everything
-validate: format lint check-frontends check-bin test validate-docs examples
+validate: format lint check-frontends check-bin check-lsp-example test validate-docs examples
 
 # Run examples
 examples:
