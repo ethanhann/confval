@@ -33,3 +33,40 @@ impl Frontend for Toml {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use confval::schema::{Schema, SchemaType};
+
+    fn block(name: &str) -> SchemaField {
+        SchemaField::new(
+            name.to_string(),
+            None,
+            true,
+            false,
+            SchemaType::Block {
+                schema: Box::new(Schema::new(None, Vec::new())),
+                repeated: false,
+            },
+        )
+    }
+
+    #[test]
+    fn a_root_block_completes_as_a_plain_header() {
+        // Arrange, Act
+        let header = Toml.insert_text(&block("limits"), &[]);
+
+        // Assert
+        assert_eq!(header, "[limits]");
+    }
+
+    #[test]
+    fn a_nested_block_completes_as_a_qualified_header() {
+        // Arrange, Act
+        let header = Toml.insert_text(&block("sub"), &["limits".to_string()]);
+
+        // Assert
+        assert_eq!(header, "[limits.sub]");
+    }
+}
