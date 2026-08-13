@@ -2,8 +2,8 @@
 //!
 //! Each binds its `confval` parse function, its recovery strategy, and its
 //! insert text. Everything else, parsing and resolving a cursor, is the shared
-//! default on [`Frontend`], except the YAML frontend, whose indentation recovery
-//! reads the raw text in both parse states.
+//! default on [`Frontend`]. The YAML frontend uses that same default `resolve`,
+//! which routes its indentation recovery to the YAML reader in both parse states.
 
 mod hcl;
 mod json;
