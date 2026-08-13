@@ -99,7 +99,7 @@ pub trait Frontend {
     /// from the raw text, whose offsets are always current.
     fn resolve(&self, tree: Option<&Fields>, text: &str, offset: usize) -> CursorContext {
         match tree {
-            Some(tree) => resolve_in_tree(Some(tree), text, offset, self.block_span_covers_body()),
+            Some(tree) => resolve_in_tree(tree, text, offset, self.block_span_covers_body()),
             None => resolve_in_text(
                 text,
                 offset,
