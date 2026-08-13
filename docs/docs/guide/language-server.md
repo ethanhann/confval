@@ -9,7 +9,7 @@ A language server moves that feedback into the editor.
 It makes the legal surface visible at the point of authorship, so an operator sees which fields are legal, what each one holds, and where the file is wrong before the program runs.
 
 The `confval-lsp` crate is the schema-generic core of that server.
-It is generic over your root spec and over the format frontend, so one core serves an HCL, a TOML, or a KDL document written against any confval schema.
+It is generic over your root spec and over the format frontend, so one core serves an HCL, a TOML, a KDL, a JSON, or a YAML document written against any confval schema.
 
 ## Running a server for your spec
 
@@ -59,11 +59,14 @@ This state comes from the field's presence in the parsed file.
 
 ## The formats it serves
 
-The core ships a frontend for the three block-structured formats confval parses: HCL, TOML, and KDL.
-Each resolves a cursor through a block-and-attribute tree.
+The core serves every format confval parses: HCL, TOML, KDL, JSON, and YAML.
 
-The server does not yet serve JSON or YAML.
-Support for them is planned.
+The block-structured formats, HCL, TOML, and KDL, and JSON resolve a cursor through the parsed tree, and reconstruct it from the raw text while the buffer is mid-edit and does not parse.
+JSON nests through object braces and array brackets, so a cursor inside an array element resolves into the element.
+
+YAML nests by indentation rather than a delimiter, so the server reads the enclosing keys from the cursor's indentation.
+It handles the common shapes, including a block sequence, a value on the next line, and an inline flow collection.
+Because it reads structure from indentation, an unusual layout, such as a flow collection spread across several lines, can resolve less precisely than a block mapping.
 
 ## A note on encoding
 
