@@ -138,5 +138,10 @@ pub trait Frontend {
     /// `SchemaType` to spell a scalar as the format's `name = value` form or a
     /// block as its block form. `path` is the enclosing block path, which a
     /// header-based format (TOML) uses to qualify a nested block header.
+    ///
+    /// A brace-delimited block insert places a `$0` where the cursor belongs,
+    /// inside the body. The completion handler emits it as a snippet tab stop
+    /// when the client supports snippets, or removes it otherwise, so the marker
+    /// never reaches a buffer literally.
     fn insert_text(&self, field: &SchemaField, path: &[String]) -> String;
 }

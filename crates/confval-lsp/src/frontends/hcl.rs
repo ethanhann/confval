@@ -17,7 +17,7 @@ impl Frontend for Hcl {
 
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> String {
         if is_block(field) {
-            format!("{} {{\n  \n}}", field.name)
+            format!("{} {{\n  $0\n}}", field.name)
         } else {
             format!("{} = ", field.name)
         }

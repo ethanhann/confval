@@ -8,7 +8,9 @@
 
 use std::collections::HashSet;
 
-use lsp_types::{CompletionItem, CompletionItemKind, CompletionTextEdit, TextEdit};
+use lsp_types::{
+    CompletionItem, CompletionItemKind, CompletionTextEdit, InsertTextFormat, TextEdit,
+};
 
 use confval::format::Fields;
 use confval::schema::{Constraint, Schema, SchemaField, SchemaType};
@@ -22,6 +24,7 @@ use crate::walk::{fields_at, schema_at};
 /// `fields` is the parsed field tree, used to drop the fields already set. It is
 /// `None` when the current buffer did not parse, in which case nothing is
 /// dropped.
+#[allow(clippy::too_many_arguments)]
 pub fn completion<F: Frontend>(
     frontend: &F,
     schema: &Schema,
@@ -30,12 +33,15 @@ pub fn completion<F: Frontend>(
     text: &str,
     index: &LineIndex,
     encoding: PositionEncoding,
+    snippets: bool,
 ) -> Vec<CompletionItem> {
     let Some(enclosing) = schema_at(schema, &ctx.path) else {
         return Vec::new();
     };
     match &ctx.kind {
-        PositionKind::Body => body_items(frontend, enclosing, fields, ctx, text, index, encoding),
+        PositionKind::Body => body_items(
+            frontend, enclosing, fields, ctx, text, index, encoding, snippets,
+        ),
         PositionKind::AttributeValue { field } => {
             value_items(enclosing, field, ctx, text, index, encoding)
         }
@@ -44,6 +50,7 @@ pub fn completion<F: Frontend>(
 }
 
 /// Attribute-name and block-type completions at a body position.
+#[allow(clippy::too_many_arguments)]
 fn body_items<F: Frontend>(
     frontend: &F,
     enclosing: &Schema,
@@ -52,6 +59,7 @@ fn body_items<F: Frontend>(
     text: &str,
     index: &LineIndex,
     encoding: PositionEncoding,
+    snippets: bool,
 ) -> Vec<CompletionItem> {
     let set: HashSet<&str> = fields
         .and_then(|tree| fields_at(tree, &ctx.path))
@@ -65,11 +73,12 @@ fn body_items<F: Frontend>(
             matches!(field.ty, SchemaType::Block { repeated: true, .. })
                 || !set.contains(field.name.as_str())
         })
-        .map(|field| field_item(frontend, field, ctx, text, index, encoding))
+        .map(|field| field_item(frontend, field, ctx, text, index, encoding, snippets))
         .collect()
 }
 
 /// One completion item for a schema field.
+#[allow(clippy::too_many_arguments)]
 fn field_item<F: Frontend>(
     frontend: &F,
     field: &SchemaField,
@@ -77,6 +86,7 @@ fn field_item<F: Frontend>(
     text: &str,
     index: &LineIndex,
     encoding: PositionEncoding,
+    snippets: bool,
 ) -> CompletionItem {
     let kind = if matches!(field.ty, SchemaType::Block { .. }) {
         CompletionItemKind::STRUCT
@@ -96,6 +106,7 @@ fn field_item<F: Frontend>(
         text,
         index,
         encoding,
+        snippets,
     );
     item
 }
@@ -148,13 +159,27 @@ fn keyword_item(
             .map(str::to_string),
         ..CompletionItem::default()
     };
-    apply_edit(&mut item, format!("\"{word}\""), ctx, text, index, encoding);
+    // A value insert carries no tab stop, so snippet expansion does not apply.
+    apply_edit(
+        &mut item,
+        format!("\"{word}\""),
+        ctx,
+        text,
+        index,
+        encoding,
+        false,
+    );
     item
 }
 
 /// Attaches the insert text as a replace edit over the cursor's token. The token
 /// is a zero-width range at the cursor when there is nothing to replace, so the
 /// edit inserts at the cursor rather than leaving the client to place it.
+///
+/// A block insert carries a `$0` tab stop. When the client supports snippets, the
+/// edit is a snippet and the client places the cursor at the tab stop. When it
+/// does not, the tab stop is removed so no literal `$0` reaches the buffer.
+#[allow(clippy::too_many_arguments)]
 fn apply_edit(
     item: &mut CompletionItem,
     new_text: String,
@@ -162,6 +187,7 @@ fn apply_edit(
     text: &str,
     index: &LineIndex,
     encoding: PositionEncoding,
+    snippets: bool,
 ) {
     let (mut start, end) = ctx.token;
     // A bracketed header insert (a TOML table) replaces the bracket the operator
@@ -171,6 +197,15 @@ fn apply_edit(
         while start > 0 && bytes[start - 1] == b'[' {
             start -= 1;
         }
+    }
+    let is_snippet = snippets && new_text.contains("$0");
+    let new_text = if snippets {
+        new_text
+    } else {
+        new_text.replace("$0", "")
+    };
+    if is_snippet {
+        item.insert_text_format = Some(InsertTextFormat::SNIPPET);
     }
     item.text_edit = Some(CompletionTextEdit::Edit(TextEdit {
         range: index.range_of_bytes(text, (start, end), encoding),

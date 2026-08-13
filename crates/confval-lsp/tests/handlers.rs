@@ -5,7 +5,8 @@ mod fixture;
 use std::str::FromStr;
 
 use lsp_types::{
-    CompletionItemKind, CompletionTextEdit, DiagnosticSeverity, HoverContents, Position, Range, Uri,
+    CompletionItemKind, CompletionTextEdit, DiagnosticSeverity, HoverContents, InsertTextFormat,
+    Position, Range, Uri,
 };
 
 use confval::prelude::{Located, Report, Validate};
@@ -114,6 +115,7 @@ fn attribute_name_completion_offers_unset_root_fields() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -142,6 +144,7 @@ fn block_type_completion_offers_the_nested_block() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -150,6 +153,54 @@ fn block_type_completion_offers_the_nested_block() {
         .find(|item| item.label == "limits")
         .expect("the limits block is offered");
     assert_eq!(limits.kind, Some(CompletionItemKind::STRUCT));
+}
+
+#[test]
+fn block_completion_places_the_cursor_with_a_snippet_when_supported() {
+    // Arrange
+    // A block insert carries a `$0` tab stop. A snippet-capable client receives
+    // it as a snippet so the cursor lands in the body. A client without snippet
+    // support receives the plain text with the tab stop removed.
+    let text = "";
+    let (tree, context) = at(text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let with = completion(
+        &Hcl,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        true,
+    );
+    let without = completion(
+        &Hcl,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let snippet = with
+        .iter()
+        .find(|item| item.label == "limits")
+        .expect("the limits block is offered");
+    assert_eq!(inserted(snippet), "limits {\n  $0\n}");
+    assert_eq!(snippet.insert_text_format, Some(InsertTextFormat::SNIPPET));
+    let plain = without
+        .iter()
+        .find(|item| item.label == "limits")
+        .expect("the limits block is offered");
+    assert_eq!(inserted(plain), "limits {\n  \n}");
+    assert_eq!(plain.insert_text_format, None);
 }
 
 #[test]
@@ -170,6 +221,7 @@ fn enum_value_completion_offers_the_allowed_strings() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -205,6 +257,7 @@ fn kdl_value_completion_on_a_valueless_node_does_not_replace_the_name() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -305,6 +358,7 @@ fn a_repeated_block_stays_offered_while_a_single_block_is_dropped() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -337,6 +391,7 @@ fn a_map_body_offers_no_keys() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -364,6 +419,7 @@ fn toml_block_completion_inserts_a_table_header() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -392,6 +448,7 @@ fn kdl_scalar_completion_inserts_the_bare_name_form() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -423,6 +480,7 @@ fn completion_inside_a_toml_array_of_tables_offers_the_block_fields() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -452,6 +510,7 @@ fn toml_enum_value_completion_offers_the_allowed_strings() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -479,6 +538,7 @@ fn a_half_typed_name_completes_over_a_replace_range() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -528,6 +588,7 @@ fn enum_completion_over_a_value_keeps_the_items_and_replaces_only_the_value() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -574,6 +635,7 @@ fn enum_completion_works_at_an_empty_value_when_the_buffer_does_not_parse() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -602,6 +664,7 @@ fn body_completion_on_an_empty_line_inserts_at_the_cursor() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -637,6 +700,7 @@ fn completing_a_typed_toml_header_replaces_the_bracket() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert
@@ -675,6 +739,7 @@ fn value_completion_at_a_non_keyword_field_offers_nothing() {
         text,
         &index,
         ENCODING,
+        false,
     );
 
     // Assert

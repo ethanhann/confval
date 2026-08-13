@@ -22,6 +22,20 @@ pub(crate) fn negotiate(params: &InitializeParams) -> PositionEncoding {
     }
 }
 
+/// Whether the client expands a completion snippet, so a block insert may place
+/// the cursor with a `$0` tab stop. A client without snippet support receives the
+/// plain text with the tab stop removed, so no literal `$0` reaches the buffer.
+pub(crate) fn supports_snippets(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|document| document.completion.as_ref())
+        .and_then(|completion| completion.completion_item.as_ref())
+        .and_then(|item| item.snippet_support)
+        .unwrap_or(false)
+}
+
 /// The server's advertised capabilities.
 pub(crate) fn server_capabilities(encoding: PositionEncoding) -> ServerCapabilities {
     ServerCapabilities {
@@ -44,7 +58,10 @@ fn encoding_kind(encoding: PositionEncoding) -> PositionEncodingKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lsp_types::{ClientCapabilities, GeneralClientCapabilities};
+    use lsp_types::{
+        ClientCapabilities, CompletionClientCapabilities, CompletionItemCapability,
+        GeneralClientCapabilities, TextDocumentClientCapabilities,
+    };
 
     #[test]
     fn negotiate_prefers_utf8_when_the_client_offers_it() {
@@ -80,6 +97,31 @@ mod tests {
 
         // Assert
         assert_eq!(encoding, PositionEncoding::Utf16);
+    }
+
+    #[test]
+    fn snippet_support_is_read_from_the_client_capabilities() {
+        // Arrange
+        let with_snippets = InitializeParams {
+            capabilities: ClientCapabilities {
+                text_document: Some(TextDocumentClientCapabilities {
+                    completion: Some(CompletionClientCapabilities {
+                        completion_item: Some(CompletionItemCapability {
+                            snippet_support: Some(true),
+                            ..CompletionItemCapability::default()
+                        }),
+                        ..CompletionClientCapabilities::default()
+                    }),
+                    ..TextDocumentClientCapabilities::default()
+                }),
+                ..ClientCapabilities::default()
+            },
+            ..InitializeParams::default()
+        };
+
+        // Act, Assert
+        assert!(supports_snippets(&with_snippets));
+        assert!(!supports_snippets(&InitializeParams::default()));
     }
 
     #[test]

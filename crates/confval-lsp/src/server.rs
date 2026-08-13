@@ -25,7 +25,7 @@ use confval::format::{Fields, FromFields};
 use confval::pipeline::{Validate, ValidateNested};
 use confval::schema::{Schema, ToSchema};
 
-use crate::capabilities::{negotiate, server_capabilities};
+use crate::capabilities::{negotiate, server_capabilities, supports_snippets};
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::Frontend;
 use crate::handlers;
@@ -49,6 +49,7 @@ struct Document {
 pub struct Server<S, F> {
     frontend: F,
     encoding: PositionEncoding,
+    snippets: bool,
     schema: Schema,
     documents: HashMap<String, Document>,
     spec: PhantomData<fn() -> S>,
@@ -65,6 +66,7 @@ where
         Self {
             frontend,
             encoding: PositionEncoding::Utf16,
+            snippets: false,
             schema: S::schema(),
             documents: HashMap::new(),
             spec: PhantomData,
@@ -76,6 +78,7 @@ where
         let (id, params) = connection.initialize_start()?;
         let params: InitializeParams = serde_json::from_value(params)?;
         self.encoding = negotiate(&params);
+        self.snippets = supports_snippets(&params);
         let result = InitializeResult {
             capabilities: server_capabilities(self.encoding),
             server_info: None,
@@ -233,6 +236,7 @@ where
             &document.text,
             &index,
             self.encoding,
+            self.snippets,
         );
         CompletionResponse::Array(items)
     }
