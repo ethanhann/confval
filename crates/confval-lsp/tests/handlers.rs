@@ -1170,3 +1170,147 @@ fn yaml_completion_inserts_the_mapping_and_scalar_forms() {
         .expect("the workers field is offered");
     assert_eq!(inserted(workers), "workers: ");
 }
+
+#[test]
+fn yaml_repeated_block_completion_opens_a_sequence() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Yaml, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let rules = items
+        .iter()
+        .find(|item| item.label == "rules")
+        .expect("the rules block is offered");
+    assert_eq!(inserted(rules), "rules:\n  - ");
+}
+
+#[test]
+fn yaml_field_in_a_repeated_block_opens_a_new_element() {
+    // Arrange
+    // A cursor on a fresh line inside the rules sequence completes a field as a
+    // new element with a `-` marker, not a bare key.
+    let text = "rules:\n  - prefix: \"/api\"\n  \n";
+    let offset = text.len() - 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let prefix = items
+        .iter()
+        .find(|item| item.label == "prefix")
+        .expect("the prefix field is offered");
+    assert_eq!(inserted(prefix), "- prefix: ");
+}
+
+#[test]
+fn json_repeated_block_completion_opens_an_array() {
+    // Arrange
+    let text = "{\n  \n}";
+    let offset = text.find("\n  \n").unwrap() + "\n  ".len();
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let rules = items
+        .iter()
+        .find(|item| item.label == "rules")
+        .expect("the rules block is offered");
+    assert_eq!(inserted(rules), "\"rules\": [{  }]");
+}
+
+#[test]
+fn json_field_in_an_array_element_position_opens_an_object() {
+    // Arrange
+    // The cursor sits directly in the rules array, after the first element, so a
+    // field completes as a new object element rather than a bare member.
+    let text = "{\n  \"rules\": [\n    { \"prefix\": \"/api\" },\n    \n  ]\n}\n";
+    let offset = text.find("},\n    \n").unwrap() + "},\n    ".len();
+    assert!(
+        Json.parse_tree(text).is_none(),
+        "the trailing comma does not parse"
+    );
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let plain = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+    let snippet = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        true,
+    );
+
+    // Assert
+    let prefix = plain
+        .iter()
+        .find(|item| item.label == "prefix")
+        .expect("the prefix field is offered");
+    assert_eq!(inserted(prefix), "{ \"prefix\":  }");
+    // A snippet-capable client receives a `$0` tab stop inside the braces, so
+    // the cursor lands at the value rather than after the closing brace.
+    let prefix_snippet = snippet
+        .iter()
+        .find(|item| item.label == "prefix")
+        .expect("the prefix field is offered");
+    assert_eq!(inserted(prefix_snippet), "{ \"prefix\": $0 }");
+    assert_eq!(
+        prefix_snippet.insert_text_format,
+        Some(InsertTextFormat::SNIPPET)
+    );
+}

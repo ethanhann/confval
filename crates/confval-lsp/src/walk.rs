@@ -24,6 +24,21 @@ pub(crate) fn schema_at<'a>(root: &'a Schema, path: &[String]) -> Option<&'a Sch
     Some(current)
 }
 
+/// Whether the block at `path` is a repeated block, read from its parent's
+/// field. A repeated block is a YAML sequence, a JSON array, or a TOML array of
+/// tables, so a field completed inside it opens a new element.
+pub(crate) fn repeated_block_at(root: &Schema, path: &[String]) -> bool {
+    let Some((name, parents)) = path.split_last() else {
+        return false;
+    };
+    let Some(parent) = schema_at(root, parents) else {
+        return false;
+    };
+    parent.fields.iter().any(|field| {
+        &field.name == name && matches!(field.ty, SchemaType::Block { repeated: true, .. })
+    })
+}
+
 /// The parsed fields of the block a cursor path encloses.
 ///
 /// Returns `None` when the tree does not carry the path, which happens for a

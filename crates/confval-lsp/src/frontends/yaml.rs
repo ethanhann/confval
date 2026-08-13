@@ -1,10 +1,9 @@
 use crate::Frontend;
 use crate::frontend::{Recovery, ValueSeparator};
-use crate::frontends::is_block;
 use confval::diagnostic::Report;
 use confval::format::Fields;
 use confval::format::yaml as format_yaml;
-use confval::schema::SchemaField;
+use confval::schema::{SchemaField, SchemaType};
 use confval::source::{SourceId, SourceMap};
 
 /// The YAML frontend.
@@ -28,12 +27,13 @@ impl Frontend for Yaml {
     }
 
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> String {
-        // A nested mapping opens its body on the next indented line. The cursor
-        // lands on that line at the tab stop.
-        if is_block(field) {
-            format!("{}:\n  $0", field.name)
-        } else {
-            format!("{}: ", field.name)
+        match &field.ty {
+            // A repeated block is a sequence, so the insert opens the first
+            // element with a `-` marker.
+            SchemaType::Block { repeated: true, .. } => format!("{}:\n  - $0", field.name),
+            // A single nested mapping opens its body on the next indented line.
+            SchemaType::Block { .. } => format!("{}:\n  $0", field.name),
+            _ => format!("{}: ", field.name),
         }
     }
 }
