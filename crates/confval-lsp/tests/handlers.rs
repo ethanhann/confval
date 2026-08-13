@@ -1026,3 +1026,147 @@ fn yaml_hover_renders_the_field_under_the_cursor() {
     assert!(value.contains("integer"), "got: {value}");
     assert!(value.contains("Between 1 and 65535"), "got: {value}");
 }
+
+#[test]
+fn yaml_second_document_reports_a_parse_error() {
+    // Arrange
+    // A YAML stream with a second document cannot hold one configuration, so the
+    // pipeline reports it.
+    let text = "hostname: api\n---\nfoo: bar\n";
+    let uri = Uri::from_str("file:///fixture.yaml").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, text, &uri, ENCODING);
+
+    // Assert
+    assert!(
+        found.iter().any(|d| d.message.contains("single document")),
+        "expected a second-document parse error, got: {found:?}"
+    );
+}
+
+#[test]
+fn json_diagnostic_range_survives_a_non_ascii_earlier_value() {
+    // Arrange
+    // A non-ASCII value on an earlier line adds bytes; the port diagnostic on a
+    // later line must still map to the right line and column.
+    let text = "{\n  \"hostname\": \"café\",\n  \"port\": 99999\n}\n";
+    let uri = Uri::from_str("file:///fixture.json").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Json>(&Json, text, &uri, ENCODING);
+
+    // Assert
+    let port = found
+        .iter()
+        .find(|d| d.message.contains("port"))
+        .expect("a port diagnostic");
+    assert_eq!(
+        port.range.start,
+        Position {
+            line: 2,
+            character: 10
+        }
+    );
+}
+
+#[test]
+fn yaml_diagnostic_range_survives_a_non_ascii_earlier_value() {
+    // Arrange
+    let text = "hostname: café\nport: 99999\n";
+    let uri = Uri::from_str("file:///fixture.yaml").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, text, &uri, ENCODING);
+
+    // Assert
+    let port = found
+        .iter()
+        .find(|d| d.message.contains("port"))
+        .expect("a port diagnostic");
+    assert_eq!(
+        port.range.start,
+        Position {
+            line: 1,
+            character: 6
+        }
+    );
+}
+
+#[test]
+fn json_hover_renders_the_field_under_the_cursor() {
+    // Arrange
+    let text = "{ \"port\": 8080 }\n";
+    let offset = text.find("port").unwrap() + 1;
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let rendered = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+
+    // Assert
+    let value = markdown(rendered.expect("a hover for port"));
+    assert!(value.contains("integer"), "got: {value}");
+    assert!(value.contains("Between 1 and 65535"), "got: {value}");
+}
+
+#[test]
+fn json_enum_value_completion_offers_the_allowed_strings() {
+    // Arrange
+    let text = "{ \"limits\": { \"mode\": \"l\" } }\n";
+    let offset = text.find("\"l\"").unwrap() + 2;
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let mut labels = labels(&items);
+    labels.sort();
+    assert_eq!(labels, vec!["enforce", "log", "off"]);
+}
+
+#[test]
+fn yaml_completion_inserts_the_mapping_and_scalar_forms() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Yaml, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let limits = items
+        .iter()
+        .find(|item| item.label == "limits")
+        .expect("the limits block is offered");
+    assert_eq!(inserted(limits), "limits:\n  ");
+    let workers = items
+        .iter()
+        .find(|item| item.label == "workers")
+        .expect("the workers field is offered");
+    assert_eq!(inserted(workers), "workers: ");
+}

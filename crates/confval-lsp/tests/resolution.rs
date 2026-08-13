@@ -535,3 +535,26 @@ fn json_two_levels_deep_collects_both_keys() {
     assert_eq!(broken_ctx.path, vec!["a".to_string(), "b".to_string()]);
     assert_eq!(broken_ctx.kind, PositionKind::Body);
 }
+
+#[test]
+fn yaml_value_completion_replaces_the_whole_quoted_value() {
+    // Arrange
+    // A parsed YAML value with a space is replaced whole, so completing an enum
+    // over a quoted value does not stop at the space and corrupt the tail.
+    let frontend = Yaml;
+    let text = "limits:\n  mode: \"log loud\"\n";
+    let offset = text.find("log").unwrap();
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(
+        context.kind,
+        PositionKind::AttributeValue {
+            field: "mode".to_string()
+        }
+    );
+    let (start, end) = context.token;
+    assert_eq!(&text[start..end], "\"log loud\"", "the whole quoted value");
+}
