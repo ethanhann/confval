@@ -1,8 +1,8 @@
 //! The schema-generic language server core for confval configuration files.
 //!
-//! confval rejects an unknown field at process startup, so the cost of not
-//! knowing the legal surface while editing is a hard failure rather than a
-//! silently ignored key. This crate answers the editor's questions before the
+//! confval rejects an unknown field at process startup, so a mistake in a
+//! handwritten configuration surfaces as a hard failure rather than a silently
+//! ignored key. This crate answers the editor's questions before the
 //! program runs: which fields are legal here, what each one holds, which values a
 //! closed-set field accepts, and where the file is wrong.
 //!
@@ -15,11 +15,13 @@
 //! The core is generic over the root spec `S`, needing only the traits the
 //! derive emits: `FromFields`, `Validate`, `ValidateNested`, and `ToSchema`.
 
+mod capabilities;
 mod encoding;
 mod frontend;
 mod frontends;
 mod resolve;
 mod server;
+mod text_scan;
 mod walk;
 
 pub mod handlers;
