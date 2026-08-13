@@ -3,9 +3,8 @@ use crate::frontends::is_block;
 use confval::diagnostic::Report;
 use confval::format::Fields;
 use confval::format::toml as format_toml;
-use confval::prelude::SourceMap;
 use confval::schema::SchemaField;
-use confval::source::SourceId;
+use confval::source::{SourceId, SourceMap};
 
 /// The TOML frontend.
 #[derive(Debug, Default, Clone, Copy)]

@@ -3,9 +3,8 @@ use crate::frontends::is_block;
 use confval::diagnostic::Report;
 use confval::format::Fields;
 use confval::format::kdl as format_kdl;
-use confval::prelude::SourceMap;
 use confval::schema::SchemaField;
-use confval::source::SourceId;
+use confval::source::{SourceId, SourceMap};
 
 /// The KDL frontend.
 #[derive(Debug, Default, Clone, Copy)]
