@@ -35,10 +35,11 @@ pub fn hover(
         PositionKind::BlockLabel => return None,
     };
     let field = enclosing.fields.iter().find(|field| field.name == name)?;
+    // `None` when there is no parse to read the state from, so the state is
+    // unknown rather than "not set".
     let set = fields
         .and_then(|tree| fields_at(tree, &ctx.path))
-        .map(|level| level.has(&name))
-        .unwrap_or(false);
+        .map(|level| level.has(&name));
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent {
             kind: MarkupKind::Markdown,
@@ -48,8 +49,9 @@ pub fn hover(
     })
 }
 
-/// Renders a field's hover as Markdown.
-fn render(field: &SchemaField, set: bool) -> String {
+/// Renders a field's hover as Markdown. `set` is `None` when the buffer does not
+/// parse, so the state line is omitted rather than guessed.
+fn render(field: &SchemaField, set: Option<bool>) -> String {
     let mut out = format!("**{}**: {}\n\n", field.name, type_label(&field.ty));
     if let Some(doc) = &field.doc {
         out.push_str(doc);
@@ -62,7 +64,9 @@ fn render(field: &SchemaField, set: bool) -> String {
     if field.has_default {
         out.push_str("Has a default.\n\n");
     }
-    out.push_str(state_label(set, field.has_default));
+    if let Some(set) = set {
+        out.push_str(state_label(set, field.has_default));
+    }
     out
 }
 

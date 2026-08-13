@@ -64,9 +64,9 @@ fn to_diagnostic(
         Severity::Error => DiagnosticSeverity::ERROR,
         Severity::Warning => DiagnosticSeverity::WARNING,
     };
-    // The help stays out of the message, which keeps the message a single clean
-    // line, and becomes a related note at the diagnostic's own location. The
-    // secondary spans follow as their own related notes.
+    // The help becomes a related note at the diagnostic's own location, so the
+    // message stays a single line. The secondary spans follow as their own
+    // related notes.
     let mut related = Vec::new();
     if let Some(help) = &issue.help {
         related.push(DiagnosticRelatedInformation {

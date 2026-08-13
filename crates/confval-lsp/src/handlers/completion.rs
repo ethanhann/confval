@@ -163,8 +163,17 @@ fn apply_edit(
     index: &LineIndex,
     encoding: PositionEncoding,
 ) {
+    let (mut start, end) = ctx.token;
+    // A bracketed header insert (a TOML table) replaces the bracket the operator
+    // has already typed, so `[lim` becomes `[limits]` rather than `[[limits]`.
+    if new_text.starts_with('[') {
+        let bytes = text.as_bytes();
+        while start > 0 && bytes[start - 1] == b'[' {
+            start -= 1;
+        }
+    }
     item.text_edit = Some(CompletionTextEdit::Edit(TextEdit {
-        range: index.range_of_bytes(text, ctx.token, encoding),
+        range: index.range_of_bytes(text, (start, end), encoding),
         new_text,
     }));
 }
