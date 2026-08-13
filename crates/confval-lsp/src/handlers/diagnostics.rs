@@ -64,29 +64,33 @@ fn to_diagnostic(
         Severity::Error => DiagnosticSeverity::ERROR,
         Severity::Warning => DiagnosticSeverity::WARNING,
     };
-    let mut message = issue.message.clone();
+    // The help stays out of the message, which keeps the message a single clean
+    // line, and becomes a related note at the diagnostic's own location. The
+    // secondary spans follow as their own related notes.
+    let mut related = Vec::new();
     if let Some(help) = &issue.help {
-        message.push('\n');
-        message.push_str(help);
+        related.push(DiagnosticRelatedInformation {
+            location: Location {
+                uri: uri.clone(),
+                range,
+            },
+            message: help.clone(),
+        });
     }
-    let related_information = (!issue.related.is_empty()).then(|| {
-        issue
-            .related
-            .iter()
-            .map(|(span, label)| DiagnosticRelatedInformation {
-                location: Location {
-                    uri: uri.clone(),
-                    range: index.range_of(text, *span, encoding),
-                },
-                message: label.clone(),
-            })
-            .collect()
-    });
+    for (span, label) in &issue.related {
+        related.push(DiagnosticRelatedInformation {
+            location: Location {
+                uri: uri.clone(),
+                range: index.range_of(text, *span, encoding),
+            },
+            message: label.clone(),
+        });
+    }
     Diagnostic {
         range,
         severity: Some(severity),
-        message,
-        related_information,
+        message: issue.message.clone(),
+        related_information: (!related.is_empty()).then_some(related),
         source: Some("confval".to_string()),
         ..Diagnostic::default()
     }
