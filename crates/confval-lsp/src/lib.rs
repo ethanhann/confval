@@ -19,6 +19,7 @@ mod capabilities;
 mod encoding;
 mod frontend;
 mod frontends;
+mod json_scan;
 mod resolve;
 mod server;
 mod text_scan;
