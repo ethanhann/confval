@@ -2,9 +2,10 @@
 //!
 //! A frontend delegates parsing to `confval`, resolves a byte offset to a cursor
 //! context, and renders a field's insert text in its format. Parsing and insert
-//! rendering reuse `confval`'s machinery, and the block-structured formats
-//! resolve through one shared walk, so each frontend's
-//! [`resolve`](Frontend::resolve) is the default.
+//! rendering reuse `confval`'s machinery, and HCL, TOML, KDL, and JSON resolve
+//! through one shared walk, so every frontend uses the default
+//! [`resolve`](Frontend::resolve), which routes an indentation format (YAML) to
+//! the YAML reader.
 
 use confval::diagnostic::Report;
 use confval::format::Fields;

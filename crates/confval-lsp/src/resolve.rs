@@ -1,12 +1,13 @@
 //! Position resolution over a parsed tree: a byte offset to a [`CursorContext`].
 //!
-//! The block-structured formats converge on `confval`'s neutral [`Fields`] tree,
+//! HCL, TOML, KDL, and JSON converge on `confval`'s neutral [`Fields`] tree,
 //! which already carries the name span, value span, and block span of every
 //! field. The walk is therefore shared. It descends the tree following the block
 //! whose span contains the offset and reads the position kind from the field the
 //! offset lands on. When the offset lands between fields, it scans the raw text
 //! for the identifier under the cursor. Recovery for a buffer that does not parse
-//! is in [`text_scan`](crate::text_scan).
+//! is in [`text_scan`](crate::text_scan), and YAML resolves from indentation in
+//! [`yaml_scan`](crate::yaml_scan).
 
 use confval::format::{Field, FieldKind, Fields, Value, ValueKind};
 use confval::source::Span;
