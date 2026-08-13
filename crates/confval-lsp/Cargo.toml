@@ -11,7 +11,7 @@ description = "Schema-generic language server core for confval configuration fil
 workspace = true
 
 [dependencies]
-confval = { path = "../confval", features = ["hcl", "toml", "kdl"] }
+confval = { path = "../confval", features = ["hcl", "toml", "kdl", "json", "yaml"] }
 lsp-types = { workspace = true }
 lsp-server = { workspace = true }
 serde_json = { workspace = true }
