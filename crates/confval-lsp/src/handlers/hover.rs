@@ -73,7 +73,7 @@ fn state_label(set: bool, has_default: bool) -> &'static str {
     if set {
         "Set by the configuration."
     } else if has_default {
-        "Not set; uses its default."
+        "Not set. Uses its default."
     } else {
         "Not set."
     }

@@ -91,7 +91,7 @@ fn field_item<F: Frontend>(
     };
     apply_edit(
         &mut item,
-        frontend.insert_text(field),
+        frontend.insert_text(field, &ctx.path),
         ctx,
         text,
         index,

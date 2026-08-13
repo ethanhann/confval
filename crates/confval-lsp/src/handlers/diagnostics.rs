@@ -54,10 +54,12 @@ fn to_diagnostic(
     uri: &Uri,
     encoding: PositionEncoding,
 ) -> Diagnostic {
-    let range = issue
-        .span
-        .map(|span| index.range_of(text, span, encoding))
-        .unwrap_or_default();
+    let range = match issue.span {
+        Some(span) => index.range_of(text, span, encoding),
+        // A spanless issue points at the whole first line rather than a
+        // zero-width range at the origin.
+        None => index.range_of_bytes(text, (0, text.find('\n').unwrap_or(text.len())), encoding),
+    };
     let severity = match issue.severity {
         Severity::Error => DiagnosticSeverity::ERROR,
         Severity::Warning => DiagnosticSeverity::WARNING,
