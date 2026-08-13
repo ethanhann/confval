@@ -4,8 +4,11 @@ mod fixture;
 
 use std::str::FromStr;
 
-use lsp_types::{CompletionItemKind, CompletionTextEdit, HoverContents, Position, Range, Uri};
+use lsp_types::{
+    CompletionItemKind, CompletionTextEdit, DiagnosticSeverity, HoverContents, Position, Range, Uri,
+};
 
+use confval::prelude::{Located, Report, Validate};
 use confval::schema::ToSchema;
 use confval_lsp::handlers::{completion, diagnostics, hover};
 use confval_lsp::{Frontend, Hcl, Kdl, LineIndex, PositionEncoding, Toml};
@@ -571,6 +574,107 @@ fn body_completion_on_an_empty_line_inserts_at_the_cursor() {
     };
     assert_eq!(edit.range.start, edit.range.end, "a zero-width insert");
     assert_eq!(edit.new_text, "mode = ");
+}
+
+#[test]
+fn completing_a_typed_toml_header_replaces_the_bracket() {
+    // Arrange
+    // `[lim` does not parse, so completing must replace the typed bracket rather
+    // than double it into `[[limits]`.
+    let text = "[lim";
+    let tree = Toml.parse_tree(text);
+    assert!(tree.is_none(), "the partial header does not parse");
+    let context = Toml.resolve(tree.as_ref(), text, text.len());
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(&Toml, &schema, tree.as_ref(), &context, text, &index, ENCODING);
+
+    // Assert
+    let limits = items
+        .iter()
+        .find(|item| item.label == "limits")
+        .expect("limits offered");
+    let Some(CompletionTextEdit::Edit(edit)) = &limits.text_edit else {
+        panic!("expected a replace edit");
+    };
+    let start = index.offset_of(text, edit.range.start, ENCODING);
+    let end = index.offset_of(text, edit.range.end, ENCODING);
+    assert_eq!(&text[start..end], "[lim", "the edit covers the typed bracket");
+    assert_eq!(edit.new_text, "[limits]");
+}
+
+#[test]
+fn value_completion_at_a_non_keyword_field_offers_nothing() {
+    // Arrange
+    let text = "port = 8080\n";
+    let offset = text.find("8080").unwrap() + 1;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(&Hcl, &schema, tree.as_ref(), &context, text, &index, ENCODING);
+
+    // Assert
+    assert!(items.is_empty(), "a range field's value offers no completion");
+}
+
+#[test]
+fn hover_on_a_value_renders_its_field() {
+    // Arrange
+    let text = "port = 8080\n";
+    let offset = text.find("8080").unwrap() + 1;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hover = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+
+    // Assert
+    let value = markdown(hover.expect("a hover on the value"));
+    assert!(value.contains("integer"), "got: {value}");
+    assert!(value.contains("Set by the configuration."), "got: {value}");
+}
+
+#[test]
+fn a_spanless_warning_maps_to_the_first_line_with_related_information() {
+    // Arrange
+    // A handwritten validator emits a warning with no primary span but a related
+    // span. The diagnostic points at the first line, carries the Warning
+    // severity, and keeps the related note.
+    #[derive(confval::Spec)]
+    struct PlainSpec {
+        name: Located<String>,
+    }
+    impl Validate for PlainSpec {
+        fn validate(&self, report: &mut Report) {
+            report
+                .warning("a general warning")
+                .related(self.name.span, "declared here")
+                .emit();
+        }
+    }
+    let text = "name = \"api\"\n";
+    let uri = Uri::from_str("file:///plain.hcl").unwrap();
+
+    // Act
+    let found = diagnostics::<PlainSpec, Hcl>(&Hcl, text, &uri, ENCODING);
+
+    // Assert
+    let warning = found
+        .iter()
+        .find(|diagnostic| diagnostic.message.contains("general warning"))
+        .expect("a warning");
+    assert_eq!(warning.severity, Some(DiagnosticSeverity::WARNING));
+    assert_eq!(warning.range.start, Position { line: 0, character: 0 });
+    let related = warning
+        .related_information
+        .as_ref()
+        .expect("related information");
+    assert!(related.iter().any(|note| note.message == "declared here"));
 }
 
 /// The Markdown body of a hover.
