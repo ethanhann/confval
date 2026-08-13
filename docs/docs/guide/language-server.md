@@ -61,7 +61,7 @@ This state comes from the field's presence in the parsed file.
 
 The core serves every format confval parses: HCL, TOML, KDL, JSON, and YAML.
 
-The block-structured formats, HCL, TOML, and KDL, and JSON resolve a cursor through the parsed tree, and reconstruct it from the raw text while the buffer is mid-edit and does not parse.
+HCL, TOML, KDL, and JSON resolve a cursor through the parsed tree, and reconstruct it from the raw text while the buffer is mid-edit and does not parse.
 JSON nests through object braces and array brackets, so a cursor inside an array element resolves into the element.
 
 YAML nests by indentation rather than a delimiter, so the server reads the enclosing keys from the cursor's indentation.
