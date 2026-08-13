@@ -15,16 +15,13 @@ use crate::frontend::CursorContext;
 
 /// Resolves `offset` against the parsed tree.
 pub(crate) fn resolve_in_tree(
-    tree: Option<&Fields>,
+    tree: &Fields,
     text: &str,
     offset: usize,
     covers_body: bool,
 ) -> CursorContext {
     let mut path = Vec::new();
-    let mut level = match tree {
-        Some(level) => level,
-        None => return CursorContext::body(path, identifier_token(text, offset)),
-    };
+    let mut level = tree;
 
     loop {
         match descend(level, text, offset, covers_body) {
