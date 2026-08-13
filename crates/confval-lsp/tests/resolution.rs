@@ -116,6 +116,38 @@ fn kdl_offset_table_maps_each_offset() {
 }
 
 #[test]
+fn toml_cursor_after_a_tables_last_entry_resolves_into_the_table() {
+    // Arrange
+    // A TOML table header spans only the header, so a cursor on a fresh line
+    // after the table's last entry must still resolve into the table, where a
+    // new key would belong.
+    let frontend = Toml;
+    let text = "hostname = \"api\"\n[limits]\nmode = \"enforce\"\n";
+
+    // Act
+    let context = resolve(&frontend, text, text.len());
+
+    // Assert
+    assert_eq!(context.path, vec!["limits".to_string()]);
+    assert_eq!(context.kind, PositionKind::Body);
+}
+
+#[test]
+fn toml_cursor_on_the_blank_line_between_tables_resolves_into_the_first() {
+    // Arrange
+    let frontend = Toml;
+    let text = "[limits]\nmode = \"enforce\"\n\n[other]\nx = 1\n";
+    let offset = text.find("\n\n").expect("a blank line") + 1;
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(context.path, vec!["limits".to_string()]);
+    assert_eq!(context.kind, PositionKind::Body);
+}
+
+#[test]
 fn empty_document_resolves_to_the_root_body() {
     // Arrange
     let frontend = Hcl;
@@ -145,6 +177,65 @@ fn a_buffer_that_does_not_parse_falls_back_to_a_text_scan() {
     assert_eq!(context.kind, PositionKind::Body);
     let (start, end) = context.token.expect("the scanned identifier");
     assert_eq!(&text[start..end], "work");
+}
+
+#[test]
+fn resolution_uses_the_last_good_tree_when_the_current_buffer_is_invalid() {
+    // Arrange
+    // The good buffer parses. A same-length edit corrupts it (`:` for `=`), so
+    // the current buffer does not parse while offsets stay aligned. Resolution
+    // reads the retained good tree to place the cursor inside the nested block.
+    let frontend = Hcl;
+    let good = "limits {\n  mode = \"enforce\"\n}\n";
+    let invalid = "limits {\n  mode : \"enforce\"\n}\n";
+    let good_tree = frontend.parse_tree(good);
+    assert!(good_tree.is_some(), "the good buffer parses");
+    assert!(
+        frontend.parse_tree(invalid).is_none(),
+        "the edited buffer does not parse"
+    );
+    let offset = invalid.find("mode").expect("mode present") + 1;
+
+    // Act
+    let context = frontend.resolve(good_tree.as_ref(), invalid, offset);
+
+    // Assert
+    assert_eq!(context.path, vec!["limits".to_string()]);
+    assert_eq!(context.kind, PositionKind::Body);
+}
+
+#[test]
+fn toml_recovers_at_the_document_edges() {
+    // Arrange
+    let frontend = Toml;
+    let document = "port = 8080\n";
+
+    // Act
+    let empty = resolve(&frontend, "", 0);
+    let end_of_file = resolve(&frontend, document, document.len());
+    let no_parse = resolve(&frontend, "port = ", "port = ".len());
+
+    // Assert
+    assert_eq!(empty.kind, PositionKind::Body);
+    assert_eq!(end_of_file.path, Vec::<String>::new());
+    assert_eq!(end_of_file.kind, PositionKind::Body);
+    assert_eq!(no_parse.kind, PositionKind::Body);
+}
+
+#[test]
+fn kdl_recovers_at_the_document_edges() {
+    // Arrange
+    let frontend = Kdl;
+    let document = "port 8080\n";
+
+    // Act
+    let empty = resolve(&frontend, "", 0);
+    let end_of_file = resolve(&frontend, document, document.len());
+
+    // Assert
+    assert_eq!(empty.kind, PositionKind::Body);
+    assert_eq!(end_of_file.path, Vec::<String>::new());
+    assert_eq!(end_of_file.kind, PositionKind::Body);
 }
 
 #[test]
