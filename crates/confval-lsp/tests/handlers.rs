@@ -204,12 +204,14 @@ fn hover_renders_a_set_field_with_its_type_and_constraint() {
 }
 
 #[test]
-fn hover_states_a_defaulted_field_is_not_set() {
+fn hover_omits_the_state_when_the_buffer_does_not_parse() {
     // Arrange
-    // A half-typed name does not parse, so the field is absent from the tree.
-    // `workers` carries a default, so hover reads it as defaulted, not set.
+    // A half-typed name does not parse, so the set-versus-defaulted state is
+    // unknown. The type and default flag still render, but the state line is
+    // omitted rather than guessed as "not set".
     let text = "workers";
     let (tree, context) = at(text, text.len());
+    assert!(tree.is_none(), "the buffer does not parse");
     let index = LineIndex::new(text);
     let schema = ServerSpec::schema();
 
@@ -219,6 +221,27 @@ fn hover_states_a_defaulted_field_is_not_set() {
     // Assert
     let value = markdown(hover.expect("a hover for workers"));
     assert!(value.contains("Has a default."), "got: {value}");
+    assert!(!value.contains("Not set"), "the state is omitted: {value}");
+    assert!(!value.contains("Set by the configuration"), "{value}");
+}
+
+#[test]
+fn hover_states_a_declared_but_unset_field_is_defaulted() {
+    // Arrange
+    // The buffer parses. `workers` appears only in a comment, so it is declared
+    // by the schema but absent from the parse, and hover reads it as defaulted.
+    let text = "# workers\nport = 8080\n";
+    let offset = text.find("workers").unwrap() + 1;
+    let (tree, context) = at(text, offset);
+    assert!(tree.is_some(), "the buffer parses");
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hover = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+
+    // Assert
+    let value = markdown(hover.expect("a hover for workers"));
     assert!(value.contains("Not set. Uses its default."), "got: {value}");
 }
 
@@ -334,6 +357,37 @@ fn kdl_scalar_completion_inserts_the_bare_name_form() {
         .find(|item| item.label == "port")
         .expect("port offered");
     assert_eq!(inserted(port), "port ");
+}
+
+#[test]
+fn completion_inside_a_toml_array_of_tables_offers_the_block_fields() {
+    // Arrange
+    // The cursor is on the blank line inside a `[[rules]]` element with no
+    // prefix set, so completion offers the element's fields.
+    let text = "[[rules]]\n\n";
+    let offset = text.len() - 1;
+    let tree = Toml.parse_tree(text);
+    let context = Toml.resolve(tree.as_ref(), text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Toml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    assert!(
+        labels(&items).contains(&"prefix".to_string()),
+        "offers the rule fields: {:?}",
+        labels(&items)
+    );
 }
 
 #[test]
@@ -453,6 +507,36 @@ fn enum_completion_over_a_value_keeps_the_items_and_replaces_only_the_value() {
         "the edit replaces only the value"
     );
     assert_eq!(edit.new_text, "\"log\"");
+}
+
+#[test]
+fn enum_completion_works_at_an_empty_value_when_the_buffer_does_not_parse() {
+    // Arrange
+    // `mode = ` with an empty value does not parse. Recovery from the raw text
+    // must still place the cursor at mode's value inside limits and offer the
+    // enum, rather than the root fields.
+    let text = "limits {\n  max_body_mb = 10\n  mode = \n}\n";
+    let offset = text.find("mode = ").unwrap() + "mode = ".len();
+    let (tree, context) = at(text, offset);
+    assert!(tree.is_none(), "the buffer does not parse");
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Hcl,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let mut labels = labels(&items);
+    labels.sort();
+    assert_eq!(labels, vec!["enforce", "log", "off"]);
 }
 
 #[test]

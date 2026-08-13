@@ -116,6 +116,36 @@ fn kdl_offset_table_maps_each_offset() {
 }
 
 #[test]
+fn toml_array_of_tables_body_resolves_into_the_element() {
+    // Arrange
+    let frontend = Toml;
+    let text = "[[rules]]\nprefix = \"/a\"\n";
+    let offset = text.find("prefix").expect("prefix present") + 1;
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(context.path, vec!["rules".to_string()]);
+    assert_eq!(context.kind, PositionKind::Body);
+}
+
+#[test]
+fn toml_nested_table_body_resolves_into_the_child() {
+    // Arrange
+    let frontend = Toml;
+    let text = "[a]\nx = 1\n[a.b]\ny = 2\n";
+    let offset = text.find("y = 2").expect("nested entry present");
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(context.path, vec!["a".to_string(), "b".to_string()]);
+    assert_eq!(context.kind, PositionKind::Body);
+}
+
+#[test]
 fn toml_cursor_after_a_tables_last_entry_resolves_into_the_table() {
     // Arrange
     // A TOML table header spans only the header, so a cursor on a fresh line
@@ -182,24 +212,20 @@ fn a_buffer_that_does_not_parse_falls_back_to_a_text_scan() {
 }
 
 #[test]
-fn resolution_uses_the_last_good_tree_when_the_current_buffer_is_invalid() {
+fn resolution_recovers_from_text_when_the_buffer_does_not_parse() {
     // Arrange
-    // The good buffer parses. A same-length edit corrupts it (`:` for `=`), so
-    // the current buffer does not parse while offsets stay aligned. Resolution
-    // reads the retained good tree to place the cursor inside the nested block.
+    // The buffer does not parse, so no tree is available and resolution
+    // reconstructs the enclosing block path from the raw text.
     let frontend = Hcl;
-    let good = "limits {\n  mode = \"enforce\"\n}\n";
     let invalid = "limits {\n  mode : \"enforce\"\n}\n";
-    let good_tree = frontend.parse_tree(good);
-    assert!(good_tree.is_some(), "the good buffer parses");
     assert!(
         frontend.parse_tree(invalid).is_none(),
-        "the edited buffer does not parse"
+        "the buffer does not parse"
     );
     let offset = invalid.find("mode").expect("mode present") + 1;
 
     // Act
-    let context = frontend.resolve(good_tree.as_ref(), invalid, offset);
+    let context = frontend.resolve(None, invalid, offset);
 
     // Assert
     assert_eq!(context.path, vec!["limits".to_string()]);
@@ -207,24 +233,16 @@ fn resolution_uses_the_last_good_tree_when_the_current_buffer_is_invalid() {
 }
 
 #[test]
-fn the_replace_token_is_read_from_the_current_text_not_the_stale_tree() {
+fn a_parsed_value_with_a_space_is_replaced_whole() {
     // Arrange
-    // The good buffer parses. The edited buffer lengthens the value and does not
-    // parse, so the tree is stale. The value token must describe the current
-    // text, so a completion edit lands on the current value, not the old span.
+    // The buffer parses, so the tree walk uses the value's exact span. A value
+    // with a space must be replaced whole, not split at the space.
     let frontend = Hcl;
-    let good = "mode = \"x\"\n";
-    let editing = "mode = \"xyz\n";
-    let good_tree = frontend.parse_tree(good);
-    assert!(good_tree.is_some(), "the good buffer parses");
-    assert!(
-        frontend.parse_tree(editing).is_none(),
-        "the edited buffer does not parse"
-    );
-    let offset = editing.find("xyz").expect("value present") + 2;
+    let text = "mode = \"log loud\"\n";
+    let offset = text.find("log").expect("value present") + 1;
 
     // Act
-    let context = frontend.resolve(good_tree.as_ref(), editing, offset);
+    let context = frontend.resolve(frontend.parse_tree(text).as_ref(), text, offset);
 
     // Assert
     assert_eq!(
@@ -234,7 +252,7 @@ fn the_replace_token_is_read_from_the_current_text_not_the_stale_tree() {
         }
     );
     let (start, end) = context.token;
-    assert_eq!(&editing[start..end], "\"xyz");
+    assert_eq!(&text[start..end], "\"log loud\"");
 }
 
 #[test]
@@ -252,7 +270,14 @@ fn toml_recovers_at_the_document_edges() {
     assert_eq!(empty.kind, PositionKind::Body);
     assert_eq!(end_of_file.path, Vec::<String>::new());
     assert_eq!(end_of_file.kind, PositionKind::Body);
-    assert_eq!(no_parse.kind, PositionKind::Body);
+    // `port = ` with an empty value does not parse, and text recovery reads it as
+    // a value position rather than a body position.
+    assert_eq!(
+        no_parse.kind,
+        PositionKind::AttributeValue {
+            field: "port".to_string()
+        }
+    );
 }
 
 #[test]
@@ -264,11 +289,20 @@ fn kdl_recovers_at_the_document_edges() {
     // Act
     let empty = resolve(&frontend, "", 0);
     let end_of_file = resolve(&frontend, document, document.len());
+    let no_parse = resolve(&frontend, "node \"x", "node \"x".len());
 
     // Assert
     assert_eq!(empty.kind, PositionKind::Body);
     assert_eq!(end_of_file.path, Vec::<String>::new());
     assert_eq!(end_of_file.kind, PositionKind::Body);
+    // The unclosed string does not parse, so recovery reads the node argument.
+    assert_eq!(no_parse.path, Vec::<String>::new());
+    assert_eq!(
+        no_parse.kind,
+        PositionKind::AttributeValue {
+            field: "node".to_string()
+        }
+    );
 }
 
 #[test]
