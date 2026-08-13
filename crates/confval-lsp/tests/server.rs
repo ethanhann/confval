@@ -18,7 +18,7 @@ use lsp_types::{
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 
-use confval_lsp::{Hcl, Server};
+use confval_lsp::{Hcl, Server, Yaml};
 use fixture::ServerSpec;
 
 /// Receives messages until one satisfies the predicate, or panics on hangup.
@@ -224,6 +224,87 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
     assert!(
         closed.diagnostics.is_empty(),
         "closing clears the document's diagnostics"
+    );
+    handle.join().unwrap().unwrap();
+}
+
+#[test]
+fn the_server_serves_a_yaml_document() {
+    // Arrange
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || Server::<ServerSpec, Yaml>::new(Yaml).run(&server));
+    let uri = Uri::from_str("file:///server.yaml").unwrap();
+
+    // Act, initialize.
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(1),
+            Initialize::METHOD.to_string(),
+            InitializeParams::default(),
+        )))
+        .unwrap();
+    let _init: Response = recv_until(&client, |message| match message {
+        Message::Response(response) if response.id == RequestId::from(1) => Some(response.clone()),
+        _ => None,
+    });
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            Initialized::METHOD.to_string(),
+            InitializedParams {},
+        )))
+        .unwrap();
+
+    // Act, open a YAML document with an out-of-range port.
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            DidOpenTextDocument::METHOD.to_string(),
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "yaml".to_string(),
+                    version: 1,
+                    text: "hostname: api\nport: 99999\n".to_string(),
+                },
+            },
+        )))
+        .unwrap();
+    let diagnostics: PublishDiagnosticsParams = recv_until(&client, |message| match message {
+        Message::Notification(notification)
+            if notification.method == PublishDiagnostics::METHOD =>
+        {
+            Some(serde_json::from_value(notification.params.clone()).unwrap())
+        }
+        _ => None,
+    });
+
+    // Act, shut down.
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(2),
+            Shutdown::METHOD.to_string(),
+            (),
+        )))
+        .unwrap();
+    let _shutdown: Response = recv_until(&client, |message| match message {
+        Message::Response(response) if response.id == RequestId::from(2) => Some(response.clone()),
+        _ => None,
+    });
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            Exit::METHOD.to_string(),
+            (),
+        )))
+        .unwrap();
+
+    // Assert
+    assert!(
+        !diagnostics.diagnostics.is_empty(),
+        "the YAML document publishes at least one diagnostic"
     );
     handle.join().unwrap().unwrap();
 }

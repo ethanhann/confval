@@ -12,7 +12,7 @@ use lsp_types::{
 use confval::prelude::{Located, Report, Validate};
 use confval::schema::ToSchema;
 use confval_lsp::handlers::{completion, diagnostics, hover};
-use confval_lsp::{Frontend, Hcl, Kdl, LineIndex, PositionEncoding, Toml};
+use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
 
 use fixture::ServerSpec;
 
@@ -817,4 +817,633 @@ fn markdown(hover: lsp_types::Hover) -> String {
         HoverContents::Markup(markup) => markup.value,
         other => panic!("expected markup hover, got: {other:?}"),
     }
+}
+
+/// Resolves a cursor against any frontend, for the JSON and YAML handler tests.
+fn at_with<F: Frontend>(
+    frontend: &F,
+    text: &str,
+    offset: usize,
+) -> (Option<confval::format::Fields>, confval_lsp::CursorContext) {
+    let tree = frontend.parse_tree(text);
+    let context = frontend.resolve(tree.as_ref(), text, offset);
+    (tree, context)
+}
+
+#[test]
+fn json_diagnostics_report_the_pipeline_issues() {
+    // Arrange
+    let text = "{\n  \"hostname\": \"api\",\n  \"port\": 99999,\n  \"bogus\": 1,\n  \"limits\": { \"mode\": \"nope\" }\n}\n";
+    let uri = Uri::from_str("file:///fixture.json").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Json>(&Json, text, &uri, ENCODING);
+
+    // Assert
+    let messages: Vec<&str> = found.iter().map(|d| d.message.as_str()).collect();
+    assert!(
+        messages.iter().any(|m| m.contains("port")),
+        "expected a port range diagnostic, got: {messages:?}"
+    );
+    assert!(
+        messages.iter().any(|m| m.contains("unknown field: bogus")),
+        "expected an unknown-field diagnostic, got: {messages:?}"
+    );
+    assert!(
+        messages.iter().any(|m| m.contains("mode")),
+        "expected a keyword diagnostic, got: {messages:?}"
+    );
+}
+
+#[test]
+fn json_root_not_an_object_reports_a_parse_error() {
+    // Arrange
+    // A JSON array root cannot hold named fields, so the pipeline reports it.
+    let text = "[]\n";
+    let uri = Uri::from_str("file:///fixture.json").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Json>(&Json, text, &uri, ENCODING);
+
+    // Assert
+    assert!(
+        found
+            .iter()
+            .any(|d| d.message.contains("object at the document root")),
+        "expected a root parse error, got: {found:?}"
+    );
+}
+
+#[test]
+fn yaml_diagnostics_report_the_pipeline_issues() {
+    // Arrange
+    let text = "hostname: api\nport: 99999\nbogus: 1\nlimits:\n  mode: nope\n";
+    let uri = Uri::from_str("file:///fixture.yaml").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, text, &uri, ENCODING);
+
+    // Assert
+    let messages: Vec<&str> = found.iter().map(|d| d.message.as_str()).collect();
+    assert!(
+        messages.iter().any(|m| m.contains("port")),
+        "expected a port range diagnostic, got: {messages:?}"
+    );
+    assert!(
+        messages.iter().any(|m| m.contains("unknown field: bogus")),
+        "expected an unknown-field diagnostic, got: {messages:?}"
+    );
+    assert!(
+        messages.iter().any(|m| m.contains("mode")),
+        "expected a keyword diagnostic, got: {messages:?}"
+    );
+}
+
+#[test]
+fn json_completion_absorbs_the_opening_quote() {
+    // Arrange
+    // A half-typed `"por` does not parse. Completing `port` replaces the quote
+    // and the prefix, so the result is `"port": ` rather than a doubled quote.
+    let text = "{\n  \"por\n}\n";
+    let offset = text.find("\"por").unwrap() + "\"por".len();
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let port = items
+        .iter()
+        .find(|item| item.label == "port")
+        .expect("the port field is offered");
+    assert_eq!(inserted(port), "\"port\": ");
+    let range = match &port.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit.range,
+        other => panic!("an explicit replace edit, got {other:?}"),
+    };
+    // The edit starts at the opening quote (character 2 on line 1), not after it.
+    assert_eq!(
+        range.start,
+        Position {
+            line: 1,
+            character: 2
+        }
+    );
+}
+
+#[test]
+fn json_member_insert_is_non_destructive() {
+    // Arrange
+    // Completing a new key on a fresh line inside a populated object inserts the
+    // member alone, with no comma, as a zero-width edit at the cursor.
+    let text = "{\n  \"hostname\": \"api\"\n  \n}\n";
+    let offset = text.find("\n  \n}").unwrap() + "\n  ".len();
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let port = items
+        .iter()
+        .find(|item| item.label == "port")
+        .expect("the port field is offered");
+    assert_eq!(inserted(port), "\"port\": ");
+    let range = match &port.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit.range,
+        other => panic!("an explicit replace edit, got {other:?}"),
+    };
+    assert_eq!(range.start, range.end, "the member insert is zero-width");
+}
+
+#[test]
+fn yaml_completion_under_an_empty_key_offers_the_block_fields() {
+    // Arrange
+    // The `limits:` key awaits its body. A cursor on the indented line offers
+    // the block's fields, proving the indentation resolution end to end.
+    let text = "limits:\n  \n";
+    let offset = text.len() - 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let labels = labels(&items);
+    assert!(
+        labels.contains(&"mode".to_string()),
+        "expected the limits block fields, got: {labels:?}"
+    );
+}
+
+#[test]
+fn yaml_hover_renders_the_field_under_the_cursor() {
+    // Arrange
+    let text = "port: 8080\n";
+    let offset = text.find("port").unwrap() + 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let rendered = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+
+    // Assert
+    let value = markdown(rendered.expect("a hover for port"));
+    assert!(value.contains("integer"), "got: {value}");
+    assert!(value.contains("Between 1 and 65535"), "got: {value}");
+}
+
+#[test]
+fn yaml_second_document_reports_a_parse_error() {
+    // Arrange
+    // A YAML stream with a second document cannot hold one configuration, so the
+    // pipeline reports it.
+    let text = "hostname: api\n---\nfoo: bar\n";
+    let uri = Uri::from_str("file:///fixture.yaml").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, text, &uri, ENCODING);
+
+    // Assert
+    assert!(
+        found.iter().any(|d| d.message.contains("single document")),
+        "expected a second-document parse error, got: {found:?}"
+    );
+}
+
+#[test]
+fn json_diagnostic_range_survives_a_non_ascii_earlier_value() {
+    // Arrange
+    // A non-ASCII value on an earlier line adds bytes; the port diagnostic on a
+    // later line must still map to the right line and column.
+    let text = "{\n  \"hostname\": \"café\",\n  \"port\": 99999\n}\n";
+    let uri = Uri::from_str("file:///fixture.json").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Json>(&Json, text, &uri, ENCODING);
+
+    // Assert
+    let port = found
+        .iter()
+        .find(|d| d.message.contains("port"))
+        .expect("a port diagnostic");
+    assert_eq!(
+        port.range.start,
+        Position {
+            line: 2,
+            character: 10
+        }
+    );
+}
+
+#[test]
+fn yaml_diagnostic_range_survives_a_non_ascii_earlier_value() {
+    // Arrange
+    let text = "hostname: café\nport: 99999\n";
+    let uri = Uri::from_str("file:///fixture.yaml").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, text, &uri, ENCODING);
+
+    // Assert
+    let port = found
+        .iter()
+        .find(|d| d.message.contains("port"))
+        .expect("a port diagnostic");
+    assert_eq!(
+        port.range.start,
+        Position {
+            line: 1,
+            character: 6
+        }
+    );
+}
+
+#[test]
+fn json_hover_renders_the_field_under_the_cursor() {
+    // Arrange
+    let text = "{ \"port\": 8080 }\n";
+    let offset = text.find("port").unwrap() + 1;
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let rendered = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+
+    // Assert
+    let value = markdown(rendered.expect("a hover for port"));
+    assert!(value.contains("integer"), "got: {value}");
+    assert!(value.contains("Between 1 and 65535"), "got: {value}");
+}
+
+#[test]
+fn json_enum_value_completion_offers_the_allowed_strings() {
+    // Arrange
+    let text = "{ \"limits\": { \"mode\": \"l\" } }\n";
+    let offset = text.find("\"l\"").unwrap() + 2;
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let mut labels = labels(&items);
+    labels.sort();
+    assert_eq!(labels, vec!["enforce", "log", "off"]);
+}
+
+#[test]
+fn yaml_completion_inserts_the_mapping_and_scalar_forms() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Yaml, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let limits = items
+        .iter()
+        .find(|item| item.label == "limits")
+        .expect("the limits block is offered");
+    assert_eq!(inserted(limits), "limits:\n  ");
+    let workers = items
+        .iter()
+        .find(|item| item.label == "workers")
+        .expect("the workers field is offered");
+    assert_eq!(inserted(workers), "workers: ");
+}
+
+#[test]
+fn yaml_repeated_block_completion_opens_a_sequence() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Yaml, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let rules = items
+        .iter()
+        .find(|item| item.label == "rules")
+        .expect("the rules block is offered");
+    assert_eq!(inserted(rules), "rules:\n  - ");
+}
+
+#[test]
+fn yaml_field_in_a_repeated_block_opens_a_new_element() {
+    // Arrange
+    // A cursor on a fresh line inside the rules sequence completes a field as a
+    // new element with a `-` marker, not a bare key.
+    let text = "rules:\n  - prefix: \"/api\"\n  \n";
+    let offset = text.len() - 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let prefix = items
+        .iter()
+        .find(|item| item.label == "prefix")
+        .expect("the prefix field is offered");
+    assert_eq!(inserted(prefix), "- prefix: ");
+}
+
+#[test]
+fn json_repeated_block_completion_opens_an_array() {
+    // Arrange
+    let text = "{\n  \n}";
+    let offset = text.find("\n  \n").unwrap() + "\n  ".len();
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let rules = items
+        .iter()
+        .find(|item| item.label == "rules")
+        .expect("the rules block is offered");
+    assert_eq!(inserted(rules), "\"rules\": [{  }]");
+}
+
+#[test]
+fn json_field_in_an_array_element_position_opens_an_object() {
+    // Arrange
+    // The cursor sits directly in the rules array, after the first element, so a
+    // field completes as a new object element rather than a bare member.
+    let text = "{\n  \"rules\": [\n    { \"prefix\": \"/api\" },\n    \n  ]\n}\n";
+    let offset = text.find("},\n    \n").unwrap() + "},\n    ".len();
+    assert!(
+        Json.parse_tree(text).is_none(),
+        "the trailing comma does not parse"
+    );
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let plain = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+    let snippet = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        true,
+    );
+
+    // Assert
+    let prefix = plain
+        .iter()
+        .find(|item| item.label == "prefix")
+        .expect("the prefix field is offered");
+    assert_eq!(inserted(prefix), "{ \"prefix\":  }");
+    // A snippet-capable client receives a `$0` tab stop inside the braces, so
+    // the cursor lands at the value rather than after the closing brace.
+    let prefix_snippet = snippet
+        .iter()
+        .find(|item| item.label == "prefix")
+        .expect("the prefix field is offered");
+    assert_eq!(inserted(prefix_snippet), "{ \"prefix\": $0 }");
+    assert_eq!(
+        prefix_snippet.insert_text_format,
+        Some(InsertTextFormat::SNIPPET)
+    );
+}
+
+#[test]
+fn json_list_and_map_completion_open_the_container() {
+    // Arrange
+    let text = "{\n  \n}";
+    let offset = text.find("\n  \n").unwrap() + "\n  ".len();
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let allow = items
+        .iter()
+        .find(|i| i.label == "allow")
+        .expect("allow offered");
+    assert_eq!(inserted(allow), "\"allow\": []");
+    let headers = items
+        .iter()
+        .find(|i| i.label == "headers")
+        .expect("headers offered");
+    assert_eq!(inserted(headers), "\"headers\": {  }");
+}
+
+#[test]
+fn yaml_list_and_map_completion_open_the_container() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Yaml, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let allow = items
+        .iter()
+        .find(|i| i.label == "allow")
+        .expect("allow offered");
+    assert_eq!(inserted(allow), "allow:\n  - ");
+    let headers = items
+        .iter()
+        .find(|i| i.label == "headers")
+        .expect("headers offered");
+    assert_eq!(inserted(headers), "headers:\n  ");
+}
+
+#[test]
+fn toml_list_and_map_completion_open_the_container() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Toml, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Toml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let allow = items
+        .iter()
+        .find(|i| i.label == "allow")
+        .expect("allow offered");
+    assert_eq!(inserted(allow), "allow = []");
+    let headers = items
+        .iter()
+        .find(|i| i.label == "headers")
+        .expect("headers offered");
+    assert_eq!(inserted(headers), "headers = {  }");
+}
+
+#[test]
+fn hcl_list_and_map_completion_open_the_container() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Hcl, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Hcl,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let allow = items
+        .iter()
+        .find(|i| i.label == "allow")
+        .expect("allow offered");
+    assert_eq!(inserted(allow), "allow = []");
+    let headers = items
+        .iter()
+        .find(|i| i.label == "headers")
+        .expect("headers offered");
+    assert_eq!(inserted(headers), "headers = {  }");
 }

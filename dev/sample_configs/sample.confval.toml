@@ -1,5 +1,0 @@
-hostname = "api.internal"
-port = 8080
-
-[limits]
-max_body_mb = 5129

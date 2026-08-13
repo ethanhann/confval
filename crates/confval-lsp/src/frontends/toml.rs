@@ -1,9 +1,9 @@
 use crate::Frontend;
-use crate::frontends::is_block;
+use crate::frontend::Recovery;
 use confval::diagnostic::Report;
 use confval::format::Fields;
 use confval::format::toml as format_toml;
-use confval::schema::SchemaField;
+use confval::schema::{SchemaField, SchemaType};
 use confval::source::{SourceId, SourceMap};
 
 /// The TOML frontend.
@@ -21,15 +21,26 @@ impl Frontend for Toml {
         false
     }
 
+    fn recovery(&self) -> Recovery {
+        // TOML addresses a table by a `[header]`, so the text recovery
+        // reconstructs the path from the last header rather than open braces.
+        Recovery::Header
+    }
+
     fn insert_text(&self, field: &SchemaField, path: &[String]) -> String {
-        if is_block(field) {
-            if path.is_empty() {
-                format!("[{}]", field.name)
-            } else {
-                format!("[{}.{}]", path.join("."), field.name)
-            }
+        let qualified = if path.is_empty() {
+            field.name.clone()
         } else {
-            format!("{} = ", field.name)
+            format!("{}.{}", path.join("."), field.name)
+        };
+        match &field.ty {
+            // A repeated block is an array of tables, written with a doubled
+            // header.
+            SchemaType::Block { repeated: true, .. } => format!("[[{qualified}]]"),
+            SchemaType::Block { .. } => format!("[{qualified}]"),
+            SchemaType::StringList => format!("{} = [$0]", field.name),
+            SchemaType::StringMap => format!("{} = {{ $0 }}", field.name),
+            _ => format!("{} = ", field.name),
         }
     }
 }
@@ -52,6 +63,19 @@ mod tests {
         )
     }
 
+    fn repeated_block(name: &str) -> SchemaField {
+        SchemaField::new(
+            name.to_string(),
+            None,
+            true,
+            false,
+            SchemaType::Block {
+                schema: Box::new(Schema::new(None, Vec::new())),
+                repeated: true,
+            },
+        )
+    }
+
     #[test]
     fn a_root_block_completes_as_a_plain_header() {
         // Arrange, Act
@@ -68,5 +92,14 @@ mod tests {
 
         // Assert
         assert_eq!(header, "[limits.sub]");
+    }
+
+    #[test]
+    fn a_repeated_block_completes_as_an_array_of_tables() {
+        // Arrange, Act
+        let header = Toml.insert_text(&repeated_block("rules"), &[]);
+
+        // Assert
+        assert_eq!(header, "[[rules]]");
     }
 }

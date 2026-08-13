@@ -16,8 +16,9 @@ use confval::format::Fields;
 use confval::schema::{Constraint, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
-use crate::frontend::{CursorContext, Frontend, PositionKind};
-use crate::walk::{fields_at, schema_at};
+use crate::frontend::{CursorContext, Frontend, PositionKind, Recovery};
+use crate::scan::skip_string;
+use crate::walk::{fields_at, repeated_block_at, schema_at};
 
 /// Produces the completion items for a resolved cursor.
 ///
@@ -39,9 +40,12 @@ pub fn completion<F: Frontend>(
         return Vec::new();
     };
     match &ctx.kind {
-        PositionKind::Body => body_items(
-            frontend, enclosing, fields, ctx, text, index, encoding, snippets,
-        ),
+        PositionKind::Body => {
+            let repeated = repeated_block_at(schema, &ctx.path);
+            body_items(
+                frontend, enclosing, fields, ctx, text, index, encoding, snippets, repeated,
+            )
+        }
         PositionKind::AttributeValue { field } => {
             value_items(enclosing, field, ctx, text, index, encoding)
         }
@@ -60,6 +64,7 @@ fn body_items<F: Frontend>(
     index: &LineIndex,
     encoding: PositionEncoding,
     snippets: bool,
+    repeated: bool,
 ) -> Vec<CompletionItem> {
     let set: HashSet<&str> = fields
         .and_then(|tree| fields_at(tree, &ctx.path))
@@ -73,7 +78,11 @@ fn body_items<F: Frontend>(
             matches!(field.ty, SchemaType::Block { repeated: true, .. })
                 || !set.contains(field.name.as_str())
         })
-        .map(|field| field_item(frontend, field, ctx, text, index, encoding, snippets))
+        .map(|field| {
+            field_item(
+                frontend, field, ctx, text, index, encoding, snippets, repeated,
+            )
+        })
         .collect()
 }
 
@@ -87,6 +96,7 @@ fn field_item<F: Frontend>(
     index: &LineIndex,
     encoding: PositionEncoding,
     snippets: bool,
+    repeated: bool,
 ) -> CompletionItem {
     let kind = if matches!(field.ty, SchemaType::Block { .. }) {
         CompletionItemKind::STRUCT
@@ -99,16 +109,62 @@ fn field_item<F: Frontend>(
         detail: field.doc.clone(),
         ..CompletionItem::default()
     };
-    apply_edit(
-        &mut item,
-        frontend.insert_text(field, &ctx.path),
-        ctx,
-        text,
-        index,
-        encoding,
-        snippets,
-    );
+    let mut insert = frontend.insert_text(field, &ctx.path);
+    // Inside a repeated block, a field opens a new sequence or array element
+    // rather than a bare key.
+    if repeated {
+        insert = wrap_repeated_element(frontend, insert, text, ctx.token);
+    }
+    apply_edit(&mut item, insert, ctx, text, index, encoding, snippets);
     item
+}
+
+/// Wraps a field insert as a new element of a repeated block. A YAML sequence
+/// element takes a `-` marker on a fresh line, and a JSON array element is an
+/// object, added only when the cursor sits directly in the array.
+fn wrap_repeated_element<F: Frontend>(
+    frontend: &F,
+    insert: String,
+    text: &str,
+    token: (usize, usize),
+) -> String {
+    match frontend.recovery() {
+        Recovery::Indentation if on_blank_line(text, token) => format!("- {insert}"),
+        // The `$0` lands the cursor at the value, inside the braces, rather than
+        // after the closing brace.
+        Recovery::Object if innermost_is_array(text, token.0) => format!("{{ {insert}$0 }}"),
+        _ => insert,
+    }
+}
+
+/// Whether only whitespace precedes the token on its line, so a YAML sequence
+/// marker starts a new element rather than doubling an existing one.
+fn on_blank_line(text: &str, token: (usize, usize)) -> bool {
+    let line_start = text[..token.0].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    text[line_start..token.0].trim().is_empty()
+}
+
+/// Whether the innermost open bracket at the offset is a JSON array, so the
+/// cursor sits directly in an array rather than inside an element object.
+fn innermost_is_array(text: &str, offset: usize) -> bool {
+    let bytes = text.as_bytes();
+    let mut stack = Vec::new();
+    let mut index = 0;
+    while index < offset {
+        match bytes[index] {
+            b'"' => index = skip_string(bytes, index),
+            b'{' | b'[' => {
+                stack.push(bytes[index]);
+                index += 1;
+            }
+            b'}' | b']' => {
+                stack.pop();
+                index += 1;
+            }
+            _ => index += 1,
+        }
+    }
+    matches!(stack.last(), Some(b'['))
 }
 
 /// Enum-value completions at an attribute-value position.
@@ -190,13 +246,23 @@ fn apply_edit(
     snippets: bool,
 ) {
     let (mut start, end) = ctx.token;
+    let bytes = text.as_bytes();
     // A bracketed header insert (a TOML table) replaces the bracket the operator
     // has already typed, so `[lim` becomes `[limits]` rather than `[[limits]`.
     if new_text.starts_with('[') {
-        let bytes = text.as_bytes();
         while start > 0 && bytes[start - 1] == b'[' {
             start -= 1;
         }
+    } else if matches!(ctx.kind, PositionKind::Body)
+        && new_text.starts_with('"')
+        && start > 0
+        && bytes[start - 1] == b'"'
+    {
+        // A JSON member insert `"key": ` at a body position replaces the opening
+        // quote the operator has already typed, so `"por` becomes `"port": `
+        // rather than a doubled quote. The body guard keeps it from eating the
+        // closing quote of an adjacent value.
+        start -= 1;
     }
     let is_snippet = snippets && new_text.contains("$0");
     let new_text = if snippets {

@@ -1,19 +1,48 @@
-//! The format seam: the [`Frontend`] trait and the [`CursorContext`] its
-//! resolution produces.
+//! The [`Frontend`] trait and the [`CursorContext`] its resolution produces.
 //!
 //! A frontend delegates parsing to `confval`, resolves a byte offset to a cursor
 //! context, and renders a field's insert text in its format. Parsing and insert
-//! rendering reuse `confval`'s machinery, and the block-structured formats
-//! resolve through one shared walk, so each frontend's
-//! [`resolve`](Frontend::resolve) is the default.
+//! rendering reuse `confval`'s machinery, and HCL, TOML, KDL, and JSON resolve
+//! through one shared walk, so every frontend uses the default
+//! [`resolve`](Frontend::resolve), which routes an indentation format (YAML) to
+//! the YAML reader.
 
 use confval::diagnostic::Report;
 use confval::format::Fields;
 use confval::schema::SchemaField;
 use confval::source::{SourceId, SourceMap};
 
-use crate::resolve::resolve_in_tree;
-use crate::text_scan::resolve_in_text;
+use crate::resolve::{resolve_in_tree, value_span_token};
+use crate::scan::{resolve_in_text, resolve_in_yaml};
+
+/// The raw-text recovery a frontend's syntax needs.
+///
+/// The clean-buffer walk reads the parsed [`Fields`]. This selects the
+/// reconstruction when there is no tree, and for [`Indentation`](Recovery::Indentation)
+/// in both parse states, because block YAML's parsed spans do not cover a pending
+/// body position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Recovery {
+    /// A brace-delimited block language: HCL, KDL.
+    Braces,
+    /// A header-addressed table language: TOML.
+    Header,
+    /// A brace-delimited object language with quoted keys: JSON.
+    Object,
+    /// An indentation-nested language: YAML.
+    Indentation,
+}
+
+/// The character a frontend writes between a name and its value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueSeparator {
+    /// `name = value`: HCL, TOML.
+    Equals,
+    /// `name: value`: JSON, YAML.
+    Colon,
+    /// `name value`: KDL.
+    Whitespace,
+}
 
 /// The kind of position a cursor sits in.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,9 +98,9 @@ impl CursorContext {
     }
 }
 
-/// The one format-dependent seam.
+/// The one format-dependent trait.
 ///
-/// A frontend binds one format's parse function and insert spelling. Parsing and
+/// A frontend binds one format's parse function and insert text. Parsing and
 /// resolution reuse `confval`'s machinery, so the block-structured formats share
 /// the default [`parse_tree`](Frontend::parse_tree) and [`resolve`](Frontend::resolve).
 pub trait Frontend {
@@ -98,13 +127,35 @@ pub trait Frontend {
     /// parse, so resolution reconstructs the block path and the position kind
     /// from the raw text, whose offsets are always current.
     fn resolve(&self, tree: Option<&Fields>, text: &str, offset: usize) -> CursorContext {
+        // An indentation language reads its structure from the raw text in both
+        // parse states, because a block mapping's parsed span stops at its last
+        // child and an empty key parses as null, so the tree does not cover a
+        // pending body position.
+        if matches!(self.recovery(), Recovery::Indentation) {
+            let mut context = resolve_in_yaml(text, offset);
+            // The reader reads the path and kind from indentation, but a parsed
+            // value's exact span replaces the whole value, so completing a
+            // spaced or quoted value does not stop at a space.
+            if let Some(tree) = tree {
+                let field = match &context.kind {
+                    PositionKind::AttributeValue { field } => Some(field.clone()),
+                    _ => None,
+                };
+                if let Some(field) = field
+                    && let Some(token) = value_span_token(tree, &context.path, &field, text)
+                {
+                    context.token = token;
+                }
+            }
+            return context;
+        }
         match tree {
             Some(tree) => resolve_in_tree(tree, text, offset, self.block_span_covers_body()),
             None => resolve_in_text(
                 text,
                 offset,
-                self.block_span_covers_body(),
-                self.attribute_uses_equals(),
+                self.recovery(),
+                self.value_separator(),
                 self.hash_is_comment(),
             ),
         }
@@ -120,22 +171,29 @@ pub trait Frontend {
         true
     }
 
-    /// Whether an attribute separates its name and value with `=` (HCL, TOML)
-    /// rather than whitespace (KDL). The text-based recovery reads this to detect
-    /// a value position when the buffer does not parse. The default is `true`.
-    fn attribute_uses_equals(&self) -> bool {
-        true
+    /// The raw-text recovery the frontend's syntax needs. The text recovery
+    /// dispatches on this to reconstruct the enclosing path. The default is
+    /// [`Recovery::Braces`].
+    fn recovery(&self) -> Recovery {
+        Recovery::Braces
+    }
+
+    /// The character the frontend writes between a name and its value. The text
+    /// recovery reads this to detect a value position when the buffer does not
+    /// parse. The default is [`ValueSeparator::Equals`].
+    fn value_separator(&self) -> ValueSeparator {
+        ValueSeparator::Equals
     }
 
     /// Whether `#` starts a line comment (HCL) rather than a value token (KDL
-    /// spells booleans `#true`). The text-based recovery reads this when it scans
+    /// writes booleans `#true`). The text-based recovery reads this when it scans
     /// blocks. The default is `true`.
     fn hash_is_comment(&self) -> bool {
         true
     }
 
     /// Renders a field's insert text in the format, reading the field's
-    /// `SchemaType` to spell a scalar as the format's `name = value` form or a
+    /// `SchemaType` to write a scalar as the format's `name = value` form or a
     /// block as its block form. `path` is the enclosing block path, which a
     /// header-based format (TOML) uses to qualify a nested block header.
     ///

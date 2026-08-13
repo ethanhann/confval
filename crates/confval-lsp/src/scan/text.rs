@@ -7,30 +7,33 @@
 //! the value the cursor sits on. It reads only the current text, so its offsets
 //! are always current.
 
-use crate::frontend::CursorContext;
+use super::json::object_path;
+use crate::frontend::{CursorContext, Recovery, ValueSeparator};
 use crate::resolve::{identifier_token, value_token};
 
 /// Resolves an offset from raw text.
 ///
-/// `braces` is true for a brace-delimited format (HCL, KDL) and false for a
-/// header format (TOML). `equals` is true when an attribute separates its name
-/// and value with `=` (HCL, TOML) and false for a whitespace separator (KDL).
-/// `hash_comment` is true when `#` starts a line comment (HCL) and false when it
-/// does not (KDL spells booleans `#true`).
+/// `recovery` selects how the enclosing path is reconstructed, and `separator`
+/// selects how a value position is detected. `hash_comment` is true when `#`
+/// starts a line comment (HCL) and false when it does not (KDL, JSON).
+/// `Recovery::Indentation` is handled by the YAML reader, not here.
 pub(crate) fn resolve_in_text(
     text: &str,
     offset: usize,
-    braces: bool,
-    equals: bool,
+    recovery: Recovery,
+    separator: ValueSeparator,
     hash_comment: bool,
 ) -> CursorContext {
     let offset = floor_char_boundary(text, offset);
-    let path = if braces {
-        brace_path(text, offset, hash_comment)
-    } else {
-        header_path(text, offset)
+    let path = match recovery {
+        Recovery::Braces => brace_path(text, offset, hash_comment),
+        Recovery::Header => header_path(text, offset),
+        Recovery::Object => object_path(text, offset),
+        // `Frontend::resolve` routes indentation recovery to the YAML reader
+        // before this function is called, so it never reaches here.
+        Recovery::Indentation => unreachable!("indentation recovery is routed to the YAML reader"),
     };
-    match attribute_name(text, offset, equals) {
+    match attribute_name(text, offset, separator) {
         Some(field) => CursorContext::attribute_value(path, field, value_token(text, offset)),
         None => CursorContext::body(path, identifier_token(text, offset)),
     }
@@ -107,17 +110,53 @@ fn parse_header(line: &str) -> Option<Vec<String>> {
 
 /// The name of the attribute whose value the cursor sits in, or `None` for a body
 /// position.
-fn attribute_name(text: &str, offset: usize, equals: bool) -> Option<String> {
+fn attribute_name(text: &str, offset: usize, separator: ValueSeparator) -> Option<String> {
     let line_start = text[..offset]
         .rfind('\n')
         .map(|index| index + 1)
         .unwrap_or(0);
     let line = &text[line_start..offset];
-    if equals {
-        attribute_name_equals(line)
-    } else {
-        attribute_name_space(line)
+    match separator {
+        ValueSeparator::Equals => attribute_name_equals(line),
+        ValueSeparator::Colon => attribute_name_colon(line),
+        ValueSeparator::Whitespace => attribute_name_space(line),
     }
+}
+
+/// A value position in a `:` format (JSON): the member key whose value the cursor
+/// sits in, or `None` for a body position. It resets at each object or array
+/// bracket and comma, so a `"key":` in an enclosing or a sibling member does not
+/// classify a cursor that sits in a fresh element as a value.
+fn attribute_name_colon(line: &str) -> Option<String> {
+    let bytes = line.as_bytes();
+    let mut index = 0;
+    let mut candidate: Option<String> = None;
+    let mut pending: Option<String> = None;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => {
+                let start = index;
+                index = skip_string(bytes, start);
+                let content_end = if index > start + 1 && bytes.get(index - 1) == Some(&b'"') {
+                    index - 1
+                } else {
+                    index
+                };
+                candidate = Some(line[start + 1..content_end].to_string());
+            }
+            b'{' | b'[' | b'}' | b']' | b',' => {
+                candidate = None;
+                pending = None;
+                index += 1;
+            }
+            b':' => {
+                pending = candidate.take();
+                index += 1;
+            }
+            _ => index += 1,
+        }
+    }
+    pending
 }
 
 /// A value position in an `=` format: the line has a top-level `=` before the
@@ -193,7 +232,7 @@ fn last_identifier(segment: &str) -> Option<String> {
 }
 
 /// The index just past a string literal that starts at `open`, honoring `\"`.
-fn skip_string(bytes: &[u8], open: usize) -> usize {
+pub(crate) fn skip_string(bytes: &[u8], open: usize) -> usize {
     let mut index = open + 1;
     while index < bytes.len() {
         match bytes[index] {
@@ -264,7 +303,7 @@ mod tests {
         let offset = text.find("mode = ").unwrap() + "mode = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, true, true, true);
+        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
 
         // Assert
         assert_eq!(context.path, vec!["limits".to_string()]);
@@ -278,7 +317,7 @@ mod tests {
         let offset = text.find("mode = ").unwrap() + "mode = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, false, true, true);
+        let context = resolve_in_text(text, offset, Recovery::Header, ValueSeparator::Equals, true);
 
         // Assert
         assert_eq!(context.path, vec!["limits".to_string()]);
@@ -292,7 +331,13 @@ mod tests {
         let offset = text.find("mode ").unwrap() + "mode ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, true, false, false);
+        let context = resolve_in_text(
+            text,
+            offset,
+            Recovery::Braces,
+            ValueSeparator::Whitespace,
+            false,
+        );
 
         // Assert
         assert_eq!(context.path, vec!["limits".to_string()]);
@@ -306,7 +351,7 @@ mod tests {
         let offset = text.find("  mo\n").unwrap() + "  mo".len();
 
         // Act
-        let context = resolve_in_text(text, offset, true, true, true);
+        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
 
         // Assert
         assert_eq!(context.path, vec!["limits".to_string()]);
@@ -322,7 +367,7 @@ mod tests {
         let offset = text.find("port = ").unwrap() + "port = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, true, true, true);
+        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
 
         // Assert
         // The `{` in the string must not leave a block open.
@@ -339,7 +384,7 @@ mod tests {
         let offset = text.find("port = ").unwrap() + "port = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, true, true, true);
+        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
 
         // Assert
         assert_eq!(context.path, vec!["server".to_string()]);
@@ -349,13 +394,19 @@ mod tests {
     #[test]
     fn a_kdl_hash_keyword_is_not_a_comment() {
         // Arrange
-        // KDL spells booleans `#true`, not a comment, so the following brace must
+        // KDL writes booleans `#true`, not a comment, so the following brace must
         // still open the `server` block.
         let text = "server #true {\n  port \n}\n";
         let offset = text.find("port ").unwrap() + "port ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, true, false, false);
+        let context = resolve_in_text(
+            text,
+            offset,
+            Recovery::Braces,
+            ValueSeparator::Whitespace,
+            false,
+        );
 
         // Assert
         assert_eq!(context.path, vec!["server".to_string()]);

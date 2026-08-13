@@ -1,12 +1,13 @@
 //! Position resolution over a parsed tree: a byte offset to a [`CursorContext`].
 //!
-//! The block-structured formats converge on `confval`'s neutral [`Fields`] tree,
+//! HCL, TOML, KDL, and JSON converge on `confval`'s neutral [`Fields`] tree,
 //! which already carries the name span, value span, and block span of every
 //! field. The walk is therefore shared. It descends the tree following the block
 //! whose span contains the offset and reads the position kind from the field the
 //! offset lands on. When the offset lands between fields, it scans the raw text
 //! for the identifier under the cursor. Recovery for a buffer that does not parse
-//! is in [`text_scan`](crate::text_scan).
+//! is in [`text`](crate::scan::text), and YAML resolves from indentation in
+//! [`yaml`](crate::scan::yaml).
 
 use confval::format::{Field, FieldKind, Fields, Value, ValueKind};
 use confval::source::Span;
@@ -151,6 +152,25 @@ fn value_replace_token(field: &Field, value: &Value, text: &str, offset: usize) 
     let name_end = field.name_span.end as usize;
     let (start, end) = value_token(text, offset);
     (start.max(name_end), end.max(name_end))
+}
+
+/// The completion replace token for the value of `name` at `path` in the parsed
+/// tree, or `None` when the field or its value is absent. YAML resolution reads
+/// its path and kind from indentation, but takes the value token from the tree
+/// when the buffer parses, so a completion replaces the whole value rather than
+/// stopping at a space.
+pub(crate) fn value_span_token(
+    tree: &Fields,
+    path: &[String],
+    name: &str,
+    text: &str,
+) -> Option<(usize, usize)> {
+    let level = crate::walk::fields_at(tree, path)?;
+    let field = level.get(name)?;
+    match &field.kind {
+        FieldKind::Value(value) if !value.span.is_detached() => Some(span_token(value.span, text)),
+        _ => None,
+    }
 }
 
 /// The completion replace range for a parsed value: its exact span, clamped to

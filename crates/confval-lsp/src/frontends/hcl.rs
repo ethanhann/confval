@@ -1,9 +1,8 @@
 use crate::Frontend;
-use crate::frontends::is_block;
 use confval::diagnostic::Report;
 use confval::format::Fields;
 use confval::format::hcl as format_hcl;
-use confval::schema::SchemaField;
+use confval::schema::{SchemaField, SchemaType};
 use confval::source::{SourceId, SourceMap};
 
 /// The HCL frontend.
@@ -16,10 +15,11 @@ impl Frontend for Hcl {
     }
 
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> String {
-        if is_block(field) {
-            format!("{} {{\n  $0\n}}", field.name)
-        } else {
-            format!("{} = ", field.name)
+        match &field.ty {
+            SchemaType::Block { .. } => format!("{} {{\n  $0\n}}", field.name),
+            SchemaType::StringList => format!("{} = [$0]", field.name),
+            SchemaType::StringMap => format!("{} = {{ $0 }}", field.name),
+            _ => format!("{} = ", field.name),
         }
     }
 }

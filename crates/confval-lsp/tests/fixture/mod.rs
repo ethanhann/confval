@@ -2,7 +2,8 @@
 //!
 //! It mirrors the `common` example spec, the representative shape the schema IR
 //! is pinned against: a required scalar, a defaulted scalar with a range, a
-//! keyword field, a string list, a map, and an optional nested block.
+//! keyword field, a string list, a map, an optional nested block, and a repeated
+//! block.
 #![allow(dead_code)]
 
 use confval::prelude::*;
