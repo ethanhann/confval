@@ -16,17 +16,16 @@ use lsp_types::notification::{
 };
 use lsp_types::request::{Completion, HoverRequest, Request as _};
 use lsp_types::{
-    CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, Hover, HoverParams,
-    HoverProviderCapability, InitializeParams, InitializeResult, PositionEncodingKind,
-    PublishDiagnosticsParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
-    Uri,
+    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, Hover, HoverParams, InitializeParams, InitializeResult,
+    PublishDiagnosticsParams, Uri,
 };
 
 use confval::format::{Fields, FromFields};
 use confval::pipeline::{Validate, ValidateNested};
 use confval::schema::{Schema, ToSchema};
 
+use crate::capabilities::{negotiate, server_capabilities};
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::Frontend;
 use crate::handlers;
@@ -39,7 +38,8 @@ const METHOD_NOT_FOUND: i32 = -32601;
 /// JSON-RPC error code for invalid request parameters.
 const INVALID_PARAMS: i32 = -32602;
 
-/// One open document: its current text and the last field tree that parsed.
+/// One open document: its current text and its current parse, `None` when the
+/// text does not parse.
 struct Document {
     text: String,
     tree: Option<Fields>,
@@ -164,8 +164,9 @@ where
         Ok(())
     }
 
-    /// Stores a document's text and reparses its tree, retaining the last good
-    /// tree when the new text does not parse.
+    /// Stores a document's text and its current parse, which is `None` when the
+    /// text does not parse. Resolution recovers from the raw text in that case,
+    /// so a stale tree is never kept.
     fn set_document(&mut self, uri: &Uri, text: String) {
         let tree = self.frontend.parse_tree(&text);
         let entry = self.documents.entry(key(uri)).or_insert_with(|| Document {
@@ -173,9 +174,7 @@ where
             tree: None,
         });
         entry.text = text;
-        if tree.is_some() {
-            entry.tree = tree;
-        }
+        entry.tree = tree;
     }
 
     /// Publishes the diagnostics for a document.
@@ -274,91 +273,4 @@ where
 /// The document-store key for a URI.
 fn key(uri: &Uri) -> String {
     uri.as_str().to_string()
-}
-
-/// Chooses the position encoding from the client's declared support, preferring
-/// UTF-8 when the client offers it and falling back to the UTF-16 default.
-fn negotiate(params: &InitializeParams) -> PositionEncoding {
-    let supported = params
-        .capabilities
-        .general
-        .as_ref()
-        .and_then(|general| general.position_encodings.as_ref());
-    match supported {
-        Some(kinds) if kinds.contains(&PositionEncodingKind::UTF8) => PositionEncoding::Utf8,
-        _ => PositionEncoding::Utf16,
-    }
-}
-
-/// The server's advertised capabilities.
-fn server_capabilities(encoding: PositionEncoding) -> ServerCapabilities {
-    ServerCapabilities {
-        position_encoding: Some(encoding_kind(encoding)),
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
-        completion_provider: Some(CompletionOptions::default()),
-        hover_provider: Some(HoverProviderCapability::Simple(true)),
-        ..ServerCapabilities::default()
-    }
-}
-
-/// The LSP encoding kind for a negotiated encoding.
-fn encoding_kind(encoding: PositionEncoding) -> PositionEncodingKind {
-    match encoding {
-        PositionEncoding::Utf8 => PositionEncodingKind::UTF8,
-        PositionEncoding::Utf16 => PositionEncodingKind::UTF16,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use lsp_types::{ClientCapabilities, GeneralClientCapabilities};
-
-    #[test]
-    fn negotiate_prefers_utf8_when_the_client_offers_it() {
-        // Arrange
-        let params = InitializeParams {
-            capabilities: ClientCapabilities {
-                general: Some(GeneralClientCapabilities {
-                    position_encodings: Some(vec![
-                        PositionEncodingKind::UTF16,
-                        PositionEncodingKind::UTF8,
-                    ]),
-                    ..GeneralClientCapabilities::default()
-                }),
-                ..ClientCapabilities::default()
-            },
-            ..InitializeParams::default()
-        };
-
-        // Act
-        let encoding = negotiate(&params);
-
-        // Assert
-        assert_eq!(encoding, PositionEncoding::Utf8);
-    }
-
-    #[test]
-    fn negotiate_falls_back_to_utf16_when_utf8_is_absent() {
-        // Arrange
-        let params = InitializeParams::default();
-
-        // Act
-        let encoding = negotiate(&params);
-
-        // Assert
-        assert_eq!(encoding, PositionEncoding::Utf16);
-    }
-
-    #[test]
-    fn the_advertised_capabilities_carry_the_negotiated_encoding() {
-        // Arrange, Act
-        let capabilities = server_capabilities(PositionEncoding::Utf8);
-
-        // Assert
-        assert_eq!(
-            capabilities.position_encoding,
-            Some(PositionEncodingKind::UTF8)
-        );
-    }
 }
