@@ -492,3 +492,46 @@ fn yaml_body_under_an_empty_key_resolves_into_it_on_a_clean_parse() {
     assert_eq!(context.path, vec!["limits".to_string()]);
     assert_eq!(context.kind, PositionKind::Body);
 }
+
+#[test]
+fn json_recovers_a_body_inside_an_inline_array_element() {
+    // Arrange
+    // The cursor sits in a fresh element on the SAME line as the `rules` key, so
+    // the value-position scan must not read the `rules` colon as the separator.
+    let frontend = Json;
+    let text = "{ \"rules\": [{ \"prefix\": \"/a\" }, {  ";
+    assert!(
+        frontend.parse_tree(text).is_none(),
+        "the buffer does not parse"
+    );
+    let offset = text.len();
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(context.path, vec!["rules".to_string()]);
+    assert_eq!(context.kind, PositionKind::Body);
+}
+
+#[test]
+fn json_two_levels_deep_collects_both_keys() {
+    // Arrange
+    let frontend = Json;
+    let clean = "{\n  \"a\": {\n    \"b\": {\n      \"c\": 1\n    }\n  }\n}\n";
+    let broken = "{\n  \"a\": {\n    \"b\": {\n      \n";
+
+    // Act
+    let clean_ctx = resolve(&frontend, clean, clean.find("\"c\"").unwrap() + 1);
+    assert!(
+        frontend.parse_tree(broken).is_none(),
+        "the broken buffer does not parse"
+    );
+    let broken_ctx = resolve(&frontend, broken, broken.len() - 1);
+
+    // Assert
+    assert_eq!(clean_ctx.path, vec!["a".to_string(), "b".to_string()]);
+    assert_eq!(clean_ctx.kind, PositionKind::Body);
+    assert_eq!(broken_ctx.path, vec!["a".to_string(), "b".to_string()]);
+    assert_eq!(broken_ctx.kind, PositionKind::Body);
+}
