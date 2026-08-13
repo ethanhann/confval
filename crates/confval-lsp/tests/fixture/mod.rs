@@ -41,6 +41,20 @@ pub struct ServerSpec {
     /// Request limits.
     #[confval(nested)]
     pub limits: Option<Located<LimitsSpec>>,
+    /// Zero or more routing rules. A repeated block.
+    #[confval(nested)]
+    pub rules: Vec<Located<RuleSpec>>,
+}
+
+/// A repeated routing-rule block of the fixture.
+#[derive(confval::Spec)]
+pub struct RuleSpec {
+    /// The path prefix this rule matches.
+    pub prefix: Located<String>,
+}
+
+impl Validate for RuleSpec {
+    fn validate(&self, _report: &mut Report) {}
 }
 
 /// The nested limits block of the fixture.
