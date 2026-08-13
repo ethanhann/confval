@@ -28,7 +28,9 @@ pub(crate) fn resolve_in_text(
         Recovery::Braces => brace_path(text, offset, hash_comment),
         Recovery::Header => header_path(text, offset),
         Recovery::Object => object_path(text, offset),
-        Recovery::Indentation => Vec::new(),
+        // `Frontend::resolve` routes indentation recovery to the YAML reader
+        // before this function is called, so it never reaches here.
+        Recovery::Indentation => unreachable!("indentation recovery is routed to the YAML reader"),
     };
     match attribute_name(text, offset, separator) {
         Some(field) => CursorContext::attribute_value(path, field, value_token(text, offset)),
@@ -179,12 +181,40 @@ fn attribute_name(text: &str, offset: usize, separator: ValueSeparator) -> Optio
     }
 }
 
-/// A value position in a `:` format (JSON): the line has a top-level `:` before
-/// the cursor with a quoted key or an identifier before it.
+/// A value position in a `:` format (JSON): the member key whose value the cursor
+/// sits in, or `None` for a body position. It resets at each object or array
+/// bracket and comma, so a `"key":` in an enclosing or a sibling member does not
+/// classify a cursor that sits in a fresh element as a value.
 fn attribute_name_colon(line: &str) -> Option<String> {
-    let colon = top_level_colon(line)?;
-    let before = &line[..colon];
-    json_key(before).or_else(|| last_identifier(before))
+    let bytes = line.as_bytes();
+    let mut index = 0;
+    let mut candidate: Option<String> = None;
+    let mut pending: Option<String> = None;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => {
+                let start = index;
+                index = skip_string(bytes, start);
+                let content_end = if index > start + 1 && bytes.get(index - 1) == Some(&b'"') {
+                    index - 1
+                } else {
+                    index
+                };
+                candidate = Some(line[start + 1..content_end].to_string());
+            }
+            b'{' | b'[' | b'}' | b']' | b',' => {
+                candidate = None;
+                pending = None;
+                index += 1;
+            }
+            b':' => {
+                pending = candidate.take();
+                index += 1;
+            }
+            _ => index += 1,
+        }
+    }
+    pending
 }
 
 /// A value position in an `=` format: the line has a top-level `=` before the
@@ -219,22 +249,6 @@ fn top_level_equals(line: &str) -> Option<usize> {
         match bytes[index] {
             b'"' => index = skip_string(bytes, index),
             b'=' => return Some(index),
-            _ => index += 1,
-        }
-    }
-    None
-}
-
-/// The offset of the first `:` on a line that is not inside a string. A `:`
-/// inside a value, such as `"url": "http://host"`, sits in a string, so the
-/// first top-level `:` is the member separator.
-fn top_level_colon(line: &str) -> Option<usize> {
-    let bytes = line.as_bytes();
-    let mut index = 0;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'"' => index = skip_string(bytes, index),
-            b':' => return Some(index),
             _ => index += 1,
         }
     }
