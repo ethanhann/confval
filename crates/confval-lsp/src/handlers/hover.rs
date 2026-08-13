@@ -190,7 +190,10 @@ mod tests {
         };
 
         // Act, Assert
-        assert_eq!(constraint_label(&Constraint::Keywords(&["a", "b"])), "One of: a, b.");
+        assert_eq!(
+            constraint_label(&Constraint::Keywords(&["a", "b"])),
+            "One of: a, b."
+        );
         assert_eq!(
             constraint_label(&range),
             "Between 1 and 65535 ports. Pick an open port."
