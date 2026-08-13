@@ -1,13 +1,14 @@
-//! Position resolution against the three block-structured frontends.
+//! Position resolution against the five frontends.
 //!
 //! Each frontend maps a table of offsets against a fixture document to the
 //! expected cursor context, including an offset inside a nested block, an offset
 //! at an attribute value, an offset in a buffer that does not parse, an empty
-//! document, and an offset at end of file.
+//! document, and an offset at end of file. The JSON and YAML tables add an offset
+//! inside a repeated block element and a body under an empty key.
 
 mod fixture;
 
-use confval_lsp::{CursorContext, Frontend, Hcl, Kdl, PositionKind, Toml};
+use confval_lsp::{CursorContext, Frontend, Hcl, Json, Kdl, PositionKind, Toml, Yaml};
 
 /// The byte offset just inside the first occurrence of `needle`.
 fn inside(text: &str, needle: &str) -> usize {
@@ -26,6 +27,9 @@ fn resolve<F: Frontend>(frontend: &F, text: &str, offset: usize) -> CursorContex
 const HCL: &str = "hostname = \"api\"\nport = 8080\nlimits {\n  mode = \"enforce\"\n}\n";
 const TOML: &str = "hostname = \"api\"\nport = 8080\n\n[limits]\nmode = \"enforce\"\n";
 const KDL: &str = "hostname \"api\"\nport 8080\nlimits {\n  mode \"enforce\"\n}\n";
+const JSON: &str = "{\n  \"hostname\": \"api\",\n  \"port\": 8080,\n  \"limits\": { \"mode\": \"enforce\" },\n  \"rules\": [{ \"prefix\": \"/api\" }]\n}\n";
+const YAML: &str =
+    "hostname: api\nport: 8080\nlimits:\n  mode: enforce\nrules:\n  - prefix: /api\n";
 
 #[test]
 fn hcl_offset_table_maps_each_offset() {
@@ -344,5 +348,147 @@ fn an_offset_at_end_of_file_resolves_to_the_root_body() {
 
     // Assert
     assert_eq!(context.path, Vec::<String>::new());
+    assert_eq!(context.kind, PositionKind::Body);
+}
+
+#[test]
+fn json_offset_table_maps_each_offset() {
+    // Arrange
+    let frontend = Json;
+
+    // Act
+    let value = resolve(&frontend, JSON, inside(JSON, "8080"));
+    let nested_name = resolve(&frontend, JSON, inside(JSON, "mode"));
+    let nested_value = resolve(&frontend, JSON, inside(JSON, "enforce"));
+    let element_name = resolve(&frontend, JSON, inside(JSON, "prefix"));
+    let element_value = resolve(&frontend, JSON, inside(JSON, "/api"));
+
+    // Assert
+    assert_eq!(
+        value.kind,
+        PositionKind::AttributeValue {
+            field: "port".to_string()
+        }
+    );
+    assert_eq!(nested_name.path, vec!["limits".to_string()]);
+    assert_eq!(nested_name.kind, PositionKind::Body);
+    assert_eq!(nested_value.path, vec!["limits".to_string()]);
+    assert_eq!(
+        nested_value.kind,
+        PositionKind::AttributeValue {
+            field: "mode".to_string()
+        }
+    );
+    // An array of objects: a cursor inside a `rules` element resolves into the
+    // element, matching the clean walk's array-element entry.
+    assert_eq!(element_name.path, vec!["rules".to_string()]);
+    assert_eq!(element_name.kind, PositionKind::Body);
+    assert_eq!(element_value.path, vec!["rules".to_string()]);
+    assert_eq!(
+        element_value.kind,
+        PositionKind::AttributeValue {
+            field: "prefix".to_string()
+        }
+    );
+}
+
+#[test]
+fn json_recovers_the_object_path_when_the_buffer_does_not_parse() {
+    // Arrange
+    // An unclosed object does not parse, so recovery reconstructs the path from
+    // the open braces and the property key.
+    let frontend = Json;
+    let text = "{\n  \"limits\": {\n    \"mode\": \"x\",\n    \n";
+    assert!(
+        frontend.parse_tree(text).is_none(),
+        "the buffer does not parse"
+    );
+    let offset = text.len() - 1;
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(context.path, vec!["limits".to_string()]);
+    assert_eq!(context.kind, PositionKind::Body);
+}
+
+#[test]
+fn json_recovers_into_an_array_element_when_the_buffer_does_not_parse() {
+    // Arrange
+    let frontend = Json;
+    let text = "{\n  \"rules\": [\n    {\n      \n";
+    assert!(
+        frontend.parse_tree(text).is_none(),
+        "the buffer does not parse"
+    );
+    let offset = text.len() - 1;
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(context.path, vec!["rules".to_string()]);
+    assert_eq!(context.kind, PositionKind::Body);
+}
+
+#[test]
+fn yaml_offset_table_maps_each_offset() {
+    // Arrange
+    let frontend = Yaml;
+
+    // Act
+    let value = resolve(&frontend, YAML, inside(YAML, "8080"));
+    let nested_name = resolve(&frontend, YAML, inside(YAML, "mode"));
+    let nested_value = resolve(&frontend, YAML, inside(YAML, "enforce"));
+    let element_name = resolve(&frontend, YAML, inside(YAML, "prefix"));
+    let element_value = resolve(&frontend, YAML, inside(YAML, "/api"));
+
+    // Assert
+    assert_eq!(
+        value.kind,
+        PositionKind::AttributeValue {
+            field: "port".to_string()
+        }
+    );
+    assert_eq!(nested_name.path, vec!["limits".to_string()]);
+    assert_eq!(nested_name.kind, PositionKind::Body);
+    assert_eq!(nested_value.path, vec!["limits".to_string()]);
+    assert_eq!(
+        nested_value.kind,
+        PositionKind::AttributeValue {
+            field: "mode".to_string()
+        }
+    );
+    assert_eq!(element_name.path, vec!["rules".to_string()]);
+    assert_eq!(element_name.kind, PositionKind::Body);
+    assert_eq!(element_value.path, vec!["rules".to_string()]);
+    assert_eq!(
+        element_value.kind,
+        PositionKind::AttributeValue {
+            field: "prefix".to_string()
+        }
+    );
+}
+
+#[test]
+fn yaml_body_under_an_empty_key_resolves_into_it_on_a_clean_parse() {
+    // Arrange
+    // The `limits:` key awaits its body, which parses as null. A parsing buffer
+    // still resolves the indented cursor into limits rather than the root,
+    // because YAML resolution reads indentation in both parse states.
+    let frontend = Yaml;
+    let text = "hostname: api\nlimits:\n  \n";
+    assert!(
+        frontend.parse_tree(text).is_some(),
+        "the buffer parses, with limits null"
+    );
+    let offset = text.len() - 1;
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(context.path, vec!["limits".to_string()]);
     assert_eq!(context.kind, PositionKind::Body);
 }

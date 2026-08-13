@@ -12,7 +12,7 @@ use lsp_types::{
 use confval::prelude::{Located, Report, Validate};
 use confval::schema::ToSchema;
 use confval_lsp::handlers::{completion, diagnostics, hover};
-use confval_lsp::{Frontend, Hcl, Kdl, LineIndex, PositionEncoding, Toml};
+use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
 
 use fixture::ServerSpec;
 
@@ -817,4 +817,212 @@ fn markdown(hover: lsp_types::Hover) -> String {
         HoverContents::Markup(markup) => markup.value,
         other => panic!("expected markup hover, got: {other:?}"),
     }
+}
+
+/// Resolves a cursor against any frontend, for the JSON and YAML handler tests.
+fn at_with<F: Frontend>(
+    frontend: &F,
+    text: &str,
+    offset: usize,
+) -> (Option<confval::format::Fields>, confval_lsp::CursorContext) {
+    let tree = frontend.parse_tree(text);
+    let context = frontend.resolve(tree.as_ref(), text, offset);
+    (tree, context)
+}
+
+#[test]
+fn json_diagnostics_report_the_pipeline_issues() {
+    // Arrange
+    let text = "{\n  \"hostname\": \"api\",\n  \"port\": 99999,\n  \"bogus\": 1,\n  \"limits\": { \"mode\": \"nope\" }\n}\n";
+    let uri = Uri::from_str("file:///fixture.json").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Json>(&Json, text, &uri, ENCODING);
+
+    // Assert
+    let messages: Vec<&str> = found.iter().map(|d| d.message.as_str()).collect();
+    assert!(
+        messages.iter().any(|m| m.contains("port")),
+        "expected a port range diagnostic, got: {messages:?}"
+    );
+    assert!(
+        messages.iter().any(|m| m.contains("unknown field: bogus")),
+        "expected an unknown-field diagnostic, got: {messages:?}"
+    );
+    assert!(
+        messages.iter().any(|m| m.contains("mode")),
+        "expected a keyword diagnostic, got: {messages:?}"
+    );
+}
+
+#[test]
+fn json_root_not_an_object_reports_a_parse_error() {
+    // Arrange
+    // A JSON array root cannot hold named fields, so the pipeline reports it.
+    let text = "[]\n";
+    let uri = Uri::from_str("file:///fixture.json").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Json>(&Json, text, &uri, ENCODING);
+
+    // Assert
+    assert!(
+        found
+            .iter()
+            .any(|d| d.message.contains("object at the document root")),
+        "expected a root parse error, got: {found:?}"
+    );
+}
+
+#[test]
+fn yaml_diagnostics_report_the_pipeline_issues() {
+    // Arrange
+    let text = "hostname: api\nport: 99999\nbogus: 1\nlimits:\n  mode: nope\n";
+    let uri = Uri::from_str("file:///fixture.yaml").unwrap();
+
+    // Act
+    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, text, &uri, ENCODING);
+
+    // Assert
+    let messages: Vec<&str> = found.iter().map(|d| d.message.as_str()).collect();
+    assert!(
+        messages.iter().any(|m| m.contains("port")),
+        "expected a port range diagnostic, got: {messages:?}"
+    );
+    assert!(
+        messages.iter().any(|m| m.contains("unknown field: bogus")),
+        "expected an unknown-field diagnostic, got: {messages:?}"
+    );
+    assert!(
+        messages.iter().any(|m| m.contains("mode")),
+        "expected a keyword diagnostic, got: {messages:?}"
+    );
+}
+
+#[test]
+fn json_completion_absorbs_the_opening_quote() {
+    // Arrange
+    // A half-typed `"por` does not parse. Completing `port` replaces the quote
+    // and the prefix, so the result is `"port": ` rather than a doubled quote.
+    let text = "{\n  \"por\n}\n";
+    let offset = text.find("\"por").unwrap() + "\"por".len();
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let port = items
+        .iter()
+        .find(|item| item.label == "port")
+        .expect("the port field is offered");
+    assert_eq!(inserted(port), "\"port\": ");
+    let range = match &port.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit.range,
+        other => panic!("an explicit replace edit, got {other:?}"),
+    };
+    // The edit starts at the opening quote (character 2 on line 1), not after it.
+    assert_eq!(
+        range.start,
+        Position {
+            line: 1,
+            character: 2
+        }
+    );
+}
+
+#[test]
+fn json_member_insert_is_non_destructive() {
+    // Arrange
+    // Completing a new key on a fresh line inside a populated object inserts the
+    // member alone, with no comma, as a zero-width edit at the cursor.
+    let text = "{\n  \"hostname\": \"api\"\n  \n}\n";
+    let offset = text.find("\n  \n}").unwrap() + "\n  ".len();
+    let (tree, context) = at_with(&Json, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Json,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let port = items
+        .iter()
+        .find(|item| item.label == "port")
+        .expect("the port field is offered");
+    assert_eq!(inserted(port), "\"port\": ");
+    let range = match &port.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit.range,
+        other => panic!("an explicit replace edit, got {other:?}"),
+    };
+    assert_eq!(range.start, range.end, "the member insert is zero-width");
+}
+
+#[test]
+fn yaml_completion_under_an_empty_key_offers_the_block_fields() {
+    // Arrange
+    // The `limits:` key awaits its body. A cursor on the indented line offers
+    // the block's fields, proving the indentation resolution end to end.
+    let text = "limits:\n  \n";
+    let offset = text.len() - 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let labels = labels(&items);
+    assert!(
+        labels.contains(&"mode".to_string()),
+        "expected the limits block fields, got: {labels:?}"
+    );
+}
+
+#[test]
+fn yaml_hover_renders_the_field_under_the_cursor() {
+    // Arrange
+    let text = "port: 8080\n";
+    let offset = text.find("port").unwrap() + 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let rendered = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+
+    // Assert
+    let value = markdown(rendered.expect("a hover for port"));
+    assert!(value.contains("integer"), "got: {value}");
+    assert!(value.contains("Between 1 and 65535"), "got: {value}");
 }
