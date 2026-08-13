@@ -24,7 +24,9 @@ pub enum PositionKind {
         /// The name of the field whose value the cursor sits in.
         field: String,
     },
-    /// A block-label position for the enclosing block.
+    /// A block-label position for the enclosing block. Resolution does not yet
+    /// produce this variant. It is reserved for the label-completion follow-on,
+    /// which adds the producer and the handler behavior.
     BlockLabel,
 }
 
@@ -97,11 +99,22 @@ pub trait Frontend {
     /// buffer does not parse. With no retained tree, it falls back to a text scan
     /// and returns the root body context.
     fn resolve(&self, tree: Option<&Fields>, text: &str, offset: usize) -> CursorContext {
-        resolve_in_tree(tree, text, offset)
+        resolve_in_tree(tree, text, offset, self.block_span_covers_body())
+    }
+
+    /// Whether a block's span covers its whole body.
+    ///
+    /// A brace-delimited block (HCL, KDL) spans its body, so its end bounds the
+    /// body. A header-only block (a TOML table) spans only its header, so
+    /// resolution extends its body to the next sibling or the end of the
+    /// enclosing level. The default is `true`.
+    fn block_span_covers_body(&self) -> bool {
+        true
     }
 
     /// Renders a field's insert text in the format, reading the field's
     /// `SchemaType` to spell a scalar as the format's `name = value` form or a
-    /// block as its block form.
-    fn insert_text(&self, field: &SchemaField) -> String;
+    /// block as its block form. `path` is the enclosing block path, which a
+    /// header-based format (TOML) uses to qualify a nested block header.
+    fn insert_text(&self, field: &SchemaField, path: &[String]) -> String;
 }

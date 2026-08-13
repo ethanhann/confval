@@ -11,19 +11,21 @@ use std::marker::PhantomData;
 
 use lsp_server::{Connection, Message, Notification, Request, Response};
 use lsp_types::notification::{
-    DidChangeTextDocument, DidOpenTextDocument, Notification as _, PublishDiagnostics,
+    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Notification as _,
+    PublishDiagnostics,
 };
 use lsp_types::request::{Completion, HoverRequest, Request as _};
 use lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
-    DidOpenTextDocumentParams, Hover, HoverParams, HoverProviderCapability, InitializeParams,
-    InitializeResult, PositionEncodingKind, PublishDiagnosticsParams, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Uri,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, Hover, HoverParams,
+    HoverProviderCapability, InitializeParams, InitializeResult, PositionEncodingKind,
+    PublishDiagnosticsParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    Uri,
 };
 
 use confval::format::{Fields, FromFields};
 use confval::pipeline::{Validate, ValidateNested};
-use confval::schema::ToSchema;
+use confval::schema::{Schema, ToSchema};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::Frontend;
@@ -31,6 +33,11 @@ use crate::handlers;
 
 /// The boxed error the transport propagates.
 type LspError = Box<dyn std::error::Error + Send + Sync>;
+
+/// JSON-RPC error code for an unknown method.
+const METHOD_NOT_FOUND: i32 = -32601;
+/// JSON-RPC error code for invalid request parameters.
+const INVALID_PARAMS: i32 = -32602;
 
 /// One open document: its current text and the last field tree that parsed.
 struct Document {
@@ -42,6 +49,7 @@ struct Document {
 pub struct Server<S, F> {
     frontend: F,
     encoding: PositionEncoding,
+    schema: Schema,
     documents: HashMap<String, Document>,
     spec: PhantomData<fn() -> S>,
 }
@@ -57,6 +65,7 @@ where
         Self {
             frontend,
             encoding: PositionEncoding::Utf16,
+            schema: S::schema(),
             documents: HashMap::new(),
             spec: PhantomData,
         }
@@ -96,31 +105,20 @@ where
 
     /// Dispatches a completion or hover request.
     fn on_request(&mut self, connection: &Connection, request: Request) -> Result<(), LspError> {
+        let id = request.id.clone();
         let method = request.method.clone();
-        match method.as_str() {
-            Completion::METHOD => {
-                if let Ok((id, params)) = request.extract::<CompletionParams>(Completion::METHOD) {
-                    let response = self.completion(params);
-                    connection
-                        .sender
-                        .send(Message::Response(Response::new_ok(id, response)))?;
-                }
-            }
-            HoverRequest::METHOD => {
-                if let Ok((id, params)) = request.extract::<HoverParams>(HoverRequest::METHOD) {
-                    let response = self.hover(params);
-                    connection
-                        .sender
-                        .send(Message::Response(Response::new_ok(id, response)))?;
-                }
-            }
-            _ => {
-                connection.sender.send(Message::Response(Response::new_ok(
-                    request.id,
-                    serde_json::Value::Null,
-                )))?;
-            }
-        }
+        let response = match method.as_str() {
+            Completion::METHOD => match request.extract::<CompletionParams>(Completion::METHOD) {
+                Ok((id, params)) => Response::new_ok(id, self.completion(params)),
+                Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
+            },
+            HoverRequest::METHOD => match request.extract::<HoverParams>(HoverRequest::METHOD) {
+                Ok((id, params)) => Response::new_ok(id, self.hover(params)),
+                Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
+            },
+            _ => Response::new_err(id, METHOD_NOT_FOUND, format!("unhandled method: {method}")),
+        };
+        connection.sender.send(Message::Response(response))?;
         Ok(())
     }
 
@@ -150,6 +148,15 @@ where
                         self.set_document(&uri, change.text);
                     }
                     self.publish(connection, &uri)?;
+                }
+            }
+            DidCloseTextDocument::METHOD => {
+                if let Ok(params) =
+                    notification.extract::<DidCloseTextDocumentParams>(DidCloseTextDocument::METHOD)
+                {
+                    let uri = params.text_document.uri;
+                    self.documents.remove(&key(&uri));
+                    self.clear_diagnostics(connection, &uri)?;
                 }
             }
             _ => {}
@@ -192,6 +199,21 @@ where
         Ok(())
     }
 
+    /// Clears a document's diagnostics by publishing an empty list, for a close.
+    fn clear_diagnostics(&self, connection: &Connection, uri: &Uri) -> Result<(), LspError> {
+        connection
+            .sender
+            .send(Message::Notification(Notification::new(
+                PublishDiagnostics::METHOD.to_string(),
+                PublishDiagnosticsParams {
+                    uri: uri.clone(),
+                    diagnostics: Vec::new(),
+                    version: None,
+                },
+            )))?;
+        Ok(())
+    }
+
     /// Computes the completion response for a request.
     fn completion(&self, params: CompletionParams) -> CompletionResponse {
         let uri = &params.text_document_position.text_document.uri;
@@ -204,10 +226,9 @@ where
         let context = self
             .frontend
             .resolve(document.tree.as_ref(), &document.text, offset);
-        let schema = S::schema();
         let items = handlers::completion(
             &self.frontend,
-            &schema,
+            &self.schema,
             document.tree.as_ref(),
             &context,
             &document.text,
@@ -227,9 +248,8 @@ where
         let context = self
             .frontend
             .resolve(document.tree.as_ref(), &document.text, offset);
-        let schema = S::schema();
         handlers::hover(
-            &schema,
+            &self.schema,
             document.tree.as_ref(),
             &context,
             &document.text,
@@ -286,5 +306,59 @@ fn encoding_kind(encoding: PositionEncoding) -> PositionEncodingKind {
     match encoding {
         PositionEncoding::Utf8 => PositionEncodingKind::UTF8,
         PositionEncoding::Utf16 => PositionEncodingKind::UTF16,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lsp_types::{ClientCapabilities, GeneralClientCapabilities};
+
+    #[test]
+    fn negotiate_prefers_utf8_when_the_client_offers_it() {
+        // Arrange
+        let params = InitializeParams {
+            capabilities: ClientCapabilities {
+                general: Some(GeneralClientCapabilities {
+                    position_encodings: Some(vec![
+                        PositionEncodingKind::UTF16,
+                        PositionEncodingKind::UTF8,
+                    ]),
+                    ..GeneralClientCapabilities::default()
+                }),
+                ..ClientCapabilities::default()
+            },
+            ..InitializeParams::default()
+        };
+
+        // Act
+        let encoding = negotiate(&params);
+
+        // Assert
+        assert_eq!(encoding, PositionEncoding::Utf8);
+    }
+
+    #[test]
+    fn negotiate_falls_back_to_utf16_when_utf8_is_absent() {
+        // Arrange
+        let params = InitializeParams::default();
+
+        // Act
+        let encoding = negotiate(&params);
+
+        // Assert
+        assert_eq!(encoding, PositionEncoding::Utf16);
+    }
+
+    #[test]
+    fn the_advertised_capabilities_carry_the_negotiated_encoding() {
+        // Arrange, Act
+        let capabilities = server_capabilities(PositionEncoding::Utf8);
+
+        // Assert
+        assert_eq!(
+            capabilities.position_encoding,
+            Some(PositionEncodingKind::UTF8)
+        );
     }
 }

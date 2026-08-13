@@ -63,7 +63,7 @@ impl LineIndex {
 
     /// The LSP position of a byte offset in the negotiated encoding.
     pub fn position_of(&self, text: &str, offset: usize, encoding: PositionEncoding) -> Position {
-        let offset = offset.min(text.len());
+        let offset = floor_char_boundary(text, offset);
         let line = self.line_at(offset);
         let line_start = self.line_starts.get(line).copied().unwrap_or(0);
         let segment = text.get(line_start..offset).unwrap_or("");
@@ -111,4 +111,14 @@ impl LineIndex {
             end: self.position_of(text, range.1, encoding),
         }
     }
+}
+
+/// The largest char boundary at or before `offset`, clamped to the text length,
+/// so a misaligned offset from a stale tree does not slice mid-code-point.
+fn floor_char_boundary(text: &str, offset: usize) -> usize {
+    let mut offset = offset.min(text.len());
+    while offset > 0 && !text.is_char_boundary(offset) {
+        offset -= 1;
+    }
+    offset
 }

@@ -7,13 +7,18 @@
 //! offset lands on. When no tree is available, or the offset lands between
 //! fields, it scans the raw text for the identifier under the cursor.
 
-use confval::format::{FieldKind, Fields, Value, ValueKind};
+use confval::format::{Field, FieldKind, Fields, Value, ValueKind};
 use confval::source::Span;
 
 use crate::frontend::CursorContext;
 
 /// Resolves `offset` against the retained tree, falling back to a text scan.
-pub(crate) fn resolve_in_tree(tree: Option<&Fields>, text: &str, offset: usize) -> CursorContext {
+pub(crate) fn resolve_in_tree(
+    tree: Option<&Fields>,
+    text: &str,
+    offset: usize,
+    covers_body: bool,
+) -> CursorContext {
     let mut path = Vec::new();
     let mut level = match tree {
         Some(level) => level,
@@ -21,7 +26,7 @@ pub(crate) fn resolve_in_tree(tree: Option<&Fields>, text: &str, offset: usize) 
     };
 
     loop {
-        match descend(level, text, offset) {
+        match descend(level, text, offset, covers_body) {
             Step::Enter(name, inner) => {
                 path.push(name);
                 level = inner;
@@ -48,11 +53,14 @@ enum Step<'a> {
 }
 
 /// Classifies `offset` against one level's fields.
-fn descend<'a>(level: &'a Fields, text: &str, offset: usize) -> Step<'a> {
-    for field in level.iter() {
+fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) -> Step<'a> {
+    let fields: Vec<&Field> = level.iter().collect();
+    let enclosing_end = end_of(level.enclosing());
+    for (index, &field) in fields.iter().enumerate() {
         match &field.kind {
             FieldKind::Block(inner) => {
-                if inside_body(field.name_span, block_body_end(field.span, inner), offset) {
+                let next = fields.get(index + 1).map(|sibling| start_of(sibling.span));
+                if in_block_body(field, inner, covers_body, next, enclosing_end, offset) {
                     return Step::Enter(field.name.clone(), inner);
                 }
                 if contains(field.name_span, offset) {
@@ -95,13 +103,34 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize) -> Step<'a> {
     ))
 }
 
-/// Whether `offset` sits inside a block's body, past its name and within its
-/// body extent.
-fn inside_body(name_span: Span, body_end: u32, offset: usize) -> bool {
-    if name_span.is_detached() {
+/// Whether `offset` sits inside a block's body, past its name.
+///
+/// A block whose span covers its body (HCL, KDL) is bounded by that span. A
+/// header-only block (a TOML table) owns the region up to the next sibling, or
+/// to the enclosing level's end when it is the last field.
+fn in_block_body(
+    field: &Field,
+    inner: &Fields,
+    covers_body: bool,
+    next_sibling_start: Option<u32>,
+    enclosing_end: u32,
+    offset: usize,
+) -> bool {
+    if field.name_span.is_detached() || offset <= field.name_span.end as usize {
         return false;
     }
-    (name_span.end as usize) < offset && offset <= (body_end as usize)
+    if covers_body {
+        return offset <= block_body_end(field.span, inner) as usize;
+    }
+    match next_sibling_start {
+        Some(start) => offset < start as usize,
+        None => offset <= enclosing_end as usize,
+    }
+}
+
+/// The start offset of a span, or zero for the detached sentinel.
+fn start_of(span: Span) -> u32 {
+    if span.is_detached() { 0 } else { span.start }
 }
 
 /// A block's body extent: the furthest end among the block's own span and its
