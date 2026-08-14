@@ -6,7 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'confval',
-  tagline: 'Span-first configuration parsing, validation, and lowering for Rust',
+  tagline: 'A batteries included configuration toolkit for Rust',
   favicon: 'img/logo.svg',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -170,6 +170,7 @@ const config: Config = {
     prism: {
       theme: prismThemes.gruvboxMaterialLight,
       darkTheme: prismThemes.gruvboxMaterialDark,
+      additionalLanguages: ['toml'],
     },
   } satisfies Preset.ThemeConfig,
 };

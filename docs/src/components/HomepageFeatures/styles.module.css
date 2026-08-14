@@ -1,30 +1,30 @@
 .features {
-  padding: 3rem 1rem;
-  width: 100%;
+    padding: 3rem 1rem;
+    width: 100%;
 }
 
 .lead {
-  max-width: 48rem;
-  margin: 0 auto 2rem;
-  text-align: center;
-  color: var(--ifm-font-color-base);
+    max-width: 48rem;
+    margin: 0 auto 2.5rem;
+    text-align: center;
+    color: var(--ifm-font-color-base);
 }
 
 .diagram {
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 1.5rem;
-  border: 1px solid var(--ifm-toc-border-color);
-  background: var(--ifm-background-surface-color);
-  overflow-x: auto;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 1.5rem;
+    border: 1px solid var(--ifm-toc-border-color);
+    background: var(--ifm-background-surface-color);
+    overflow-x: auto;
 }
 
 .diagram :global(svg) {
-  display: block;
-  margin: 0 auto;
-  max-width: 100%;
-  height: auto;
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: auto;
 }
 
 /*
@@ -33,13 +33,13 @@
  * let the svg scale up to the pane instead of sitting small and centered.
  */
 .wide {
-  width: 100%;
-  max-width: min(78rem, 92vw);
+    width: 100%;
+    max-width: min(78rem, 92vw);
 }
 
 .wide :global(svg) {
-  width: 100% !important;
-  max-width: 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
 }
 
 /*
@@ -48,17 +48,35 @@
  * on tablets.
  */
 .tall {
-  width: 100%;
-  max-width: 34rem;
+    width: 100%;
+    max-width: 34rem;
 }
 
 .tall :global(svg) {
-  width: 100% !important;
-  max-width: 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
 }
 
 .caption {
-  margin: 1.5rem auto 0;
-  text-align: center;
-  font-size: 0.9rem;
+    margin: 1.5rem auto 0;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+/* The screenshot has a black background, so in dark mode paint its whole
+ * section black to match. Light mode keeps the default surface. */
+:global([data-theme='dark']) .screenshotSection {
+    background-color: #000000;
+}
+
+.featureSectionHeader {
+    text-align: center;
+}
+
+.featureSectionContent {
+    display: block;
+    width: 100%;
+    max-width: min(48rem, 92vw);
+    height: auto;
+    margin: 0 auto;
 }
