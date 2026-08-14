@@ -7,7 +7,6 @@
 //! the value the cursor sits on. It reads only the current text, so its offsets
 //! are always current.
 
-use crate::encoding::floor_char_boundary;
 use super::json::object_path;
 use crate::encoding::floor_char_boundary;
 use crate::frontend::{CursorContext, Recovery, ValueSeparator};
