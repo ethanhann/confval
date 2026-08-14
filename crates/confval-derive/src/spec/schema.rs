@@ -59,7 +59,8 @@ pub(crate) fn field_schema(
     let has_default = options.default.is_some();
     let structurally_required = structurally_required(shape);
     let ty = schema_type(shape, options)?;
-    Ok(quote! {
+    reject_label_on_non_string(ident, shape, options)?;
+    let field = quote! {
         ::confval::schema::SchemaField::new(
             #name.to_string(),
             #doc,
@@ -67,7 +68,37 @@ pub(crate) fn field_schema(
             #has_default,
             #ty,
         )
-    })
+    };
+    if options.label {
+        Ok(quote! { #field.as_label() })
+    } else {
+        Ok(field)
+    }
+}
+
+/// Rejects `#[confval(label)]` on a field that is not a `String` leaf. A block's
+/// label is a string, so a list, a map, a block, or a non-string scalar cannot
+/// be one.
+fn reject_label_on_non_string(
+    ident: &Ident,
+    shape: &FieldShape,
+    options: &FieldOptions,
+) -> syn::Result<()> {
+    if options.label
+        && !matches!(
+            shape,
+            FieldShape::Leaf {
+                leaf: Leaf::String,
+                ..
+            }
+        )
+    {
+        return Err(syn::Error::new_spanned(
+            ident,
+            "#[confval(label)] requires a String leaf",
+        ));
+    }
+    Ok(())
 }
 
 /// Whether an absent field is a parse error before the default is folded in.
@@ -148,13 +179,13 @@ fn scalar_type(leaf: &Leaf) -> TokenStream2 {
 /// or `Float` leaf, and the two cannot share a field, because one leaf cannot be
 /// both.
 fn constraint_tokens(leaf: &Leaf, options: &FieldOptions) -> syn::Result<TokenStream2> {
-    match (&options.keywords, &options.range) {
-        (Some(_), Some(range)) => Err(syn::Error::new_spanned(
-            range,
-            "a field takes either #[confval(keywords = ...)] or #[confval(range = ...)], \
-             not both; keywords requires a String leaf and range requires an Int or Float leaf",
-        )),
-        (Some(path), None) => {
+    let too_many = "a field takes at most one of #[confval(keywords = ...)], \
+                    #[confval(range = ...)], or #[confval(references = ...)]";
+    match (&options.keywords, &options.range, &options.references) {
+        (Some(_), Some(range), _) => Err(syn::Error::new_spanned(range, too_many)),
+        (Some(_), _, Some(references)) => Err(syn::Error::new_spanned(references, too_many)),
+        (_, Some(_), Some(references)) => Err(syn::Error::new_spanned(references, too_many)),
+        (Some(path), None, None) => {
             if !matches!(leaf, Leaf::String) {
                 return Err(syn::Error::new_spanned(
                     path,
@@ -167,7 +198,7 @@ fn constraint_tokens(leaf: &Leaf, options: &FieldOptions) -> syn::Result<TokenSt
                 )
             })
         }
-        (None, Some(path)) => {
+        (None, Some(path), None) => {
             if !matches!(leaf, Leaf::Int | Leaf::Float) {
                 return Err(syn::Error::new_spanned(
                     path,
@@ -185,7 +216,21 @@ fn constraint_tokens(leaf: &Leaf, options: &FieldOptions) -> syn::Result<TokenSt
                 )
             })
         }
-        (None, None) => Ok(quote! { ::core::option::Option::None }),
+        (None, None, Some(block)) => {
+            if !matches!(leaf, Leaf::String) {
+                return Err(syn::Error::new_spanned(
+                    block,
+                    "#[confval(references = ...)] requires a String leaf",
+                ));
+            }
+            let block = block.unraw().to_string();
+            Ok(quote! {
+                ::core::option::Option::Some(
+                    ::confval::schema::Constraint::References { block: #block },
+                )
+            })
+        }
+        (None, None, None) => Ok(quote! { ::core::option::Option::None }),
     }
 }
 
@@ -203,6 +248,13 @@ fn reject_constraint_on_non_scalar(options: &FieldOptions) -> syn::Result<()> {
         return Err(syn::Error::new_spanned(
             path,
             "#[confval(range = ...)] requires an Int or Float leaf; \
+             it cannot apply to a list, a map, or a nested block",
+        ));
+    }
+    if let Some(block) = &options.references {
+        return Err(syn::Error::new_spanned(
+            block,
+            "#[confval(references = ...)] requires a String leaf; \
              it cannot apply to a list, a map, or a nested block",
         ));
     }

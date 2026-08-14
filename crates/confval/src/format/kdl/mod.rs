@@ -26,16 +26,17 @@
 //! - Values outside the neutral model (`#null`, an integer beyond `i64`)
 //!   become [`ValueKind::Other`] carrying a diagnostic label, so they surface
 //!   as ordinary type mismatches at the field that used them.
-//! - Arguments on a node that also has properties or children have no home in
-//!   the model, which carries no block labels. They are reported and the block
-//!   is still produced, so the walk continues.
+//! - A block node's first string argument is its native label, the
+//!   `upstream "api" { ... }` idiom, read into the body. A non-string label and
+//!   any argument past the first are reported, because a block takes at most one
+//!   string label. The derive reports a label a spec does not designate.
 //! - Type annotations such as `(u8)123` carry no information the model can
 //!   hold and are read through.
 
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
 use crate::format::syntax::syntax_error;
-use crate::source::{SourceId, SourceMap, Span};
+use crate::source::{Located, SourceId, SourceMap, Span};
 use kdl::{KdlDocument, KdlEntry, KdlIdentifier, KdlNode, KdlValue};
 
 mod emit;
@@ -143,15 +144,9 @@ fn field_of_node(node: &KdlNode, source: SourceId, report: &mut Report) -> Field
     let kind = if properties.is_empty() && node.children().is_none() {
         FieldKind::Value(value_of_arguments(&arguments, node_span, source))
     } else {
-        // The model has no field for a block label, so an argument on a block
-        // node, the `service "web" { ... }` idiom, is unrepresentable. Report
-        // it once and keep the block, so later errors are still collected.
-        if let Some(first) = arguments.first() {
-            report
-                .error("arguments are not supported on a node with properties or children")
-                .at(span_of!(first, source))
-                .emit();
-        }
+        // A block node's first string argument is its native label, read into
+        // the body. The derive reports a label a spec does not designate.
+        let label = block_label(&arguments, source, report);
         let mut items: Vec<Field> = properties
             .iter()
             .filter_map(|entry| field_of_property(entry, source))
@@ -170,9 +165,41 @@ fn field_of_node(node: &KdlNode, source: SourceId, report: &mut Report) -> Field
             // from, so its level spans the node.
             None => node_span,
         };
-        FieldKind::Block(Fields::new(source, enclosing, items))
+        let mut body = Fields::new(source, enclosing, items);
+        if let Some(label) = label {
+            body = body.with_label(label);
+        }
+        FieldKind::Block(body)
     };
     Field::parsed(node.name().value(), name_span, node_span, source, kind)
+}
+
+/// The native label of a block node: its first string argument, read into the
+/// body. A non-string first argument and any argument past the first are
+/// reported, because a block takes at most one string label.
+fn block_label(
+    arguments: &[&KdlEntry],
+    source: SourceId,
+    report: &mut Report,
+) -> Option<Located<String>> {
+    let mut arguments = arguments.iter();
+    let label = arguments.next().and_then(|first| match first.value() {
+        KdlValue::String(string) => Some(Located::new(string.clone(), span_of!(first, source))),
+        _ => {
+            report
+                .error("a block label must be a string")
+                .at(span_of!(first, source))
+                .emit();
+            None
+        }
+    });
+    for extra in arguments {
+        report
+            .error("a block takes at most one label")
+            .at(span_of!(extra, source))
+            .emit();
+    }
+    label
 }
 
 /// The value of a node that carries only arguments. A bare node is an empty
@@ -481,10 +508,11 @@ mod tests {
     }
 
     #[test]
-    fn an_argument_beside_children_reports_and_keeps_the_block() {
+    fn a_block_nodes_first_string_argument_becomes_its_label() {
         // Arrange
-        // The label idiom has no home in the model, which carries no block
-        // labels.
+        // The `service "web" { ... }` idiom reads "web" as the block's native
+        // label, with no diagnostic. A spec that designates no label field is
+        // where an unexpected label is reported, in the derive.
         let input = "service \"web\" {\n  port 8080\n}\n";
         let mut sources = SourceMap::new();
         let id = sources.add("test.kdl", input);
@@ -494,19 +522,16 @@ mod tests {
         let fields = parse_kdl_fields(&sources, id, &mut report).unwrap();
 
         // Assert
-        assert_eq!(report.issues().len(), 1);
-        assert_eq!(
-            report.issues()[0].message,
-            "arguments are not supported on a node with properties or children"
-        );
-        let issue_span = report.issues()[0].span.unwrap();
-        assert_eq!(
-            &input[issue_span.start as usize..issue_span.end as usize],
-            "\"web\""
-        );
+        assert!(report.issues().is_empty(), "got: {:?}", report.issues());
         let FieldKind::Block(inner) = &fields.get("service").unwrap().kind else {
             panic!("service should still be a block");
         };
+        let label = inner.label().expect("the block carries its native label");
+        assert_eq!(label.value, "web");
+        assert_eq!(
+            &input[label.span.start as usize..label.span.end as usize],
+            "\"web\""
+        );
         assert!(inner.get("port").is_some());
     }
 

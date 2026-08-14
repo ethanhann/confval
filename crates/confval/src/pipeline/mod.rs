@@ -9,8 +9,10 @@ pub mod narrow;
 
 /// Numeric range constraints and the `range_constraint!` macro.
 pub mod range;
+mod references;
 mod validate;
 
 pub use lower::{Lower, LowerAuto};
 
+pub use references::check_references;
 pub use validate::{Validate, ValidateNested};

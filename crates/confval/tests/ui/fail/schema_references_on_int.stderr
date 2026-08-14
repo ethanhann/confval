@@ -1,0 +1,5 @@
+error: #[confval(references = ...)] requires a String leaf
+ --> tests/ui/fail/schema_references_on_int.rs:5:28
+  |
+5 |     #[confval(references = upstream)]
+  |                            ^^^^^^^^

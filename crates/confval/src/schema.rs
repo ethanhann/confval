@@ -73,6 +73,10 @@ pub struct SchemaField {
     pub has_default: bool,
     /// The field's declared type.
     pub ty: SchemaType,
+    /// Whether this field is its block's label field, marked `#[confval(label)]`.
+    /// The reference pass reads a block instance's label from the field flagged
+    /// here when the native label slot is empty.
+    pub label: bool,
 }
 
 /// A field's declared type.
@@ -138,6 +142,13 @@ pub enum Constraint {
         /// The constraint's custom help line for the hover, or `None`.
         help: Option<&'static str>,
     },
+    /// The value references the labels of a top-level block. The block is named
+    /// by its config field name, the `<block>` of `#[confval(references = <block>)]`.
+    /// The reference pass checks the value against the labels the file defines.
+    References {
+        /// The config field name of the referenced top-level block.
+        block: &'static str,
+    },
 }
 
 impl Schema {
@@ -173,6 +184,14 @@ impl SchemaField {
             required: structurally_required && !has_default,
             has_default,
             ty,
+            label: false,
         }
+    }
+
+    /// Marks this field as its block's label field. The derive calls it for a
+    /// `#[confval(label)]` field.
+    pub fn as_label(mut self) -> Self {
+        self.label = true;
+        self
     }
 }

@@ -1,4 +1,4 @@
-error: a field takes either #[confval(keywords = ...)] or #[confval(range = ...)], not both; keywords requires a String leaf and range requires an Int or Float leaf
+error: a field takes at most one of #[confval(keywords = ...)], #[confval(range = ...)], or #[confval(references = ...)]
  --> tests/ui/fail/schema_keywords_and_range.rs:5:45
   |
 5 |     #[confval(keywords = LimitMode, range = PORT)]
