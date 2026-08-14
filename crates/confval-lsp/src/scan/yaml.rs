@@ -6,6 +6,7 @@
 //! enclosing path and the position kind from indentation and the current line,
 //! whether or not the buffer parses.
 
+use crate::encoding::floor_char_boundary;
 use crate::frontend::CursorContext;
 use crate::resolve::{identifier_token, value_token};
 
@@ -205,15 +206,6 @@ fn skip_single(bytes: &[u8], open: usize) -> usize {
         index += 1;
     }
     index
-}
-
-/// The largest char boundary at or before `offset`, clamped to the text length.
-fn floor_char_boundary(text: &str, offset: usize) -> usize {
-    let mut offset = offset.min(text.len());
-    while offset > 0 && !text.is_char_boundary(offset) {
-        offset -= 1;
-    }
-    offset
 }
 
 #[cfg(test)]

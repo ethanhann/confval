@@ -135,7 +135,7 @@ fn line_content_end(text: &str, line_start: usize, range_end: usize) -> usize {
 
 /// The largest char boundary at or before `offset`, clamped to the text length,
 /// so a misaligned offset does not slice mid-code-point.
-fn floor_char_boundary(text: &str, offset: usize) -> usize {
+pub fn floor_char_boundary(text: &str, offset: usize) -> usize {
     let mut offset = offset.min(text.len());
     while offset > 0 && !text.is_char_boundary(offset) {
         offset -= 1;

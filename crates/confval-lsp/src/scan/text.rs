@@ -7,6 +7,7 @@
 //! the value the cursor sits on. It reads only the current text, so its offsets
 //! are always current.
 
+use crate::encoding::floor_char_boundary;
 use super::json::object_path;
 use crate::frontend::{CursorContext, Recovery, ValueSeparator};
 use crate::resolve::{identifier_token, value_token};
@@ -272,15 +273,6 @@ fn skip_line(bytes: &[u8], start: usize) -> usize {
 /// Whether a byte is part of an identifier.
 fn is_identifier(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
-}
-
-/// The largest char boundary at or before `offset`, clamped to the text length.
-fn floor_char_boundary(text: &str, offset: usize) -> usize {
-    let mut offset = offset.min(text.len());
-    while offset > 0 && !text.is_char_boundary(offset) {
-        offset -= 1;
-    }
-    offset
 }
 
 #[cfg(test)]
