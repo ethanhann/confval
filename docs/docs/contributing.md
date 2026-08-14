@@ -47,7 +47,7 @@ These design decisions should be adhered to.
 
 ### The core has no required dependencies
 
-serde, owo-colors, hcl-edit, toml_edit, kdl, jsonc-parser, saphyr-parser, and the derive macros are each behind a feature flag.
+serde, annotate-snippets, hcl-edit, toml_edit, kdl, jsonc-parser, saphyr-parser, and the derive macros are each behind a feature flag.
 
 confval aims to stay free of required dependencies.
 Put any new dependency behind a feature flag.
