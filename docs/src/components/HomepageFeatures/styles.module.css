@@ -140,3 +140,30 @@
     width: 100% !important;
     max-width: 100% !important;
 }
+
+/* A highlight band that breaks the feature rhythm on purpose, drawing the eye to
+ * the strictness point. */
+.callout {
+    padding: 2.5rem 1rem;
+    width: 100%;
+}
+
+.calloutInner {
+    max-width: min(52rem, 92vw);
+    margin: 0 auto;
+    padding: 1.5rem 1.75rem;
+    border: 1px solid var(--ifm-color-emphasis-300);
+    border-left: 4px solid var(--ifm-color-primary);
+    border-radius: 0.5rem;
+    background: var(--ifm-background-surface-color);
+}
+
+.calloutTitle {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+}
+
+.calloutInner p {
+    margin: 0;
+    color: var(--ifm-font-color-base);
+}

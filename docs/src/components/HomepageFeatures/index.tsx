@@ -233,6 +233,17 @@ export default function HomepageFeatures(): ReactNode {
                 </div>
             </section>
 
+            <section className={styles.callout}>
+                <div className={styles.calloutInner}>
+                    <h2 className={styles.calloutTitle}>Strict parsing for LLM-edited configs</h2>
+                    <p>
+                        confval rejects any key the spec does not define, so an LLM that invents a
+                        setting gets a clear error rather than a silent misconfiguration. Every
+                        problem is reported at once, at its source location.
+                    </p>
+                </div>
+            </section>
+
             <section className={styles.features}>
                 <div className={styles.featureSectionContent}>
                     <h2 className={styles.featureSectionHeader}>Config becomes real Rust types</h2>
