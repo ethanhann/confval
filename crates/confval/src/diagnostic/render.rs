@@ -1,9 +1,10 @@
 //! Rendering of a [`Report`] into human- and machine-readable output.
 //!
-//! The report data model lives in [`report`](super::report). This module only
-//! reads a finished report and formats it against a [`SourceMap`], resolving
-//! each span's byte offset into a line and column at render time. Three formats
-//! are offered: a compact one-line-per-issue [`render_plain`](Report::render_plain),
+//! The report data model lives in [`report`](super::report). This module reads a
+//! finished report and formats it against a [`SourceMap`]. The plain and JSON
+//! formats resolve each span's byte offset into a line and column, and the pretty
+//! format passes byte ranges to `annotate-snippets`, which resolves them. Three
+//! formats are offered: a compact one-line-per-issue [`render_plain`](Report::render_plain),
 //! a colorized rustc-style [`render_pretty`](Report::render_pretty) (feature
 //! `color`), and structured [`render_json`](Report::render_json) (feature
 //! `serde`).
@@ -183,17 +184,14 @@ fn add_annotation<'a>(
     }
 }
 
-/// A span as a byte range into its source, snapped to character boundaries and
-/// clamped to the text, so the range the library slices never splits a
-/// character. The range is not clamped to one line, so a multi-line span
-/// underlines every line it covers.
+/// A span as a byte range into its source, snapped to character boundaries so
+/// the range the library slices never splits a character. The boundary helpers
+/// clamp to the text length. The range is not clamped to one line, so a
+/// multi-line span underlines every line it covers.
 #[cfg(feature = "color")]
 fn snap_range(source: &Source, span: Span) -> std::ops::Range<usize> {
-    let len = source.text.len();
-    let start = source.floor_char_boundary((span.start as usize).min(len));
-    let end = source
-        .ceil_char_boundary((span.end as usize).min(len))
-        .max(start);
+    let start = source.floor_char_boundary(span.start as usize);
+    let end = source.ceil_char_boundary(span.end as usize).max(start);
     start..end
 }
 
@@ -379,7 +377,9 @@ mod tests {
     }
 
     /// Renders a report to its ANSI-stripped pretty block, the golden the pretty
-    /// tests assert against.
+    /// tests assert against. The blocks are captured from `annotate-snippets`
+    /// output, so a diff in one is a rendered-output change to review and
+    /// recapture when the crate version moves.
     #[cfg(feature = "color")]
     fn pretty(sources: &SourceMap, report: &Report) -> String {
         let mut out = String::new();
@@ -391,14 +391,18 @@ mod tests {
     #[test]
     fn render_pretty_aligns_the_underline_under_its_span() {
         // Arrange
-        // The golden block guards alignment: the underline sits under "99999",
-        // seven columns past the gutter, which a caret-run check alone would not
-        // catch.
-        let (sources, id) = one_source();
+        // The value sits under a two-space indent, at column 11 on line 2, so the
+        // golden guards the underline column at a non-trivial offset that a
+        // caret-run check alone would not catch. It is a different column from the
+        // single-span test, so the two goldens prove alignment at two offsets.
+        let mut sources = SourceMap::new();
+        let text = "limits = {\n  mode = \"loud\"\n}\n";
+        let id = sources.add("test.hcl", text);
+        let start = text.find("loud").unwrap() as u32;
         let mut report = Report::new();
         report
-            .error("port out of range")
-            .at(Span::new(id, 7, 12))
+            .error("unknown keyword: loud")
+            .at(Span::new(id, start, start + 4))
             .emit();
 
         // Act
@@ -407,15 +411,16 @@ mod tests {
         // Assert
         assert_eq!(
             rendered,
-            "error: port out of range\n  ╭▸ test.hcl:1:8\n  │\n1 │ port = 99999\n  ╰╴       ━━━━━\n"
+            "error: unknown keyword: loud\n  ╭▸ test.hcl:2:11\n  │\n2 │   mode = \"loud\"\n  ╰╴          ━━━━\n"
         );
     }
 
     #[cfg(feature = "color")]
     #[test]
     fn render_pretty_span_inside_multibyte_char_does_not_panic() {
-        // "é" is two bytes. An offset..offset+1 span ending mid-character must
-        // not panic the underline slice.
+        // Arrange
+        // "é" is two bytes, so a span ending one byte into it is not on a char
+        // boundary and must not panic the underline.
         let mut sources = SourceMap::new();
         let id = sources.add("test.hcl", "x = é\n");
         let bad_end = "x = é".find('é').unwrap() as u32 + 1;
@@ -432,9 +437,11 @@ mod tests {
             .at(Span::new(id, bad_end - 1, bad_end))
             .emit();
 
-        let mut out = String::new();
-        report.render_pretty(&sources, &mut out).unwrap();
-        assert!(out.contains("syntax error"), "got: {out}");
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        assert!(rendered.contains("syntax error"), "got: {rendered}");
     }
 
     #[cfg(feature = "color")]
@@ -535,7 +542,54 @@ mod tests {
 
     #[cfg(feature = "color")]
     #[test]
+    fn render_pretty_renders_a_spanless_issue_with_related_spans() {
+        // Arrange
+        // The issue has no primary span, so its related snippet renders under the
+        // title rather than the title alone.
+        let mut sources = SourceMap::new();
+        let a = sources.add("a.hcl", "bind = \"127.0.0.1:80\"\n");
+        let mut report = Report::new();
+        report
+            .error("no ingress files found")
+            .related(Span::new(a, 7, 21), "first declared here")
+            .emit();
+
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        assert_eq!(
+            rendered,
+            "error: no ingress files found\n  ╭▸ a.hcl:1:8\n  │\n1 │ bind = \"127.0.0.1:80\"\n  ╰╴       ────────────── first declared here\n"
+        );
+    }
+
+    #[cfg(feature = "color")]
+    #[test]
+    fn render_pretty_renders_a_zero_width_span_as_one_caret() {
+        // Arrange
+        // A zero-width span marks a point, so it underlines one column.
+        let (sources, id) = one_source();
+        let mut report = Report::new();
+        report
+            .error("expected a value here")
+            .at(Span::new(id, 7, 7))
+            .emit();
+
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        assert_eq!(
+            rendered,
+            "error: expected a value here\n  ╭▸ test.hcl:1:8\n  │\n1 │ port = 99999\n  ╰╴       ━\n"
+        );
+    }
+
+    #[cfg(feature = "color")]
+    #[test]
     fn render_pretty_groups_by_source_first_appearance() {
+        // Arrange
         let mut sources = SourceMap::new();
         let a = sources.add("a.hcl", "x = 1\n");
         let b = sources.add("b.hcl", "y = 2\n");
@@ -545,15 +599,20 @@ mod tests {
         report.error("second in a").at(Span::new(a, 4, 5)).emit();
         report.error("no location").emit();
 
-        let mut out = String::new();
-        report.render_pretty(&sources, &mut out).unwrap();
-        let first_a = out.find("first in a").unwrap();
-        let second_a = out.find("second in a").unwrap();
-        let only_b = out.find("only in b").unwrap();
-        let unlocated = out.find("no location").unwrap();
-        assert!(first_a < second_a, "a-issues stay adjacent: {out}");
-        assert!(second_a < only_b, "a-group precedes b-group: {out}");
-        assert!(only_b < unlocated, "location-less issues come last: {out}");
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        let first_a = rendered.find("first in a").unwrap();
+        let second_a = rendered.find("second in a").unwrap();
+        let only_b = rendered.find("only in b").unwrap();
+        let unlocated = rendered.find("no location").unwrap();
+        assert!(first_a < second_a, "a-issues stay adjacent: {rendered}");
+        assert!(second_a < only_b, "a-group precedes b-group: {rendered}");
+        assert!(
+            only_b < unlocated,
+            "location-less issues come last: {rendered}"
+        );
     }
 
     #[cfg(feature = "serde")]
