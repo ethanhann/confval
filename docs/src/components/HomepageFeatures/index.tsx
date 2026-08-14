@@ -263,11 +263,35 @@ export default function HomepageFeatures(): ReactNode {
                 <p className={styles.lead}>
                     Assemble one config from layers. A file supplies the base, environment
                     variables override it, and CLI flags override those. Every layer yields the
-                    same neutral model, so the merge runs once, before the spec is built.
+                    same format-neutral model, so the merge runs once, before the spec is built.
                 </p>
                 <div className={clsx(styles.diagram, wide ? styles.layeringWide : styles.layeringTall)}>
                     <Mermaid value={wide ? LAYERING_WIDE : LAYERING_TALL}/>
                 </div>
+            </section>
+
+            <section className={styles.features}>
+                <div className={styles.featureSectionContent}>
+                    <h2 className={styles.featureSectionHeader}>Convert between formats</h2>
+                    <p className={styles.lead}>
+                        Every format parses into one format-neutral model, and every emitter writes that
+                        model back out. So confval reads one format and writes another, for the
+                        shapes the target format can represent, with no schema needed.
+                    </p>
+                </div>
+                <div className={styles.lowering}>
+                    <div>
+                        <h3 className={styles.loweringColumnLabel}>Read HCL</h3>
+                        <CodeBlock language="hcl">{CONFIG_HCL}</CodeBlock>
+                    </div>
+                    <div>
+                        <h3 className={styles.loweringColumnLabel}>Write JSON</h3>
+                        <CodeBlock language="json">{CONFIG_JSON}</CodeBlock>
+                    </div>
+                </div>
+                <p className={styles.caption}>
+                    <code>{'emit_json(&parse_hcl_fields(...)?)'}</code>
+                </p>
             </section>
         </>
     );
