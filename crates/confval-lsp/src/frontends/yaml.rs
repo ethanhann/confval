@@ -40,3 +40,84 @@ impl Frontend for Yaml {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::ValueSeparator;
+    use confval::schema::{ScalarType, Schema, SchemaType};
+
+    fn field(name: &str, ty: SchemaType) -> SchemaField {
+        SchemaField::new(name.to_string(), None, true, false, ty)
+    }
+
+    fn block(repeated: bool) -> SchemaType {
+        SchemaType::Block {
+            schema: Box::new(Schema::new(None, Vec::new())),
+            repeated,
+        }
+    }
+
+    #[test]
+    fn the_value_separator_is_a_colon() {
+        // Arrange, Act
+        let separator = Yaml.value_separator();
+
+        // Assert
+        assert_eq!(separator, ValueSeparator::Colon);
+    }
+
+    #[test]
+    fn a_repeated_block_opens_a_sequence_element() {
+        // Arrange, Act
+        let text = Yaml.insert_text(&field("rules", block(true)), &[]);
+
+        // Assert
+        assert_eq!(text, "rules:\n  - $0");
+    }
+
+    #[test]
+    fn a_string_list_opens_a_sequence_element() {
+        // Arrange, Act
+        let text = Yaml.insert_text(&field("tags", SchemaType::StringList), &[]);
+
+        // Assert
+        assert_eq!(text, "tags:\n  - $0");
+    }
+
+    #[test]
+    fn a_single_block_opens_an_indented_body() {
+        // Arrange, Act
+        let text = Yaml.insert_text(&field("limits", block(false)), &[]);
+
+        // Assert
+        assert_eq!(text, "limits:\n  $0");
+    }
+
+    #[test]
+    fn a_string_map_opens_an_indented_body() {
+        // Arrange, Act
+        let text = Yaml.insert_text(&field("labels", SchemaType::StringMap), &[]);
+
+        // Assert
+        assert_eq!(text, "labels:\n  $0");
+    }
+
+    #[test]
+    fn a_scalar_writes_a_key_and_a_space() {
+        // Arrange, Act
+        let text = Yaml.insert_text(
+            &field(
+                "port",
+                SchemaType::Scalar {
+                    leaf: ScalarType::Int,
+                    constraint: None,
+                },
+            ),
+            &[],
+        );
+
+        // Assert
+        assert_eq!(text, "port: ");
+    }
+}

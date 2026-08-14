@@ -6,6 +6,7 @@
 //! enclosing path and the position kind from indentation and the current line,
 //! whether or not the buffer parses.
 
+use super::text::skip_string;
 use crate::encoding::floor_char_boundary;
 use crate::frontend::CursorContext;
 use crate::resolve::{identifier_token, value_token};
@@ -88,7 +89,7 @@ fn flow_delta(line: &str) -> i32 {
     let mut delta = 0;
     while index < bytes.len() {
         match bytes[index] {
-            b'"' => index = skip_double(bytes, index),
+            b'"' => index = skip_string(bytes, index),
             b'\'' => index = skip_single(bytes, index),
             b'#' => break,
             b'{' | b'[' => {
@@ -174,26 +175,13 @@ fn find_top_colon(segment: &str) -> Option<usize> {
     let mut index = 0;
     while index < bytes.len() {
         match bytes[index] {
-            b'"' => index = skip_double(bytes, index),
+            b'"' => index = skip_string(bytes, index),
             b'\'' => index = skip_single(bytes, index),
             b':' => return Some(index),
             _ => index += 1,
         }
     }
     None
-}
-
-/// The index past a double-quoted string that starts at `open`, honoring `\"`.
-fn skip_double(bytes: &[u8], open: usize) -> usize {
-    let mut index = open + 1;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'\\' => index += 2,
-            b'"' => return index + 1,
-            _ => index += 1,
-        }
-    }
-    index
 }
 
 /// The index past a single-quoted string that starts at `open`.
@@ -390,6 +378,181 @@ mod tests {
 
         // Assert
         assert_eq!(context.path, vec!["rules".to_string()]);
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn a_block_scalar_that_dedents_resets_and_the_key_after_is_read() {
+        // Arrange
+        // The `note: |` block scalar holds `body`, then `top:` dedents back to the
+        // header column, which ends the scalar so `top` is read as a real key.
+        let text = "note: |\n  body\ntop:\n  ";
+        let offset = text.len();
+
+        // Act
+        let context = resolve_in_yaml(text, offset);
+
+        // Assert
+        assert_eq!(context.path, vec!["top".to_string()]);
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn a_negative_flow_balance_is_clamped_to_zero() {
+        // Arrange
+        // A stray closing brace drives the running flow balance below zero, which
+        // must clamp to zero so the following key is still read as structure.
+        let text = "foo: }\nbar:\n  ";
+        let offset = text.len();
+
+        // Act
+        let context = resolve_in_yaml(text, offset);
+
+        // Assert
+        assert_eq!(context.path, vec!["bar".to_string()]);
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn flow_balance_skips_brackets_inside_quotes() {
+        // Arrange
+        // The bracket in each quoted value must not change the flow balance, so the
+        // key below is still read as an ancestor.
+        let text = "a: \"x{y\"\nb: 'p[q'\nc:\n  ";
+        let offset = text.len();
+
+        // Act
+        let context = resolve_in_yaml(text, offset);
+
+        // Assert
+        assert_eq!(context.path, vec!["c".to_string()]);
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn a_colon_with_no_following_space_is_a_body_position() {
+        // Arrange
+        let (text, offset) = at("foo:bar|");
+
+        // Act
+        let context = resolve_in_yaml(&text, offset);
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn a_bare_dash_line_is_not_read_as_a_key() {
+        // Arrange
+        // A bare `-` sequence marker with no inline content declares no mapping key,
+        // so it is skipped and does not become an ancestor.
+        let text = "list:\n-\n";
+        let offset = text.len();
+
+        // Act
+        let context = resolve_in_yaml(text, offset);
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn an_ancestor_line_with_no_space_after_the_colon_is_not_a_key() {
+        // Arrange
+        // The `a:bcd` line packs a value against the colon, so it declares no
+        // mapping key and only `b` is read as an ancestor.
+        let text = "a:bcd\nb:\n  ";
+        let offset = text.len();
+
+        // Act
+        let context = resolve_in_yaml(text, offset);
+
+        // Assert
+        assert_eq!(context.path, vec!["b".to_string()]);
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn an_ancestor_line_with_an_empty_key_is_not_a_key() {
+        // Arrange
+        // The `: x` line has nothing before the colon, so it declares no key and
+        // only `k` is read as an ancestor.
+        let text = ": x\nk:\n  ";
+        let offset = text.len();
+
+        // Act
+        let context = resolve_in_yaml(text, offset);
+
+        // Assert
+        assert_eq!(context.path, vec!["k".to_string()]);
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn a_double_quoted_key_with_an_inner_colon_reads_the_real_colon() {
+        // Arrange
+        // The quoted key holds an escaped quote and a colon, both of which the
+        // scanner steps over to find the separator that follows the closing quote.
+        let (text, offset) = at("\"a\\\"b:c\": v|");
+
+        // Act
+        let context = resolve_in_yaml(&text, offset);
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(
+            context.kind,
+            PositionKind::AttributeValue {
+                field: "a\\\"b:c".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn a_single_quoted_key_with_an_inner_colon_reads_the_real_colon() {
+        // Arrange
+        let (text, offset) = at("'a:b': v|");
+
+        // Act
+        let context = resolve_in_yaml(&text, offset);
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(
+            context.kind,
+            PositionKind::AttributeValue {
+                field: "'a:b'".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn an_unterminated_double_quote_is_a_body_position() {
+        // Arrange
+        // With no closing quote there is no top-level colon, so the line is a body
+        // position rather than an attribute value.
+        let (text, offset) = at("\"abc|");
+
+        // Act
+        let context = resolve_in_yaml(&text, offset);
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn an_unterminated_single_quote_is_a_body_position() {
+        // Arrange
+        let (text, offset) = at("'abc|");
+
+        // Act
+        let context = resolve_in_yaml(&text, offset);
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
         assert_eq!(context.kind, PositionKind::Body);
     }
 }

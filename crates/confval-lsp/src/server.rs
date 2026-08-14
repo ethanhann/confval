@@ -278,3 +278,300 @@ where
 fn key(uri: &Uri) -> String {
     uri.as_str().to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(dead_code)]
+
+    use super::*;
+    use std::str::FromStr;
+
+    use confval::prelude::*;
+    use lsp_server::RequestId;
+    use lsp_types::{
+        Position, TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+        TextDocumentPositionParams, VersionedTextDocumentIdentifier,
+    };
+
+    use crate::frontends::Hcl;
+
+    range_constraint!(PORT, i64, min: 1, max: 65535);
+
+    /// A minimal root spec: a required host and a ranged, defaulted port.
+    #[derive(confval::Spec)]
+    struct TestSpec {
+        hostname: Located<String>,
+        #[confval(default = 8080, range = PORT)]
+        port: Located<i64>,
+    }
+
+    impl Validate for TestSpec {
+        fn validate(&self, _report: &mut Report) {}
+    }
+
+    /// A server bound to the HCL frontend, paired with an in-memory client end.
+    fn setup() -> (Server<TestSpec, Hcl>, Connection, Connection) {
+        let (server_conn, client_conn) = Connection::memory();
+        (Server::<TestSpec, Hcl>::new(Hcl), server_conn, client_conn)
+    }
+
+    /// The next published diagnostics on the client end.
+    fn recv_diagnostics(client: &Connection) -> PublishDiagnosticsParams {
+        match client.receiver.recv().unwrap() {
+            Message::Notification(notification)
+                if notification.method == PublishDiagnostics::METHOD =>
+            {
+                serde_json::from_value(notification.params).unwrap()
+            }
+            other => panic!("expected a diagnostics notification, got {other:?}"),
+        }
+    }
+
+    /// An HCL open notification for a URI and text.
+    fn open_notification(uri: &Uri, text: &str) -> Notification {
+        Notification::new(
+            DidOpenTextDocument::METHOD.to_string(),
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "hcl".to_string(),
+                    version: 1,
+                    text: text.to_string(),
+                },
+            },
+        )
+    }
+
+    #[test]
+    fn the_loop_ignores_a_response_and_stops_when_the_connection_closes() {
+        // Arrange
+        let (mut server, server_conn, client_conn) = setup();
+        client_conn
+            .sender
+            .send(Message::Response(Response::new_ok(
+                RequestId::from(1),
+                serde_json::Value::Null,
+            )))
+            .unwrap();
+        drop(client_conn);
+
+        // Act
+        let result = server.main_loop(&server_conn);
+
+        // Assert
+        assert!(result.is_ok(), "the loop returns Ok when the peer hangs up");
+    }
+
+    #[test]
+    fn an_unknown_request_method_returns_method_not_found() {
+        // Arrange
+        let (mut server, server_conn, client_conn) = setup();
+        let request = Request::new(
+            RequestId::from(7),
+            "custom/method".to_string(),
+            serde_json::Value::Null,
+        );
+
+        // Act
+        server.on_request(&server_conn, request).unwrap();
+
+        // Assert
+        let response = match client_conn.receiver.recv().unwrap() {
+            Message::Response(response) => response,
+            other => panic!("expected a response, got {other:?}"),
+        };
+        assert_eq!(response.id, RequestId::from(7));
+        assert_eq!(response.response_result.unwrap_err().code, METHOD_NOT_FOUND);
+    }
+
+    #[test]
+    fn a_completion_request_with_invalid_params_returns_invalid_params() {
+        // Arrange
+        let (mut server, server_conn, client_conn) = setup();
+        let request = Request::new(RequestId::from(8), Completion::METHOD.to_string(), 42i32);
+
+        // Act
+        server.on_request(&server_conn, request).unwrap();
+
+        // Assert
+        let response = match client_conn.receiver.recv().unwrap() {
+            Message::Response(response) => response,
+            other => panic!("expected a response, got {other:?}"),
+        };
+        assert_eq!(response.id, RequestId::from(8));
+        assert_eq!(response.response_result.unwrap_err().code, INVALID_PARAMS);
+    }
+
+    #[test]
+    fn a_hover_request_with_invalid_params_returns_invalid_params() {
+        // Arrange
+        let (mut server, server_conn, client_conn) = setup();
+        let request = Request::new(RequestId::from(9), HoverRequest::METHOD.to_string(), 42i32);
+
+        // Act
+        server.on_request(&server_conn, request).unwrap();
+
+        // Assert
+        let response = match client_conn.receiver.recv().unwrap() {
+            Message::Response(response) => response,
+            other => panic!("expected a response, got {other:?}"),
+        };
+        assert_eq!(response.id, RequestId::from(9));
+        assert_eq!(response.response_result.unwrap_err().code, INVALID_PARAMS);
+    }
+
+    #[test]
+    fn opening_a_document_stores_it_and_publishes_diagnostics() {
+        // Arrange
+        let (mut server, server_conn, client_conn) = setup();
+        let uri = Uri::from_str("file:///open.hcl").unwrap();
+        let notification = open_notification(&uri, "hostname = \"api\"\nport = 99999\n");
+
+        // Act
+        server.on_notification(&server_conn, notification).unwrap();
+
+        // Assert
+        let published = recv_diagnostics(&client_conn);
+        assert_eq!(published.uri, uri);
+        assert!(
+            !published.diagnostics.is_empty(),
+            "the out-of-range port publishes a diagnostic"
+        );
+        assert!(server.documents.contains_key(&key(&uri)));
+    }
+
+    #[test]
+    fn changing_a_document_updates_the_store_and_republishes() {
+        // Arrange
+        let (mut server, server_conn, client_conn) = setup();
+        let uri = Uri::from_str("file:///change.hcl").unwrap();
+        server
+            .on_notification(
+                &server_conn,
+                open_notification(&uri, "hostname = \"api\"\nport = 99999\n"),
+            )
+            .unwrap();
+        let _open = recv_diagnostics(&client_conn);
+        let change = Notification::new(
+            DidChangeTextDocument::METHOD.to_string(),
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 2,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "hostname = \"api\"\nport = 8080\n".to_string(),
+                }],
+            },
+        );
+
+        // Act
+        server.on_notification(&server_conn, change).unwrap();
+
+        // Assert
+        let published = recv_diagnostics(&client_conn);
+        assert!(
+            published.diagnostics.is_empty(),
+            "the corrected document has no diagnostics, got: {:?}",
+            published.diagnostics
+        );
+        assert_eq!(
+            server.documents.get(&key(&uri)).unwrap().text,
+            "hostname = \"api\"\nport = 8080\n"
+        );
+    }
+
+    #[test]
+    fn closing_a_document_removes_it_and_clears_diagnostics() {
+        // Arrange
+        let (mut server, server_conn, client_conn) = setup();
+        let uri = Uri::from_str("file:///close.hcl").unwrap();
+        server
+            .on_notification(
+                &server_conn,
+                open_notification(&uri, "hostname = \"api\"\nport = 99999\n"),
+            )
+            .unwrap();
+        let _open = recv_diagnostics(&client_conn);
+        let close = Notification::new(
+            DidCloseTextDocument::METHOD.to_string(),
+            DidCloseTextDocumentParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+            },
+        );
+
+        // Act
+        server.on_notification(&server_conn, close).unwrap();
+
+        // Assert
+        let published = recv_diagnostics(&client_conn);
+        assert!(
+            published.diagnostics.is_empty(),
+            "closing clears the document's diagnostics"
+        );
+        assert!(!server.documents.contains_key(&key(&uri)));
+    }
+
+    #[test]
+    fn an_unknown_notification_method_is_ignored() {
+        // Arrange
+        let (mut server, server_conn, client_conn) = setup();
+        let notification =
+            Notification::new("custom/notification".to_string(), serde_json::Value::Null);
+
+        // Act
+        server.on_notification(&server_conn, notification).unwrap();
+
+        // Assert
+        assert!(
+            client_conn.receiver.try_recv().is_err(),
+            "an unhandled notification publishes nothing"
+        );
+    }
+
+    #[test]
+    fn publishing_for_an_unknown_document_sends_nothing() {
+        // Arrange
+        let (mut server, server_conn, client_conn) = setup();
+        let uri = Uri::from_str("file:///absent.hcl").unwrap();
+
+        // Act
+        server.publish(&server_conn, &uri).unwrap();
+
+        // Assert
+        assert!(
+            client_conn.receiver.try_recv().is_err(),
+            "an absent document publishes nothing"
+        );
+    }
+
+    #[test]
+    fn completion_for_an_unknown_document_is_an_empty_array() {
+        // Arrange
+        let (server, _server_conn, _client_conn) = setup();
+        let uri = Uri::from_str("file:///absent.hcl").unwrap();
+        let params = CompletionParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position: Position {
+                    line: 0,
+                    character: 0,
+                },
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+            context: None,
+        };
+
+        // Act
+        let response = server.completion(params);
+
+        // Assert
+        match response {
+            CompletionResponse::Array(items) => assert!(items.is_empty()),
+            other => panic!("expected an empty array, got {other:?}"),
+        }
+    }
+}

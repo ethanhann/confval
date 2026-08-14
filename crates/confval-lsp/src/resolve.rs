@@ -13,6 +13,7 @@ use confval::format::{Field, FieldKind, Fields, Value, ValueKind};
 use confval::source::Span;
 
 use crate::frontend::CursorContext;
+use crate::scan::is_identifier;
 
 /// Resolves `offset` against the parsed tree.
 pub(crate) fn resolve_in_tree(
@@ -276,39 +277,31 @@ fn contains(span: Span, offset: usize) -> bool {
 /// than the parse keeps the range valid and on the cursor's line even when the
 /// buffer does not parse.
 pub(crate) fn identifier_token(text: &str, offset: usize) -> (usize, usize) {
-    let bytes = text.as_bytes();
-    let offset = offset.min(bytes.len());
-    let mut start = offset;
-    while start > 0 && is_identifier_byte(bytes[start - 1]) {
-        start -= 1;
-    }
-    let mut end = offset;
-    while end < bytes.len() && is_identifier_byte(bytes[end]) {
-        end += 1;
-    }
-    (start, end)
+    token_around(text, offset, is_identifier)
 }
 
 /// The completion replace range for a value position: the run of value
 /// characters the cursor sits in, scanned from the current text and bounded to
 /// the cursor's line, so replacing an enum value never reaches across a line.
 pub(crate) fn value_token(text: &str, offset: usize) -> (usize, usize) {
+    token_around(text, offset, is_value_byte)
+}
+
+/// The run of bytes around `offset` for which `is_member` holds. Scanning the
+/// current text rather than the parse keeps the range valid and on the cursor's
+/// line even when the buffer does not parse.
+fn token_around(text: &str, offset: usize, is_member: fn(u8) -> bool) -> (usize, usize) {
     let bytes = text.as_bytes();
     let offset = offset.min(bytes.len());
     let mut start = offset;
-    while start > 0 && is_value_byte(bytes[start - 1]) {
+    while start > 0 && is_member(bytes[start - 1]) {
         start -= 1;
     }
     let mut end = offset;
-    while end < bytes.len() && is_value_byte(bytes[end]) {
+    while end < bytes.len() && is_member(bytes[end]) {
         end += 1;
     }
     (start, end)
-}
-
-/// Whether a byte is part of a config field identifier.
-fn is_identifier_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
 }
 
 /// Whether a byte is part of a scalar value token. Whitespace and the structural

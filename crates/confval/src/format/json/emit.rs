@@ -6,7 +6,10 @@
 //! trailing newline.
 
 use crate::format::EmitError;
-use crate::format::emit::{child_path, grouped_elements, value_beside_block, values_then_blocks};
+use crate::format::emit::{
+    blocks_named, child_path, grouped_elements, indent, value_beside_block, values_named,
+    values_then_blocks,
+};
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 
 /// Serializes a [`Fields`] tree to canonical JSON text.
@@ -59,24 +62,8 @@ fn members_of(fields: &Fields) -> Vec<(&str, Member<'_>)> {
         }
         grouped.push(&field.name);
         let member = match field.kind {
-            FieldKind::Value(_) => Member::Values(
-                fields
-                    .iter()
-                    .filter_map(|other| match &other.kind {
-                        FieldKind::Value(value) if other.name == field.name => Some(value),
-                        _ => None,
-                    })
-                    .collect(),
-            ),
-            FieldKind::Block(_) => Member::Blocks(
-                fields
-                    .iter()
-                    .filter_map(|other| match &other.kind {
-                        FieldKind::Block(inner) if other.name == field.name => Some(inner),
-                        _ => None,
-                    })
-                    .collect(),
-            ),
+            FieldKind::Value(_) => Member::Values(values_named(fields, &field.name)),
+            FieldKind::Block(_) => Member::Blocks(blocks_named(fields, &field.name)),
         };
         members.push((&field.name, member));
     }
@@ -243,6 +230,10 @@ fn float_text(float: f64) -> String {
 /// backslash, and every control character, with the short escapes where they
 /// exist. Everything else emits as raw UTF-8, which JSON permits, so non-ASCII
 /// text stays readable.
+///
+/// This body is a coincidental duplicate of `yaml::text::write_string`, not a
+/// shared source. JSON escapes per RFC 8259, and YAML's double-quoted repertoire
+/// is broader, so the two are free to diverge.
 fn write_string(out: &mut String, text: &str) {
     out.push('"');
     for character in text.chars() {
@@ -261,13 +252,6 @@ fn write_string(out: &mut String, text: &str) {
         }
     }
     out.push('"');
-}
-
-/// Writes one level of indentation for each nesting depth.
-fn indent(out: &mut String, level: usize) {
-    for _ in 0..level {
-        out.push_str("  ");
-    }
 }
 
 /// Ends a line inside an object or a multi-line array, with the comma every

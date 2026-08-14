@@ -46,18 +46,18 @@ impl Report {
         IssueBuilder::new(self, Severity::Warning, message.into())
     }
 
+    fn has_issues_by_severity(&self, severity: Severity) -> bool {
+        self.issues.iter().any(|issue| issue.severity == severity)
+    }
+
     /// Whether any recorded issue is an error.
     pub fn has_errors(&self) -> bool {
-        self.issues
-            .iter()
-            .any(|issue| issue.severity == Severity::Error)
+        self.has_issues_by_severity(Severity::Error)
     }
 
     /// Whether any recorded issue is a warning.
     pub fn has_warnings(&self) -> bool {
-        self.issues
-            .iter()
-            .any(|issue| issue.severity == Severity::Warning)
+        self.has_issues_by_severity(Severity::Warning)
     }
 
     /// Whether anything was recorded.

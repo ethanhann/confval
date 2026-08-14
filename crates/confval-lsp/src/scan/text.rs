@@ -9,6 +9,7 @@
 
 use crate::encoding::floor_char_boundary;
 use super::json::object_path;
+use crate::encoding::floor_char_boundary;
 use crate::frontend::{CursorContext, Recovery, ValueSeparator};
 use crate::resolve::{identifier_token, value_token};
 
@@ -271,7 +272,7 @@ fn skip_line(bytes: &[u8], start: usize) -> usize {
 }
 
 /// Whether a byte is part of an identifier.
-fn is_identifier(byte: u8) -> bool {
+pub(crate) fn is_identifier(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
 }
 

@@ -10,5 +10,5 @@ mod json;
 mod text;
 mod yaml;
 
-pub(crate) use text::{resolve_in_text, skip_string};
+pub(crate) use text::{is_identifier, resolve_in_text, skip_string};
 pub(crate) use yaml::resolve_in_yaml;

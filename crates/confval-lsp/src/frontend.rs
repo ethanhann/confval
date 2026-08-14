@@ -203,3 +203,147 @@ pub trait Frontend {
     /// never reaches a buffer literally.
     fn insert_text(&self, field: &SchemaField, path: &[String]) -> String;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Hcl, Yaml};
+
+    #[test]
+    fn a_brace_frontend_uses_the_default_trait_settings() {
+        // Arrange
+        let frontend = Hcl;
+
+        // Act
+        let recovery = frontend.recovery();
+
+        // Assert
+        assert_eq!(recovery, Recovery::Braces);
+        assert_eq!(frontend.value_separator(), ValueSeparator::Equals);
+        assert!(frontend.hash_is_comment());
+        assert!(frontend.block_span_covers_body());
+    }
+
+    #[test]
+    fn parse_tree_returns_the_fields_for_a_valid_buffer() {
+        // Arrange
+        let frontend = Hcl;
+
+        // Act
+        let tree = frontend.parse_tree("port = 8080\n");
+
+        // Assert
+        assert!(tree.is_some(), "a valid buffer parses into fields");
+    }
+
+    #[test]
+    fn parse_tree_returns_none_for_an_invalid_buffer() {
+        // Arrange
+        let frontend = Hcl;
+
+        // Act
+        let tree = frontend.parse_tree("port = = 8080\n");
+
+        // Assert
+        assert!(tree.is_none(), "an invalid buffer does not parse");
+    }
+
+    #[test]
+    fn a_brace_frontend_with_a_tree_resolves_a_value_through_the_tree_walk() {
+        // Arrange
+        let frontend = Hcl;
+        let text = "port = 8080\n";
+        let offset = text.find("8080").expect("value present") + 1;
+
+        // Act
+        let context = frontend.resolve(frontend.parse_tree(text).as_ref(), text, offset);
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(
+            context.kind,
+            PositionKind::AttributeValue {
+                field: "port".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn a_brace_frontend_without_a_tree_resolves_through_the_text_scan() {
+        // Arrange
+        let frontend = Hcl;
+        let text = "hostname = \"api\"\nwork";
+
+        // Act
+        let context = frontend.resolve(None, text, text.len());
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(context.kind, PositionKind::Body);
+        let (start, end) = context.token;
+        assert_eq!(&text[start..end], "work");
+    }
+
+    #[test]
+    fn an_indentation_frontend_with_a_tree_replaces_the_whole_parsed_value() {
+        // Arrange
+        // A parsed YAML value's exact span replaces the whole value, so a quoted
+        // value with a space is not split at the space.
+        let frontend = Yaml;
+        let text = "limits:\n  mode: \"log loud\"\n";
+        let offset = text.find("log").expect("value present");
+
+        // Act
+        let context = frontend.resolve(frontend.parse_tree(text).as_ref(), text, offset);
+
+        // Assert
+        assert_eq!(
+            context.kind,
+            PositionKind::AttributeValue {
+                field: "mode".to_string()
+            }
+        );
+        let (start, end) = context.token;
+        assert_eq!(&text[start..end], "\"log loud\"");
+    }
+
+    #[test]
+    fn an_indentation_frontend_with_a_tree_keeps_the_body_token_at_a_key_position() {
+        // Arrange
+        // A body position is not an attribute value, so the tree's value span is
+        // never consulted and the indentation reader's identifier token stands.
+        let frontend = Yaml;
+        let text = "limits:\n  mode: enforce\n";
+        let offset = text.find("mode").expect("key present") + 1;
+
+        // Act
+        let context = frontend.resolve(frontend.parse_tree(text).as_ref(), text, offset);
+
+        // Assert
+        assert_eq!(context.path, vec!["limits".to_string()]);
+        assert_eq!(context.kind, PositionKind::Body);
+        let (start, end) = context.token;
+        assert_eq!(&text[start..end], "mode");
+    }
+
+    #[test]
+    fn an_indentation_frontend_without_a_tree_reads_the_raw_text() {
+        // Arrange
+        // A two-document YAML stream cannot hold one configuration, so it does not
+        // parse and resolution reads the path and kind from indentation alone.
+        let frontend = Yaml;
+        let text = "hostname: api\n---\nfoo: bar\n";
+        assert!(
+            frontend.parse_tree(text).is_none(),
+            "a two-document stream does not parse"
+        );
+        let offset = text.find("foo").expect("key present") + 1;
+
+        // Act
+        let context = frontend.resolve(None, text, offset);
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+}

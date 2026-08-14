@@ -7,6 +7,7 @@
 //! key is a name rather than a typed value, so it writes bare whenever it is an
 //! ASCII identifier.
 
+use crate::format::emit::indent;
 use crate::format::field::Scalar;
 
 /// Writes a rendered element body with its first content line carrying the `- `
@@ -116,6 +117,10 @@ fn is_plain_name(name: &str) -> bool {
 /// Writes a double-quoted scalar, escaping the quote, the backslash, and every
 /// control character, with the short escapes where they exist. Everything else
 /// writes as raw UTF-8, which YAML permits, so non-ASCII text stays readable.
+///
+/// This body is a coincidental duplicate of `json::emit::write_string`, not a
+/// shared source. YAML's double-quoted repertoire is broader than JSON's RFC
+/// 8259 set, so the two are free to diverge.
 pub(super) fn write_string(out: &mut String, text: &str) {
     out.push('"');
     for character in text.chars() {
@@ -134,13 +139,6 @@ pub(super) fn write_string(out: &mut String, text: &str) {
         }
     }
     out.push('"');
-}
-
-/// Writes one level of indentation for each nesting depth.
-pub(super) fn indent(out: &mut String, level: usize) {
-    for _ in 0..level {
-        out.push_str("  ");
-    }
 }
 
 #[cfg(test)]
