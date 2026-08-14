@@ -271,7 +271,7 @@ fn skip_line(bytes: &[u8], start: usize) -> usize {
 }
 
 /// Whether a byte is part of an identifier.
-fn is_identifier(byte: u8) -> bool {
+pub(crate) fn is_identifier(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
 }
 

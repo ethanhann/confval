@@ -6,6 +6,7 @@
 //! enclosing path and the position kind from indentation and the current line,
 //! whether or not the buffer parses.
 
+use super::text::skip_string;
 use crate::encoding::floor_char_boundary;
 use crate::frontend::CursorContext;
 use crate::resolve::{identifier_token, value_token};
@@ -88,7 +89,7 @@ fn flow_delta(line: &str) -> i32 {
     let mut delta = 0;
     while index < bytes.len() {
         match bytes[index] {
-            b'"' => index = skip_double(bytes, index),
+            b'"' => index = skip_string(bytes, index),
             b'\'' => index = skip_single(bytes, index),
             b'#' => break,
             b'{' | b'[' => {
@@ -174,26 +175,13 @@ fn find_top_colon(segment: &str) -> Option<usize> {
     let mut index = 0;
     while index < bytes.len() {
         match bytes[index] {
-            b'"' => index = skip_double(bytes, index),
+            b'"' => index = skip_string(bytes, index),
             b'\'' => index = skip_single(bytes, index),
             b':' => return Some(index),
             _ => index += 1,
         }
     }
     None
-}
-
-/// The index past a double-quoted string that starts at `open`, honoring `\"`.
-fn skip_double(bytes: &[u8], open: usize) -> usize {
-    let mut index = open + 1;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'\\' => index += 2,
-            b'"' => return index + 1,
-            _ => index += 1,
-        }
-    }
-    index
 }
 
 /// The index past a single-quoted string that starts at `open`.
