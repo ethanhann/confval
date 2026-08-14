@@ -1,15 +1,16 @@
 //! The diagnostics handler.
 //!
-//! It parses the whole buffer, builds the typed spec, runs `validate_all`, and
-//! maps each `Report` issue to an LSP diagnostic. It runs the real pipeline
-//! rather than an approximation, so a diagnostic the editor shows is a diagnostic
-//! the program would produce.
+//! It parses the whole buffer, builds the typed spec, runs `validate_all`, checks
+//! references against the document's labels, and maps each `Report` issue to an
+//! LSP diagnostic. It runs the real pipeline rather than an approximation, so a
+//! diagnostic the editor shows is a diagnostic the program would produce.
 
 use lsp_types::{Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location, Uri};
 
 use confval::diagnostic::{Issue, Report, Severity};
 use confval::format::FromFields;
-use confval::pipeline::{Validate, ValidateNested};
+use confval::pipeline::{Validate, ValidateNested, check_references};
+use confval::schema::ToSchema;
 use confval::source::SourceMap;
 
 use crate::encoding::{LineIndex, PositionEncoding};
@@ -26,16 +27,20 @@ pub fn diagnostics<S, F>(
     encoding: PositionEncoding,
 ) -> Vec<Diagnostic>
 where
-    S: FromFields + Validate + ValidateNested,
+    S: FromFields + Validate + ValidateNested + ToSchema,
     F: Frontend,
 {
     let mut sources = SourceMap::new();
     let id = sources.add("<document>", text);
     let mut report = Report::new();
-    if let Some(fields) = frontend.parse(&sources, id, &mut report)
-        && let Some(spec) = S::from_fields(&fields, &mut report)
-    {
-        spec.validate_all(&mut report);
+    // The reference pass runs whenever a tree parses, even when `from_fields`
+    // fails on an unrelated structural error, because a reference still checks
+    // against the labels the text carries.
+    if let Some(fields) = frontend.parse(&sources, id, &mut report) {
+        if let Some(spec) = S::from_fields(&fields, &mut report) {
+            spec.validate_all(&mut report);
+        }
+        check_references(&fields, &S::schema(), &mut report);
     }
 
     let index = LineIndex::new(text);
@@ -93,5 +98,67 @@ fn to_diagnostic(
         related_information: (!related.is_empty()).then_some(related),
         source: Some("confval".to_string()),
         ..Diagnostic::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    use confval::prelude::*;
+
+    use crate::frontends::Hcl;
+
+    #[derive(confval::Spec)]
+    struct Upstream {
+        #[confval(label)]
+        name: Located<String>,
+        host: Located<String>,
+    }
+
+    #[derive(confval::Spec)]
+    struct Rule {
+        #[confval(references = upstream)]
+        upstream: Located<String>,
+    }
+
+    #[derive(confval::Spec)]
+    struct Gateway {
+        #[confval(nested)]
+        upstream: Vec<Located<Upstream>>,
+        #[confval(nested)]
+        rules: Vec<Located<Rule>>,
+    }
+
+    impl Validate for Upstream {
+        fn validate(&self, _report: &mut Report) {}
+    }
+
+    impl Validate for Rule {
+        fn validate(&self, _report: &mut Report) {}
+    }
+
+    impl Validate for Gateway {
+        fn validate(&self, _report: &mut Report) {}
+    }
+
+    #[test]
+    fn the_handler_reports_an_undefined_reference() {
+        // Arrange
+        let text = "upstream \"api\" {\n  host = \"h\"\n}\nrules {\n  upstream = \"nope\"\n}\n";
+        let uri = Uri::from_str("file:///gateway.hcl").unwrap();
+
+        // Act
+        let produced = diagnostics::<Gateway, Hcl>(&Hcl, text, &uri, PositionEncoding::Utf16);
+
+        // Assert
+        assert!(
+            produced
+                .iter()
+                .any(|d| d.message == "no upstream named \"nope\""),
+            "got: {:?}",
+            produced.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
     }
 }

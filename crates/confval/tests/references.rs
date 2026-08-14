@@ -51,6 +51,26 @@ impl Validate for GatewaySpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
+#[derive(confval::Spec)]
+struct TypoRuleSpec {
+    #[confval(references = nowhere)]
+    upstream: Located<String>,
+}
+
+#[derive(confval::Spec)]
+struct TypoSpec {
+    #[confval(nested)]
+    rules: Vec<Located<TypoRuleSpec>>,
+}
+
+impl Validate for TypoRuleSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for TypoSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
 /// The error messages a parse pushed, in order.
 fn errors(report: &Report) -> Vec<String> {
     report
@@ -85,6 +105,23 @@ fn parse(format: &str, text: &str) -> Report {
     let mut report = Report::new();
     run(format, &sources, id, &mut report);
     report
+}
+
+/// Parses a source and builds the typed spec, for the tests that assert on the
+/// built value rather than the report.
+fn build(format: &str, text: &str) -> Option<GatewaySpec> {
+    let mut sources = SourceMap::new();
+    let id = sources.add("gateway", text);
+    let mut report = Report::new();
+    let fields = match format {
+        "hcl" => hcl::parse_hcl_fields(&sources, id, &mut report),
+        "toml" => toml::parse_toml_fields(&sources, id, &mut report),
+        "kdl" => kdl::parse_kdl_fields(&sources, id, &mut report),
+        "json" => json::parse_json_fields(&sources, id, &mut report),
+        "yaml" => yaml::parse_yaml_fields(&sources, id, &mut report),
+        other => panic!("unknown format {other}"),
+    }?;
+    GatewaySpec::from_fields(&fields, &mut report)
 }
 
 const HCL_RESOLVED: &str = r#"
@@ -239,10 +276,38 @@ fn a_duplicate_label_reports() {
     run("hcl", &sources, id, &mut report);
 
     // Assert
+    let issue = report
+        .issues()
+        .iter()
+        .find(|i| i.message == "duplicate upstream label \"api\"")
+        .expect("a duplicate-label error");
+    assert!(
+        issue
+            .related
+            .iter()
+            .any(|(_, label)| label == "first declared here"),
+        "the duplicate points back at the first declaration: {:?}",
+        issue.related
+    );
+}
+
+#[test]
+fn a_reference_to_an_absent_block_reports_a_target_error() {
+    // Arrange
+    let text = "rules {\n  upstream = \"x\"\n}\n";
+    let mut sources = SourceMap::new();
+    let id = sources.add("gateway.hcl", text);
+    let mut report = Report::new();
+    let fields = hcl::parse_hcl_fields(&sources, id, &mut report).expect("the source parses");
+
+    // Act
+    check_references(&fields, &TypoSpec::schema(), &mut report);
+
+    // Assert
     assert!(
         errors(&report)
             .iter()
-            .any(|m| m == "duplicate upstream label \"api\""),
+            .any(|m| m == "reference target nowhere is not a labeled block"),
         "got: {:?}",
         errors(&report)
     );
@@ -322,4 +387,156 @@ fn the_schema_records_the_label_field_and_the_reference() {
             constraint: Some(Constraint::References { block: "upstream" }),
         }
     );
+}
+
+#[test]
+fn a_native_label_and_a_child_label_conflict() {
+    // Arrange
+    let text = "upstream \"api\" {\n  name = \"api\"\n  host = \"h\"\n  port = 1\n}\nrules {\n  prefix = \"/a\"\n  upstream = \"api\"\n}\n";
+
+    // Act
+    let report = parse("hcl", text);
+
+    // Assert
+    assert!(
+        errors(&report)
+            .iter()
+            .any(|m| m == "this field duplicates the block label"),
+        "got: {:?}",
+        errors(&report)
+    );
+    assert!(
+        !errors(&report)
+            .iter()
+            .any(|m| m.starts_with("no upstream named")),
+        "the native label wins so the reference resolves: {:?}",
+        errors(&report)
+    );
+}
+
+#[test]
+fn hcl_reads_the_first_label_and_reports_the_extra() {
+    // Arrange
+    let text = "upstream \"api\" \"extra\" {\n  host = \"h\"\n  port = 1\n}\nrules {\n  prefix = \"/a\"\n  upstream = \"api\"\n}\n";
+
+    // Act
+    let report = parse("hcl", text);
+
+    // Assert
+    assert!(
+        errors(&report)
+            .iter()
+            .any(|m| m == "a block takes at most one label"),
+        "got: {:?}",
+        errors(&report)
+    );
+    assert!(
+        !errors(&report)
+            .iter()
+            .any(|m| m.starts_with("no upstream named")),
+        "the first label resolves: {:?}",
+        errors(&report)
+    );
+}
+
+#[test]
+fn kdl_reads_the_first_label_and_reports_the_extra() {
+    // Arrange
+    let text = "upstream \"api\" \"extra\" {\n  host \"h\"\n  port 1\n}\nrules {\n  prefix \"/a\"\n  upstream \"api\"\n}\n";
+
+    // Act
+    let report = parse("kdl", text);
+
+    // Assert
+    assert!(
+        errors(&report)
+            .iter()
+            .any(|m| m == "a block takes at most one label"),
+        "got: {:?}",
+        errors(&report)
+    );
+    assert!(
+        !errors(&report)
+            .iter()
+            .any(|m| m.starts_with("no upstream named")),
+        "the first label resolves: {:?}",
+        errors(&report)
+    );
+}
+
+#[test]
+fn kdl_reports_a_non_string_label() {
+    // Arrange
+    let text = "upstream 8080 {\n  host \"h\"\n  port 1\n}\n";
+
+    // Act
+    let report = parse("kdl", text);
+
+    // Assert
+    assert!(
+        errors(&report)
+            .iter()
+            .any(|m| m == "a block label must be a string"),
+        "got: {:?}",
+        errors(&report)
+    );
+}
+
+#[test]
+fn a_missing_label_field_reports_the_ordinary_missing_field_error() {
+    // Arrange
+    let text = "[[upstream]]\nhost = \"h\"\nport = 1\n";
+
+    // Act
+    let report = parse("toml", text);
+
+    // Assert
+    assert!(
+        errors(&report)
+            .iter()
+            .any(|m| m == "missing required field: name"),
+        "got: {:?}",
+        errors(&report)
+    );
+}
+
+#[test]
+fn an_undefined_reference_with_no_blocks_states_the_file_defines_none() {
+    // Arrange
+    let text = "rules {\n  prefix = \"/a\"\n  upstream = \"api\"\n}\n";
+
+    // Act
+    let report = parse("hcl", text);
+
+    // Assert
+    let issue = report
+        .issues()
+        .iter()
+        .find(|i| i.message == "no upstream named \"api\"")
+        .expect("an undefined-reference error");
+    assert_eq!(issue.help.as_deref(), Some("the file defines no upstream"));
+}
+
+#[test]
+fn from_fields_reads_the_label_from_the_native_slot_in_hcl() {
+    // Arrange
+    let text = HCL_RESOLVED;
+
+    // Act
+    let spec = build("hcl", text).expect("the spec builds");
+
+    // Assert
+    assert_eq!(spec.upstream[0].value.name.value.as_str(), "api");
+}
+
+#[test]
+fn from_fields_reads_the_label_from_the_child_field_in_toml() {
+    // Arrange
+    let text = TOML_RESOLVED;
+
+    // Act
+    let spec = build("toml", text).expect("the spec builds");
+
+    // Assert
+    assert_eq!(spec.upstream[0].value.name.value.as_str(), "api");
 }

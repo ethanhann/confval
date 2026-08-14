@@ -41,6 +41,7 @@ fn build_index(
             continue;
         };
         let mut labels: Vec<String> = Vec::new();
+        let mut first_span: HashMap<String, Span> = HashMap::new();
         for instance in fields.iter().filter(|f| f.name == field.name) {
             for body in instance_bodies(instance) {
                 let Some((value, span)) = instance_label(body, &label_field.name) else {
@@ -53,13 +54,15 @@ fn build_index(
                         .emit();
                     continue;
                 }
-                if labels.contains(&value) {
+                if let Some(&first) = first_span.get(&value) {
                     report
                         .error(format!("duplicate {} label {value:?}", field.name))
                         .at(span)
+                        .related(first, "first declared here")
                         .emit();
                     continue;
                 }
+                first_span.insert(value.clone(), span);
                 labels.push(value);
             }
         }
@@ -88,21 +91,29 @@ fn check_level(
                 let Some((value, span)) = field_string(field) else {
                     continue;
                 };
-                let defined = index
-                    .get(*block)
-                    .is_some_and(|labels| labels.contains(&value));
-                if !defined {
-                    let help = match index.get(*block) {
-                        Some(labels) if !labels.is_empty() => {
+                match index.get(*block) {
+                    // The target names no labeled top-level block, so the schema
+                    // itself is wrong. The message names the target rather than
+                    // blaming the config value.
+                    None => {
+                        report
+                            .error(format!("reference target {block} is not a labeled block"))
+                            .at(span)
+                            .emit();
+                    }
+                    Some(labels) if !labels.contains(&value) => {
+                        let help = if labels.is_empty() {
+                            format!("the file defines no {block}")
+                        } else {
                             format!("defined {block}: {}", labels.join(", "))
-                        }
-                        _ => format!("the file defines no {block}"),
-                    };
-                    report
-                        .error(format!("no {block} named {value:?}"))
-                        .at(span)
-                        .help(help)
-                        .emit();
+                        };
+                        report
+                            .error(format!("no {block} named {value:?}"))
+                            .at(span)
+                            .help(help)
+                            .emit();
+                    }
+                    Some(_) => {}
                 }
             }
             SchemaType::Block { schema: block, .. } => {
