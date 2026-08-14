@@ -63,9 +63,12 @@
     font-size: 0.9rem;
 }
 
-/* The screenshot has a black background, so in dark mode paint its whole
- * section black to match. Light mode keeps the default surface. */
-:global([data-theme='dark']) .screenshotSection {
+
+:global([data-theme='light']) .altBgSection {
+    background-color: #ffffff;
+}
+
+:global([data-theme='dark']) .altBgSection {
     background-color: #000000;
 }
 

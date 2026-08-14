@@ -5,6 +5,8 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 import Mermaid from '@theme/Mermaid';
 import styles from './styles.module.css';
 import CodeBlock from "@theme/CodeBlock";
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 const diagram = (direction: string, nodeSpacing: number) => `%%{ init: { "flowchart": { "curve": "basis", "nodeSpacing": ${nodeSpacing} } } }%%
 flowchart ${direction}
@@ -41,6 +43,66 @@ allow = ["10.0.0.0/8", ""]
 mode = "yolo"
 `;
 
+const CONFIG_TOML = `hostname = "127.0.0.1"
+port = 8080
+allow = ["10.0.0.0/8", "192.168.0.0/16"]
+
+[bind]
+port = 8080
+`;
+
+const CONFIG_HCL = `hostname = "127.0.0.1"
+port     = 8080
+allow    = ["10.0.0.0/8", "192.168.0.0/16"]
+
+bind {
+  port = 8080
+}
+`;
+
+const CONFIG_KDL = `hostname "127.0.0.1"
+port 8080
+allow "10.0.0.0/8" "192.168.0.0/16"
+
+bind {
+  port 8080
+}
+`;
+
+const CONFIG_JSON = `{
+  "hostname": "127.0.0.1",
+  "port": 8080,
+  "allow": ["10.0.0.0/8", "192.168.0.0/16"],
+  "bind": { "port": 8080 }
+}
+`;
+
+const CONFIG_YAML = `hostname: "127.0.0.1"
+port: 8080
+allow: ["10.0.0.0/8", "192.168.0.0/16"]
+
+bind:
+  port: 8080
+`;
+
+const TEMPLATE_TOML = `# The host the server binds to.
+hostname = "127.0.0.1"
+
+# The port to listen on.
+port = 8080
+
+# CIDR ranges allowed to connect.
+allow = ["10.0.0.0/8"]
+
+# Connection limits.
+[limits]
+# Largest request body, in megabytes.
+max_body_mb = 16
+
+# Enforcement mode, optional. Defaults to "enforce".
+# mode = "enforce"
+`;
+
 // Flow left to right on wide screens, top to bottom on medium and smaller ones.
 function useWideViewport(): boolean {
     const [wide, setWide] = useState(false);
@@ -59,6 +121,7 @@ export default function HomepageFeatures(): ReactNode {
     return (
         <>
             <section className={styles.features}>
+                <h2 className={styles.featureSectionHeader}>Architecture</h2>
                 <p className={styles.lead}>
                     confval turns a configuration file into runtime types in four stages:
                     parse, validate, gate, and lower.
@@ -71,7 +134,47 @@ export default function HomepageFeatures(): ReactNode {
                 </p>
             </section>
 
-            <section className={clsx(styles.features, styles.screenshotSection)}>
+            <section className={clsx(styles.features, styles.altBgSection)}>
+                <div className={styles.featureSectionContent}>
+                    <h2 className={styles.featureSectionHeader}>One spec, any format</h2>
+                    <p className={styles.lead}>
+                        Write the same configuration in TOML, HCL, KDL, JSON, or YAML. Each
+                        parses into the identical runtime type, so validation and lowering
+                        never depend on which format an operator chose.
+                    </p>
+                    <Tabs groupId="config-format">
+                        <TabItem value="toml" label="TOML">
+                            <CodeBlock language="toml">{CONFIG_TOML}</CodeBlock>
+                        </TabItem>
+                        <TabItem value="hcl" label="HCL">
+                            <CodeBlock language="hcl">{CONFIG_HCL}</CodeBlock>
+                        </TabItem>
+                        <TabItem value="kdl" label="KDL">
+                            <CodeBlock language="kdl">{CONFIG_KDL}</CodeBlock>
+                        </TabItem>
+                        <TabItem value="json" label="JSON">
+                            <CodeBlock language="json">{CONFIG_JSON}</CodeBlock>
+                        </TabItem>
+                        <TabItem value="yaml" label="YAML">
+                            <CodeBlock language="yaml">{CONFIG_YAML}</CodeBlock>
+                        </TabItem>
+                    </Tabs>
+                </div>
+            </section>
+
+            <section className={styles.features}>
+                <div className={styles.featureSectionContent}>
+                    <h2 className={styles.featureSectionHeader}>A documented starting point</h2>
+                    <p className={styles.lead}>
+                        confval generates an annotated template from your spec, with every
+                        setting, its doc comment, and each optional field commented out, so an
+                        operator starts from a complete file instead of guessing keys.
+                    </p>
+                    <CodeBlock language="toml">{TEMPLATE_TOML}</CodeBlock>
+                </div>
+            </section>
+
+            <section className={clsx(styles.features, styles.altBgSection)}>
                 <div className={styles.featureSectionContent}>
                     <h2 className={styles.featureSectionHeader}>Diagnostics</h2>
                     <p className={styles.lead}>
