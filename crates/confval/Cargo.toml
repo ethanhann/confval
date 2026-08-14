@@ -16,7 +16,7 @@ workspace = true
 [features]
 default = []
 serde = ["dep:serde", "dep:serde_json"]
-color = ["dep:owo-colors"]
+color = ["dep:annotate-snippets"]
 # Format frontends are independent opt-ins.
 # The derive macro emits the format-neutral `FromFields`, so `derive` needs no frontend.
 # tldr; pick `hcl`, `toml`, `kdl`, `json`, and/or `yaml` for the format(s) you actually parse.
@@ -33,7 +33,7 @@ layering = []
 [dependencies]
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
-owo-colors = { workspace = true, optional = true }
+annotate-snippets = { workspace = true, optional = true }
 hcl-edit = { workspace = true, optional = true }
 toml_edit = { workspace = true, optional = true }
 kdl = { workspace = true, optional = true }

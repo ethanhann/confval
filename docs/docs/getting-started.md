@@ -34,17 +34,17 @@ Install it with `cargo install confval`, and see [Agent Skills](./agent-skills.m
 
 ### Feature flags
 
-| Flag       | Default | Brings in        | Enables                                                                                  |
-|------------|---------|------------------|------------------------------------------------------------------------------------------|
-| `serde`    | off     | `serde`          | `Located` serde impls, `render_json`                                                     |
-| `color`    | off     | `owo-colors`     | `render_pretty` with ANSI color                                                          |
-| `hcl`      | off     | `hcl-edit`       | The `confval::format::hcl` frontend                                                      |
-| `toml`     | off     | `toml_edit`      | The `confval::format::toml` frontend                                                     |
-| `kdl`      | off     | `kdl`            | The `confval::format::kdl` frontend                                                      |
-| `json`     | off     | `jsonc-parser`   | The `confval::format::json` frontend                                                     |
-| `yaml`     | off     | `saphyr-parser`  | The `confval::format::yaml` frontend                                                     |
-| `derive`   | off     | `confval-derive` | `#[derive(Spec)]` and `#[derive(Config)]` (format-neutral)                               |
-| `layering` | off     | nothing          | The `confval::layering` module for assembling from a file, environment, and command line |
+| Flag       | Default | Brings in           | Enables                                                                                  |
+|------------|---------|---------------------|------------------------------------------------------------------------------------------|
+| `serde`    | off     | `serde`             | `Located` serde impls, `render_json`                                                     |
+| `color`    | off     | `annotate-snippets` | `render_pretty` with ANSI color                                                          |
+| `hcl`      | off     | `hcl-edit`          | The `confval::format::hcl` frontend                                                      |
+| `toml`     | off     | `toml_edit`         | The `confval::format::toml` frontend                                                     |
+| `kdl`      | off     | `kdl`               | The `confval::format::kdl` frontend                                                      |
+| `json`     | off     | `jsonc-parser`      | The `confval::format::json` frontend                                                     |
+| `yaml`     | off     | `saphyr-parser`     | The `confval::format::yaml` frontend                                                     |
+| `derive`   | off     | `confval-derive`    | `#[derive(Spec)]` and `#[derive(Config)]` (format-neutral)                               |
+| `layering` | off     | nothing             | The `confval::layering` module for assembling from a file, environment, and command line |
 
 Frontends (that define the configuration format) are independent opt-ins.
 Pick `hcl`, `toml`, `kdl`, `json`, or `yaml` for the format you want.

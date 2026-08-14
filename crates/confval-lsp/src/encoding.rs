@@ -37,7 +37,7 @@ pub struct LineIndex {
 }
 
 impl LineIndex {
-    /// Builds the index for a document's text.
+    /// Builds the index for a document's text. Rebuild it when the text changes.
     pub fn new(text: &str) -> Self {
         Self {
             inner: line_index::LineIndex::new(text),

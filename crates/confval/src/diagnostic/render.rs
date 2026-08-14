@@ -1,15 +1,18 @@
 //! Rendering of a [`Report`] into human- and machine-readable output.
 //!
-//! The report data model lives in [`report`](super::report). This module only
-//! reads a finished report and formats it against a [`SourceMap`], resolving
-//! each span's byte offset into a line and column at render time. Three formats
-//! are offered: a compact one-line-per-issue [`render_plain`](Report::render_plain),
+//! The report data model lives in [`report`](super::report). This module reads a
+//! finished report and formats it against a [`SourceMap`]. The plain and JSON
+//! formats resolve each span's byte offset into a line and column, and the pretty
+//! format passes byte ranges to `annotate-snippets`, which resolves them. Three
+//! formats are offered: a compact one-line-per-issue [`render_plain`](Report::render_plain),
 //! a colorized rustc-style [`render_pretty`](Report::render_pretty) (feature
 //! `color`), and structured [`render_json`](Report::render_json) (feature
 //! `serde`).
 
 use crate::diagnostic::Severity;
 use crate::diagnostic::report::Report;
+#[cfg(feature = "color")]
+use crate::source::SourceId;
 use crate::source::{Source, SourceMap, Span};
 use std::fmt;
 
@@ -55,63 +58,26 @@ impl Report {
         Ok(())
     }
 
-    /// Colorized, rustc-style format: severity header, location line, source
-    /// excerpt with a caret underline, help text, and related locations.
-    /// Issues are grouped by source, sources ordered by first appearance.
-    /// Issues without a location come last.
+    /// Colorized, rustc-style output rendered with `annotate-snippets`: a
+    /// severity title, a source excerpt with an underline, help text, and
+    /// related locations. Issues group by source in first-appearance order, and
+    /// issues without a location come last. Each issue renders on its own and is
+    /// separated from the next by one blank line.
     #[cfg(feature = "color")]
     pub fn render_pretty(&self, sources: &SourceMap, w: &mut impl fmt::Write) -> fmt::Result {
-        use owo_colors::OwoColorize;
+        use annotate_snippets::Renderer;
+        use annotate_snippets::renderer::DecorStyle;
 
-        let order = self.grouped_order();
-
-        for index in order {
-            let issue = &self.issues()[index];
-            let header = match issue.severity {
-                Severity::Error => "error".red().bold().to_string(),
-                Severity::Warning => "warning".yellow().bold().to_string(),
-            };
-            writeln!(w, "{}: {}", header, issue.message)?;
-
-            // One gutter width per issue: the widest line number among the
-            // primary and related excerpts.
-            let mut excerpt_lines = Vec::new();
-            if let Some((_, line, _)) = issue.span.and_then(|span| resolve(sources, span)) {
-                excerpt_lines.push(line);
+        let renderer = Renderer::styled().decor_style(DecorStyle::Unicode);
+        for (position, index) in self.grouped_order().into_iter().enumerate() {
+            if position > 0 {
+                writeln!(w)?;
             }
-            for (span, _) in &issue.related {
-                if let Some((_, line, _)) = resolve(sources, *span) {
-                    excerpt_lines.push(line);
-                }
-            }
-            let width = excerpt_lines
-                .iter()
-                .map(|line| line.to_string().len())
-                .max()
-                .unwrap_or(1);
-            let pad = " ".repeat(width);
-
-            if let Some(span) = issue.span {
-                let underline = match issue.severity {
-                    Severity::Error => UnderlineStyle::ErrorCaret,
-                    Severity::Warning => UnderlineStyle::WarningCaret,
-                };
-                write_excerpt(w, sources, span, None, underline, &pad)?;
-            }
-            if let Some(help) = &issue.help {
-                writeln!(w, "{pad} {} help: {}", "=".dimmed(), help)?;
-            }
-            for (span, label) in &issue.related {
-                write_excerpt(
-                    w,
-                    sources,
-                    *span,
-                    Some(label.as_str()),
-                    UnderlineStyle::RelatedDash,
-                    &pad,
-                )?;
-            }
-            writeln!(w)?;
+            let block = render_issue(&self.issues()[index], sources, &renderer);
+            // A trailing newline ends each block, so a caller that prints after
+            // the report starts on a fresh line, and a blank line above each
+            // block after the first separates the issues.
+            writeln!(w, "{block}")?;
         }
         Ok(())
     }
@@ -146,87 +112,87 @@ impl Report {
     }
 }
 
+/// Renders one issue as an `annotate-snippets` group: a severity title, one
+/// snippet per source carrying the primary and the related annotations, and the
+/// help text. A related span renders whether or not the issue has a primary
+/// span, so a spanless issue still shows its related snippets under its title.
 #[cfg(feature = "color")]
-enum UnderlineStyle {
-    ErrorCaret,
-    WarningCaret,
-    RelatedDash,
+fn render_issue(
+    issue: &crate::diagnostic::report::Issue,
+    sources: &SourceMap,
+    renderer: &annotate_snippets::Renderer,
+) -> String {
+    use annotate_snippets::{Annotation, AnnotationKind, Group, Level, Snippet};
+
+    let level = match issue.severity {
+        Severity::Error => Level::ERROR,
+        Severity::Warning => Level::WARNING,
+    };
+    let mut group = Group::with_title(level.primary_title(issue.message.as_str()));
+
+    let mut per_source: Vec<(SourceId, Vec<Annotation>)> = Vec::new();
+    if let Some(span) = issue.span
+        && let Some(source) = sources.get(span.source)
+    {
+        add_annotation(
+            &mut per_source,
+            span.source,
+            AnnotationKind::Primary.span(snap_range(source, span)),
+        );
+    }
+    for (span, label) in &issue.related {
+        if let Some(source) = sources.get(span.source) {
+            add_annotation(
+                &mut per_source,
+                span.source,
+                AnnotationKind::Context
+                    .span(snap_range(source, *span))
+                    .label(label.as_str()),
+            );
+        }
+    }
+
+    for (id, annotations) in per_source {
+        if let Some(source) = sources.get(id) {
+            group = group.element(
+                Snippet::source(source.text.as_str())
+                    .path(source.name.as_str())
+                    .line_start(1)
+                    .annotations(annotations),
+            );
+        }
+    }
+
+    if let Some(help) = &issue.help {
+        group = group.element(Level::HELP.message(help.as_str()));
+    }
+
+    renderer.render(&[group])
 }
 
-/// Writes one source excerpt:
-/// ```text
-///  --> ingress.d/api.hcl:3:11
-///   |
-/// 3 |   allow = ["10.0.0.0/8", "bad"]
-///   |                          ^^^^^
-/// ```
+/// Appends an annotation to its source's entry, preserving source order so the
+/// primary source's snippet renders first.
 #[cfg(feature = "color")]
-fn write_excerpt(
-    w: &mut impl fmt::Write,
-    sources: &SourceMap,
-    span: Span,
-    label: Option<&str>,
-    style: UnderlineStyle,
-    pad: &str,
-) -> fmt::Result {
-    use owo_colors::OwoColorize;
-
-    let Some((source, line, column)) = resolve(sources, span) else {
-        return Ok(());
-    };
-    let Some((line_start, line_end)) = source.line_byte_range(line) else {
-        return Ok(());
-    };
-    let text = &source.text[line_start..line_end];
-
-    match label {
-        Some(label) => writeln!(
-            w,
-            "{pad}{} {}:{}:{} ({})",
-            "-->".dimmed(),
-            source.name,
-            line,
-            column,
-            label
-        )?,
-        None => writeln!(
-            w,
-            "{pad}{} {}:{}:{}",
-            "-->".dimmed(),
-            source.name,
-            line,
-            column
-        )?,
+fn add_annotation<'a>(
+    per_source: &mut Vec<(SourceId, Vec<annotate_snippets::Annotation<'a>>)>,
+    id: SourceId,
+    annotation: annotate_snippets::Annotation<'a>,
+) {
+    match per_source.iter_mut().find(|(known, _)| *known == id) {
+        Some((_, annotations)) => annotations.push(annotation),
+        None => per_source.push((id, vec![annotation])),
     }
-    writeln!(w, "{pad} {}", "|".dimmed())?;
-    writeln!(
-        w,
-        "{:>width$} {} {}",
-        line,
-        "|".dimmed(),
-        text,
-        width = pad.len()
-    )?;
+}
 
-    // Clamp the underline to the excerpt's line. Multi-line spans underline
-    // their first line only. Snap to char boundaries so a span offset that
-    // landed inside a multi-byte character cannot panic the slice below.
-    let underline_start =
-        source.floor_char_boundary((span.start as usize).clamp(line_start, line_end));
-    let underline_end =
-        source.ceil_char_boundary((span.end as usize).clamp(underline_start, line_end));
-    let length = source.text[underline_start..underline_end]
-        .chars()
-        .count()
-        .max(1);
-    let indent = " ".repeat(column - 1);
-    let underline = match style {
-        UnderlineStyle::ErrorCaret => "^".repeat(length).red().bold().to_string(),
-        UnderlineStyle::WarningCaret => "^".repeat(length).yellow().bold().to_string(),
-        UnderlineStyle::RelatedDash => "-".repeat(length).blue().to_string(),
-    };
-    writeln!(w, "{pad} {} {}{}", "|".dimmed(), indent, underline)?;
-    Ok(())
+/// A span as a byte range into its source, snapped to character boundaries so
+/// the range the library slices never splits a character. The boundary helpers
+/// clamp to the text length. The range is not clamped to one line, so a
+/// multi-line span underlines every line it covers.
+#[cfg(feature = "color")]
+fn snap_range(source: &Source, span: Span) -> std::ops::Range<usize> {
+    let start = source.floor_char_boundary(span.start as usize);
+    let end = source.ceil_char_boundary(span.end as usize).max(start);
+    start..end
 }
 
 #[cfg(feature = "serde")]
@@ -314,38 +280,63 @@ mod tests {
         (sources, id)
     }
 
+    /// Renders a report to its plain block, so a test's Act is one line.
+    fn plain(sources: &SourceMap, report: &Report) -> String {
+        let mut out = String::new();
+        report.render_plain(sources, &mut out).unwrap();
+        out
+    }
+
+    /// Renders a report to its parsed JSON value, so a test's Act is one line.
+    #[cfg(feature = "serde")]
+    fn json(sources: &SourceMap, report: &Report) -> serde_json::Value {
+        let mut out = String::new();
+        report.render_json(sources, &mut out).unwrap();
+        serde_json::from_str(&out).unwrap()
+    }
+
     #[test]
     fn render_plain_includes_location_and_help() {
+        // Arrange
         let (sources, id) = one_source();
         let mut report = Report::new();
         report
             .error("port out of range")
             .at(Span::new(id, 7, 12))
-            .help("use 1-65535")
+            .help("use 1 to 65535")
             .emit();
 
-        let mut out = String::new();
-        report.render_plain(&sources, &mut out).unwrap();
+        // Act
+        let rendered = plain(&sources, &report);
+
+        // Assert
         assert!(
-            out.contains("test.hcl:1:8: error: port out of range"),
-            "got: {out}"
+            rendered.contains("test.hcl:1:8: error: port out of range"),
+            "got: {rendered}"
         );
-        assert!(out.contains("  help: use 1-65535"), "got: {out}");
+        assert!(
+            rendered.contains("  help: use 1 to 65535"),
+            "got: {rendered}"
+        );
     }
 
     #[test]
     fn render_plain_without_location() {
+        // Arrange
         let sources = SourceMap::new();
         let mut report = Report::new();
         report.error("no ingress files found").emit();
 
-        let mut out = String::new();
-        report.render_plain(&sources, &mut out).unwrap();
-        assert_eq!(out, "error: no ingress files found\n");
+        // Act
+        let rendered = plain(&sources, &report);
+
+        // Assert
+        assert_eq!(rendered, "error: no ingress files found\n");
     }
 
     #[test]
     fn render_plain_includes_related_locations() {
+        // Arrange
         let mut sources = SourceMap::new();
         let a = sources.add("a.hcl", "bind = \"127.0.0.1:80\"\n");
         let b = sources.add("b.hcl", "bind = \"127.0.0.1:80\"\n");
@@ -356,39 +347,45 @@ mod tests {
             .related(Span::new(a, 0, 4), "first declared here")
             .emit();
 
-        let mut out = String::new();
-        report.render_plain(&sources, &mut out).unwrap();
+        // Act
+        let rendered = plain(&sources, &report);
+
+        // Assert
         assert!(
-            out.contains("b.hcl:1:1: error: duplicate bind address"),
-            "got: {out}"
+            rendered.contains("b.hcl:1:1: error: duplicate bind address"),
+            "got: {rendered}"
         );
         assert!(
-            out.contains("  related: a.hcl:1:1: first declared here"),
-            "got: {out}"
+            rendered.contains("  related: a.hcl:1:1: first declared here"),
+            "got: {rendered}"
         );
     }
 
     #[cfg(feature = "color")]
     #[test]
     fn render_pretty_underlines_the_span() {
+        // Arrange
+        // The span covers "99999" on line 1, at columns 8 to 12.
         let (sources, id) = one_source();
         let mut report = Report::new();
-        // Span of "99999" on line 1, columns 8 to 12.
         report
             .error("port out of range")
             .at(Span::new(id, 7, 12))
             .emit();
 
-        let mut out = String::new();
-        report.render_pretty(&sources, &mut out).unwrap();
-        assert!(out.contains("test.hcl:1:8"), "got: {out}");
-        assert!(out.contains("port = 99999"), "got: {out}");
-        assert!(out.contains("^^^^^"), "got: {out}");
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        assert_eq!(
+            rendered,
+            "error: port out of range\n  ╭▸ test.hcl:1:8\n  │\n1 │ port = 99999\n  ╰╴       ━━━━━\n"
+        );
     }
 
     /// Strips ANSI escapes so an assertion can read the rendered text itself.
-    /// The `color` feature wraps the gutter and the carets, and the indent
-    /// between them is plain.
+    /// The `color` feature wraps the gutter and the underline in style codes.
+    #[cfg(feature = "color")]
     fn without_ansi(text: &str) -> String {
         let mut out = String::new();
         let mut chars = text.chars();
@@ -406,41 +403,53 @@ mod tests {
         out
     }
 
+    /// Renders a report to its ANSI-stripped pretty block. Each pretty test
+    /// checks this block against an expected string. The expected strings are
+    /// copied from the `annotate-snippets` output, so a change to that output
+    /// shows as a diff, which is reviewed and copied again when the crate version
+    /// changes.
+    #[cfg(feature = "color")]
+    fn pretty(sources: &SourceMap, report: &Report) -> String {
+        let mut out = String::new();
+        report.render_pretty(sources, &mut out).unwrap();
+        without_ansi(&out)
+    }
+
     #[cfg(feature = "color")]
     #[test]
     fn render_pretty_aligns_the_underline_under_its_span() {
         // Arrange
-        // The span covers "99999" at columns 8 to 12, so the carets sit seven
-        // columns in. Asserting the caret run alone would pass for any indent.
-        let (sources, id) = one_source();
+        // A two-space indent precedes the value, at column 11 on line 2, so the
+        // expected block pins the underline column at a non-trivial offset that
+        // an underline-length check alone would not catch. It is a different
+        // column from the single-span test, so the two expected blocks prove
+        // alignment at two offsets.
+        let mut sources = SourceMap::new();
+        let text = "limits = {\n  mode = \"loud\"\n}\n";
+        let id = sources.add("test.hcl", text);
+        let start = text.find("loud").unwrap() as u32;
         let mut report = Report::new();
         report
-            .error("port out of range")
-            .at(Span::new(id, 7, 12))
+            .error("unknown keyword: loud")
+            .at(Span::new(id, start, start + 4))
             .emit();
-        let mut out = String::new();
 
         // Act
-        report.render_pretty(&sources, &mut out).unwrap();
+        let rendered = pretty(&sources, &report);
 
         // Assert
-        let plain = without_ansi(&out);
-        let underline = plain
-            .lines()
-            .find(|line| line.contains('^'))
-            .expect("a caret line is rendered");
-        let after_gutter = underline
-            .rsplit_once('|')
-            .expect("the caret line carries a gutter")
-            .1;
-        assert_eq!(after_gutter, " ".repeat(8) + "^^^^^");
+        assert_eq!(
+            rendered,
+            "error: unknown keyword: loud\n  ╭▸ test.hcl:2:11\n  │\n2 │   mode = \"loud\"\n  ╰╴          ━━━━\n"
+        );
     }
 
     #[cfg(feature = "color")]
     #[test]
     fn render_pretty_span_inside_multibyte_char_does_not_panic() {
-        // "é" is two bytes. An offset..offset+1 span ending mid-character must
-        // not panic the underline slice.
+        // Arrange
+        // "é" is two bytes, so a span ending one byte into it is not on a char
+        // boundary and must not panic the underline.
         let mut sources = SourceMap::new();
         let id = sources.add("test.hcl", "x = é\n");
         let bad_end = "x = é".find('é').unwrap() as u32 + 1;
@@ -457,14 +466,17 @@ mod tests {
             .at(Span::new(id, bad_end - 1, bad_end))
             .emit();
 
-        let mut out = String::new();
-        report.render_pretty(&sources, &mut out).unwrap();
-        assert!(out.contains("syntax error"), "got: {out}");
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        assert!(rendered.contains("syntax error"), "got: {rendered}");
     }
 
     #[cfg(feature = "color")]
     #[test]
     fn render_pretty_cross_file_related_span() {
+        // Arrange
         let mut sources = SourceMap::new();
         let a = sources.add("a.hcl", "bind = \"127.0.0.1:80\"\n");
         let b = sources.add("b.hcl", "bind = \"127.0.0.1:80\"\n");
@@ -475,19 +487,138 @@ mod tests {
             .related(Span::new(a, 7, 21), "first declared here")
             .emit();
 
-        let mut out = String::new();
-        report.render_pretty(&sources, &mut out).unwrap();
-        assert!(out.contains("b.hcl:1:8"), "got: {out}");
-        assert!(
-            out.contains("a.hcl:1:8 (first declared here)"),
-            "got: {out}"
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        // The primary snippet in b.hcl carries the heavy underline, and the
+        // related snippet in a.hcl carries the light underline with its label.
+        assert_eq!(
+            rendered,
+            "error: duplicate bind address\n  ╭▸ b.hcl:1:8\n  │\n1 │ bind = \"127.0.0.1:80\"\n  │        ━━━━━━━━━━━━━━\n  │\n  ⸬  a.hcl:1:8\n  │\n1 │ bind = \"127.0.0.1:80\"\n  ╰╴       ────────────── first declared here\n"
         );
-        assert!(out.contains("--------------"), "got: {out}");
+    }
+
+    #[cfg(feature = "color")]
+    #[test]
+    fn render_pretty_renders_a_warning() {
+        // Arrange
+        let mut sources = SourceMap::new();
+        let id = sources.add("test.hcl", "host = \"\"\n");
+        let mut report = Report::new();
+        report
+            .warning("host is empty")
+            .at(Span::new(id, 7, 9))
+            .emit();
+
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        assert_eq!(
+            rendered,
+            "warning: host is empty\n  ╭▸ test.hcl:1:8\n  │\n1 │ host = \"\"\n  ╰╴       ━━\n"
+        );
+    }
+
+    #[cfg(feature = "color")]
+    #[test]
+    fn render_pretty_renders_help_after_the_related_annotation() {
+        // Arrange
+        let (sources, id) = one_source();
+        let mut report = Report::new();
+        report
+            .error("port out of range")
+            .at(Span::new(id, 7, 12))
+            .help("use 1 to 65535")
+            .related(Span::new(id, 13, 17), "the name field")
+            .emit();
+
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        // The help line renders after the snippet and its annotations.
+        assert_eq!(
+            rendered,
+            "error: port out of range\n  ╭▸ test.hcl:1:8\n  │\n1 │ port = 99999\n  │        ━━━━━\n2 │ name = \"api\"\n  │ ──── the name field\n  │\n  ╰ help: use 1 to 65535\n"
+        );
+    }
+
+    #[cfg(feature = "color")]
+    #[test]
+    fn render_pretty_underlines_a_multiline_span() {
+        // Arrange
+        // The span runs from the start of line 1 into line 2, so the underline
+        // covers both lines rather than the first alone.
+        let mut sources = SourceMap::new();
+        let id = sources.add("test.hcl", "a = 1\nb = 2\n");
+        let mut report = Report::new();
+        report
+            .error("spans two lines")
+            .at(Span::new(id, 0, 11))
+            .emit();
+
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        assert_eq!(
+            rendered,
+            "error: spans two lines\n  ╭▸ test.hcl:1:1\n  │\n1 │ ┏ a = 1\n2 │ ┃ b = 2\n  ╰╴┗━━━━━┛\n"
+        );
+    }
+
+    #[cfg(feature = "color")]
+    #[test]
+    fn render_pretty_renders_a_spanless_issue_with_related_spans() {
+        // Arrange
+        // The issue has no primary span, so its related snippet renders under the
+        // title rather than the title alone.
+        let mut sources = SourceMap::new();
+        let a = sources.add("a.hcl", "bind = \"127.0.0.1:80\"\n");
+        let mut report = Report::new();
+        report
+            .error("no ingress files found")
+            .related(Span::new(a, 7, 21), "first declared here")
+            .emit();
+
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        assert_eq!(
+            rendered,
+            "error: no ingress files found\n  ╭▸ a.hcl:1:8\n  │\n1 │ bind = \"127.0.0.1:80\"\n  ╰╴       ────────────── first declared here\n"
+        );
+    }
+
+    #[cfg(feature = "color")]
+    #[test]
+    fn render_pretty_renders_a_zero_width_span_as_one_caret() {
+        // Arrange
+        // A zero-width span marks a point, so it underlines one column.
+        let (sources, id) = one_source();
+        let mut report = Report::new();
+        report
+            .error("expected a value here")
+            .at(Span::new(id, 7, 7))
+            .emit();
+
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        assert_eq!(
+            rendered,
+            "error: expected a value here\n  ╭▸ test.hcl:1:8\n  │\n1 │ port = 99999\n  ╰╴       ━\n"
+        );
     }
 
     #[cfg(feature = "color")]
     #[test]
     fn render_pretty_groups_by_source_first_appearance() {
+        // Arrange
         let mut sources = SourceMap::new();
         let a = sources.add("a.hcl", "x = 1\n");
         let b = sources.add("b.hcl", "y = 2\n");
@@ -497,31 +628,38 @@ mod tests {
         report.error("second in a").at(Span::new(a, 4, 5)).emit();
         report.error("no location").emit();
 
-        let mut out = String::new();
-        report.render_pretty(&sources, &mut out).unwrap();
-        let first_a = out.find("first in a").unwrap();
-        let second_a = out.find("second in a").unwrap();
-        let only_b = out.find("only in b").unwrap();
-        let unlocated = out.find("no location").unwrap();
-        assert!(first_a < second_a, "a-issues stay adjacent: {out}");
-        assert!(second_a < only_b, "a-group precedes b-group: {out}");
-        assert!(only_b < unlocated, "location-less issues come last: {out}");
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        let first_a = rendered.find("first in a").unwrap();
+        let second_a = rendered.find("second in a").unwrap();
+        let only_b = rendered.find("only in b").unwrap();
+        let unlocated = rendered.find("no location").unwrap();
+        assert!(first_a < second_a, "a-issues stay adjacent: {rendered}");
+        assert!(second_a < only_b, "a-group precedes b-group: {rendered}");
+        assert!(
+            only_b < unlocated,
+            "location-less issues come last: {rendered}"
+        );
     }
 
     #[cfg(feature = "serde")]
     #[test]
     fn render_json_resolves_locations() {
+        // Arrange
         let (sources, id) = one_source();
         let mut report = Report::new();
         report
             .error("port out of range")
             .at(Span::new(id, 7, 12))
-            .help("use 1-65535")
+            .help("use 1 to 65535")
             .emit();
 
-        let mut out = String::new();
-        report.render_json(&sources, &mut out).unwrap();
-        let value: serde_json::Value = serde_json::from_str(&out).unwrap();
+        // Act
+        let value = json(&sources, &report);
+
+        // Assert
         let issue = &value["issues"][0];
         assert_eq!(issue["severity"], "error");
         assert_eq!(issue["message"], "port out of range");
@@ -529,6 +667,6 @@ mod tests {
         assert_eq!(issue["location"]["line"], 1);
         assert_eq!(issue["location"]["column"], 8);
         assert_eq!(issue["location"]["start"], 7);
-        assert_eq!(issue["help"], "use 1-65535");
+        assert_eq!(issue["help"], "use 1 to 65535");
     }
 }
