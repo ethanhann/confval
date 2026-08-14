@@ -182,7 +182,7 @@ fn classify_plain(ty: &Type, inner: &Type, optional: bool) -> syn::Result<FieldS
 fn leaf_type(located_inner: &Type, ty: &Type) -> syn::Result<Leaf> {
     match last_segment(located_inner).as_deref() {
         Some("String") => Ok(Leaf::String),
-        Some("i64") | Some("HclInt") => Ok(Leaf::Int),
+        Some("i64") => Ok(Leaf::Int),
         Some("f64") => Ok(Leaf::Float),
         Some("bool") => Ok(Leaf::Bool),
         Some("PathBuf") => Ok(Leaf::PathBuf),
