@@ -103,6 +103,24 @@ max_body_mb = 16
 # mode = "enforce"
 `;
 
+const SPEC_CODE = `#[derive(confval::Spec)]
+struct ServerSpec {
+    port: Located<i64>,
+    mode: Located<String>,
+}
+`;
+
+const CONFIG_CODE = `#[derive(confval::Config)]
+#[confval(lower_from = ServerSpec)]
+struct ServerConfig {
+    #[confval(lower(from = port, with = narrow::i64_to_u16))]
+    port: u16,
+
+    #[confval(lower(from = mode, with = narrow::keyword::<Mode>))]
+    mode: Mode,
+}
+`;
+
 // Flow left to right on wide screens, top to bottom on medium and smaller ones.
 function useWideViewport(): boolean {
     const [wide, setWide] = useState(false);
@@ -191,6 +209,31 @@ export default function HomepageFeatures(): ReactNode {
                         alt="Example of pretty-formatted validation diagnostics for invalid TOML configuration"
                     />
                 </div>
+            </section>
+
+            <section className={styles.features}>
+                <div className={styles.featureSectionContent}>
+                    <h2 className={styles.featureSectionHeader}>Config becomes real Rust types</h2>
+                    <p className={styles.lead}>
+                        A spec holds the widest form of each value, so parsing stays permissive.
+                        Lowering then narrows every field to its exact runtime type, and a value
+                        that does not fit is reported at its source span rather than silently
+                        truncated.
+                    </p>
+                </div>
+                <div className={styles.lowering}>
+                    <div>
+                        <h3 className={styles.loweringColumnLabel}>Spec</h3>
+                        <CodeBlock language="rust">{SPEC_CODE}</CodeBlock>
+                    </div>
+                    <div>
+                        <h3 className={styles.loweringColumnLabel}>Config</h3>
+                        <CodeBlock language="rust">{CONFIG_CODE}</CodeBlock>
+                    </div>
+                </div>
+                <p className={styles.caption}>
+                    <strong>port</strong> narrows an i64 to a u16, and <strong>mode</strong> lowers a validated string into an enum.
+                </p>
             </section>
         </>
     );

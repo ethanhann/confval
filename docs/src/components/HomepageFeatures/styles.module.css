@@ -1,6 +1,7 @@
 .features {
     padding: 3rem 1rem;
     width: 100%;
+    background-color: var(--ifm-background-surface-color);
 }
 
 .lead {
@@ -96,4 +97,27 @@
     max-width: 100%;
     height: auto;
     margin: 0 auto;
+}
+
+/* The spec and config sit side by side on wide screens, so the narrowing reads
+ * as one transformation, and stack on narrow ones. */
+.lowering {
+    width: 100%;
+    max-width: min(64rem, 92vw);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.loweringColumnLabel {
+    text-align: center;
+    margin: 0 0 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .lowering {
+        grid-template-columns: 1fr;
+    }
 }
