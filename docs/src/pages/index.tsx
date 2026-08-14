@@ -20,37 +20,46 @@ function HomepageHeader() {
     ];
     return (
         <header className={clsx('hero hero--primary', styles.heroBanner)}>
-            <div className="container">
-                <div className={styles.heroTitleRow}>
+            <div className={clsx('container', styles.heroInner)}>
+                <div className={styles.heroContent}>
+                    <div className={styles.heroTitleRow}>
+                        <img
+                            src={useBaseUrl('/img/logo.svg')}
+                            alt="confval logo"
+                            className={styles.heroLogo}
+                        />
+                        <Heading as="h1" className={clsx('hero__title', styles.heroTitle)}>
+                            {siteConfig.title}
+                        </Heading>
+                    </div>
+                    <div className={styles.badges}>
+                        {badges.map((badge) => (
+                            <a key={badge.alt} href={workflow}>
+                                <img src={badge.src} alt={badge.alt}/>
+                            </a>
+                        ))}
+                    </div>
+                    <p className="hero__subtitle">{siteConfig.tagline}</p>
+                    <p className={styles.heroSummary}>
+                        Define a configuration as Rust types, parse a file into them,
+                        validate the values, and lower them into the types your
+                        program runs on. Errors report the line and column they came
+                        from.
+                    </p>
+                    <div className={styles.buttons}>
+                        <Link
+                            className="button button--primary button--lg"
+                            to="/docs/getting-started">
+                            Get started
+                        </Link>
+                    </div>
+                </div>
+                <div className={styles.heroMedia}>
                     <img
-                        src={useBaseUrl('/img/logo.svg')}
-                        alt="confval logo"
-                        className={styles.heroLogo}
+                        src={useBaseUrl('/img/lsp-demo.gif')}
+                        alt="The confval language server showing autocomplete, hover documentation, and live diagnostics in a configuration file"
+                        className={styles.heroDemo}
                     />
-                    <Heading as="h1" className={clsx('hero__title', styles.heroTitle)}>
-                        {siteConfig.title}
-                    </Heading>
-                </div>
-                <div className={styles.badges}>
-                    {badges.map((badge) => (
-                        <a key={badge.alt} href={workflow}>
-                            <img src={badge.src} alt={badge.alt}/>
-                        </a>
-                    ))}
-                </div>
-                <p className="hero__subtitle">{siteConfig.tagline}</p>
-                <p className={styles.heroSummary}>
-                    Define a configuration as Rust types, parse a file into them,
-                    validate the values, and lower them into the types your
-                    program runs on. Errors report the line and column they came
-                    from.
-                </p>
-                <div className={styles.buttons}>
-                    <Link
-                        className="button button--primary button--lg"
-                        to="/docs/getting-started">
-                        Get started
-                    </Link>
                 </div>
             </div>
         </header>

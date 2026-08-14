@@ -56,3 +56,55 @@
   align-items: center;
   justify-content: center;
 }
+
+/* Stacked and centered on narrow screens, matching the original hero. */
+.heroInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.heroMedia {
+  width: 100%;
+  max-width: 40rem;
+}
+
+.heroDemo {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+/* Two columns on wide screens: the content on the left, the demo on the right. */
+@media screen and (min-width: 997px) {
+  .heroInner {
+    flex-direction: row;
+    align-items: center;
+    gap: 3rem;
+    text-align: left;
+  }
+
+  .heroContent {
+    flex: 1 1 0;
+  }
+
+  .heroMedia {
+    flex: 1 1 0;
+    max-width: none;
+  }
+
+  .heroContent .heroTitleRow,
+  .heroContent .badges,
+  .heroContent .buttons {
+    justify-content: flex-start;
+  }
+
+  .heroSummary {
+    margin-left: 0;
+    margin-right: 0;
+    max-width: none;
+  }
+}

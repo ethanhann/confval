@@ -163,8 +163,7 @@ export default function HomepageFeatures(): ReactNode {
             <section className={styles.features}>
                 <h2 className={styles.featureSectionHeader}>Architecture</h2>
                 <p className={styles.lead}>
-                    confval turns a configuration file into runtime types in four stages:
-                    parse, validate, gate, and lower.
+                    confval turns a configuration file into runtime types using a compiler-like architecture.
                 </p>
                 <div className={clsx(styles.diagram, wide ? styles.wide : styles.tall)}>
                     <Mermaid value={wide ? PIPELINE_WIDE : PIPELINE_TALL}/>
@@ -301,7 +300,7 @@ export default function HomepageFeatures(): ReactNode {
                     </div>
                 </div>
                 <p className={styles.caption}>
-                    <code>{'emit_json(&parse_hcl_fields(...)?)'}</code>
+                    e.g., <code>{'emit_json(&parse_hcl_fields(...)?)'}</code>
                 </p>
             </section>
         </>
