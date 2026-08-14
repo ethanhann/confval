@@ -71,12 +71,26 @@
 
 .featureSectionHeader {
     text-align: center;
+    margin-bottom: 0.75rem;
 }
 
 .featureSectionContent {
     display: block;
     width: 100%;
     max-width: min(48rem, 92vw);
+    margin: 0 auto;
+}
+
+.stepLabel {
+    text-align: center;
+    margin: 2.5rem 0 0.75rem;
+}
+
+/* Cap the screenshot to the content column and center it, so a wide capture
+ * never overflows the section. */
+.featureSectionContent img {
+    display: block;
+    max-width: 100%;
     height: auto;
     margin: 0 auto;
 }

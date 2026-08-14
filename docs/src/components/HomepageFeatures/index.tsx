@@ -73,16 +73,16 @@ export default function HomepageFeatures(): ReactNode {
 
             <section className={clsx(styles.features, styles.screenshotSection)}>
                 <div className={styles.featureSectionContent}>
-                    <h1 className={styles.featureSectionHeader}>Diagnostics</h1>
+                    <h2 className={styles.featureSectionHeader}>Diagnostics</h2>
                     <p className={styles.lead}>
                         confval produces operator-friendly, accumulated validation diagnostics in a variety of formats
                         (i.e., pretty, plain, and JSON).
                     </p>
 
-                    <h2>This invalid TOML...</h2>
+                    <h3 className={styles.stepLabel}>This invalid TOML...</h3>
                     <CodeBlock language="toml">{INVALID_TOML}</CodeBlock>
 
-                    <h2>Produces these diagnostics...</h2>
+                    <h3 className={styles.stepLabel}>Produces these diagnostics...</h3>
                     <img
                         src={useBaseUrl('/img/invalid_toml_pretty_output_example.png')}
                         alt="Example of pretty-formatted validation diagnostics for invalid TOML configuration"
