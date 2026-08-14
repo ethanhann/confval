@@ -80,9 +80,7 @@ pub(crate) fn classify(field: &Field, nested: bool, map: bool) -> syn::Result<Fi
             ));
         }
         let string_key = two_generic_args(inner, "BTreeMap").is_some_and(|(key, value)| {
-            last_segment(key).as_deref() == Some("String")
-                && unwrap_generic(value, "Located")
-                    .is_some_and(|inner| last_segment(inner).as_deref() == Some("String"))
+            last_segment(key).as_deref() == Some("String") && is_located_string(value)
         });
         if !string_key {
             return Err(syn::Error::new(
@@ -129,9 +127,7 @@ pub(crate) fn classify(field: &Field, nested: bool, map: bool) -> syn::Result<Fi
     // wrapper is either a string list or a single leaf scalar.
     if let Some(located_inner) = unwrap_generic(inner, "Located") {
         if let Some(vec_inner) = unwrap_generic(located_inner, "Vec") {
-            if unwrap_generic(vec_inner, "Located")
-                .is_some_and(|element| last_segment(element).as_deref() == Some("String"))
-            {
+            if is_located_string(vec_inner) {
                 if optional {
                     return Ok(FieldShape::OptionalWrappedStringList);
                 }
@@ -166,8 +162,7 @@ pub(crate) fn classify(field: &Field, nested: bool, map: bool) -> syn::Result<Fi
     // written as a bare `Vec<Located<String>>`.
     if let Some(vec_inner) = unwrap_generic(inner, "Vec")
         && !optional
-        && unwrap_generic(vec_inner, "Located")
-            .is_some_and(|element| last_segment(element).as_deref() == Some("String"))
+        && is_located_string(vec_inner)
     {
         return Ok(FieldShape::BareStringList);
     }
@@ -177,4 +172,12 @@ pub(crate) fn classify(field: &Field, nested: bool, map: bool) -> syn::Result<Fi
         "unsupported Spec field type; expected Located<T>, Option<Located<T>>, \
          Vec<Located<String>>, or a #[confval(nested)] structure",
     ))
+}
+
+/// Internal helper function to determine if a type is `Located<String>`.
+///
+/// Returns `true` if `ty` is a `Located` wrapper around `String`, `false` otherwise.
+fn is_located_string(ty: &Type) -> bool {
+    unwrap_generic(ty, "Located")
+        .is_some_and(|element| last_segment(element).as_deref() == Some("String"))
 }
