@@ -319,8 +319,7 @@ fn zero_value(leaf: &Leaf) -> TokenStream2 {
 /// `located` names the `Located<T>` to read, either `self.<field>` for a
 /// required leaf or the `Some` binding for an optional one. `PathBuf` has no
 /// scalar of its own, so it emits as a string through `to_string_lossy`, the
-/// one lossy leaf. An `HclInt` field is an `i64` alias, so it emits `Scalar::Int`
-/// with no conversion.
+/// one lossy leaf.
 pub(super) fn leaf_scalar(leaf: &Leaf, located: &TokenStream2) -> TokenStream2 {
     match leaf {
         Leaf::String => quote! { ::confval::format::Scalar::String(#located.value.clone()) },

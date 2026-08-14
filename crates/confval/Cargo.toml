@@ -162,5 +162,9 @@ name = "handwritten_parity"
 required-features = ["derive", "toml"]
 
 [[test]]
+name = "narrow_lowering"
+required-features = ["derive", "toml"]
+
+[[test]]
 name = "map_field"
 required-features = ["derive", "hcl", "toml", "kdl", "json", "yaml"]

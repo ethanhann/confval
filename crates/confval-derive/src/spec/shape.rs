@@ -69,69 +69,80 @@ pub(crate) fn classify(field: &Field, nested: bool, map: bool) -> syn::Result<Fi
         None => (false, ty),
     };
 
-    // A `#[confval(map)]` field is a bare `BTreeMap<String, Located<String>>`.
-    // Only the bare form ships, so an `Option` wrapper is rejected.
+    // Each attribute flag selects a shape family. With neither flag the field is
+    // a plain leaf scalar or string list.
     if map {
+        classify_map(ty, inner, optional)
+    } else if nested {
+        classify_nested(ty, inner, optional)
+    } else {
+        classify_plain(ty, inner, optional)
+    }
+}
+
+/// Classifies a `#[confval(map)]` field, a bare `BTreeMap<String,
+/// Located<String>>`. Only the bare form ships, so an `Option` wrapper is
+/// rejected.
+fn classify_map(ty: &Type, inner: &Type, optional: bool) -> syn::Result<FieldShape> {
+    if optional {
+        return Err(syn::Error::new(
+            ty.span(),
+            "optional maps are not supported; use a bare \
+             BTreeMap<String, Located<String>>",
+        ));
+    }
+    let string_key = two_generic_args(inner, "BTreeMap").is_some_and(|(key, value)| {
+        last_segment(key).as_deref() == Some("String") && is_located_string(value)
+    });
+    if !string_key {
+        return Err(syn::Error::new(
+            ty.span(),
+            "map fields must be BTreeMap<String, Located<String>>",
+        ));
+    }
+    Ok(FieldShape::Map)
+}
+
+/// Classifies a `#[confval(nested)]` field, a sub-struct written as either a
+/// list of them (`Vec<Located<S>>`) or a single one (`Located<S>` or
+/// `Option<Located<S>>`).
+fn classify_nested(ty: &Type, inner: &Type, optional: bool) -> syn::Result<FieldShape> {
+    if let Some(vec_inner) = unwrap_generic(inner, "Vec") {
         if optional {
             return Err(syn::Error::new(
                 ty.span(),
-                "optional maps are not supported; use a bare \
-                 BTreeMap<String, Located<String>>",
+                "nested lists are zero-or-more already; drop the Option",
             ));
         }
-        let string_key = two_generic_args(inner, "BTreeMap").is_some_and(|(key, value)| {
-            last_segment(key).as_deref() == Some("String")
-                && unwrap_generic(value, "Located")
-                    .is_some_and(|inner| last_segment(inner).as_deref() == Some("String"))
-        });
-        if !string_key {
-            return Err(syn::Error::new(
-                ty.span(),
-                "map fields must be BTreeMap<String, Located<String>>",
-            ));
-        }
-        return Ok(FieldShape::Map);
-    }
-
-    // A `#[confval(nested)]` field must be a sub-struct: either a list of them
-    // (`Vec<Located<S>>`) or a single one (`Located<S>`).
-    if nested {
-        if let Some(vec_inner) = unwrap_generic(inner, "Vec") {
-            if optional {
-                return Err(syn::Error::new(
-                    ty.span(),
-                    "nested lists are zero-or-more already; drop the Option",
-                ));
-            }
-            if let Some(spec_ty) = unwrap_generic(vec_inner, "Located") {
-                return Ok(FieldShape::NestedList {
-                    spec_ty: Box::new(spec_ty.clone()),
-                });
-            }
-            return Err(syn::Error::new(
-                ty.span(),
-                "nested list fields must be Vec<Located<S>>",
-            ));
-        }
-        if let Some(spec_ty) = unwrap_generic(inner, "Located") {
-            return Ok(FieldShape::Nested {
-                optional,
+        if let Some(spec_ty) = unwrap_generic(vec_inner, "Located") {
+            return Ok(FieldShape::NestedList {
                 spec_ty: Box::new(spec_ty.clone()),
             });
         }
         return Err(syn::Error::new(
             ty.span(),
-            "nested fields must be Located<S>, Option<Located<S>>, or Vec<Located<S>>",
+            "nested list fields must be Vec<Located<S>>",
         ));
     }
+    if let Some(spec_ty) = unwrap_generic(inner, "Located") {
+        return Ok(FieldShape::Nested {
+            optional,
+            spec_ty: Box::new(spec_ty.clone()),
+        });
+    }
+    Err(syn::Error::new(
+        ty.span(),
+        "nested fields must be Located<S>, Option<Located<S>>, or Vec<Located<S>>",
+    ))
+}
 
-    // A plain (non-nested) field is normally wrapped in `Located`. Inside that
-    // wrapper is either a string list or a single leaf scalar.
+/// Classifies a plain field, one with neither flag. It is normally wrapped in
+/// `Located`, holding either a string list or a single leaf scalar. The one
+/// exception is a required string list, a bare `Vec<Located<String>>`.
+fn classify_plain(ty: &Type, inner: &Type, optional: bool) -> syn::Result<FieldShape> {
     if let Some(located_inner) = unwrap_generic(inner, "Located") {
         if let Some(vec_inner) = unwrap_generic(located_inner, "Vec") {
-            if unwrap_generic(vec_inner, "Located")
-                .is_some_and(|element| last_segment(element).as_deref() == Some("String"))
-            {
+            if is_located_string(vec_inner) {
                 if optional {
                     return Ok(FieldShape::OptionalWrappedStringList);
                 }
@@ -145,20 +156,7 @@ pub(crate) fn classify(field: &Field, nested: bool, map: bool) -> syn::Result<Fi
                 "list fields must be Vec<Located<String>>",
             ));
         }
-        let leaf = match last_segment(located_inner).as_deref() {
-            Some("String") => Leaf::String,
-            Some("i64") | Some("HclInt") => Leaf::Int,
-            Some("f64") => Leaf::Float,
-            Some("bool") => Leaf::Bool,
-            Some("PathBuf") => Leaf::PathBuf,
-            _ => {
-                return Err(syn::Error::new(
-                    ty.span(),
-                    "unsupported leaf type; expected String, i64, f64, bool, or PathBuf \
-                     inside Located, or mark the field #[confval(nested)]",
-                ));
-            }
-        };
+        let leaf = leaf_type(located_inner, ty)?;
         return Ok(FieldShape::Leaf { leaf, optional });
     }
 
@@ -166,8 +164,7 @@ pub(crate) fn classify(field: &Field, nested: bool, map: bool) -> syn::Result<Fi
     // written as a bare `Vec<Located<String>>`.
     if let Some(vec_inner) = unwrap_generic(inner, "Vec")
         && !optional
-        && unwrap_generic(vec_inner, "Located")
-            .is_some_and(|element| last_segment(element).as_deref() == Some("String"))
+        && is_located_string(vec_inner)
     {
         return Ok(FieldShape::BareStringList);
     }
@@ -177,4 +174,30 @@ pub(crate) fn classify(field: &Field, nested: bool, map: bool) -> syn::Result<Fi
         "unsupported Spec field type; expected Located<T>, Option<Located<T>>, \
          Vec<Located<String>>, or a #[confval(nested)] structure",
     ))
+}
+
+/// The leaf scalar kind named by the type inside a `Located` wrapper, or an
+/// error naming the supported scalars. `ty` carries the whole field type, so the
+/// error points where the other field-type errors do.
+fn leaf_type(located_inner: &Type, ty: &Type) -> syn::Result<Leaf> {
+    match last_segment(located_inner).as_deref() {
+        Some("String") => Ok(Leaf::String),
+        Some("i64") => Ok(Leaf::Int),
+        Some("f64") => Ok(Leaf::Float),
+        Some("bool") => Ok(Leaf::Bool),
+        Some("PathBuf") => Ok(Leaf::PathBuf),
+        _ => Err(syn::Error::new(
+            ty.span(),
+            "unsupported leaf type; expected String, i64, f64, bool, or PathBuf \
+             inside Located, or mark the field #[confval(nested)]",
+        )),
+    }
+}
+
+/// Internal helper function to determine if a type is `Located<String>`.
+///
+/// Returns `true` if `ty` is a `Located` wrapper around `String`, `false` otherwise.
+fn is_located_string(ty: &Type) -> bool {
+    unwrap_generic(ty, "Located")
+        .is_some_and(|element| last_segment(element).as_deref() == Some("String"))
 }

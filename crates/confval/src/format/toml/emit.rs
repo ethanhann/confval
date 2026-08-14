@@ -7,7 +7,8 @@
 use super::commented::{child_header, commented_block_text, commented_value_text};
 use crate::format::EmitError;
 use crate::format::emit::{
-    child_path, comment_lines, first_conflicting_name, repeated_name, values_then_blocks,
+    blocks_named, child_path, comment_lines, first_conflicting_name, repeated_name,
+    values_then_blocks,
 };
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 use std::collections::HashSet;
@@ -123,13 +124,7 @@ fn emit_table(
                 if !grouped.insert(field.name.as_str()) {
                     continue;
                 }
-                let blocks: Vec<&Fields> = fields
-                    .iter()
-                    .filter_map(|other| match &other.kind {
-                        FieldKind::Block(inner) if other.name == field.name => Some(inner),
-                        _ => None,
-                    })
-                    .collect();
+                let blocks = blocks_named(fields, &field.name);
                 // Only one comment can render above the group, so the group
                 // takes the first doc any element carries.
                 let doc = fields

@@ -97,3 +97,54 @@ fn float_repr(float: f64) -> String {
         format!("{float:?}")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_plain_name_rejects_an_empty_name() {
+        // Act
+        let plain = is_plain_name("");
+
+        // Assert
+        assert!(!plain);
+    }
+
+    #[test]
+    fn scalar_entry_quotes_an_unparsed_raw_value() {
+        // Act
+        let entry = scalar_entry(&Scalar::Unparsed("raw".to_string()));
+
+        // Assert
+        assert_eq!(entry.value(), &KdlValue::String("raw".to_string()));
+        assert_eq!(entry.to_string(), " \"raw\"");
+    }
+
+    #[test]
+    fn quoted_escapes_carriage_return() {
+        // Act
+        let text = quoted("a\rb");
+
+        // Assert
+        assert_eq!(text, "\"a\\rb\"");
+    }
+
+    #[test]
+    fn quoted_escapes_backspace() {
+        // Act
+        let text = quoted("a\u{08}b");
+
+        // Assert
+        assert_eq!(text, "\"a\\bb\"");
+    }
+
+    #[test]
+    fn quoted_escapes_form_feed() {
+        // Act
+        let text = quoted("a\u{0C}b");
+
+        // Assert
+        assert_eq!(text, "\"a\\fb\"");
+    }
+}

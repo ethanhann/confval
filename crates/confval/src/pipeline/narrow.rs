@@ -325,6 +325,137 @@ mod tests {
     }
 
     #[test]
+    fn u16_narrows_at_its_maximum() {
+        // Arrange
+        let mut report = Report::new();
+        let value = Located::detached(65_535_i64);
+
+        // Act
+        let narrowed = i64_to_u16(&value, &mut report);
+
+        // Assert
+        assert_eq!(narrowed, Some(65_535_u16));
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn u16_fails_one_past_its_maximum() {
+        // Arrange
+        let mut report = Report::new();
+        let value = Located::detached(65_536_i64);
+
+        // Act
+        let narrowed = i64_to_u16(&value, &mut report);
+
+        // Assert
+        assert_eq!(narrowed, None);
+        assert_eq!(
+            report.issues()[0].message,
+            "value 65536 is out of range for u16"
+        );
+    }
+
+    #[test]
+    fn u16_narrows_zero() {
+        // Arrange
+        let mut report = Report::new();
+        let value = Located::detached(0_i64);
+
+        // Act
+        let narrowed = i64_to_u16(&value, &mut report);
+
+        // Assert
+        assert_eq!(narrowed, Some(0_u16));
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn u16_fails_at_negative_one() {
+        // Arrange
+        let mut report = Report::new();
+        let value = Located::detached(-1_i64);
+
+        // Act
+        let narrowed = i64_to_u16(&value, &mut report);
+
+        // Assert
+        assert_eq!(narrowed, None);
+        assert!(report.has_errors());
+    }
+
+    #[test]
+    fn i64_max_fits_u64() {
+        // Arrange
+        let mut report = Report::new();
+        let value = Located::detached(i64::MAX);
+
+        // Act
+        let narrowed = i64_to_u64(&value, &mut report);
+
+        // Assert
+        assert_eq!(narrowed, Some(i64::MAX as u64));
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn i64_min_fails_u16() {
+        // Arrange
+        let mut report = Report::new();
+        let value = Located::detached(i64::MIN);
+
+        // Act
+        let narrowed = i64_to_u16(&value, &mut report);
+
+        // Assert
+        assert_eq!(narrowed, None);
+        assert!(report.has_errors());
+    }
+
+    #[test]
+    fn a_value_past_u16_still_fits_u32() {
+        // Arrange
+        // 70_000 overflows u16 but fits u32, so this pins that the u32 helper
+        // targets u32 rather than a narrower width.
+        let mut report = Report::new();
+        let value = Located::detached(70_000_i64);
+
+        // Act
+        let narrowed = i64_to_u32(&value, &mut report);
+
+        // Assert
+        assert_eq!(narrowed, Some(70_000_u32));
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn usize_narrows_a_non_negative_value() {
+        // Arrange
+        let mut report = Report::new();
+        let value = Located::detached(42_i64);
+
+        // Act
+        let narrowed = i64_to_usize(&value, &mut report);
+
+        // Assert
+        assert_eq!(narrowed, Some(42_usize));
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn usize_fails_on_a_negative_value() {
+        // Arrange
+        let mut report = Report::new();
+        let value = Located::detached(-1_i64);
+
+        // Act
+        let narrowed = i64_to_usize(&value, &mut report);
+
+        // Assert
+        assert_eq!(narrowed, None);
+        assert!(report.has_errors());
+    }
+
+    #[test]
     fn optional_absent_is_not_a_failure() {
         let mut report = Report::new();
 
