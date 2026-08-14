@@ -280,38 +280,63 @@ mod tests {
         (sources, id)
     }
 
+    /// Renders a report to its plain block, so a test's Act is one line.
+    fn plain(sources: &SourceMap, report: &Report) -> String {
+        let mut out = String::new();
+        report.render_plain(sources, &mut out).unwrap();
+        out
+    }
+
+    /// Renders a report to its parsed JSON value, so a test's Act is one line.
+    #[cfg(feature = "serde")]
+    fn json(sources: &SourceMap, report: &Report) -> serde_json::Value {
+        let mut out = String::new();
+        report.render_json(sources, &mut out).unwrap();
+        serde_json::from_str(&out).unwrap()
+    }
+
     #[test]
     fn render_plain_includes_location_and_help() {
+        // Arrange
         let (sources, id) = one_source();
         let mut report = Report::new();
         report
             .error("port out of range")
             .at(Span::new(id, 7, 12))
-            .help("use 1-65535")
+            .help("use 1 to 65535")
             .emit();
 
-        let mut out = String::new();
-        report.render_plain(&sources, &mut out).unwrap();
+        // Act
+        let rendered = plain(&sources, &report);
+
+        // Assert
         assert!(
-            out.contains("test.hcl:1:8: error: port out of range"),
-            "got: {out}"
+            rendered.contains("test.hcl:1:8: error: port out of range"),
+            "got: {rendered}"
         );
-        assert!(out.contains("  help: use 1-65535"), "got: {out}");
+        assert!(
+            rendered.contains("  help: use 1 to 65535"),
+            "got: {rendered}"
+        );
     }
 
     #[test]
     fn render_plain_without_location() {
+        // Arrange
         let sources = SourceMap::new();
         let mut report = Report::new();
         report.error("no ingress files found").emit();
 
-        let mut out = String::new();
-        report.render_plain(&sources, &mut out).unwrap();
-        assert_eq!(out, "error: no ingress files found\n");
+        // Act
+        let rendered = plain(&sources, &report);
+
+        // Assert
+        assert_eq!(rendered, "error: no ingress files found\n");
     }
 
     #[test]
     fn render_plain_includes_related_locations() {
+        // Arrange
         let mut sources = SourceMap::new();
         let a = sources.add("a.hcl", "bind = \"127.0.0.1:80\"\n");
         let b = sources.add("b.hcl", "bind = \"127.0.0.1:80\"\n");
@@ -322,15 +347,17 @@ mod tests {
             .related(Span::new(a, 0, 4), "first declared here")
             .emit();
 
-        let mut out = String::new();
-        report.render_plain(&sources, &mut out).unwrap();
+        // Act
+        let rendered = plain(&sources, &report);
+
+        // Assert
         assert!(
-            out.contains("b.hcl:1:1: error: duplicate bind address"),
-            "got: {out}"
+            rendered.contains("b.hcl:1:1: error: duplicate bind address"),
+            "got: {rendered}"
         );
         assert!(
-            out.contains("  related: a.hcl:1:1: first declared here"),
-            "got: {out}"
+            rendered.contains("  related: a.hcl:1:1: first declared here"),
+            "got: {rendered}"
         );
     }
 
@@ -376,10 +403,11 @@ mod tests {
         out
     }
 
-    /// Renders a report to its ANSI-stripped pretty block, the golden the pretty
-    /// tests assert against. The blocks are captured from `annotate-snippets`
-    /// output, so a diff in one is a rendered-output change to review and
-    /// recapture when the crate version moves.
+    /// Renders a report to its ANSI-stripped pretty block. Each pretty test
+    /// checks this block against an expected string. The expected strings are
+    /// copied from the `annotate-snippets` output, so a change to that output
+    /// shows as a diff, which is reviewed and copied again when the crate version
+    /// changes.
     #[cfg(feature = "color")]
     fn pretty(sources: &SourceMap, report: &Report) -> String {
         let mut out = String::new();
@@ -391,10 +419,11 @@ mod tests {
     #[test]
     fn render_pretty_aligns_the_underline_under_its_span() {
         // Arrange
-        // The value sits under a two-space indent, at column 11 on line 2, so the
-        // golden guards the underline column at a non-trivial offset that a
-        // caret-run check alone would not catch. It is a different column from the
-        // single-span test, so the two goldens prove alignment at two offsets.
+        // A two-space indent precedes the value, at column 11 on line 2, so the
+        // expected block pins the underline column at a non-trivial offset that
+        // an underline-length check alone would not catch. It is a different
+        // column from the single-span test, so the two expected blocks prove
+        // alignment at two offsets.
         let mut sources = SourceMap::new();
         let text = "limits = {\n  mode = \"loud\"\n}\n";
         let id = sources.add("test.hcl", text);
@@ -618,17 +647,19 @@ mod tests {
     #[cfg(feature = "serde")]
     #[test]
     fn render_json_resolves_locations() {
+        // Arrange
         let (sources, id) = one_source();
         let mut report = Report::new();
         report
             .error("port out of range")
             .at(Span::new(id, 7, 12))
-            .help("use 1-65535")
+            .help("use 1 to 65535")
             .emit();
 
-        let mut out = String::new();
-        report.render_json(&sources, &mut out).unwrap();
-        let value: serde_json::Value = serde_json::from_str(&out).unwrap();
+        // Act
+        let value = json(&sources, &report);
+
+        // Assert
         let issue = &value["issues"][0];
         assert_eq!(issue["severity"], "error");
         assert_eq!(issue["message"], "port out of range");
@@ -636,6 +667,6 @@ mod tests {
         assert_eq!(issue["location"]["line"], 1);
         assert_eq!(issue["location"]["column"], 8);
         assert_eq!(issue["location"]["start"], 7);
-        assert_eq!(issue["help"], "use 1-65535");
+        assert_eq!(issue["help"], "use 1 to 65535");
     }
 }
