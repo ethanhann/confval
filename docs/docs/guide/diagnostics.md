@@ -40,7 +40,7 @@ Renderers write into any `fmt::Write` sink and take the `SourceMap` to resolve s
 | Method          | Feature gate     | Format                                          |
 |-----------------|------------------|-------------------------------------------------|
 | `render_plain`  | always available | One line per issue with `file:line:col`, for CI |
-| `render_pretty` | `color`          | rustc-style caret output with source excerpts   |
+| `render_pretty` | `color`          | rustc-style output with source excerpts, via `annotate-snippets` |
 | `render_json`   | `serde`          | Structured JSON for tooling                     |
 
 ```rust
@@ -53,11 +53,12 @@ Pretty output underlines the offending value in its source line:
 
 ```
 error: unknown load_balancing_strategy: failovr
-  --> ingress.d/api.hcl:12:31
-   |
-12 |   load_balancing_strategy = "failovr"
-   |                             ^^^^^^^^^
-   = help: expected one of: failover, round_robin, request_pressure, sticky_hash, random
+   ╭▸ ingress.d/api.hcl:12:29
+   │
+12 │   load_balancing_strategy = "failovr"
+   │                             ━━━━━━━━━
+   │
+   ╰ help: expected one of: failover, round_robin, request_pressure, sticky_hash, random
 ```
 
 Line and column lookups are O(log n) via a per-source line index.
