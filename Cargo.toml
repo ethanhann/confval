@@ -46,3 +46,4 @@ jsonc-parser = { version = "0.33", default-features = false }
 saphyr-parser = { version = "0.0.11", default-features = false }
 lsp-types = { version = "0.97" }
 lsp-server = { version = "0.10" }
+line-index = { version = "0.1" }

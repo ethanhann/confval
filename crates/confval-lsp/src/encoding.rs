@@ -7,7 +7,12 @@
 //! transport shell negotiates [`PositionEncoding`] at initialization and
 //! converts through a [`LineIndex`], so the pure handlers work in byte offsets
 //! throughout.
+//!
+//! The `line-index` crate does the conversion. This module adapts its
+//! `TextSize` and `LineCol` types to the byte offsets and [`Span`] values the
+//! rest of the crate uses.
 
+use line_index::{LineCol, TextSize, WideEncoding, WideLineCol};
 use lsp_types::{Position, Range};
 
 use confval::source::Span;
@@ -21,73 +26,75 @@ pub enum PositionEncoding {
     Utf16,
 }
 
-impl PositionEncoding {
-    /// The number of code units `ch` occupies in this encoding.
-    fn code_units(self, ch: char) -> usize {
-        match self {
-            PositionEncoding::Utf8 => ch.len_utf8(),
-            PositionEncoding::Utf16 => ch.len_utf16(),
-        }
-    }
-}
-
-/// Byte offsets of each line start, for offset-to-position conversion.
+/// Byte-offset to LSP-position conversion for one document's text.
 ///
 /// `confval` carries a per-source line index for rendering, but that index is
 /// internal and counts characters. The language server owns this one, because it
 /// converts to and from a negotiated encoding rather than only for display.
 #[derive(Debug)]
 pub struct LineIndex {
-    line_starts: Vec<usize>,
+    inner: line_index::LineIndex,
 }
 
 impl LineIndex {
     /// Builds the index for a document's text.
     pub fn new(text: &str) -> Self {
-        let mut line_starts = vec![0usize];
-        for (offset, byte) in text.bytes().enumerate() {
-            if byte == b'\n' {
-                line_starts.push(offset + 1);
-            }
+        Self {
+            inner: line_index::LineIndex::new(text),
         }
-        Self { line_starts }
-    }
-
-    /// The zero-based line containing `offset`.
-    fn line_at(&self, offset: usize) -> usize {
-        self.line_starts
-            .binary_search(&offset)
-            .unwrap_or_else(|insertion| insertion.saturating_sub(1))
     }
 
     /// The LSP position of a byte offset in the negotiated encoding.
     pub fn position_of(&self, text: &str, offset: usize, encoding: PositionEncoding) -> Position {
         let offset = floor_char_boundary(text, offset);
-        let line = self.line_at(offset);
-        let line_start = self.line_starts.get(line).copied().unwrap_or(0);
-        let segment = text.get(line_start..offset).unwrap_or("");
-        let character: usize = segment.chars().map(|ch| encoding.code_units(ch)).sum();
+        let line_col = self.inner.line_col(TextSize::from(offset as u32));
+        let character = match encoding {
+            PositionEncoding::Utf8 => line_col.col,
+            PositionEncoding::Utf16 => self
+                .inner
+                .to_wide(WideEncoding::Utf16, line_col)
+                .map(|wide| wide.col)
+                .unwrap_or(line_col.col),
+        };
         Position {
-            line: line as u32,
-            character: character as u32,
+            line: line_col.line,
+            character,
         }
     }
 
     /// The byte offset of an LSP position in the negotiated encoding.
+    ///
+    /// A character past the end of its line clamps to the line's end. A line
+    /// past the end of the text clamps to the end of the text.
     pub fn offset_of(&self, text: &str, position: Position, encoding: PositionEncoding) -> usize {
-        let line = position.line as usize;
-        let line_start = self.line_starts.get(line).copied().unwrap_or(text.len());
-        let target = position.character as usize;
-        let mut units = 0usize;
-        let mut offset = line_start;
-        for ch in text.get(line_start..).unwrap_or("").chars() {
-            if ch == '\n' || units >= target {
-                break;
-            }
-            units += encoding.code_units(ch);
-            offset += ch.len_utf8();
-        }
-        offset
+        let col = match encoding {
+            PositionEncoding::Utf8 => position.character,
+            PositionEncoding::Utf16 => self
+                .inner
+                .to_utf8(
+                    WideEncoding::Utf16,
+                    WideLineCol {
+                        line: position.line,
+                        col: position.character,
+                    },
+                )
+                .map(|line_col| line_col.col)
+                .unwrap_or(position.character),
+        };
+        let Some(range) = self.inner.line(position.line) else {
+            return text.len();
+        };
+        let line_start = usize::from(range.start());
+        let content_end = line_content_end(text, line_start, usize::from(range.end()));
+        let offset = self
+            .inner
+            .offset(LineCol {
+                line: position.line,
+                col,
+            })
+            .map(usize::from)
+            .unwrap_or(line_start);
+        offset.min(content_end)
     }
 
     /// The LSP range of a `confval` span in the negotiated encoding.
@@ -109,6 +116,20 @@ impl LineIndex {
             start: self.position_of(text, range.0, encoding),
             end: self.position_of(text, range.1, encoding),
         }
+    }
+}
+
+/// The end of a line's content, before a trailing newline.
+///
+/// `line-index` ends a line's range after its `\n`, so this returns the offset
+/// before that newline. The newline must fall inside the line's own range, so a
+/// blank trailing line keeps its own start rather than the previous line's
+/// newline.
+fn line_content_end(text: &str, line_start: usize, range_end: usize) -> usize {
+    if range_end > line_start && text.as_bytes().get(range_end - 1) == Some(&b'\n') {
+        range_end - 1
+    } else {
+        range_end
     }
 }
 
