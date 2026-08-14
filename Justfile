@@ -12,11 +12,31 @@ test-with-coverage:
     cargo llvm-cov nextest --workspace --exclude confval-derive --all-features --html --ignore-filename-regex 'tests/|examples/'
     open target/llvm-cov/html/index.html
 
+# Enforce the workspace line-coverage floor. Slow, so it runs here and in pre-release rather than in validate.
+check-coverage:
+    cargo llvm-cov nextest --workspace --exclude confval-derive --all-features --ignore-filename-regex 'tests/|examples/' --fail-under-lines 95
+
 format:
     cargo fmt
 
 lint:
     cargo clippy --all-targets --all-features -- -D warnings -D clippy::cognitive_complexity
+
+# Check hygiene the lint recipe does not: duplication, formatting, unused deps, and file size. Run by validate.
+check-code-quality:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo dupes --exclude tests --exclude benches --exclude examples --exclude-tests check --max-exact 30 --max-near 3 --max-exact-percent 5.0 --max-near-percent 1.0
+    cargo machete
+    cargo fmt --check
+    fail=0
+    while IFS= read -r f; do
+      line=$(grep -n '#\[cfg(test)\]' "$f" | head -1 | cut -d: -f1 || true)
+      if [ -n "$line" ]; then app=$((line - 1)); else app=$(wc -l < "$f"); fi
+      if [ "$app" -gt 600 ]; then echo "file over the 600 application-line hard limit: $f ($app lines)" >&2; fail=1; fi
+    done < <(find crates -path '*/src/*' -name '*.rs')
+    [ "$fail" -eq 0 ] || exit 1
+    echo "check-code-quality passed"
 
 # Run mutation testing across the workspace. Configured in .cargo/mutants.toml.
 mutants jobs="4":
@@ -49,7 +69,7 @@ check-lsp-example:
     cargo check -p confval-lsp --example serve
 
 # Test everything
-validate: format lint check-frontends check-bin check-lsp-example test validate-docs examples
+validate: format lint check-code-quality check-frontends check-bin check-lsp-example test validate-docs examples
 
 # Run examples
 examples:

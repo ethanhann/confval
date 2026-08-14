@@ -101,6 +101,38 @@ pub(crate) fn child_path(path: &str, name: &str) -> String {
 /// This yields entries rather than fields, because an emitter renders the
 /// commented ones too and places each in the region its active twin would
 /// occupy.
+/// Writes one level of indentation for each nesting depth.
+#[cfg(any(feature = "json", feature = "yaml"))]
+pub(crate) fn indent(out: &mut String, level: usize) {
+    for _ in 0..level {
+        out.push_str("  ");
+    }
+}
+
+/// The value fields at this level that share `name`, in document order.
+#[cfg(feature = "json")]
+pub(crate) fn values_named<'a>(fields: &'a Fields, name: &str) -> Vec<&'a Value> {
+    fields
+        .iter()
+        .filter_map(|field| match &field.kind {
+            FieldKind::Value(value) if field.name == name => Some(value),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The block fields at this level that share `name`, in document order.
+#[cfg(any(feature = "json", feature = "toml"))]
+pub(crate) fn blocks_named<'a>(fields: &'a Fields, name: &str) -> Vec<&'a Fields> {
+    fields
+        .iter()
+        .filter_map(|field| match &field.kind {
+            FieldKind::Block(inner) if field.name == name => Some(inner),
+            _ => None,
+        })
+        .collect()
+}
+
 #[cfg(any(feature = "toml", feature = "hcl", feature = "json", feature = "yaml"))]
 pub(crate) fn values_then_blocks(fields: &Fields) -> impl Iterator<Item = &Entry> {
     let values = fields

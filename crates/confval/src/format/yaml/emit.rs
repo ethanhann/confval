@@ -12,8 +12,9 @@
 //! sequence marker or a comment marker.
 
 use super::member::{Member, Rendered, Shape, members_of, shape_of, shape_of_value};
-use super::text::{comment_out, indent, splice_dash, write_key, write_scalar};
+use super::text::{comment_out, splice_dash, write_key, write_scalar};
 use crate::format::EmitError;
+use crate::format::emit::indent;
 use crate::format::emit::{child_path, comment_lines, grouped_elements, value_beside_block};
 use crate::format::field::{Fields, Value, ValueKind};
 
