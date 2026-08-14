@@ -505,4 +505,40 @@ mod tests {
         assert_eq!(Single::keyword_set().allowed.len(), 1);
         assert_eq!(Single::try_from("only"), Ok(Single::Only));
     }
+
+    #[test]
+    fn keywords_unique_returns_true_for_a_distinct_set() {
+        // Act
+        let unique = __keyword_enum_keywords_unique(&["ab", "ac", "ad"]);
+
+        // Assert
+        assert!(unique);
+    }
+
+    #[test]
+    fn keywords_unique_returns_false_for_a_duplicate() {
+        // Act
+        let unique = __keyword_enum_keywords_unique(&["ab", "cd", "ab"]);
+
+        // Assert
+        assert!(!unique);
+    }
+
+    #[test]
+    fn keywords_unique_treats_different_lengths_as_distinct() {
+        // Act
+        let unique = __keyword_enum_keywords_unique(&["a", "bb"]);
+
+        // Assert
+        assert!(unique);
+    }
+
+    #[test]
+    fn keywords_unique_returns_true_for_an_empty_set() {
+        // Act
+        let unique = __keyword_enum_keywords_unique(&[]);
+
+        // Assert
+        assert!(unique);
+    }
 }
