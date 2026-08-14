@@ -35,6 +35,28 @@ flowchart ${direction}
 const PIPELINE_WIDE = diagram('LR', 100);
 const PIPELINE_TALL = diagram('TD', 50);
 
+const layering = (direction: string, nodeSpacing: number) => `%%{ init: { "flowchart": { "curve": "basis", "nodeSpacing": ${nodeSpacing} } } }%%
+flowchart ${direction}
+    file[/"<b>Config file</b><br/>base"/]
+    env[/"<b>Environment variables</b>"/]
+    flags[/"<b>CLI flags</b>"/]
+    merge["<b>merge</b><br/>later layers win"]
+    config(["<b>Config</b>"])
+
+    file --> merge
+    env --> merge
+    flags --> merge
+    merge --> config
+
+    classDef io stroke:#928374,stroke-width:1.5px;
+    classDef step stroke:#5aa469,stroke-width:1.5px;
+
+    class file,env,flags io;
+    class merge,config step;`;
+
+const LAYERING_WIDE = layering('LR', 60);
+const LAYERING_TALL = layering('TD', 40);
+
 const INVALID_TOML = `port = 80
 tls = true
 allow = ["10.0.0.0/8", ""]
@@ -234,6 +256,18 @@ export default function HomepageFeatures(): ReactNode {
                 <p className={styles.caption}>
                     <strong>port</strong> narrows an i64 to a u16, and <strong>mode</strong> lowers a validated string into an enum.
                 </p>
+            </section>
+
+            <section className={clsx(styles.features, styles.altBgSection)}>
+                <h2 className={styles.featureSectionHeader}>Layered configuration</h2>
+                <p className={styles.lead}>
+                    Assemble one config from layers. A file supplies the base, environment
+                    variables override it, and CLI flags override those. Every layer yields the
+                    same neutral model, so the merge runs once, before the spec is built.
+                </p>
+                <div className={clsx(styles.diagram, wide ? styles.layeringWide : styles.layeringTall)}>
+                    <Mermaid value={wide ? LAYERING_WIDE : LAYERING_TALL}/>
+                </div>
             </section>
         </>
     );

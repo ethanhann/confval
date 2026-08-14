@@ -121,3 +121,22 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* The layering diagram is a simple fan-in, so it reads fine smaller. Capping it
+ * near 60% of the hero diagram's width drops its height to match, because the
+ * svg keeps its aspect ratio. */
+.layeringWide {
+    width: 100%;
+    max-width: min(47rem, 55vw);
+}
+
+.layeringTall {
+    width: 100%;
+    max-width: 20rem;
+}
+
+.layeringWide :global(svg),
+.layeringTall :global(svg) {
+    width: 100% !important;
+    max-width: 100% !important;
+}
