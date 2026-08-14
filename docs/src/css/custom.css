@@ -12,7 +12,7 @@
   --ifm-code-font-size: 90%;
   --ifm-line-height-base: 1.7;
 
-  /* Light: warm "fanfold printer paper", tuned to match Gruvbox code blocks. */
+  /* Light: soft, lightly warm off-white. */
   --ifm-color-primary: #427b58;
   --ifm-color-primary-dark: #3b6f4f;
   --ifm-color-primary-darker: #38694b;
@@ -21,12 +21,12 @@
   --ifm-color-primary-lighter: #4c8d66;
   --ifm-color-primary-lightest: #58a074;
 
-  --ifm-background-color: #f6f0d9;
-  --ifm-background-surface-color: #fbf5df;
+  --ifm-background-color: #f3f2ec;
+  --ifm-background-surface-color: #faf9f3;
   --ifm-font-color-base: #3c3836;
   --ifm-heading-color: #282828;
-  --ifm-toc-border-color: #ddceac;
-  --ifm-hr-border-color: #ddceac;
+  --ifm-toc-border-color: #d8d6cc;
+  --ifm-hr-border-color: #d8d6cc;
 
   --docusaurus-highlighted-code-line-bg: rgba(60, 56, 54, 0.09);
 }
@@ -110,6 +110,14 @@ pre,
   border: 1px solid var(--ifm-toc-border-color);
 }
 
+/* Light mode: replace the Gruvbox cream code-block background with the neutral
+ * surface, so the page reads cool rather than yellow. The syntax colors stay. */
+html:not([data-theme="dark"]) .theme-code-block,
+html:not([data-theme="dark"]) .theme-code-block pre,
+html:not([data-theme="dark"]) pre.prism-code {
+  background-color: var(--ifm-background-surface-color) !important;
+}
+
 /* Highlighted terminal-region selection. */
 ::selection {
   background: var(--ifm-color-primary);
@@ -118,7 +126,7 @@ pre,
 
 /* Mermaid diagrams. */
 .docusaurus-mermaid-container .node :is(rect, polygon, path) {
-  fill: #fffbf0 !important;
+  fill: #fbfaf5 !important;
 }
 
 .docusaurus-mermaid-container :is(.nodeLabel, .nodeLabel p) {
@@ -150,7 +158,7 @@ pre,
 }
 
 .docusaurus-mermaid-container :is(.edgeLabel, .labelBkg, .edgeLabel p) {
-  background-color: #fbf5df !important;
+  background-color: #faf9f3 !important;
   color: #3c3836 !important;
 }
 
