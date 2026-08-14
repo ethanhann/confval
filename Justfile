@@ -16,7 +16,7 @@ format:
     cargo fmt
 
 lint:
-    cargo clippy --all-targets --all-features -- -D warnings
+    cargo clippy --all-targets --all-features -- -D warnings -D clippy::cognitive_complexity
 
 # Run mutation testing across the workspace. Configured in .cargo/mutants.toml.
 mutants jobs="4":
