@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, Scalar, ValueKind};
 use crate::schema::{Constraint, Schema, SchemaType};
-use crate::source::Span;
+use crate::source::{Located, Span};
 
 /// Checks every reference field against the labels the document defines.
 ///
@@ -25,17 +25,19 @@ use crate::source::Span;
 /// [`Scalar::Unparsed`], from env-var or flag layering, is skipped, so a layered
 /// reference is not checked here.
 pub fn check_references(fields: &Fields, schema: &Schema, report: &mut Report) {
-    let index = build_index(fields, schema, report);
+    let index = label_index(fields, schema);
+    report_label_issues(&index, schema, report);
     check_level(fields, schema, &index, report);
 }
 
 /// The labels each top-level, label-bearing block defines, keyed by the block's
-/// field name. Building it reports a duplicate and an empty label.
-fn build_index(
-    fields: &Fields,
-    schema: &Schema,
-    report: &mut Report,
-) -> HashMap<String, Vec<String>> {
+/// field name.
+///
+/// Each label carries its span, in document order. The list keeps every
+/// instance, including a duplicate and an empty label, and the function emits no
+/// diagnostics. The pipeline and the language server share it, so the editor
+/// collects labels the way the reference check does.
+pub fn label_index(fields: &Fields, schema: &Schema) -> HashMap<String, Vec<Located<String>>> {
     let mut index = HashMap::new();
     for field in &schema.fields {
         let SchemaType::Block { schema: block, .. } = &field.ty else {
@@ -44,30 +46,12 @@ fn build_index(
         let Some(label_field) = block.fields.iter().find(|child| child.label) else {
             continue;
         };
-        let mut labels: Vec<String> = Vec::new();
-        let mut first_span: HashMap<String, Span> = HashMap::new();
+        let mut labels: Vec<Located<String>> = Vec::new();
         for instance in fields.iter().filter(|f| f.name == field.name) {
             for body in instance_bodies(instance) {
-                let Some((value, span)) = instance_label(body, &label_field.name) else {
-                    continue;
-                };
-                if value.is_empty() {
-                    report
-                        .error("a block label must not be empty")
-                        .at(span)
-                        .emit();
-                    continue;
+                if let Some((value, span)) = instance_label(body, &label_field.name) {
+                    labels.push(Located::new(value, span));
                 }
-                if let Some(&first) = first_span.get(&value) {
-                    report
-                        .error(format!("duplicate {} label {value:?}", field.name))
-                        .at(span)
-                        .related(first, "first declared here")
-                        .emit();
-                    continue;
-                }
-                first_span.insert(value.clone(), span);
-                labels.push(value);
             }
         }
         index.insert(field.name.clone(), labels);
@@ -75,12 +59,45 @@ fn build_index(
     index
 }
 
+/// Reports a duplicate label and an empty label from a built index. Walking the
+/// schema fields rather than the map keeps the diagnostics in a stable order.
+fn report_label_issues(
+    index: &HashMap<String, Vec<Located<String>>>,
+    schema: &Schema,
+    report: &mut Report,
+) {
+    for field in &schema.fields {
+        let Some(labels) = index.get(&field.name) else {
+            continue;
+        };
+        let mut first_span: HashMap<&str, Span> = HashMap::new();
+        for label in labels {
+            if label.value.is_empty() {
+                report
+                    .error("a block label must not be empty")
+                    .at(label.span)
+                    .emit();
+                continue;
+            }
+            if let Some(&first) = first_span.get(label.value.as_str()) {
+                report
+                    .error(format!("duplicate {} label {:?}", field.name, label.value))
+                    .at(label.span)
+                    .related(first, "first declared here")
+                    .emit();
+                continue;
+            }
+            first_span.insert(label.value.as_str(), label.span);
+        }
+    }
+}
+
 /// Walks the tree, checking each reference field against the index. A reference
 /// field can appear at any level, so the walk recurses through blocks.
 fn check_level(
     fields: &Fields,
     schema: &Schema,
-    index: &HashMap<String, Vec<String>>,
+    index: &HashMap<String, Vec<Located<String>>>,
     report: &mut Report,
 ) {
     for field in fields.iter() {
@@ -105,19 +122,21 @@ fn check_level(
                             .at(span)
                             .emit();
                     }
-                    Some(labels) if !labels.contains(&value) => {
-                        let help = if labels.is_empty() {
-                            format!("the file defines no {block}")
-                        } else {
-                            format!("defined {block}: {}", labels.join(", "))
-                        };
-                        report
-                            .error(format!("no {block} named {value:?}"))
-                            .at(span)
-                            .help(help)
-                            .emit();
+                    Some(labels) => {
+                        let defined = distinct_labels(labels);
+                        if !defined.contains(&value.as_str()) {
+                            let help = if defined.is_empty() {
+                                format!("the file defines no {block}")
+                            } else {
+                                format!("defined {block}: {}", defined.join(", "))
+                            };
+                            report
+                                .error(format!("no {block} named {value:?}"))
+                                .at(span)
+                                .help(help)
+                                .emit();
+                        }
                     }
-                    Some(_) => {}
                 }
             }
             SchemaType::Block { schema: block, .. } => {
@@ -128,6 +147,17 @@ fn check_level(
             _ => {}
         }
     }
+}
+
+/// The distinct, non-empty label values of a block, in first-occurrence order.
+fn distinct_labels(labels: &[Located<String>]) -> Vec<&str> {
+    let mut distinct: Vec<&str> = Vec::new();
+    for label in labels {
+        if !label.value.is_empty() && !distinct.contains(&label.value.as_str()) {
+            distinct.push(label.value.as_str());
+        }
+    }
+    distinct
 }
 
 /// The block bodies of one parsed field. A brace-delimited block is one body, a

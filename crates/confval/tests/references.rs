@@ -12,7 +12,7 @@
 
 use confval::diagnostic::Report;
 use confval::format::{FromFields, hcl, json, kdl, toml, yaml};
-use confval::pipeline::{Validate, check_references};
+use confval::pipeline::{Validate, check_references, label_index};
 use confval::schema::{Constraint, SchemaType, ToSchema};
 use confval::source::{Located, SourceId, SourceMap};
 
@@ -554,6 +554,30 @@ fn from_fields_reads_the_label_from_the_child_field_in_toml() {
 
     // Assert
     assert_eq!(spec.upstream[0].value.name.value.as_str(), "api");
+}
+
+#[test]
+fn label_index_collects_labels_with_spans_and_no_report() {
+    // Arrange
+    let text = HCL_RESOLVED;
+    let mut sources = SourceMap::new();
+    let id = sources.add("gateway", text);
+    let mut report = Report::new();
+    let fields = hcl::parse_hcl_fields(&sources, id, &mut report).expect("the source parses");
+
+    // Act
+    let index = label_index(&fields, &GatewaySpec::schema());
+
+    // Assert
+    let upstreams = index.get("upstream").expect("the upstream block is indexed");
+    assert_eq!(upstreams.len(), 1);
+    assert_eq!(upstreams[0].value.as_str(), "api");
+    assert!(
+        text[upstreams[0].span.start as usize..upstreams[0].span.end as usize].contains("api"),
+        "the label carries its span: {:?}",
+        &text[upstreams[0].span.start as usize..upstreams[0].span.end as usize]
+    );
+    assert!(errors(&report).is_empty(), "the accessor emits nothing");
 }
 
 #[test]

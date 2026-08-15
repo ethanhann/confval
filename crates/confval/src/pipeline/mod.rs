@@ -14,5 +14,5 @@ mod validate;
 
 pub use lower::{Lower, LowerAuto};
 
-pub use references::check_references;
+pub use references::{check_references, label_index};
 pub use validate::{Validate, ValidateNested};
