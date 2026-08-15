@@ -3,8 +3,10 @@
 //! A body position offers the fields and blocks the schema declares at the
 //! cursor's path, minus the single-valued ones the parsed fields already set. A
 //! repeated block stays offered, because it may recur, and a map body offers no
-//! keys, because its keys are open. An attribute-value position for a keyword
-//! field offers the allowed strings.
+//! keys, because its keys are open. The empty map body follows from `schema_at`,
+//! which returns `None` for a path that descends into an open-ended map, so no
+//! special case is needed here. An attribute-value position for a keyword field
+//! offers the allowed strings.
 //!
 //! The core is a function of the schema, the fields, and the resolved cursor
 //! context. It returns items with byte-range edits, and the public handler is
@@ -48,6 +50,9 @@ struct RawItem {
     kind: CompletionItemKind,
     detail: Option<String>,
     filter_text: Option<String>,
+    /// Orders the client's list by schema declaration order rather than
+    /// alphabetically, so related fields stay together.
+    sort_text: String,
     edit: (usize, usize),
     new_text: String,
 }
@@ -99,16 +104,23 @@ fn body_items<F: Frontend>(frontend: &F, enclosing: &Schema, cx: &Cx) -> Vec<Raw
     enclosing
         .fields
         .iter()
-        .filter(|field| {
+        .enumerate()
+        .filter(|(_, field)| {
             matches!(field.ty, SchemaType::Block { repeated: true, .. })
                 || !set.contains(field.name.as_str())
         })
-        .map(|field| field_item(frontend, field, cx, repeated))
+        .map(|(order, field)| field_item(frontend, field, cx, repeated, order))
         .collect()
 }
 
 /// One completion item for a schema field.
-fn field_item<F: Frontend>(frontend: &F, field: &SchemaField, cx: &Cx, repeated: bool) -> RawItem {
+fn field_item<F: Frontend>(
+    frontend: &F,
+    field: &SchemaField,
+    cx: &Cx,
+    repeated: bool,
+    order: usize,
+) -> RawItem {
     let kind = if matches!(field.ty, SchemaType::Block { .. }) {
         CompletionItemKind::STRUCT
     } else {
@@ -128,9 +140,16 @@ fn field_item<F: Frontend>(frontend: &F, field: &SchemaField, cx: &Cx, repeated:
         kind,
         detail: field.doc.clone(),
         filter_text: None,
+        sort_text: sort_key(order),
         edit: (start, cx.ctx.token.1),
         new_text,
     }
+}
+
+/// The sort text for a declaration position: zero-padded so a client's
+/// lexicographic sort matches the schema order.
+fn sort_key(order: usize) -> String {
+    format!("{order:04}")
 }
 
 /// The edit start after the insert's left absorption.
@@ -175,7 +194,11 @@ fn value_items(enclosing: &Schema, field: &str, cx: &Cx) -> Vec<RawItem> {
         SchemaType::Scalar {
             constraint: Some(Constraint::Keywords(words)),
             ..
-        } => words.iter().map(|word| keyword_item(word, cx)).collect(),
+        } => words
+            .iter()
+            .enumerate()
+            .map(|(order, word)| keyword_item(word, cx, order))
+            .collect(),
         SchemaType::Scalar {
             constraint: Some(Constraint::References { block }),
             ..
@@ -201,12 +224,13 @@ fn reference_items(block: &str, cx: &Cx) -> Vec<RawItem> {
         .iter()
         .filter(|label| !label.value.is_empty())
         .filter(|label| seen.insert(label.value.as_str()))
-        .map(|label| keyword_item(&label.value, cx))
+        .enumerate()
+        .map(|(order, label)| keyword_item(&label.value, cx, order))
         .collect()
 }
 
 /// One completion item for an allowed keyword, inserted as a quoted string.
-fn keyword_item(word: &str, cx: &Cx) -> RawItem {
+fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
     // A value inserted directly after the colon supplies the separating space,
     // so the completed line parses as a mapping entry rather than a plain
     // scalar that swallowed the colon.
@@ -225,6 +249,7 @@ fn keyword_item(word: &str, cx: &Cx) -> RawItem {
         // that value rather than the label. Without this a client discards
         // every keyword.
         filter_text: Some(cx.ctx.token_text.clone()).filter(|current| !current.is_empty()),
+        sort_text: sort_key(order),
         edit: cx.ctx.token,
         new_text,
     }
@@ -254,6 +279,7 @@ fn encode_item(
         kind: Some(raw.kind),
         detail: raw.detail,
         filter_text: raw.filter_text,
+        sort_text: Some(raw.sort_text),
         ..CompletionItem::default()
     };
     if is_snippet {

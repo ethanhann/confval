@@ -2022,3 +2022,58 @@ fn a_parsed_non_string_reference_value_hovers_without_a_resolution_line() {
         "no resolution claim for a value the pass skips: {markdown}"
     );
 }
+
+#[test]
+fn completion_sorts_by_schema_declaration_order() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at(text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Hcl,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let sort_keys: Vec<String> = items
+        .iter()
+        .map(|item| item.sort_text.clone().expect("a sort text"))
+        .collect();
+    let mut sorted = sort_keys.clone();
+    sorted.sort();
+    assert_eq!(sort_keys, sorted, "declaration order survives a client sort");
+    assert_eq!(items[0].label, "hostname", "the first declared field leads");
+}
+
+#[test]
+fn hover_on_a_reference_field_name_states_the_target_block() {
+    // Arrange
+    // The field-name hover renders the constraint line, so a reference field
+    // names its target rather than appending an empty section.
+    let text = "upstream:\n  - name: api\n    host: h\n    port: 1\nroutes:\n  - prefix: /a\n    upstream: \"api\"\n";
+    let offset = text.rfind("upstream:").unwrap() + 1;
+
+    // Act
+    let markdown = gateway_hover(&Yaml, text, offset);
+
+    // Assert
+    assert!(
+        markdown.contains("**upstream**"),
+        "the field hover renders: {markdown}"
+    );
+    assert!(
+        markdown.contains("References the `upstream` block."),
+        "the constraint line names the target: {markdown}"
+    );
+}
