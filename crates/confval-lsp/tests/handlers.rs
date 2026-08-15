@@ -1655,3 +1655,54 @@ fn hover_on_a_reference_value_states_the_target_and_resolution() {
         "reports a miss: {unresolved_hover:?}"
     );
 }
+
+#[test]
+fn reference_hover_reports_unknown_resolution_without_a_parse() {
+    // Arrange
+    // An unterminated value does not parse, so hover names the target but cannot
+    // say whether the value resolves.
+    let text = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"ap";
+
+    // Act
+    let markdown = gateway_hover(&Hcl, text, text.len());
+
+    // Assert
+    assert!(
+        markdown.contains("References the `upstream` block."),
+        "names the target: {markdown:?}"
+    );
+    assert!(
+        markdown.contains("Resolution is unknown"),
+        "reports unknown resolution: {markdown:?}"
+    );
+}
+
+#[test]
+fn reference_completion_offers_nothing_without_a_parse() {
+    // Arrange
+    // An unterminated value does not parse, so the reference arm has no labels to
+    // collect and offers nothing.
+    let text = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"ap";
+    let (tree, context) = at_with(&Hcl, text, text.len());
+    let index = LineIndex::new(text);
+
+    // Act
+    let items = completion(
+        &Hcl,
+        &GatewaySpec::schema(),
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    assert!(tree.is_none(), "the buffer does not parse");
+    assert!(
+        items.is_empty(),
+        "no labels are offered without a parse: {:?}",
+        labels(&items)
+    );
+}
