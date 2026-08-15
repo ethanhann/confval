@@ -57,14 +57,6 @@ flowchart ${direction}
 const LAYERING_WIDE = layering('LR', 60);
 const LAYERING_TALL = layering('TD', 40);
 
-const INVALID_TOML = `port = 80
-tls = true
-allow = ["10.0.0.0/8", ""]
-
-[limits]
-mode = "yolo"
-`;
-
 const CONFIG_TOML = `hostname = "127.0.0.1"
 port = 8080
 allow = ["10.0.0.0/8", "192.168.0.0/16"]
@@ -222,7 +214,10 @@ export default function HomepageFeatures(): ReactNode {
                     </p>
 
                     <h3 className={styles.stepLabel}>This invalid TOML...</h3>
-                    <CodeBlock language="toml">{INVALID_TOML}</CodeBlock>
+                    <img
+                        src={useBaseUrl('/img/invalid_toml.png')}
+                        alt="Example of pretty-formatted validation diagnostics for invalid TOML configuration"
+                    />
 
                     <h3 className={styles.stepLabel}>Produces these diagnostics...</h3>
                     <img
