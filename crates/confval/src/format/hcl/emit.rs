@@ -101,6 +101,14 @@ pub(super) fn emit_body(
             FieldKind::Block(inner) => {
                 let child = child_path(path, &field.name);
                 let mut block = Block::new(ident_of(&field.name, path)?);
+                // A block that carries a native label, read from an HCL or KDL
+                // source, renders it between the type and the body, so a round
+                // trip keeps `upstream "api" { ... }`.
+                if let Some(label) = inner.label() {
+                    block
+                        .labels
+                        .push(hcl_edit::structure::BlockLabel::from(label.value.clone()));
+                }
                 // The blank line separates the block from the structure above
                 // it, so it follows any pending commented text rather than
                 // preceding it. A commented entry belongs to the value group it

@@ -101,6 +101,13 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
             &field.name,
             kdl_block_prefix(field.doc.as_deref(), &indent, !nodes.is_empty()),
         );
+        // A block that carries a native label, read from an HCL or KDL source,
+        // renders it as the node's first argument, so a round trip keeps
+        // `upstream "api" { ... }`.
+        if let Some(label) = inner.label() {
+            node.entries_mut()
+                .push(scalar_entry(&Scalar::String(label.value.clone())));
+        }
         attach_children(&mut node, emit_document(inner, level + 1, &child)?, &indent);
         if entry.is_commented() {
             slashdash(&mut std::slice::from_mut(&mut node)[..]);

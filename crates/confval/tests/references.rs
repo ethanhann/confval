@@ -633,3 +633,41 @@ fn an_empty_label_reports_through_the_child_field() {
         errors(&report)
     );
 }
+
+#[test]
+fn a_native_label_round_trips_in_hcl() {
+    // Arrange
+    let text = "upstream \"api\" {\n  host = \"api.internal\"\n  port = 8080\n}\n";
+    let mut sources = SourceMap::new();
+    let id = sources.add("gateway.hcl", text);
+    let mut report = Report::new();
+    let fields = hcl::parse_hcl_fields(&sources, id, &mut report).expect("the source parses");
+
+    // Act
+    let out = hcl::emit_hcl(&fields).expect("the fields emit");
+
+    // Assert
+    assert!(
+        out.contains("upstream \"api\""),
+        "the native label survives the round trip: {out}"
+    );
+}
+
+#[test]
+fn a_native_label_round_trips_in_kdl() {
+    // Arrange
+    let text = "upstream \"api\" {\n  host \"api.internal\"\n  port 8080\n}\n";
+    let mut sources = SourceMap::new();
+    let id = sources.add("gateway.kdl", text);
+    let mut report = Report::new();
+    let fields = kdl::parse_kdl_fields(&sources, id, &mut report).expect("the source parses");
+
+    // Act
+    let out = kdl::emit_kdl(&fields).expect("the fields emit");
+
+    // Assert
+    assert!(
+        out.contains("upstream \"api\""),
+        "the native label survives the round trip: {out}"
+    );
+}
