@@ -11,9 +11,19 @@ limits {
   max_body_mb 64
   mode "enforce"
 }
+upstream "api" {
+  host "api.internal"
+  port 8080
+}
+upstream "web" {
+  host "web.internal"
+  port 8081
+}
 rules {
   prefix "/api"
+  upstream "api"
 }
 rules {
   prefix "/admin"
+  upstream "web"
 }

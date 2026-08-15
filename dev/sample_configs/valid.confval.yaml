@@ -11,6 +11,15 @@ headers:
 limits:
   max_body_mb: 64
   mode: "enforce"
+upstream:
+  - name: api
+    host: api.internal
+    port: 8080
+  - name: web
+    host: web.internal
+    port: 8081
 rules:
   - prefix: "/api"
+    upstream: api
   - prefix: "/admin"
+    upstream: web

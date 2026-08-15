@@ -15,10 +15,22 @@ limits {
   mode        = "enforce"
 }
 
-rules {
-  prefix = "/api"
+upstream "api" {
+  host = "api.internal"
+  port = 8080
+}
+
+upstream "web" {
+  host = "web.internal"
+  port = 8081
 }
 
 rules {
-  prefix = "/admin"
+  prefix   = "/api"
+  upstream = "api"
+}
+
+rules {
+  prefix   = "/admin"
+  upstream = "web"
 }

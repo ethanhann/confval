@@ -47,9 +47,25 @@ struct ServerSpec {
     /// Request limits.
     #[confval(nested)]
     limits: Option<Located<LimitsSpec>>,
+    /// The upstream services a rule can route to. A repeated, labeled block.
+    #[confval(nested)]
+    upstream: Vec<Located<UpstreamSpec>>,
     /// Zero or more routing rules.
     #[confval(nested)]
     rules: Vec<Located<RuleSpec>>,
+}
+
+/// A labeled, repeated upstream block.
+#[derive(confval::Spec)]
+struct UpstreamSpec {
+    /// The upstream's label, named by a rule's `upstream` field.
+    #[confval(label)]
+    name: Located<String>,
+    /// The upstream host.
+    host: Located<String>,
+    /// The upstream port.
+    #[confval(range = PORT)]
+    port: Located<i64>,
 }
 
 /// The nested limits block.
@@ -69,9 +85,16 @@ struct LimitsSpec {
 struct RuleSpec {
     /// The path prefix this rule matches.
     prefix: Located<String>,
+    /// The upstream this rule routes to, naming an `upstream` block by its label.
+    #[confval(references = upstream)]
+    upstream: Option<Located<String>>,
 }
 
 impl Validate for LimitsSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for UpstreamSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 

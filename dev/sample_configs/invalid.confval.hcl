@@ -10,6 +10,12 @@ limits {
   mode        = "loud"
 }
 
+upstream "api" {
+  host = "api.internal"
+  port = 8080
+}
+
 rules {
-  prefix = "/api"
+  prefix   = "/api"
+  upstream = "nope"
 }

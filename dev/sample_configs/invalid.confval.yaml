@@ -6,5 +6,10 @@ oops: "not a known field"
 limits:
   max_body_mb: 5000
   mode: "loud"
+upstream:
+  - name: api
+    host: api.internal
+    port: 8080
 rules:
   - prefix: "/api"
+    upstream: "nope"
