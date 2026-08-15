@@ -86,6 +86,33 @@ impl Validate for ServerSpec {
     }
 }
 
+/// A parent-and-child fixture whose block repeats a parent field name, for the
+/// pending-body tests. The shared `port` name makes a wrong resolution level
+/// visible: a pending `admin` body must not read the root's `port` as set.
+#[derive(confval::Spec)]
+pub struct RelaySpec {
+    /// The TCP port the relay listens on.
+    pub port: Located<i64>,
+    /// The admin endpoint.
+    #[confval(nested)]
+    pub admin: Option<Located<AdminSpec>>,
+}
+
+/// The nested admin block of the relay fixture.
+#[derive(confval::Spec)]
+pub struct AdminSpec {
+    /// The TCP port the admin endpoint listens on.
+    pub port: Located<i64>,
+}
+
+impl Validate for RelaySpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for AdminSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
 /// A Gateway-shaped fixture for the label and reference tests.
 ///
 /// It is kept separate from `ServerSpec`, so its label and reference fields do

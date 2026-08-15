@@ -12,7 +12,7 @@ use confval::format::Fields;
 use confval::schema::SchemaField;
 use confval::source::{SourceId, SourceMap};
 
-use crate::resolve::{instance_body_at, resolve_in_tree, value_span_token};
+use crate::resolve::{body_along_path, resolve_in_tree, value_span_in};
 use crate::scan::{resolve_in_text, resolve_in_yaml};
 
 /// The raw-text recovery a frontend's syntax needs.
@@ -84,8 +84,9 @@ pub struct CursorContext {
     /// The fields of the block instance the cursor sits in, when the buffer
     /// parsed. The handlers read the already-set state and the hover state from
     /// it, so a repeated block addresses the instance the cursor is in rather
-    /// than the first. It is `None` on the text recovery path, which has no
-    /// parsed instance.
+    /// than the first. A pending body, a key whose body the tree does not hold
+    /// yet, carries an empty body: nothing is set there. It is `None` only on
+    /// the text recovery path, which has no parsed instance.
     pub resolved_body: Option<Fields>,
 }
 
@@ -163,28 +164,22 @@ pub trait Frontend {
         // pending body position.
         if matches!(self.recovery(), Recovery::Indentation) {
             let mut context = resolve_in_yaml(text, offset);
-            // The reader reads the path and kind from indentation, but a parsed
-            // value's exact span replaces the whole value, so completing a
-            // spaced or quoted value does not stop at a space.
+            // YAML resolves its path from indentation, so the instance body is
+            // read from the tree here, the second site the tree walk does not
+            // cover. The body follows the path, choosing a sequence element by
+            // offset, so a repeated block addresses the correct element and a
+            // pending body reads as empty. A parsed value's exact span from that
+            // body replaces the whole value, so completing a spaced or quoted
+            // value does not stop at a space, inside an element as well.
             if let Some(tree) = tree {
-                let field = match &context.kind {
-                    PositionKind::AttributeValue { field } => Some(field.clone()),
-                    _ => None,
-                };
-                if let Some(field) = field
-                    && let Some(token) = value_span_token(tree, &context.path, &field, text)
+                let body =
+                    body_along_path(tree, &context.path, offset, self.block_span_covers_body());
+                if let PositionKind::AttributeValue { field } = &context.kind
+                    && let Some(token) = value_span_in(&body, field, text)
                 {
                     context.token = token;
                 }
-                // YAML resolves its path from indentation, so the instance body
-                // is read from the tree here, the second site the tree walk does
-                // not cover. A repeated block then addresses the correct element.
-                context.resolved_body = Some(instance_body_at(
-                    tree,
-                    text,
-                    offset,
-                    self.block_span_covers_body(),
-                ));
+                context.resolved_body = Some(body);
             }
             return context;
         }

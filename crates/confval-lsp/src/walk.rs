@@ -63,9 +63,10 @@ pub(crate) fn fields_at<'a>(root: &'a Fields, path: &[String]) -> Option<&'a Fie
 /// The parsed fields of the block instance the cursor resolved into.
 ///
 /// It is the resolved instance body when the buffer parsed, which addresses the
-/// exact instance of a repeated block, and otherwise the first instance at the
-/// path, the text recovery path with no parsed instance. The completion and
-/// hover handlers read the already-set state from it.
+/// exact instance of a repeated block and reads a pending body as empty. The
+/// `fields_at` fallback runs only on the text recovery path, whose context
+/// carries no body because nothing parsed. The completion and hover handlers
+/// read the already-set state from it.
 pub(crate) fn resolved_level<'a>(
     ctx: &'a CursorContext,
     fields: Option<&'a Fields>,

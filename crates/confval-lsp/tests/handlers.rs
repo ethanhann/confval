@@ -1761,3 +1761,34 @@ fn a_type_error_in_one_element_does_not_diagnose_a_sibling_element() {
         "on the invalid port, not the valid one"
     );
 }
+
+#[test]
+fn yaml_completion_under_a_pending_block_offers_every_block_field() {
+    // Arrange
+    // The root sets `port` and `admin:` awaits its body. The pending body sets
+    // nothing, so the admin block's own `port` stays offered.
+    let text = "port: 8080\nadmin:\n  \n";
+    let offset = text.len() - 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = fixture::RelaySpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &schema,
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let labels = labels(&items);
+    assert!(
+        labels.contains(&"port".to_string()),
+        "expected the pending admin body to offer port, got: {labels:?}"
+    );
+}
