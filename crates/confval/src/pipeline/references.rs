@@ -76,7 +76,7 @@ fn build_index(
 }
 
 /// Walks the tree, checking each reference field against the index. A reference
-/// field can sit at any level, so the walk recurses through blocks.
+/// field can appear at any level, so the walk recurses through blocks.
 fn check_level(
     fields: &Fields,
     schema: &Schema,
@@ -96,9 +96,9 @@ fn check_level(
                     continue;
                 };
                 match index.get(*block) {
-                    // The target names no labeled top-level block, so the schema
-                    // itself is wrong. The message names the target rather than
-                    // blaming the config value.
+                    // The target names no labeled top-level block. That is a
+                    // schema error, so the message names the target rather than
+                    // the config value.
                     None => {
                         report
                             .error(format!("reference target {block} is not a labeled block"))
