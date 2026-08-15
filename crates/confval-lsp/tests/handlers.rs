@@ -1605,12 +1605,18 @@ fn a_cursor_in_a_block_label_offers_nothing_and_hovers_the_block() {
     let kdl_hover = gateway_hover(&Kdl, kdl, kdl_off);
 
     // Assert
-    assert!(hcl_items.is_empty(), "hcl offers nothing in a label: {hcl_items:?}");
+    assert!(
+        hcl_items.is_empty(),
+        "hcl offers nothing in a label: {hcl_items:?}"
+    );
     assert!(
         hcl_hover.contains("Label of the `upstream` block."),
         "hcl hover names the block: {hcl_hover:?}"
     );
-    assert!(kdl_items.is_empty(), "kdl offers nothing in a label: {kdl_items:?}");
+    assert!(
+        kdl_items.is_empty(),
+        "kdl offers nothing in a label: {kdl_items:?}"
+    );
     assert!(
         kdl_hover.contains("Label of the `upstream` block."),
         "kdl hover names the block: {kdl_hover:?}"
