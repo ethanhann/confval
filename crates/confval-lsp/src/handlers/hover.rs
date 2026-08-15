@@ -36,9 +36,13 @@ pub fn hover(
     };
     let field = enclosing.fields.iter().find(|field| field.name == name)?;
     // `None` when there is no parse to read the state from, so the state is
-    // unknown rather than "not set".
-    let set = fields
-        .and_then(|tree| fields_at(tree, &ctx.path))
+    // unknown rather than "not set". The resolved instance body addresses the
+    // exact instance of a repeated block, falling back to the first only on the
+    // text recovery path.
+    let set = ctx
+        .resolved_body
+        .as_ref()
+        .or_else(|| fields.and_then(|tree| fields_at(tree, &ctx.path)))
         .map(|level| level.has(&name));
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent {

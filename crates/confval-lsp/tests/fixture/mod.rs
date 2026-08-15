@@ -85,3 +85,53 @@ impl Validate for ServerSpec {
         }
     }
 }
+
+/// A Gateway-shaped fixture for the label and reference tests.
+///
+/// It is kept separate from `ServerSpec`, so its label and reference fields do
+/// not churn the other handler tests, and its types carry distinct names so they
+/// do not collide with the `RuleSpec` above. The `upstream` block is labeled and
+/// repeated, and a route references an upstream by its label.
+#[derive(confval::Spec)]
+pub struct GatewaySpec {
+    /// The upstream services a route can name. A repeated, labeled block.
+    #[confval(nested)]
+    pub upstream: Vec<Located<Upstream>>,
+    /// The routing rules, each naming an upstream.
+    #[confval(nested)]
+    pub routes: Vec<Located<Route>>,
+}
+
+/// A labeled, repeated upstream block of the Gateway fixture.
+#[derive(confval::Spec)]
+pub struct Upstream {
+    /// The upstream's label.
+    #[confval(label)]
+    pub name: Located<String>,
+    /// The upstream host.
+    pub host: Located<String>,
+    /// The upstream port.
+    pub port: Located<i64>,
+}
+
+/// A routing rule of the Gateway fixture, naming an upstream by its label.
+#[derive(confval::Spec)]
+pub struct Route {
+    /// The path prefix this rule matches.
+    pub prefix: Located<String>,
+    /// The upstream this rule routes to.
+    #[confval(references = upstream)]
+    pub upstream: Located<String>,
+}
+
+impl Validate for Upstream {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for Route {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for GatewaySpec {
+    fn validate(&self, _report: &mut Report) {}
+}

@@ -37,8 +37,30 @@ pub(crate) fn resolve_in_tree(
                     full.append(&mut context.path);
                     full
                 };
+                // `level` is the block instance the cursor sits in, the sibling
+                // or the sequence element `descend` chose, so the handlers read
+                // the correct instance rather than re-walking to the first.
+                context.resolved_body = Some(level.clone());
                 return context;
             }
+        }
+    }
+}
+
+/// The fields of the block instance that contains `offset`, descending the same
+/// way [`resolve_in_tree`] does. YAML resolves its path from indentation, so it
+/// reads the instance body through this instead.
+pub(crate) fn instance_body_at(
+    tree: &Fields,
+    text: &str,
+    offset: usize,
+    covers_body: bool,
+) -> Fields {
+    let mut level = tree;
+    loop {
+        match descend(level, text, offset, covers_body) {
+            Step::Enter(_, inner) => level = inner,
+            Step::Here(_) => return level.clone(),
         }
     }
 }

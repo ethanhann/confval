@@ -13,6 +13,7 @@ use lsp_types::{
 };
 
 use confval::format::Fields;
+use confval::pipeline::label_index;
 use confval::schema::{Constraint, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
@@ -47,7 +48,7 @@ pub fn completion<F: Frontend>(
             )
         }
         PositionKind::AttributeValue { field } => {
-            value_items(enclosing, field, ctx, text, index, encoding)
+            value_items(schema, fields, enclosing, field, ctx, text, index, encoding)
         }
         PositionKind::BlockLabel => Vec::new(),
     }
@@ -66,10 +67,19 @@ fn body_items<F: Frontend>(
     snippets: bool,
     repeated: bool,
 ) -> Vec<CompletionItem> {
-    let set: HashSet<&str> = fields
-        .and_then(|tree| fields_at(tree, &ctx.path))
-        .map(|level| level.iter().map(|field| field.name.as_str()).collect())
-        .unwrap_or_default();
+    // A cursor starting a new element of a repeated block filters against
+    // nothing, because the element has no fields yet. Otherwise the resolved
+    // instance body addresses the exact instance the cursor sits in, falling
+    // back to the first instance only on the text recovery path.
+    let set: HashSet<&str> = if repeated && starts_new_element(frontend, text, ctx.token) {
+        HashSet::new()
+    } else {
+        ctx.resolved_body
+            .as_ref()
+            .or_else(|| fields.and_then(|tree| fields_at(tree, &ctx.path)))
+            .map(|level| level.iter().map(|field| field.name.as_str()).collect())
+            .unwrap_or_default()
+    };
 
     enclosing
         .fields
@@ -137,6 +147,19 @@ fn wrap_repeated_element<F: Frontend>(
     }
 }
 
+/// Whether the cursor starts a new element of a repeated block rather than
+/// sitting inside an existing one. A YAML sequence element begins on a blank line
+/// at the element indentation, and a JSON array element begins directly in the
+/// array. A brace block never starts an element this way, so its resolved
+/// instance always filters.
+fn starts_new_element<F: Frontend>(frontend: &F, text: &str, token: (usize, usize)) -> bool {
+    match frontend.recovery() {
+        Recovery::Indentation => on_blank_line(text, token),
+        Recovery::Object => innermost_is_array(text, token.0),
+        _ => false,
+    }
+}
+
 /// Whether only whitespace precedes the token on its line, so a YAML sequence
 /// marker starts a new element rather than doubling an existing one.
 fn on_blank_line(text: &str, token: (usize, usize)) -> bool {
@@ -167,8 +190,16 @@ fn innermost_is_array(text: &str, offset: usize) -> bool {
     matches!(stack.last(), Some(b'['))
 }
 
-/// Enum-value completions at an attribute-value position.
+/// Enum-value and reference-value completions at an attribute-value position.
+///
+/// A keyword field offers its allowed strings, read from the enclosing block
+/// schema. A reference field offers the labels of the block it names, collected
+/// from the root `schema` and the parsed `fields`, because the target block sits
+/// elsewhere in the document.
+#[allow(clippy::too_many_arguments)]
 fn value_items(
+    schema: &Schema,
+    fields: Option<&Fields>,
     enclosing: &Schema,
     field: &str,
     ctx: &CursorContext,
@@ -191,8 +222,40 @@ fn value_items(
             .iter()
             .map(|word| keyword_item(word, ctx, text, index, encoding))
             .collect(),
+        SchemaType::Scalar {
+            constraint: Some(Constraint::References { block }),
+            ..
+        } => reference_items(schema, fields, block, ctx, text, index, encoding),
         _ => Vec::new(),
     }
+}
+
+/// Reference-value completions: the distinct, non-empty labels the named block
+/// defines, offered as quoted strings. Returns nothing when the buffer does not
+/// parse or the block defines no label.
+fn reference_items(
+    schema: &Schema,
+    fields: Option<&Fields>,
+    block: &str,
+    ctx: &CursorContext,
+    text: &str,
+    index: &LineIndex,
+    encoding: PositionEncoding,
+) -> Vec<CompletionItem> {
+    let Some(fields) = fields else {
+        return Vec::new();
+    };
+    let labels = label_index(fields, schema);
+    let Some(labels) = labels.get(block) else {
+        return Vec::new();
+    };
+    let mut seen = HashSet::new();
+    labels
+        .iter()
+        .filter(|label| !label.value.is_empty())
+        .filter(|label| seen.insert(label.value.as_str()))
+        .map(|label| keyword_item(&label.value, ctx, text, index, encoding))
+        .collect()
 }
 
 /// One completion item for an allowed keyword, inserted as a quoted string.

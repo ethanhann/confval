@@ -12,7 +12,7 @@ use confval::format::Fields;
 use confval::schema::SchemaField;
 use confval::source::{SourceId, SourceMap};
 
-use crate::resolve::{resolve_in_tree, value_span_token};
+use crate::resolve::{instance_body_at, resolve_in_tree, value_span_token};
 use crate::scan::{resolve_in_text, resolve_in_yaml};
 
 /// The raw-text recovery a frontend's syntax needs.
@@ -64,7 +64,7 @@ pub enum PositionKind {
 /// It names the schema path from the root to the block that encloses the cursor,
 /// the kind of position the cursor sits in, and the byte range of the identifier
 /// or value under the cursor.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct CursorContext {
     /// The schema path from the root to the block that encloses the cursor, each
     /// element the field name of a block the cursor sits inside.
@@ -76,7 +76,23 @@ pub struct CursorContext {
     /// when it sits on no token. It is scanned from the current text, so it stays
     /// valid and on the cursor's line even when the buffer does not parse.
     pub token: (usize, usize),
+    /// The fields of the block instance the cursor sits in, when the buffer
+    /// parsed. The handlers read the already-set state and the hover state from
+    /// it, so a repeated block addresses the instance the cursor is in rather
+    /// than the first. It is `None` on the text recovery path, which has no
+    /// parsed instance.
+    pub resolved_body: Option<Fields>,
 }
+
+/// Equality ignores the resolved body, because `Fields` carries no equality and
+/// the path, the kind, and the token identify the position.
+impl PartialEq for CursorContext {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path && self.kind == other.kind && self.token == other.token
+    }
+}
+
+impl Eq for CursorContext {}
 
 impl CursorContext {
     /// A body position at `path` with the given replace token.
@@ -85,6 +101,7 @@ impl CursorContext {
             path,
             kind: PositionKind::Body,
             token,
+            resolved_body: None,
         }
     }
 
@@ -94,6 +111,7 @@ impl CursorContext {
             path,
             kind: PositionKind::AttributeValue { field },
             token,
+            resolved_body: None,
         }
     }
 }
@@ -146,6 +164,11 @@ pub trait Frontend {
                 {
                     context.token = token;
                 }
+                // YAML resolves its path from indentation, so the instance body
+                // is read from the tree here, the second site the tree walk does
+                // not cover. A repeated block then addresses the correct element.
+                context.resolved_body =
+                    Some(instance_body_at(tree, text, offset, self.block_span_covers_body()));
             }
             return context;
         }

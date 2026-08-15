@@ -14,7 +14,7 @@ use confval::schema::ToSchema;
 use confval_lsp::handlers::{completion, diagnostics, hover};
 use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
 
-use fixture::ServerSpec;
+use fixture::{GatewaySpec, ServerSpec};
 
 const ENCODING: PositionEncoding = PositionEncoding::Utf8;
 
@@ -1446,4 +1446,136 @@ fn hcl_list_and_map_completion_open_the_container() {
         .find(|i| i.label == "headers")
         .expect("headers offered");
     assert_eq!(inserted(headers), "headers = {  }");
+}
+
+/// The completion labels for the Gateway fixture at a cursor.
+fn gateway_offered<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Vec<String> {
+    let (tree, context) = at_with(frontend, text, offset);
+    let index = LineIndex::new(text);
+    let items = completion(
+        frontend,
+        &GatewaySpec::schema(),
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+    labels(&items)
+}
+
+/// The hover markdown for the Gateway fixture at a cursor.
+fn gateway_hover<F: Frontend>(frontend: &F, text: &str, offset: usize) -> String {
+    let (tree, context) = at_with(frontend, text, offset);
+    let index = LineIndex::new(text);
+    let Some(hover) = hover(
+        &GatewaySpec::schema(),
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+    ) else {
+        panic!("a hover is produced");
+    };
+    match hover.contents {
+        HoverContents::Markup(markup) => markup.value,
+        _ => panic!("expected a markdown hover"),
+    }
+}
+
+#[test]
+fn completion_filters_the_already_set_fields_of_the_cursors_instance() {
+    // Arrange
+    // The first upstream sets host, the second sets port. A cursor on a blank
+    // line inside the second offers host, unset there, and drops port, set there.
+    // Reading the first instance would invert this.
+    let hcl = "upstream \"a\" {\n  host = \"h\"\n}\nupstream \"b\" {\n  port = 8080\n  \n}\n";
+    let hcl_off = hcl.find("port = 8080").unwrap() + "port = 8080\n  ".len();
+    let kdl = "upstream \"a\" {\n  host \"h\"\n}\nupstream \"b\" {\n  port 8080\n  \n}\n";
+    let kdl_off = kdl.find("port 8080").unwrap() + "port 8080\n  ".len();
+    let toml = "[[upstream]]\nname = \"a\"\nhost = \"h\"\n\n[[upstream]]\nname = \"b\"\nport = 8080\n\n";
+    let toml_off = toml.rfind("port = 8080").unwrap() + "port = 8080\n".len();
+
+    // Act
+    let hcl_items = gateway_offered(&Hcl, hcl, hcl_off);
+    let kdl_items = gateway_offered(&Kdl, kdl, kdl_off);
+    let toml_items = gateway_offered(&Toml, toml, toml_off);
+
+    // Assert
+    for (format, items) in [("hcl", &hcl_items), ("kdl", &kdl_items), ("toml", &toml_items)] {
+        assert!(
+            items.contains(&"host".to_string()),
+            "{format} offers host, unset in the second instance: {items:?}"
+        );
+        assert!(
+            !items.contains(&"port".to_string()),
+            "{format} drops port, set in the second instance: {items:?}"
+        );
+    }
+}
+
+#[test]
+fn hover_reads_the_state_from_the_cursors_instance() {
+    // Arrange
+    // Only the second upstream sets port. Hover on port in the second instance
+    // reports it set. Reading the first instance would report it unset.
+    let hcl = "upstream \"a\" {\n  host = \"h\"\n}\nupstream \"b\" {\n  host = \"h2\"\n  port = 8080\n}\n";
+    let kdl = "upstream \"a\" {\n  host \"h\"\n}\nupstream \"b\" {\n  host \"h2\"\n  port 8080\n}\n";
+    let toml = "[[upstream]]\nname = \"a\"\nhost = \"h\"\n\n[[upstream]]\nname = \"b\"\nhost = \"h2\"\nport = 8080\n";
+    let json = "{\n  \"upstream\": [\n    { \"name\": \"a\", \"host\": \"h\" },\n    { \"name\": \"b\", \"host\": \"h2\", \"port\": 8080 }\n  ]\n}\n";
+    let yaml = "upstream:\n  - name: a\n    host: alpha\n  - name: b\n    host: beta\n    port: 8080\n";
+
+    // Act
+    let hcl_hover = gateway_hover(&Hcl, hcl, hcl.rfind("port").unwrap() + 1);
+    let kdl_hover = gateway_hover(&Kdl, kdl, kdl.rfind("port").unwrap() + 1);
+    let toml_hover = gateway_hover(&Toml, toml, toml.rfind("port").unwrap() + 1);
+    let json_hover = gateway_hover(&Json, json, json.rfind("port").unwrap() + 1);
+    let yaml_hover = gateway_hover(&Yaml, yaml, yaml.rfind("port").unwrap() + 1);
+
+    // Assert
+    for (format, markdown) in [
+        ("hcl", &hcl_hover),
+        ("kdl", &kdl_hover),
+        ("toml", &toml_hover),
+        ("json", &json_hover),
+        ("yaml", &yaml_hover),
+    ] {
+        assert!(
+            markdown.contains("Set by the configuration."),
+            "{format} reads port set in the second instance: {markdown:?}"
+        );
+    }
+}
+
+#[test]
+fn reference_value_completion_offers_the_defined_labels() {
+    // Arrange
+    // Two upstreams are defined. The route's upstream reference value offers both
+    // labels, collected from the whole document, in every format.
+    let hcl = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\nupstream \"web\" {\n  host = \"h2\"\n  port = 2\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"\"\n}\n";
+    let hcl_off = hcl.rfind("upstream = \"").unwrap() + "upstream = \"".len();
+    let kdl = "upstream \"api\" {\n  host \"h\"\n  port 1\n}\nupstream \"web\" {\n  host \"h2\"\n  port 2\n}\nroutes {\n  prefix \"/a\"\n  upstream \"\"\n}\n";
+    let kdl_off = kdl.rfind("upstream \"").unwrap() + "upstream \"".len();
+    let toml = "[[upstream]]\nname = \"api\"\nhost = \"h\"\nport = 1\n\n[[upstream]]\nname = \"web\"\nhost = \"h2\"\nport = 2\n\n[[routes]]\nprefix = \"/a\"\nupstream = \"\"\n";
+    let toml_off = toml.rfind("upstream = \"").unwrap() + "upstream = \"".len();
+    let json = "{\n  \"upstream\": [\n    { \"name\": \"api\", \"host\": \"h\", \"port\": 1 },\n    { \"name\": \"web\", \"host\": \"h2\", \"port\": 2 }\n  ],\n  \"routes\": [\n    { \"prefix\": \"/a\", \"upstream\": \"\" }\n  ]\n}\n";
+    let json_off = json.rfind("\"upstream\": \"").unwrap() + "\"upstream\": \"".len();
+    let yaml = "upstream:\n  - name: api\n    host: h\n    port: 1\n  - name: web\n    host: h2\n    port: 2\nroutes:\n  - prefix: /a\n    upstream: \"\"\n";
+    let yaml_off = yaml.rfind("upstream: \"").unwrap() + "upstream: \"".len();
+
+    // Act, Assert
+    for (format, labels) in [
+        ("hcl", gateway_offered(&Hcl, hcl, hcl_off)),
+        ("kdl", gateway_offered(&Kdl, kdl, kdl_off)),
+        ("toml", gateway_offered(&Toml, toml, toml_off)),
+        ("json", gateway_offered(&Json, json, json_off)),
+        ("yaml", gateway_offered(&Yaml, yaml, yaml_off)),
+    ] {
+        assert!(
+            labels.contains(&"api".to_string()) && labels.contains(&"web".to_string()),
+            "{format} offers the defined upstream labels: {labels:?}"
+        );
+    }
 }
