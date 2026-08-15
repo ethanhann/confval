@@ -2052,7 +2052,10 @@ fn completion_sorts_by_schema_declaration_order() {
         .collect();
     let mut sorted = sort_keys.clone();
     sorted.sort();
-    assert_eq!(sort_keys, sorted, "declaration order survives a client sort");
+    assert_eq!(
+        sort_keys, sorted,
+        "declaration order survives a client sort"
+    );
     assert_eq!(items[0].label, "hostname", "the first declared field leads");
 }
 
