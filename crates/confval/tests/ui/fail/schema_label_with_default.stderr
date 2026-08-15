@@ -1,0 +1,5 @@
+error: #[confval(label)] cannot take a default
+ --> tests/ui/fail/schema_label_with_default.rs:6:5
+  |
+6 |     name: Located<String>,
+  |     ^^^^

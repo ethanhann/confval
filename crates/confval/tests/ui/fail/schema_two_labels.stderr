@@ -1,0 +1,6 @@
+error: #[confval(label)] marks at most one field
+ --> tests/ui/fail/schema_two_labels.rs:7:5
+  |
+7 | /     #[confval(label)]
+8 | |     alias: Located<String>,
+  | |__________________________^

@@ -59,7 +59,7 @@ pub(crate) fn field_schema(
     let has_default = options.default.is_some();
     let structurally_required = structurally_required(shape);
     let ty = schema_type(shape, options)?;
-    reject_label_on_non_string(ident, shape, options)?;
+    reject_label_misuse(ident, shape, options)?;
     let field = quote! {
         ::confval::schema::SchemaField::new(
             #name.to_string(),
@@ -76,26 +76,45 @@ pub(crate) fn field_schema(
     }
 }
 
-/// Rejects `#[confval(label)]` on a field that is not a `String` leaf. A block's
-/// label is a string, so a list, a map, a block, or a non-string scalar cannot
-/// be one.
-fn reject_label_on_non_string(
+/// Rejects the misuses of `#[confval(label)]`.
+///
+/// A block's label is one required string, so the field must be a non-optional
+/// `String` leaf and cannot carry a default. A list, a map, a block, or a
+/// non-string scalar cannot be a label, an optional leaf names nothing when the
+/// block carries no label, and a default would build a value the reference pass
+/// then reports as undefined.
+fn reject_label_misuse(
     ident: &Ident,
     shape: &FieldShape,
     options: &FieldOptions,
 ) -> syn::Result<()> {
-    if options.label
-        && !matches!(
-            shape,
-            FieldShape::Leaf {
-                leaf: Leaf::String,
-                ..
+    if !options.label {
+        return Ok(());
+    }
+    match shape {
+        FieldShape::Leaf {
+            leaf: Leaf::String,
+            optional,
+            ..
+        } => {
+            if *optional {
+                return Err(syn::Error::new_spanned(
+                    ident,
+                    "#[confval(label)] cannot be optional",
+                ));
             }
-        )
-    {
+        }
+        _ => {
+            return Err(syn::Error::new_spanned(
+                ident,
+                "#[confval(label)] requires a String leaf",
+            ));
+        }
+    }
+    if options.default.is_some() {
         return Err(syn::Error::new_spanned(
             ident,
-            "#[confval(label)] requires a String leaf",
+            "#[confval(label)] cannot take a default",
         ));
     }
     Ok(())

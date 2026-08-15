@@ -116,7 +116,17 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         // Read the field's attributes, work out its parsing shape, and reject a
         // `default` on a shape that cannot honor it.
         let options = parse_options(field)?;
-        has_label |= options.label;
+        // A block designates one label field, so a second `#[confval(label)]`
+        // is rejected here, the only place that sees every field.
+        if options.label {
+            if has_label {
+                return Err(syn::Error::new_spanned(
+                    field,
+                    "#[confval(label)] marks at most one field",
+                ));
+            }
+            has_label = true;
+        }
         let shape = classify(field, options.nested, options.map)?;
         reject_unsupported_default(field, &shape, &options)?;
         if struct_options.derive_default {

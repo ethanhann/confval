@@ -1,0 +1,5 @@
+error: #[confval(label)] cannot be optional
+ --> tests/ui/fail/schema_label_optional.rs:6:5
+  |
+6 |     name: Option<Located<String>>,
+  |     ^^^^
