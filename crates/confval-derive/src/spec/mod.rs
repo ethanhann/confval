@@ -163,7 +163,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         missing_checks.push(quote! {
             if let ::core::option::Option::Some(__label) = fields.label() {
                 report
-                    .error("this block does not take a label")
+                    .error("a block label is not allowed here")
                     .at(__label.span)
                     .emit();
             }

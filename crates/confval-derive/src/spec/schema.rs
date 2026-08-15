@@ -104,10 +104,19 @@ fn reject_label_misuse(
                 ));
             }
         }
-        _ => {
+        // A non-string scalar leaf, such as an integer.
+        FieldShape::Leaf { .. } => {
             return Err(syn::Error::new_spanned(
                 ident,
                 "#[confval(label)] requires a String leaf",
+            ));
+        }
+        // A list, a map, or a nested block, matching the constraint rejects.
+        _ => {
+            return Err(syn::Error::new_spanned(
+                ident,
+                "#[confval(label)] requires a String leaf; \
+                 it cannot apply to a list, a map, or a nested block",
             ));
         }
     }

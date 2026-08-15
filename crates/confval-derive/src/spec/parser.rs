@@ -82,7 +82,7 @@ pub(crate) fn field_parser(
                     if let ::core::option::Option::Some(__label) = fields.label() {
                         if let ::core::option::Option::Some(__child_span) = #seen {
                             report
-                                .error("this field duplicates the block label")
+                                .error("a block label is already set")
                                 .at(__child_span)
                                 .related(__label.span, "the block label")
                                 .emit();
