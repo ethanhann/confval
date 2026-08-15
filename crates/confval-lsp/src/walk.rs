@@ -8,6 +8,8 @@
 use confval::format::{FieldKind, Fields, ValueKind};
 use confval::schema::{Schema, SchemaType};
 
+use crate::frontend::CursorContext;
+
 /// The schema of the block a cursor path encloses.
 ///
 /// Returns `None` when a path element is not a nested block, such as a path that
@@ -56,4 +58,19 @@ pub(crate) fn fields_at<'a>(root: &'a Fields, path: &[String]) -> Option<&'a Fie
         }
     }
     Some(current)
+}
+
+/// The parsed fields of the block instance the cursor resolved into.
+///
+/// It is the resolved instance body when the buffer parsed, which addresses the
+/// exact instance of a repeated block, and otherwise the first instance at the
+/// path, the text recovery path with no parsed instance. The completion and
+/// hover handlers read the already-set state from it.
+pub(crate) fn resolved_level<'a>(
+    ctx: &'a CursorContext,
+    fields: Option<&'a Fields>,
+) -> Option<&'a Fields> {
+    ctx.resolved_body
+        .as_ref()
+        .or_else(|| fields.and_then(|tree| fields_at(tree, &ctx.path)))
 }

@@ -19,7 +19,7 @@ use confval::schema::{Constraint, Schema, SchemaField, SchemaType};
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, Frontend, PositionKind, Recovery};
 use crate::scan::skip_string;
-use crate::walk::{fields_at, repeated_block_at, schema_at};
+use crate::walk::{repeated_block_at, resolved_level, schema_at};
 
 /// Produces the completion items for a resolved cursor.
 ///
@@ -74,9 +74,7 @@ fn body_items<F: Frontend>(
     let set: HashSet<&str> = if repeated && starts_new_element(frontend, text, ctx.token) {
         HashSet::new()
     } else {
-        ctx.resolved_body
-            .as_ref()
-            .or_else(|| fields.and_then(|tree| fields_at(tree, &ctx.path)))
+        resolved_level(ctx, fields)
             .map(|level| level.iter().map(|field| field.name.as_str()).collect())
             .unwrap_or_default()
     };

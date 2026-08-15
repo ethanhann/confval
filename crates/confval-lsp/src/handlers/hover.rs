@@ -14,7 +14,7 @@ use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, PositionKind};
-use crate::walk::{fields_at, schema_at};
+use crate::walk::{resolved_level, schema_at};
 
 /// Produces the hover for a resolved cursor, or `None` when the cursor sits on
 /// no field.
@@ -54,14 +54,10 @@ pub fn hover(
     };
     let field = enclosing.fields.iter().find(|field| field.name == name)?;
     // `None` when there is no parse to read the state from, so the state is
-    // unknown rather than "not set". The resolved instance body addresses the
-    // exact instance of a repeated block, falling back to the first only on the
-    // text recovery path.
-    let set = ctx
-        .resolved_body
-        .as_ref()
-        .or_else(|| fields.and_then(|tree| fields_at(tree, &ctx.path)))
-        .map(|level| level.has(&name));
+    // unknown rather than "not set". The resolved level addresses the exact
+    // instance of a repeated block, falling back to the first only on the text
+    // recovery path.
+    let set = resolved_level(ctx, fields).map(|level| level.has(&name));
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent {
             kind: MarkupKind::Markdown,

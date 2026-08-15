@@ -100,35 +100,31 @@ impl PartialEq for CursorContext {
 impl Eq for CursorContext {}
 
 impl CursorContext {
-    /// A body position at `path` with the given replace token.
-    pub(crate) fn body(path: Vec<String>, token: (usize, usize)) -> Self {
+    /// A context at `path` of the given kind and replace token, with no resolved
+    /// body. Resolution fills the body in afterward when the buffer parsed.
+    fn at(path: Vec<String>, kind: PositionKind, token: (usize, usize)) -> Self {
         Self {
             path,
-            kind: PositionKind::Body,
+            kind,
             token,
             resolved_body: None,
         }
     }
 
+    /// A body position at `path` with the given replace token.
+    pub(crate) fn body(path: Vec<String>, token: (usize, usize)) -> Self {
+        Self::at(path, PositionKind::Body, token)
+    }
+
     /// An attribute-value position for `field` at `path`.
     pub(crate) fn attribute_value(path: Vec<String>, field: String, token: (usize, usize)) -> Self {
-        Self {
-            path,
-            kind: PositionKind::AttributeValue { field },
-            token,
-            resolved_body: None,
-        }
+        Self::at(path, PositionKind::AttributeValue { field }, token)
     }
 
     /// A block-label position for the `block` type at `path`. The token is the
     /// label's byte span.
     pub(crate) fn block_label(path: Vec<String>, block: String, token: (usize, usize)) -> Self {
-        Self {
-            path,
-            kind: PositionKind::BlockLabel { block },
-            token,
-            resolved_body: None,
-        }
+        Self::at(path, PositionKind::BlockLabel { block }, token)
     }
 }
 
