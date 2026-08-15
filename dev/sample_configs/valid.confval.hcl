@@ -34,3 +34,14 @@ rules {
   prefix   = "/admin"
   upstream = "web"
 }
+
+service {
+  name = "checkout"
+  endpoints "primary" {
+    port = 9000
+  }
+  routes {
+    prefix   = "/pay"
+    endpoint = "primary"
+  }
+}

@@ -23,3 +23,11 @@ rules:
     upstream: api
   - prefix: "/admin"
     upstream: web
+service:
+  - name: checkout
+    endpoints:
+      - name: primary
+        port: 9000
+    routes:
+      - prefix: "/pay"
+        endpoint: primary

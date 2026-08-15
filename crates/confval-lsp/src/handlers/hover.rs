@@ -8,13 +8,12 @@
 
 use lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind};
 
-use confval::format::Fields;
-use confval::pipeline::label_index;
+use confval::format::{Field, FieldKind, Fields, Scalar, ValueKind};
 use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, PositionKind};
-use crate::walk::{resolved_level, schema_at};
+use crate::walk::{reference_labels, resolved_level, schema_at};
 
 /// Produces the hover for a resolved cursor, or `None` when the cursor sits on
 /// no field.
@@ -40,9 +39,7 @@ pub fn hover(
             ..
         } = &target.ty
     {
-        return Some(reference_hover(
-            block, fields, schema, ctx, text, index, encoding,
-        ));
+        return Some(reference_hover(block, field, schema, ctx, text, index, encoding));
     }
     let name = match &ctx.kind {
         PositionKind::AttributeValue { field } => field.clone(),
@@ -84,34 +81,70 @@ fn label_hover(
     }
 }
 
-/// Hover for a reference value: the block it names and whether the value resolves
-/// against a defined label. Resolution is unknown when the buffer does not parse.
-#[allow(clippy::too_many_arguments)]
+/// The compared reference value at the cursor.
+enum ReferenceValue {
+    /// A string value: parsed from the resolved instance body, or the raw
+    /// token when the body does not hold the field yet.
+    Text(String),
+    /// A parsed value that is not a string. The reference pass skips it
+    /// without a report, so hover states no resolution either.
+    NonString,
+    /// The buffer did not parse, so there is no value to compare.
+    Unknown,
+}
+
+/// Hover for a reference value: the block it names and whether the value
+/// resolves against a label of the declaring scope, found by the same outward
+/// search the reference pass runs.
+///
+/// The compared value is the parsed string from the resolved instance body, so
+/// a single-quoted YAML value agrees with diagnostics. The raw token stands in
+/// only when the body does not hold the field, and resolution is unknown when
+/// the buffer does not parse.
 fn reference_hover(
     block: &str,
-    fields: Option<&Fields>,
+    field: &str,
     schema: &Schema,
     ctx: &CursorContext,
     text: &str,
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> Hover {
-    let value = text
-        .get(ctx.token.0..ctx.token.1)
-        .unwrap_or_default()
-        .trim_matches('"');
-    let resolves = fields.map(|tree| {
-        label_index(tree, schema).get(block).is_some_and(|labels| {
-            labels
-                .iter()
-                .any(|label| !label.value.is_empty() && label.value.as_str() == value)
-        })
-    });
-    let mut markdown = format!("References the `{block}` block.\n\n");
-    match resolves {
-        Some(true) => markdown.push_str("Resolves to a defined label."),
-        Some(false) => markdown.push_str("Does not resolve to any defined label."),
-        None => markdown.push_str("Resolution is unknown while the document does not parse."),
+    let raw = || {
+        text.get(ctx.token.0..ctx.token.1)
+            .unwrap_or_default()
+            .trim_matches('"')
+            .to_string()
+    };
+    let value = match &ctx.resolved_body {
+        Some(body) => match body.get(field) {
+            Some(parsed) => match field_text(parsed) {
+                Some(string) => ReferenceValue::Text(string),
+                None => ReferenceValue::NonString,
+            },
+            None => ReferenceValue::Text(raw()),
+        },
+        None => ReferenceValue::Unknown,
+    };
+    let mut markdown = format!("References the `{block}` block.");
+    match value {
+        ReferenceValue::Text(value) => {
+            let resolves = reference_labels(schema, ctx, block).is_some_and(|labels| {
+                labels
+                    .iter()
+                    .any(|label| !label.value.is_empty() && label.value == value)
+            });
+            markdown.push_str("\n\n");
+            markdown.push_str(if resolves {
+                "Resolves to a defined label."
+            } else {
+                "Does not resolve to any defined label."
+            });
+        }
+        ReferenceValue::NonString => {}
+        ReferenceValue::Unknown => {
+            markdown.push_str("\n\nResolution is unknown while the document does not parse.");
+        }
     }
     Hover {
         contents: HoverContents::Markup(MarkupContent {
@@ -119,6 +152,17 @@ fn reference_hover(
             value: markdown,
         }),
         range: Some(index.range_of_bytes(text, ctx.token, encoding)),
+    }
+}
+
+/// A parsed field's string value, or `None` when it is not a string.
+fn field_text(field: &Field) -> Option<String> {
+    match &field.kind {
+        FieldKind::Value(value) => match &value.kind {
+            ValueKind::Scalar(Scalar::String(string)) => Some(string.clone()),
+            _ => None,
+        },
+        _ => None,
     }
 }
 
@@ -190,6 +234,7 @@ fn constraint_of(ty: &SchemaType) -> Option<&Constraint> {
 fn constraint_label(constraint: &Constraint) -> String {
     match constraint {
         Constraint::Keywords(words) => format!("One of: {}.", words.join(", ")),
+        Constraint::References { block } => format!("References the `{block}` block."),
         Constraint::Range {
             min,
             max,

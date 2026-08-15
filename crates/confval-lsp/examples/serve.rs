@@ -53,6 +53,45 @@ struct ServerSpec {
     /// Zero or more routing rules.
     #[confval(nested)]
     rules: Vec<Located<RuleSpec>>,
+    /// Zero or more services, the sibling-scoped reference shape: a service's
+    /// route names one of that service's own endpoints.
+    #[confval(nested)]
+    service: Vec<Located<ServiceSpec>>,
+}
+
+/// A repeated service block with its own endpoint pool.
+#[derive(confval::Spec)]
+struct ServiceSpec {
+    /// The service name.
+    name: Located<String>,
+    /// The service's endpoints. A repeated, labeled block nested below the
+    /// root, so a reference to it resolves within this service.
+    #[confval(nested)]
+    endpoints: Vec<Located<EndpointSpec>>,
+    /// The service's routes, each naming one of its own endpoints.
+    #[confval(nested)]
+    routes: Vec<Located<ServiceRouteSpec>>,
+}
+
+/// A labeled endpoint of one service.
+#[derive(confval::Spec)]
+struct EndpointSpec {
+    /// The endpoint's label, named by a service route's `endpoint` field.
+    #[confval(label)]
+    name: Located<String>,
+    /// The endpoint port.
+    #[confval(range = PORT)]
+    port: Located<i64>,
+}
+
+/// A route of one service, resolving against that service's endpoints.
+#[derive(confval::Spec)]
+struct ServiceRouteSpec {
+    /// The path prefix this route matches.
+    prefix: Located<String>,
+    /// The endpoint this route targets, within its own service.
+    #[confval(references = endpoints)]
+    endpoint: Option<Located<String>>,
 }
 
 /// A labeled, repeated upstream block.
@@ -99,6 +138,18 @@ impl Validate for UpstreamSpec {
 }
 
 impl Validate for RuleSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for ServiceSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for EndpointSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for ServiceRouteSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 

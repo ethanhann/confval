@@ -23,12 +23,14 @@ pub(crate) fn resolve_in_tree(
     covers_body: bool,
 ) -> CursorContext {
     let mut path = Vec::new();
+    let mut ancestors: Vec<Fields> = Vec::new();
     let mut level = tree;
 
     loop {
         match descend(level, text, offset, covers_body) {
             Step::Enter(name, inner) => {
                 path.push(name);
+                ancestors.push(level.clone());
                 level = inner;
             }
             Step::Here(mut context) => {
@@ -39,7 +41,10 @@ pub(crate) fn resolve_in_tree(
                 };
                 // `level` is the block instance the cursor sits in, the sibling
                 // or the sequence element `descend` chose, so the handlers read
-                // the correct instance rather than re-walking to the first.
+                // the correct instance rather than re-walking to the first. The
+                // ancestor bodies recorded on the way down give the reference
+                // handlers their enclosing scopes.
+                context.ancestors = ancestors;
                 context.resolved_body = Some(level.clone());
                 return context;
             }
@@ -47,28 +52,33 @@ pub(crate) fn resolve_in_tree(
     }
 }
 
-/// The fields of the block instance at `path`, choosing a repeated instance by
-/// `offset` at each level. YAML resolves its path from indentation, so it reads
-/// the instance body through this rather than the tree descent, whose offset
-/// bounds stop at a span the tree does not hold.
+/// The bodies of the block instances along `path`, root first, choosing a
+/// repeated instance by `offset` at each level. The last body is the instance
+/// the cursor sits in, and the ones before it are its enclosing scopes. YAML
+/// resolves its path from indentation, so it reads the bodies through this
+/// rather than the tree descent, whose offset bounds stop at a span the tree
+/// does not hold.
 ///
 /// A segment whose body the tree does not hold, such as a key that parses as
 /// null while its body is pending, yields an empty body: the operator has set
 /// nothing there yet. `None` stays reserved for the recovery path with no parse.
-pub(crate) fn body_along_path(
+pub(crate) fn bodies_along_path(
     tree: &Fields,
     path: &[String],
     offset: usize,
     covers_body: bool,
-) -> Fields {
-    let mut level = tree;
+) -> Vec<Fields> {
+    let mut bodies = Vec::with_capacity(path.len() + 1);
+    bodies.push(tree.clone());
+    let mut level = Some(tree);
     for name in path {
-        match enter_segment(level, name, offset, covers_body) {
-            Some(inner) => level = inner,
-            None => return Fields::detached(Vec::new()),
-        }
+        level = level.and_then(|inner| enter_segment(inner, name, offset, covers_body));
+        bodies.push(match level {
+            Some(inner) => inner.clone(),
+            None => Fields::detached(Vec::new()),
+        });
     }
-    level.clone()
+    bodies
 }
 
 /// The body one path segment enters at one level, or `None` for a pending body.

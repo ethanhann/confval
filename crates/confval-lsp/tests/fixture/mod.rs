@@ -86,6 +86,64 @@ impl Validate for ServerSpec {
     }
 }
 
+/// A mesh-shaped fixture for the scoped reference tests: the labeled
+/// `upstreams` block is nested inside the repeated `services` block, so a
+/// route's reference resolves against its own service's upstreams rather than
+/// a root-level block.
+#[derive(confval::Spec)]
+pub struct MeshSpec {
+    /// The services, each with its own upstreams and routes.
+    #[confval(nested)]
+    pub services: Vec<Located<MeshServiceSpec>>,
+}
+
+/// One service of the mesh fixture.
+#[derive(confval::Spec)]
+pub struct MeshServiceSpec {
+    /// The service name.
+    pub name: Located<String>,
+    /// The service's upstreams. A repeated, labeled block.
+    #[confval(nested)]
+    pub upstreams: Vec<Located<MeshUpstreamSpec>>,
+    /// The service's routes, each naming one of its upstreams.
+    #[confval(nested)]
+    pub routes: Vec<Located<MeshRouteSpec>>,
+}
+
+/// A labeled upstream of one mesh service.
+#[derive(confval::Spec)]
+pub struct MeshUpstreamSpec {
+    /// The upstream's label.
+    #[confval(label)]
+    pub name: Located<String>,
+    /// The upstream port.
+    pub port: Located<i64>,
+}
+
+/// A route of one mesh service.
+#[derive(confval::Spec)]
+pub struct MeshRouteSpec {
+    /// The upstream this route targets, within its own service.
+    #[confval(references = upstreams)]
+    pub upstream: Located<String>,
+}
+
+impl Validate for MeshSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for MeshServiceSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for MeshUpstreamSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for MeshRouteSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
 /// A parent-and-child fixture whose block repeats a parent field name, for the
 /// pending-body tests. The shared `port` name makes a wrong resolution level
 /// visible: a pending `admin` body must not read the root's `port` as set.

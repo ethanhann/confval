@@ -1,11 +1,14 @@
 //! The reference resolution pass.
 //!
 //! A field marked `#[confval(references = <block>)]` holds the label of a
-//! top-level `<block>` defined in the same document. This pass builds the whole
-//! label index first, so a reference resolves against a block defined later in
-//! the file, then checks every reference against it. It reads only the parsed
-//! [`Fields`](crate::format::Fields) and the [`Schema`](crate::schema::Schema),
-//! so the pipeline and the language server run the same check.
+//! `<block>` its scope can see. Resolution searches from the reference's
+//! enclosing block outward to the nearest enclosing scope whose schema declares
+//! a labeled block field of that name, with the root searched last. Labels are
+//! collected within that one scope instance, so two sibling instances of the
+//! enclosing block may reuse a label without conflict. The whole walk reads
+//! only the parsed [`Fields`](crate::format::Fields) and the
+//! [`Schema`](crate::schema::Schema), so the pipeline and the language server
+//! run the same check.
 
 use std::collections::HashMap;
 
@@ -14,12 +17,12 @@ use crate::format::field::{Field, FieldKind, Fields, Scalar, ValueKind};
 use crate::schema::{Constraint, Schema, SchemaType};
 use crate::source::{Located, Span};
 
-/// Checks every reference field against the labels the document defines.
+/// Checks every reference field against the labels its scope can see.
 ///
-/// Reports a reference to a label no block defines, at the reference value's
-/// span, with the defined labels in the help. Building the index also reports a
-/// duplicate label and an empty label. The pass reads only `fields` and
-/// `schema`.
+/// Reports a reference to a label the declaring scope does not define, at the
+/// reference value's span, with the scope's defined labels in the help. The
+/// walk also reports a duplicate label and an empty label within each scope
+/// instance. The pass reads only `fields` and `schema`.
 ///
 /// The pass checks file-source string values. A value carried as
 /// [`Scalar::Unparsed`], from env-var or flag layering, is skipped, so a layered
@@ -31,52 +34,140 @@ use crate::source::{Located, Span};
 /// child field that duplicates a native label. A caller that wants the whole
 /// label story runs `from_fields` and then this pass.
 pub fn check_references(fields: &Fields, schema: &Schema, report: &mut Report) {
-    let index = label_index(fields, schema);
-    report_label_issues(&index, schema, report);
-    check_level(fields, schema, &index, report);
+    check_scope(fields, schema, &mut Vec::new(), report);
 }
 
-/// The labels each top-level, label-bearing block defines, keyed by the block's
-/// field name.
-///
-/// Each label carries its span, in document order. The list keeps every
-/// instance, including a duplicate and an empty label, and the function emits no
-/// diagnostics. The pipeline and the language server share it, so the editor
-/// collects labels the way the reference check does.
-pub fn label_index(fields: &Fields, schema: &Schema) -> HashMap<String, Vec<Located<String>>> {
-    let mut index = HashMap::new();
-    for field in &schema.fields {
-        let SchemaType::Block { schema: block, .. } = &field.ty else {
-            continue;
-        };
-        let Some(label_field) = block.fields.iter().find(|child| child.label) else {
-            continue;
-        };
-        let mut labels: Vec<Located<String>> = Vec::new();
-        for instance in fields.iter().filter(|f| f.name == field.name) {
-            for body in instance_bodies(instance) {
-                if let Some((value, span)) = instance_label(body, &label_field.name) {
-                    labels.push(Located::new(value, span));
-                }
-            }
-        }
-        index.insert(field.name.clone(), labels);
-    }
-    index
+/// One enclosing scope on the walk: a block instance's schema and body.
+struct Scope<'a> {
+    schema: &'a Schema,
+    body: &'a Fields,
 }
 
-/// Reports a duplicate label and an empty label from a built index. Walking the
-/// schema fields rather than the map keeps the diagnostics in a stable order.
-fn report_label_issues(
-    index: &HashMap<String, Vec<Located<String>>>,
-    schema: &Schema,
+/// Walks one scope instance: reports its label issues, checks its reference
+/// fields against the chain of enclosing scopes, and recurses into its blocks.
+fn check_scope<'a>(
+    body: &'a Fields,
+    schema: &'a Schema,
+    chain: &mut Vec<Scope<'a>>,
     report: &mut Report,
 ) {
-    for field in &schema.fields {
-        let Some(labels) = index.get(&field.name) else {
+    report_scope_label_issues(body, schema, report);
+    chain.push(Scope { schema, body });
+    for field in body.iter() {
+        let Some(declared) = schema.fields.iter().find(|s| s.name == field.name) else {
             continue;
         };
-        let mut first_span: HashMap<&str, Span> = HashMap::new();
+        match &declared.ty {
+            SchemaType::Scalar {
+                constraint: Some(Constraint::References { block }),
+                ..
+            } => {
+                if let Some((value, span)) = field_string(field) {
+                    check_reference(block, &value, span, chain, report);
+                }
+            }
+            SchemaType::Block { schema: inner, .. } => {
+                for instance in instance_bodies(field) {
+                    check_scope(instance, inner, chain, report);
+                }
+            }
+            _ => {}
+        }
+    }
+    chain.pop();
+}
+
+/// Checks one reference value by the outward search over the scope chain.
+fn check_reference(block: &str, value: &str, span: Span, chain: &[Scope], report: &mut Report) {
+    let declaring = chain
+        .iter()
+        .rev()
+        .find(|scope| declares_labeled_block(scope.schema, block));
+    let Some(scope) = declaring else {
+        // No enclosing scope declares the target. That is a schema error, so
+        // the message names the target rather than the config value.
+        report
+            .error(format!("reference target {block} is not a labeled block"))
+            .at(span)
+            .emit();
+        return;
+    };
+    let labels = scope_labels(scope.body, scope.schema, block);
+    let defined = distinct_labels(&labels);
+    if !defined.contains(&value) {
+        let help = if defined.is_empty() {
+            format!("the file defines no {block}")
+        } else {
+            format!("defined {block}: {}", defined.join(", "))
+        };
+        report
+            .error(format!("no {block} named {value:?}"))
+            .at(span)
+            .help(help)
+            .emit();
+    }
+}
+
+/// Whether `schema` declares `block` as a labeled block field of its scope.
+///
+/// The outward search stops at the nearest scope for which this holds. A field
+/// of the same name that is not a labeled block does not stop the search, so a
+/// reference field may carry its target's name.
+pub fn declares_labeled_block(schema: &Schema, block: &str) -> bool {
+    schema.fields.iter().any(|field| {
+        field.name == block
+            && matches!(&field.ty, SchemaType::Block { schema: inner, .. }
+                if inner.fields.iter().any(|child| child.label))
+    })
+}
+
+/// The labels the `block` field defines within one scope instance.
+///
+/// Each label carries its span, in document order. The list keeps every
+/// instance, including a duplicate and an empty label, and the function emits
+/// no diagnostics. The pipeline and the language server share it, so the editor
+/// collects labels the way the reference check does.
+pub fn scope_labels(scope: &Fields, schema: &Schema, block: &str) -> Vec<Located<String>> {
+    let Some(label_field) = labeled_child(schema, block) else {
+        return Vec::new();
+    };
+    let mut labels = Vec::new();
+    for instance in scope.iter().filter(|field| field.name == block) {
+        for body in instance_bodies(instance) {
+            if let Some((value, span)) = instance_label(body, label_field) {
+                labels.push(Located::new(value, span));
+            }
+        }
+    }
+    labels
+}
+
+/// The name of the designated label field of the `block` child, or `None` when
+/// `schema` does not declare `block` as a labeled block.
+fn labeled_child<'a>(schema: &'a Schema, block: &str) -> Option<&'a str> {
+    schema.fields.iter().find_map(|field| match &field.ty {
+        SchemaType::Block { schema: inner, .. } if field.name == block => inner
+            .fields
+            .iter()
+            .find(|child| child.label)
+            .map(|child| child.name.as_str()),
+        _ => None,
+    })
+}
+
+/// Reports a duplicate label and an empty label within one scope instance.
+///
+/// The checks are scope-local: two sibling instances of the enclosing block may
+/// define the same label, and a duplicate within one instance still reports.
+/// Walking the schema fields rather than a map keeps the diagnostics in a
+/// stable order.
+fn report_scope_label_issues(body: &Fields, schema: &Schema, report: &mut Report) {
+    for field in &schema.fields {
+        if labeled_child(schema, &field.name).is_none() {
+            continue;
+        }
+        let labels = scope_labels(body, schema, &field.name);
+        let mut first_span: HashMap<String, Span> = HashMap::new();
         for label in labels {
             if label.value.is_empty() {
                 report
@@ -93,64 +184,7 @@ fn report_label_issues(
                     .emit();
                 continue;
             }
-            first_span.insert(label.value.as_str(), label.span);
-        }
-    }
-}
-
-/// Walks the tree, checking each reference field against the index. A reference
-/// field can appear at any level, so the walk recurses through blocks.
-fn check_level(
-    fields: &Fields,
-    schema: &Schema,
-    index: &HashMap<String, Vec<Located<String>>>,
-    report: &mut Report,
-) {
-    for field in fields.iter() {
-        let Some(declared) = schema.fields.iter().find(|s| s.name == field.name) else {
-            continue;
-        };
-        match &declared.ty {
-            SchemaType::Scalar {
-                constraint: Some(Constraint::References { block }),
-                ..
-            } => {
-                let Some((value, span)) = field_string(field) else {
-                    continue;
-                };
-                match index.get(*block) {
-                    // The target names no labeled top-level block. That is a
-                    // schema error, so the message names the target rather than
-                    // the config value.
-                    None => {
-                        report
-                            .error(format!("reference target {block} is not a labeled block"))
-                            .at(span)
-                            .emit();
-                    }
-                    Some(labels) => {
-                        let defined = distinct_labels(labels);
-                        if !defined.contains(&value.as_str()) {
-                            let help = if defined.is_empty() {
-                                format!("the file defines no {block}")
-                            } else {
-                                format!("defined {block}: {}", defined.join(", "))
-                            };
-                            report
-                                .error(format!("no {block} named {value:?}"))
-                                .at(span)
-                                .help(help)
-                                .emit();
-                        }
-                    }
-                }
-            }
-            SchemaType::Block { schema: block, .. } => {
-                for body in instance_bodies(field) {
-                    check_level(body, block, index, report);
-                }
-            }
-            _ => {}
+            first_span.insert(label.value, label.span);
         }
     }
 }
