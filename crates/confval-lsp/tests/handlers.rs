@@ -1498,17 +1498,21 @@ fn completion_filters_the_already_set_fields_of_the_cursors_instance() {
     let toml =
         "[[upstream]]\nname = \"a\"\nhost = \"h\"\n\n[[upstream]]\nname = \"b\"\nport = 8080\n\n";
     let toml_off = toml.rfind("port = 8080").unwrap() + "port = 8080\n".len();
+    let json = "{\n  \"upstream\": [\n    { \"name\": \"a\", \"host\": \"h\" },\n    {\n      \"name\": \"b\",\n      \"port\": 8080\n      \n    }\n  ]\n}\n";
+    let json_off = json.find("\"port\": 8080").unwrap() + "\"port\": 8080\n      ".len();
 
     // Act
     let hcl_items = gateway_offered(&Hcl, hcl, hcl_off);
     let kdl_items = gateway_offered(&Kdl, kdl, kdl_off);
     let toml_items = gateway_offered(&Toml, toml, toml_off);
+    let json_items = gateway_offered(&Json, json, json_off);
 
     // Assert
     for (format, items) in [
         ("hcl", &hcl_items),
         ("kdl", &kdl_items),
         ("toml", &toml_items),
+        ("json", &json_items),
     ] {
         assert!(
             items.contains(&"host".to_string()),
@@ -1626,7 +1630,7 @@ fn a_cursor_in_a_block_label_offers_nothing_and_hovers_the_block() {
 #[test]
 fn hover_on_a_reference_value_states_the_target_and_resolution() {
     // Arrange
-    // A resolved reference names its target and says it resolves; an undefined
+    // A resolved reference names its target and says it resolves. An undefined
     // reference names the target and says it does not.
     let resolved = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"api\"\n}\n";
     let resolved_off = resolved.rfind("upstream = \"api\"").unwrap() + "upstream = \"".len();
