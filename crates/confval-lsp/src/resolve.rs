@@ -82,6 +82,18 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
         let next = fields.get(index + 1).map(|sibling| start_of(sibling.span));
         match &field.kind {
             FieldKind::Block(inner) => {
+                // A cursor in the native label sits between the block type and the
+                // body, so it is checked before the body, which would otherwise
+                // claim any offset past the type name.
+                if let Some(label) = inner.label()
+                    && contains(label.span, offset)
+                {
+                    return Step::Here(CursorContext::block_label(
+                        Vec::new(),
+                        field.name.clone(),
+                        span_token(label.span, text),
+                    ));
+                }
                 if in_block_body(field, inner, covers_body, next, enclosing_end, offset) {
                     return Step::Enter(field.name.clone(), inner);
                 }

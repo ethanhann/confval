@@ -1495,7 +1495,8 @@ fn completion_filters_the_already_set_fields_of_the_cursors_instance() {
     let hcl_off = hcl.find("port = 8080").unwrap() + "port = 8080\n  ".len();
     let kdl = "upstream \"a\" {\n  host \"h\"\n}\nupstream \"b\" {\n  port 8080\n  \n}\n";
     let kdl_off = kdl.find("port 8080").unwrap() + "port 8080\n  ".len();
-    let toml = "[[upstream]]\nname = \"a\"\nhost = \"h\"\n\n[[upstream]]\nname = \"b\"\nport = 8080\n\n";
+    let toml =
+        "[[upstream]]\nname = \"a\"\nhost = \"h\"\n\n[[upstream]]\nname = \"b\"\nport = 8080\n\n";
     let toml_off = toml.rfind("port = 8080").unwrap() + "port = 8080\n".len();
 
     // Act
@@ -1504,7 +1505,11 @@ fn completion_filters_the_already_set_fields_of_the_cursors_instance() {
     let toml_items = gateway_offered(&Toml, toml, toml_off);
 
     // Assert
-    for (format, items) in [("hcl", &hcl_items), ("kdl", &kdl_items), ("toml", &toml_items)] {
+    for (format, items) in [
+        ("hcl", &hcl_items),
+        ("kdl", &kdl_items),
+        ("toml", &toml_items),
+    ] {
         assert!(
             items.contains(&"host".to_string()),
             "{format} offers host, unset in the second instance: {items:?}"
@@ -1522,10 +1527,12 @@ fn hover_reads_the_state_from_the_cursors_instance() {
     // Only the second upstream sets port. Hover on port in the second instance
     // reports it set. Reading the first instance would report it unset.
     let hcl = "upstream \"a\" {\n  host = \"h\"\n}\nupstream \"b\" {\n  host = \"h2\"\n  port = 8080\n}\n";
-    let kdl = "upstream \"a\" {\n  host \"h\"\n}\nupstream \"b\" {\n  host \"h2\"\n  port 8080\n}\n";
+    let kdl =
+        "upstream \"a\" {\n  host \"h\"\n}\nupstream \"b\" {\n  host \"h2\"\n  port 8080\n}\n";
     let toml = "[[upstream]]\nname = \"a\"\nhost = \"h\"\n\n[[upstream]]\nname = \"b\"\nhost = \"h2\"\nport = 8080\n";
     let json = "{\n  \"upstream\": [\n    { \"name\": \"a\", \"host\": \"h\" },\n    { \"name\": \"b\", \"host\": \"h2\", \"port\": 8080 }\n  ]\n}\n";
-    let yaml = "upstream:\n  - name: a\n    host: alpha\n  - name: b\n    host: beta\n    port: 8080\n";
+    let yaml =
+        "upstream:\n  - name: a\n    host: alpha\n  - name: b\n    host: beta\n    port: 8080\n";
 
     // Act
     let hcl_hover = gateway_hover(&Hcl, hcl, hcl.rfind("port").unwrap() + 1);
@@ -1578,4 +1585,63 @@ fn reference_value_completion_offers_the_defined_labels() {
             "{format} offers the defined upstream labels: {labels:?}"
         );
     }
+}
+
+#[test]
+fn a_cursor_in_a_block_label_offers_nothing_and_hovers_the_block() {
+    // Arrange
+    // A cursor inside the native label of an HCL or KDL block offers no
+    // completion, because an author names a block freely, and hover names the
+    // block the label belongs to.
+    let hcl = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\n";
+    let hcl_off = hcl.find("\"api\"").unwrap() + 1;
+    let kdl = "upstream \"api\" {\n  host \"h\"\n  port 1\n}\n";
+    let kdl_off = kdl.find("\"api\"").unwrap() + 1;
+
+    // Act
+    let hcl_items = gateway_offered(&Hcl, hcl, hcl_off);
+    let hcl_hover = gateway_hover(&Hcl, hcl, hcl_off);
+    let kdl_items = gateway_offered(&Kdl, kdl, kdl_off);
+    let kdl_hover = gateway_hover(&Kdl, kdl, kdl_off);
+
+    // Assert
+    assert!(hcl_items.is_empty(), "hcl offers nothing in a label: {hcl_items:?}");
+    assert!(
+        hcl_hover.contains("Label of the `upstream` block."),
+        "hcl hover names the block: {hcl_hover:?}"
+    );
+    assert!(kdl_items.is_empty(), "kdl offers nothing in a label: {kdl_items:?}");
+    assert!(
+        kdl_hover.contains("Label of the `upstream` block."),
+        "kdl hover names the block: {kdl_hover:?}"
+    );
+}
+
+#[test]
+fn hover_on_a_reference_value_states_the_target_and_resolution() {
+    // Arrange
+    // A resolved reference names its target and says it resolves; an undefined
+    // reference names the target and says it does not.
+    let resolved = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"api\"\n}\n";
+    let resolved_off = resolved.rfind("upstream = \"api\"").unwrap() + "upstream = \"".len();
+    let unresolved = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"nope\"\n}\n";
+    let unresolved_off = unresolved.rfind("upstream = \"nope\"").unwrap() + "upstream = \"".len();
+
+    // Act
+    let resolved_hover = gateway_hover(&Hcl, resolved, resolved_off);
+    let unresolved_hover = gateway_hover(&Hcl, unresolved, unresolved_off);
+
+    // Assert
+    assert!(
+        resolved_hover.contains("References the `upstream` block."),
+        "names the target: {resolved_hover:?}"
+    );
+    assert!(
+        resolved_hover.contains("Resolves to a defined label."),
+        "reports resolution: {resolved_hover:?}"
+    );
+    assert!(
+        unresolved_hover.contains("Does not resolve to any defined label."),
+        "reports a miss: {unresolved_hover:?}"
+    );
 }

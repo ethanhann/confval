@@ -569,7 +569,9 @@ fn label_index_collects_labels_with_spans_and_no_report() {
     let index = label_index(&fields, &GatewaySpec::schema());
 
     // Assert
-    let upstreams = index.get("upstream").expect("the upstream block is indexed");
+    let upstreams = index
+        .get("upstream")
+        .expect("the upstream block is indexed");
     assert_eq!(upstreams.len(), 1);
     assert_eq!(upstreams[0].value.as_str(), "api");
     assert!(

@@ -54,9 +54,14 @@ pub enum PositionKind {
         /// The name of the field whose value the cursor sits in.
         field: String,
     },
-    /// A block-label position for the enclosing block. Resolution does not yet
-    /// produce this variant. It is reserved for label completion.
-    BlockLabel,
+    /// A block-label position, the region between a block's type and its body in
+    /// HCL and KDL. Completion offers nothing here, because an author names a
+    /// block freely, and hover names the block. The label's byte span is the
+    /// context's `token`.
+    BlockLabel {
+        /// The block's type, its field name.
+        block: String,
+    },
 }
 
 /// The resolved query result the handlers read.
@@ -114,6 +119,17 @@ impl CursorContext {
             resolved_body: None,
         }
     }
+
+    /// A block-label position for the `block` type at `path`. The token is the
+    /// label's byte span.
+    pub(crate) fn block_label(path: Vec<String>, block: String, token: (usize, usize)) -> Self {
+        Self {
+            path,
+            kind: PositionKind::BlockLabel { block },
+            token,
+            resolved_body: None,
+        }
+    }
 }
 
 /// The one format-dependent trait.
@@ -167,8 +183,12 @@ pub trait Frontend {
                 // YAML resolves its path from indentation, so the instance body
                 // is read from the tree here, the second site the tree walk does
                 // not cover. A repeated block then addresses the correct element.
-                context.resolved_body =
-                    Some(instance_body_at(tree, text, offset, self.block_span_covers_body()));
+                context.resolved_body = Some(instance_body_at(
+                    tree,
+                    text,
+                    offset,
+                    self.block_span_covers_body(),
+                ));
             }
             return context;
         }

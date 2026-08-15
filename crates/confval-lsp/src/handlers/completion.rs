@@ -50,7 +50,7 @@ pub fn completion<F: Frontend>(
         PositionKind::AttributeValue { field } => {
             value_items(schema, fields, enclosing, field, ctx, text, index, encoding)
         }
-        PositionKind::BlockLabel => Vec::new(),
+        PositionKind::BlockLabel { .. } => Vec::new(),
     }
 }
 

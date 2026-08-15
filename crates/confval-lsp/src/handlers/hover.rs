@@ -9,6 +9,7 @@
 use lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind};
 
 use confval::format::Fields;
+use confval::pipeline::label_index;
 use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
@@ -26,13 +27,30 @@ pub fn hover(
     encoding: PositionEncoding,
 ) -> Option<Hover> {
     let enclosing = schema_at(schema, &ctx.path)?;
+    // A cursor in a block's label names the block rather than a field.
+    if let PositionKind::BlockLabel { block } = &ctx.kind {
+        return Some(label_hover(block, ctx, text, index, encoding));
+    }
+    // A cursor on a reference value states the block it references and whether
+    // the value resolves, which the generic field hover cannot show.
+    if let PositionKind::AttributeValue { field } = &ctx.kind
+        && let Some(target) = enclosing.fields.iter().find(|f| &f.name == field)
+        && let SchemaType::Scalar {
+            constraint: Some(Constraint::References { block }),
+            ..
+        } = &target.ty
+    {
+        return Some(reference_hover(
+            block, fields, schema, ctx, text, index, encoding,
+        ));
+    }
     let name = match &ctx.kind {
         PositionKind::AttributeValue { field } => field.clone(),
         PositionKind::Body => {
             let (start, end) = ctx.token;
             text.get(start..end)?.to_string()
         }
-        PositionKind::BlockLabel => return None,
+        PositionKind::BlockLabel { .. } => return None,
     };
     let field = enclosing.fields.iter().find(|field| field.name == name)?;
     // `None` when there is no parse to read the state from, so the state is
@@ -51,6 +69,59 @@ pub fn hover(
         }),
         range: Some(index.range_of_bytes(text, ctx.token, encoding)),
     })
+}
+
+/// Hover for a block-label position: it names the block the label belongs to.
+fn label_hover(
+    block: &str,
+    ctx: &CursorContext,
+    text: &str,
+    index: &LineIndex,
+    encoding: PositionEncoding,
+) -> Hover {
+    Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: format!("Label of the `{block}` block."),
+        }),
+        range: Some(index.range_of_bytes(text, ctx.token, encoding)),
+    }
+}
+
+/// Hover for a reference value: the block it names and whether the value resolves
+/// against a defined label. Resolution is unknown when the buffer does not parse.
+#[allow(clippy::too_many_arguments)]
+fn reference_hover(
+    block: &str,
+    fields: Option<&Fields>,
+    schema: &Schema,
+    ctx: &CursorContext,
+    text: &str,
+    index: &LineIndex,
+    encoding: PositionEncoding,
+) -> Hover {
+    let value = text
+        .get(ctx.token.0..ctx.token.1)
+        .unwrap_or_default()
+        .trim_matches('"');
+    let resolves = fields.map(|tree| {
+        label_index(tree, schema)
+            .get(block)
+            .is_some_and(|labels| labels.iter().any(|label| label.value.as_str() == value))
+    });
+    let mut markdown = format!("References the `{block}` block.\n\n");
+    match resolves {
+        Some(true) => markdown.push_str("Resolves to a defined label."),
+        Some(false) => markdown.push_str("Does not resolve to any defined label."),
+        None => markdown.push_str("Resolution is unknown while the document does not parse."),
+    }
+    Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: markdown,
+        }),
+        range: Some(index.range_of_bytes(text, ctx.token, encoding)),
+    }
 }
 
 /// Renders a field's hover as Markdown. `set` is `None` when the buffer does not
