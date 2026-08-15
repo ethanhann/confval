@@ -101,9 +101,11 @@ fn reference_hover(
         .unwrap_or_default()
         .trim_matches('"');
     let resolves = fields.map(|tree| {
-        label_index(tree, schema)
-            .get(block)
-            .is_some_and(|labels| labels.iter().any(|label| label.value.as_str() == value))
+        label_index(tree, schema).get(block).is_some_and(|labels| {
+            labels
+                .iter()
+                .any(|label| !label.value.is_empty() && label.value.as_str() == value)
+        })
     });
     let mut markdown = format!("References the `{block}` block.\n\n");
     match resolves {
