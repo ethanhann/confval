@@ -17,3 +17,25 @@ port = 8080
 [[rules]]
 prefix = "/api"
 upstream = "nope"
+
+[[service]]
+name = "checkout"
+
+[[service.endpoints]]
+name = "primary"
+port = 9000
+
+[[service.routes]]
+prefix = "/pay"
+endpoint = "backup"
+
+[[service]]
+name = "billing"
+
+[[service.endpoints]]
+name = "backup"
+port = 9100
+
+[[service.endpoints]]
+name = "backup"
+port = 9101

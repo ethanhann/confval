@@ -13,3 +13,17 @@ upstream:
 rules:
   - prefix: "/api"
     upstream: "nope"
+service:
+  - name: checkout
+    endpoints:
+      - name: primary
+        port: 9000
+    routes:
+      - prefix: "/pay"
+        endpoint: "backup"
+  - name: billing
+    endpoints:
+      - name: backup
+        port: 9100
+      - name: backup
+        port: 9101
