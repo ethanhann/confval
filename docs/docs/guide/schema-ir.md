@@ -58,13 +58,17 @@ An editor reads `required` to report only the fields the parser would reject as 
 ## Recording constraints
 
 The derive cannot read a `Validate` body, so a closed-set field looks like a plain `Located<String>` and a numeric range is invisible to the schema.
-Two attributes record a constraint on a scalar leaf so the schema can carry it.
+Three attributes record a constraint on a scalar leaf so the schema can carry it.
 
 `#[confval(keywords = PATH)]` names a `keyword_enum!` type and requires a `String` leaf.
 The schema carries its allowed strings as `Constraint::Keywords`.
 
 `#[confval(range = PATH)]` names a `RangeConstraint` and requires an `Int` or `Float` leaf.
 The schema carries its bounds, units, and help line as `Constraint::Range`.
+
+`#[confval(references = <block>)]` marks a `String` leaf whose value names another block by its label.
+The `<block>` is the config field name of a labeled block, one that marks a child field with `#[confval(label)]`.
+The schema carries the target as `Constraint::References`.
 
 For example, attach a range to two integer fields:
 
@@ -83,6 +87,60 @@ An attribute on the wrong leaf, or on a list, a map, or a block, is a compile er
 
 The attribute records the constraint for the schema, and on a derived spec the derive also runs the check during validation, so the attribute is the single source and the `Validate` body carries no line for it.
 A handwritten spec still calls the check itself, because the derive generates nothing for it.
+
+## How a reference resolves
+
+A reference names its target block by a bare name, and the name resolves outward from the reference's enclosing block.
+The nearest enclosing scope whose schema declares a labeled block field of that name wins, and the root is searched last.
+Labels are collected within that one scope instance.
+So two sibling instances of the enclosing block may reuse a label, and a reference sees only the labels of its own scope.
+A field of the same name that is not a labeled block does not stop the search, so a reference field may carry its target's name.
+
+For example, a route names one of its own service's upstreams:
+
+```rust
+#[derive(confval::Spec)]
+struct ServiceSpec {
+    name: Located<String>,
+    #[confval(nested)]
+    upstreams: Vec<Located<UpstreamSpec>>,
+    #[confval(nested)]
+    routes: Vec<Located<RouteSpec>>,
+}
+
+#[derive(confval::Spec)]
+struct UpstreamSpec {
+    #[confval(label)]
+    name: Located<String>,
+    port: Located<i64>,
+}
+
+#[derive(confval::Spec)]
+struct RouteSpec {
+    #[confval(references = upstreams)]
+    upstream: Located<String>,
+}
+```
+
+Each route's `upstream` value resolves against the upstreams of its own service.
+A label defined in a sibling service is out of reach, and the same label in two services is not a conflict.
+
+## Running the reference check
+
+`validate_all` does not run the reference check, because the check reads the whole document rather than one level's own fields.
+After you parse and validate, call `check_references` with the parsed `Fields`, the schema, and the report:
+
+```rust
+use confval::pipeline::check_references;
+use confval::schema::ToSchema;
+
+if let Some(fields) = &fields {
+    check_references(fields, &ServerSpec::schema(), &mut report);
+}
+```
+
+The pass reports an undefined reference, a duplicate label, and an empty label, each at its value's span.
+The language server runs the same pass in its diagnostics, so the editor and your pipeline report the same reference errors.
 
 ## Building and reading a schema
 
@@ -118,3 +176,6 @@ impl ToSchema for TlsSpec {
     }
 }
 ```
+
+A reference field is declared the same way, with `Some(Constraint::References { block: "upstreams" })` as the constraint.
+The target block marks its label child by calling `as_label()` on that child's `SchemaField`.

@@ -50,12 +50,16 @@ A diagnostic the editor shows is a diagnostic the program would produce, because
 
 Completion offers what is legal at the cursor.
 A body position offers the attribute names and block types the schema declares there, minus the single-valued fields already set.
+The items keep the schema's declaration order, so related fields stay together in the editor's list.
 A value position for a field with a keyword set offers the allowed strings, which the schema carries from a `#[confval(keywords = ...)]` attribute.
+A value position for a field marked `#[confval(references = <block>)]` offers the labels of the block it names, collected from the scope the reference resolves in, so the editor offers the labels the reference check accepts.
 
 Hover reads the field under the cursor.
 It renders the field's doc comment, its declared type, whether it has a default, and its constraint.
 It also states whether the field is set by the configuration or left to its default.
 This state comes from the field's presence in the parsed file.
+Hover on a reference value names the block it references and states whether the value resolves to a defined label.
+Diagnostics run the reference pass as well, so an undefined reference, a duplicate label, and an empty label appear in the editor the way `check_references` reports them in your pipeline.
 
 ## The formats it serves
 
