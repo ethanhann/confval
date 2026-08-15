@@ -136,7 +136,7 @@ fn fields_of_body(
                 }
                 for extra in labels {
                     report
-                        .error("a block takes at most one label")
+                        .error("a block label must be the only one")
                         .at(span_of(extra, source))
                         .emit();
                 }

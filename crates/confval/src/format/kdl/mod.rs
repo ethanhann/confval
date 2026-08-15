@@ -195,7 +195,7 @@ fn block_label(
     });
     for extra in arguments {
         report
-            .error("a block takes at most one label")
+            .error("a block label must be the only one")
             .at(span_of!(extra, source))
             .emit();
     }

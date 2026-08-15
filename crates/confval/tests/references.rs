@@ -360,7 +360,7 @@ fn a_label_on_a_block_that_takes_none_reports() {
     assert!(
         errors(&report)
             .iter()
-            .any(|m| m == "this block does not take a label"),
+            .any(|m| m == "a block label is not allowed here"),
         "got: {:?}",
         errors(&report)
     );
@@ -410,7 +410,7 @@ fn a_native_label_and_a_child_label_conflict() {
     let issue = report
         .issues()
         .iter()
-        .find(|i| i.message == "this field duplicates the block label")
+        .find(|i| i.message == "a block label is already set")
         .expect("the conflict error");
     assert!(
         issue
@@ -441,7 +441,7 @@ fn hcl_reads_the_first_label_and_reports_the_extra() {
     assert!(
         errors(&report)
             .iter()
-            .any(|m| m == "a block takes at most one label"),
+            .any(|m| m == "a block label must be the only one"),
         "got: {:?}",
         errors(&report)
     );
@@ -466,7 +466,7 @@ fn kdl_reads_the_first_label_and_reports_the_extra() {
     assert!(
         errors(&report)
             .iter()
-            .any(|m| m == "a block takes at most one label"),
+            .any(|m| m == "a block label must be the only one"),
         "got: {:?}",
         errors(&report)
     );

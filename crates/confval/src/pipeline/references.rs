@@ -24,6 +24,12 @@ use crate::source::{Located, Span};
 /// The pass checks file-source string values. A value carried as
 /// [`Scalar::Unparsed`], from env-var or flag layering, is skipped, so a layered
 /// reference is not checked here.
+///
+/// This pass reports a duplicate label, an empty label, and an undefined
+/// reference. The other half of the label check lives in the derived
+/// `FromFields`, which reports a native label a block does not designate and a
+/// child field that duplicates a native label. A caller that wants the whole
+/// label story runs `from_fields` and then this pass.
 pub fn check_references(fields: &Fields, schema: &Schema, report: &mut Report) {
     let index = label_index(fields, schema);
     report_label_issues(&index, schema, report);
