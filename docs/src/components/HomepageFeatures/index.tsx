@@ -213,7 +213,7 @@ export default function HomepageFeatures(): ReactNode {
                         (i.e., pretty, plain, and JSON).
                     </p>
 
-                    <h3 className={styles.stepLabel}>This invalid TOML...</h3>
+                    <h3 className={styles.stepLabel}>This invalid TOML config file...</h3>
                     <img
                         src={useBaseUrl('/img/invalid_toml.png')}
                         alt="Example of pretty-formatted validation diagnostics for invalid TOML configuration"
