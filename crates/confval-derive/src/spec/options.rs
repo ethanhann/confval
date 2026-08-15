@@ -8,7 +8,7 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{DeriveInput, Expr, Field, Path};
+use syn::{DeriveInput, Expr, Field, Ident, Path};
 
 /// The struct-level `#[confval(...)]` options for `#[derive(Spec)]`.
 pub(crate) struct StructOptions {
@@ -106,6 +106,16 @@ pub(crate) struct FieldOptions {
     /// whose bounds the schema walk renders. The leaf-type pairing is checked in
     /// `spec/schema.rs`.
     pub(crate) range: Option<Path>,
+    /// `true` if the field was marked `#[confval(label)]`, i.e. its value is the
+    /// enclosing block's label. HCL and KDL carry the label in the block syntax,
+    /// and the other formats carry it as this field. The `String` leaf pairing is
+    /// checked in `spec/schema.rs`.
+    pub(crate) label: bool,
+    /// The block field name a `#[confval(references = <block>)]` names, or `None`.
+    /// The value references the labels of that top-level block. Unlike `keywords`
+    /// and `range`, it is a bare config field name, not a Rust path, stored and
+    /// emitted as a string.
+    pub(crate) references: Option<Ident>,
     /// The doc comment `to_template` renders above the field, or `None`. Comes
     /// from `#[confval(doc = "...")]` if present, otherwise the field's `///`
     /// doc comments joined into one string.
@@ -124,6 +134,8 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
         default: None,
         keywords: None,
         range: None,
+        label: false,
+        references: None,
         doc: None,
     };
     let mut confval_doc = None;
@@ -167,6 +179,18 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 }
                 options.range = Some(meta.value()?.parse()?);
                 Ok(())
+            } else if meta.path.is_ident("label") {
+                if options.label {
+                    return Err(meta.error("duplicate confval attribute `label`"));
+                }
+                options.label = true;
+                Ok(())
+            } else if meta.path.is_ident("references") {
+                if options.references.is_some() {
+                    return Err(meta.error("duplicate confval attribute `references`"));
+                }
+                options.references = Some(meta.value()?.parse()?);
+                Ok(())
             } else if meta.path.is_ident("doc") {
                 if confval_doc.is_some() {
                     return Err(meta.error("duplicate confval attribute `doc`"));
@@ -177,7 +201,7 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
             } else {
                 Err(meta.error(
                     "unknown confval attribute; expected `nested`, `map`, `default`, \
-                     `keywords`, `range`, or `doc`",
+                     `keywords`, `range`, `label`, `references`, or `doc`",
                 ))
             }
         })?;

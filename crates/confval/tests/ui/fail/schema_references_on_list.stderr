@@ -1,0 +1,5 @@
+error: #[confval(references = ...)] requires a String leaf; it cannot apply to a list, a map, or a nested block
+ --> tests/ui/fail/schema_references_on_list.rs:5:28
+  |
+5 |     #[confval(references = upstream)]
+  |                            ^^^^^^^^

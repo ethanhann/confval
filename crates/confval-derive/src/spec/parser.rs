@@ -73,6 +73,30 @@ pub(crate) fn field_parser(
                     }
                 }
             });
+            // A label field prefers the block body's native label, the HCL and
+            // KDL syntax, over the inline child field. When both are present the
+            // inline child is reported as a duplicate. This runs after the field
+            // walk, so a child field seen there is already recorded.
+            if options.label {
+                out.missing_checks.push(quote! {
+                    if let ::core::option::Option::Some(__label) = fields.label() {
+                        if let ::core::option::Option::Some(__child_span) = #seen {
+                            report
+                                .error("this field duplicates the block label")
+                                .at(__child_span)
+                                .related(__label.span, "the block label")
+                                .emit();
+                        }
+                        #slot = ::core::option::Option::Some(
+                            ::confval::source::Located::new(
+                                ::std::clone::Clone::clone(&__label.value),
+                                __label.span,
+                            ),
+                        );
+                        #seen = ::core::option::Option::Some(__label.span);
+                    }
+                });
+            }
             match (options.default_value(), optional) {
                 (Some(expr), true) => {
                     out.constructors.push(quote! {

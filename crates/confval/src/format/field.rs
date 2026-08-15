@@ -14,7 +14,7 @@
 //! every dependence on one format's node types.
 
 use crate::diagnostic::Report;
-use crate::source::{SourceId, Span};
+use crate::source::{Located, SourceId, Span};
 
 /// A scalar leaf: the value kinds every supported format shares, plus the raw
 /// form a non-file source yields.
@@ -165,6 +165,7 @@ pub struct Fields {
     source: SourceId,
     enclosing: Span,
     items: Vec<Entry>,
+    label: Option<Located<String>>,
 }
 
 impl Value {
@@ -286,6 +287,7 @@ impl Fields {
             source,
             enclosing,
             items,
+            label: None,
         }
     }
 
@@ -304,7 +306,27 @@ impl Fields {
             source: SourceId::DETACHED,
             enclosing: Span::detached(),
             items,
+            label: None,
         }
+    }
+
+    /// Attaches a native block label to this body, for a frontend that read one.
+    ///
+    /// HCL and KDL write a block's label in the syntax, `upstream "api" { ... }`.
+    /// The frontend reads the label here, so the label reader in the derive finds
+    /// it without the parser naming the schema's label field.
+    pub fn with_label(mut self, label: Located<String>) -> Self {
+        self.label = Some(label);
+        self
+    }
+
+    /// The native block label this body carries, or `None`.
+    ///
+    /// HCL and KDL set it from the block's syntax. The other formats carry the
+    /// label as an ordinary child field and leave this `None`. The derive reads
+    /// this before the child field.
+    pub fn label(&self) -> Option<&Located<String>> {
+        self.label.as_ref()
     }
 
     /// The source this level was read from.

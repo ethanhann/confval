@@ -26,7 +26,7 @@
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
 use crate::format::syntax::syntax_error;
-use crate::source::{SourceId, SourceMap, Span};
+use crate::source::{Located, SourceId, SourceMap, Span};
 use hcl_edit::expr::{Expression, Object, ObjectKey};
 use hcl_edit::structure::{Body, Structure};
 
@@ -126,18 +126,26 @@ fn fields_of_body(
             )),
             Structure::Block(block) => {
                 let block_span = span_of(block, source);
+                let mut body = fields_of_body(&block.body, block_span, text, source, report);
+                let mut labels = block.labels.iter();
+                if let Some(label) = labels.next() {
+                    body = body.with_label(Located::new(
+                        label.as_str().to_string(),
+                        span_of(label, source),
+                    ));
+                }
+                for extra in labels {
+                    report
+                        .error("a block takes at most one label")
+                        .at(span_of(extra, source))
+                        .emit();
+                }
                 items.push(Field::parsed(
                     block.ident.value().as_str(),
                     span_of(&block.ident, source),
                     block_span,
                     source,
-                    FieldKind::Block(fields_of_body(
-                        &block.body,
-                        block_span,
-                        text,
-                        source,
-                        report,
-                    )),
+                    FieldKind::Block(body),
                 ));
             }
         }

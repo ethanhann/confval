@@ -86,6 +86,9 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let mut match_arms = Vec::new();
     let mut missing_checks = Vec::new();
     let mut constructors = Vec::new();
+    // Whether any field is the block's label, marked `#[confval(label)]`. A
+    // struct with none reports a native label a source wrote as unexpected.
+    let mut has_label = false;
     // Two buckets feed the separate `ValidateNested` impl below. `visits` holds
     // one descent per nested field, for `validate_nested`.
     let mut visits = Vec::new();
@@ -113,6 +116,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         // Read the field's attributes, work out its parsing shape, and reject a
         // `default` on a shape that cannot honor it.
         let options = parse_options(field)?;
+        has_label |= options.label;
         let shape = classify(field, options.nested, options.map)?;
         reject_unsupported_default(field, &shape, &options)?;
         if struct_options.derive_default {
@@ -140,6 +144,20 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         match_arms.extend(parsed.match_arms);
         missing_checks.extend(parsed.missing_checks);
         constructors.extend(parsed.constructors);
+    }
+
+    // A block that designates no label field must not carry a native label, so a
+    // label a source wrote is reported. A struct with a label field consumes the
+    // label in that field's reader instead.
+    if !has_label {
+        missing_checks.push(quote! {
+            if let ::core::option::Option::Some(__label) = fields.label() {
+                report
+                    .error("this block does not take a label")
+                    .at(__label.span)
+                    .emit();
+            }
+        });
     }
 
     let validate_nested = validate_nested_impl(name, &visits, &recorded_checks);
