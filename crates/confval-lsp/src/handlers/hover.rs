@@ -39,7 +39,9 @@ pub fn hover(
             ..
         } = &target.ty
     {
-        return Some(reference_hover(block, field, schema, ctx, text, index, encoding));
+        return Some(reference_hover(
+            block, field, schema, ctx, text, index, encoding,
+        ));
     }
     let name = match &ctx.kind {
         PositionKind::AttributeValue { field } => field.clone(),

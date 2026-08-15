@@ -741,7 +741,9 @@ fn mesh_report(text: &str) -> Report {
     let mut sources = SourceMap::new();
     let id = sources.add("mesh", text);
     let mut report = Report::new();
-    let fields = hcl::parse_hcl_fields(&sources, id, &mut report).expect("the source parses");
+    let Some(fields) = hcl::parse_hcl_fields(&sources, id, &mut report) else {
+        panic!("the source parses");
+    };
     check_references(&fields, &MeshSpec::schema(), &mut report);
     report
 }
@@ -849,5 +851,8 @@ fn a_duplicate_label_within_one_scope_reports() {
 
     // Assert
     let messages = errors(&report);
-    assert_eq!(messages, vec!["duplicate upstreams label \"u1\"".to_string()]);
+    assert_eq!(
+        messages,
+        vec!["duplicate upstreams label \"u1\"".to_string()]
+    );
 }
