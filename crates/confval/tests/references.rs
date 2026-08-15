@@ -254,12 +254,21 @@ fn an_undefined_reference_reports_in_every_format() {
     // Act, Assert
     for (format, text) in cases {
         let report = parse(format, &text);
+        let issue = report
+            .issues()
+            .iter()
+            .find(|i| i.message == "no upstream named \"nope\"")
+            .unwrap_or_else(|| panic!("{format}: {:?}", errors(&report)));
+        let span = issue.span.unwrap_or_else(|| panic!("{format}: no span"));
         assert!(
-            errors(&report)
-                .iter()
-                .any(|m| m == "no upstream named \"nope\""),
-            "{format}: {:?}",
-            errors(&report)
+            text[span.start as usize..span.end as usize].contains("nope"),
+            "{format}: span text {:?}",
+            &text[span.start as usize..span.end as usize]
+        );
+        assert!(
+            issue.help.as_deref().is_some_and(|h| h.contains("api")),
+            "{format}: help {:?}",
+            issue.help
         );
     }
 }
@@ -398,12 +407,18 @@ fn a_native_label_and_a_child_label_conflict() {
     let report = parse("hcl", text);
 
     // Assert
+    let issue = report
+        .issues()
+        .iter()
+        .find(|i| i.message == "this field duplicates the block label")
+        .expect("the conflict error");
     assert!(
-        errors(&report)
+        issue
+            .related
             .iter()
-            .any(|m| m == "this field duplicates the block label"),
-        "got: {:?}",
-        errors(&report)
+            .any(|(_, label)| label == "the block label"),
+        "the conflict points back at the block label: {:?}",
+        issue.related
     );
     assert!(
         !errors(&report)
@@ -539,4 +554,56 @@ fn from_fields_reads_the_label_from_the_child_field_in_toml() {
 
     // Assert
     assert_eq!(spec.upstream[0].value.name.value.as_str(), "api");
+}
+
+#[test]
+fn a_reference_resolves_against_a_block_defined_later() {
+    // Arrange
+    let text = "rules {\n  prefix = \"/a\"\n  upstream = \"api\"\n}\nupstream \"api\" {\n  host = \"h\"\n  port = 1\n}\n";
+
+    // Act
+    let report = parse("hcl", text);
+
+    // Assert
+    assert!(
+        errors(&report).is_empty(),
+        "the reference resolves against the later block: {:?}",
+        errors(&report)
+    );
+}
+
+#[test]
+fn a_duplicate_label_reports_through_the_child_field() {
+    // Arrange
+    let text = "[[upstream]]\nname = \"api\"\nhost = \"h\"\nport = 1\n\n[[upstream]]\nname = \"api\"\nhost = \"h2\"\nport = 2\n";
+
+    // Act
+    let report = parse("toml", text);
+
+    // Assert
+    assert!(
+        errors(&report)
+            .iter()
+            .any(|m| m == "duplicate upstream label \"api\""),
+        "got: {:?}",
+        errors(&report)
+    );
+}
+
+#[test]
+fn an_empty_label_reports_through_the_child_field() {
+    // Arrange
+    let text = "[[upstream]]\nname = \"\"\nhost = \"h\"\nport = 1\n";
+
+    // Act
+    let report = parse("toml", text);
+
+    // Assert
+    assert!(
+        errors(&report)
+            .iter()
+            .any(|m| m == "a block label must not be empty"),
+        "got: {:?}",
+        errors(&report)
+    );
 }

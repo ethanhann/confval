@@ -1,0 +1,5 @@
+error: #[confval(label)] requires a String leaf
+  --> tests/ui/fail/schema_label_on_block.rs:11:5
+   |
+11 |     inner: Located<Inner>,
+   |     ^^^^^

@@ -84,6 +84,7 @@ pub(crate) fn field_parser(
                             report
                                 .error("this field duplicates the block label")
                                 .at(__child_span)
+                                .related(__label.span, "the block label")
                                 .emit();
                         }
                         #slot = ::core::option::Option::Some(
