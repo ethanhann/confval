@@ -1706,3 +1706,58 @@ fn reference_completion_offers_nothing_without_a_parse() {
         labels(&items)
     );
 }
+
+#[test]
+fn yaml_field_inside_an_existing_element_adds_a_field_not_an_element() {
+    // Arrange
+    // The cursor is on a blank line at field indentation inside the first upstream
+    // element. Completing a field adds it to that element without a dash marker,
+    // and the fields already set in that element are dropped.
+    let text = "upstream:\n  - name: a\n    host: a.internal\n    \n  - name: b\n    host: b.internal\n    port: 8081\n";
+    let offset = text.find("host: a.internal\n    ").unwrap() + "host: a.internal\n    ".len();
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &GatewaySpec::schema(),
+        tree.as_ref(),
+        &context,
+        text,
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    // Exactly one item, the unset `port`, because `name` and `host` are set in
+    // the element and the server offers each field at most once.
+    assert_eq!(labels(&items), vec!["port".to_string()]);
+    assert_eq!(
+        inserted(&items[0]),
+        "port: ",
+        "the field is added without a dash"
+    );
+}
+
+#[test]
+fn a_type_error_in_one_element_does_not_diagnose_a_sibling_element() {
+    // Arrange
+    // An invalid port in the first upstream element is the only diagnostic. The
+    // valid port in the second element is not flagged, so a parse failure in one
+    // instance does not contaminate a sibling.
+    let text = "upstream:\n  - name: c\n    host: c.internal\n    port: assd\n  - name: b\n    host: b.internal\n    port: 8081\n";
+    let uri = Uri::from_str("file:///g.yaml").unwrap();
+
+    // Act
+    let found = diagnostics::<GatewaySpec, Yaml>(&Yaml, text, &uri, ENCODING);
+
+    // Assert
+    assert_eq!(found.len(), 1, "one diagnostic: {found:?}");
+    assert_eq!(found[0].message, "expected integer, found string");
+    assert_eq!(
+        found[0].range.start.line, 3,
+        "on the invalid port, not the valid one"
+    );
+}

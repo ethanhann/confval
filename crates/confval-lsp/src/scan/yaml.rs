@@ -21,6 +21,39 @@ pub(crate) fn resolve_in_yaml(text: &str, offset: usize) -> CursorContext {
     }
 }
 
+/// Whether a body completion on a fresh line opens a new sequence element rather
+/// than adding a field to the element the cursor sits in.
+///
+/// A YAML sequence element begins at a dash column, and its fields sit past the
+/// dash. So a fresh line opens a new element only when it aligns with the nearest
+/// sequence dash at or above the cursor's column. A deeper column adds a field to
+/// that element, and an empty sequence, with no dash above, opens its first
+/// element. A line the operator has already typed on is not a fresh line.
+pub(crate) fn starts_new_sequence_element(text: &str, token: (usize, usize)) -> bool {
+    let line_start = text[..token.0].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let indent = &text[line_start..token.0];
+    if !indent.bytes().all(|byte| byte == b' ') {
+        return false;
+    }
+    let cursor_col = indent.len();
+    for raw in text[..line_start].split('\n').rev() {
+        let line = raw.strip_suffix('\r').unwrap_or(raw);
+        let trimmed = line.trim_start();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if trimmed == "-" || trimmed.starts_with("- ") {
+            let dash_col = line.len() - trimmed.len();
+            if dash_col <= cursor_col {
+                return cursor_col == dash_col;
+            }
+            // A deeper dash belongs to a nested sequence, so keep looking for the
+            // dash that governs the cursor's column.
+        }
+    }
+    true
+}
+
 /// The enclosing key path at the offset, read from indentation.
 ///
 /// It walks the lines above the cursor top down, keeping a stack of the open
@@ -206,6 +239,66 @@ mod tests {
         let offset = marked.find('|').expect("a cursor marker");
         let text = format!("{}{}", &marked[..offset], &marked[offset + 1..]);
         (text, offset)
+    }
+
+    #[test]
+    fn a_fresh_field_line_inside_an_element_does_not_open_a_new_element() {
+        // Arrange
+        let (text, offset) = at("upstream:\n  - name: a\n    host: b\n    |\n");
+
+        // Act
+        let opens = starts_new_sequence_element(&text, (offset, offset));
+
+        // Assert
+        assert!(!opens, "a field-indent line adds a field, not an element");
+    }
+
+    #[test]
+    fn a_fresh_line_aligned_with_the_dash_opens_a_new_element() {
+        // Arrange
+        let (text, offset) = at("rules:\n  - prefix: /api\n  |\n");
+
+        // Act
+        let opens = starts_new_sequence_element(&text, (offset, offset));
+
+        // Assert
+        assert!(opens, "a dash-aligned line opens a new element");
+    }
+
+    #[test]
+    fn a_fresh_line_in_an_empty_sequence_opens_the_first_element() {
+        // Arrange
+        let (text, offset) = at("upstream:\n  |\n");
+
+        // Act
+        let opens = starts_new_sequence_element(&text, (offset, offset));
+
+        // Assert
+        assert!(opens, "the first element opens with a dash");
+    }
+
+    #[test]
+    fn a_deeper_nested_dash_does_not_govern_the_cursor_column() {
+        // Arrange
+        let (text, offset) = at("upstream:\n  - name: a\n    tags:\n      - x\n    |\n");
+
+        // Act
+        let opens = starts_new_sequence_element(&text, (offset, offset));
+
+        // Assert
+        assert!(!opens, "a field beside a nested sequence adds a field");
+    }
+
+    #[test]
+    fn a_typed_field_line_is_not_a_fresh_element() {
+        // Arrange
+        let (text, offset) = at("upstream:\n  - name: a\n    ho|\n");
+
+        // Act
+        let opens = starts_new_sequence_element(&text, (offset, offset));
+
+        // Assert
+        assert!(!opens, "a partly typed key is not a fresh line");
     }
 
     #[test]

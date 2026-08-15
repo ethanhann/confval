@@ -18,7 +18,7 @@ use confval::schema::{Constraint, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, Frontend, PositionKind, Recovery};
-use crate::scan::skip_string;
+use crate::scan::{skip_string, starts_new_sequence_element};
 use crate::walk::{repeated_block_at, resolved_level, schema_at};
 
 /// Produces the completion items for a resolved cursor.
@@ -127,42 +127,39 @@ fn field_item<F: Frontend>(
     item
 }
 
-/// Wraps a field insert as a new element of a repeated block. A YAML sequence
-/// element takes a `-` marker on a fresh line, and a JSON array element is an
-/// object, added only when the cursor sits directly in the array.
+/// Wraps a field insert as a new element of a repeated block, when the cursor
+/// opens one. A YAML sequence element takes a `-` marker, and a JSON array
+/// element is an object. Otherwise the cursor adds a field to the element it
+/// sits in, so the insert is unchanged.
 fn wrap_repeated_element<F: Frontend>(
     frontend: &F,
     insert: String,
     text: &str,
     token: (usize, usize),
 ) -> String {
+    if !starts_new_element(frontend, text, token) {
+        return insert;
+    }
     match frontend.recovery() {
-        Recovery::Indentation if on_blank_line(text, token) => format!("- {insert}"),
+        Recovery::Indentation => format!("- {insert}"),
         // The `$0` lands the cursor at the value, inside the braces, rather than
         // after the closing brace.
-        Recovery::Object if innermost_is_array(text, token.0) => format!("{{ {insert}$0 }}"),
+        Recovery::Object => format!("{{ {insert}$0 }}"),
         _ => insert,
     }
 }
 
 /// Whether the cursor starts a new element of a repeated block rather than
-/// sitting inside an existing one. A YAML sequence element begins on a blank line
-/// at the element indentation, and a JSON array element begins directly in the
-/// array. A brace block never starts an element this way, so its resolved
+/// sitting inside an existing one. A YAML sequence element begins on a fresh line
+/// aligned with the sequence dash, and a JSON array element begins directly in
+/// the array. A brace block never starts an element this way, so its resolved
 /// instance always filters.
 fn starts_new_element<F: Frontend>(frontend: &F, text: &str, token: (usize, usize)) -> bool {
     match frontend.recovery() {
-        Recovery::Indentation => on_blank_line(text, token),
+        Recovery::Indentation => starts_new_sequence_element(text, token),
         Recovery::Object => innermost_is_array(text, token.0),
         _ => false,
     }
-}
-
-/// Whether only whitespace precedes the token on its line, so a YAML sequence
-/// marker starts a new element rather than doubling an existing one.
-fn on_blank_line(text: &str, token: (usize, usize)) -> bool {
-    let line_start = text[..token.0].rfind('\n').map(|i| i + 1).unwrap_or(0);
-    text[line_start..token.0].trim().is_empty()
 }
 
 /// Whether the innermost open bracket at the offset is a JSON array, so the
