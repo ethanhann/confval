@@ -230,10 +230,12 @@ where
             .resolve(document.tree.as_ref(), &document.text, offset);
         let items = handlers::completion(
             &self.frontend,
-            &self.schema,
-            document.tree.as_ref(),
-            &context,
-            &document.text,
+            &handlers::Cx {
+                schema: &self.schema,
+                fields: document.tree.as_ref(),
+                ctx: &context,
+                text: &document.text,
+            },
             &index,
             self.encoding,
             self.snippets,

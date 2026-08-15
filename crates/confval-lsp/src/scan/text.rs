@@ -35,7 +35,18 @@ pub(crate) fn resolve_in_text(
         Recovery::Indentation => unreachable!("indentation recovery is routed to the YAML reader"),
     };
     match attribute_name(text, offset, separator) {
-        Some(field) => CursorContext::attribute_value(path, field, value_token(text, offset)),
+        Some((field, value_start)) => {
+            // In a colon format the scanned value token walks back through the
+            // colon and the quoted key, because both are value bytes. The clamp
+            // keeps the token past the colon, so a completion never replaces
+            // the key. The other separators bound the token themselves.
+            let (start, end) = value_token(text, offset);
+            let token = match value_start {
+                Some(after) => (start.max(after), end.max(after)),
+                None => (start, end),
+            };
+            CursorContext::attribute_value(path, field, token)
+        }
         None => CursorContext::body(path, identifier_token(text, offset)),
     }
 }
@@ -109,30 +120,38 @@ fn parse_header(line: &str) -> Option<Vec<String>> {
     )
 }
 
-/// The name of the attribute whose value the cursor sits in, or `None` for a body
-/// position.
-fn attribute_name(text: &str, offset: usize, separator: ValueSeparator) -> Option<String> {
+/// The name of the attribute whose value the cursor sits in, with the byte
+/// offset just past its separator when the separator is a value byte, or `None`
+/// for a body position.
+fn attribute_name(
+    text: &str,
+    offset: usize,
+    separator: ValueSeparator,
+) -> Option<(String, Option<usize>)> {
     let line_start = text[..offset]
         .rfind('\n')
         .map(|index| index + 1)
         .unwrap_or(0);
     let line = &text[line_start..offset];
     match separator {
-        ValueSeparator::Equals => attribute_name_equals(line),
-        ValueSeparator::Colon => attribute_name_colon(line),
-        ValueSeparator::Whitespace => attribute_name_space(line),
+        ValueSeparator::Equals => attribute_name_equals(line).map(|name| (name, None)),
+        ValueSeparator::Colon => {
+            attribute_name_colon(line).map(|(name, colon)| (name, Some(line_start + colon + 1)))
+        }
+        ValueSeparator::Whitespace => attribute_name_space(line).map(|name| (name, None)),
     }
 }
 
 /// A value position in a `:` format (JSON): the member key whose value the cursor
-/// sits in, or `None` for a body position. It resets at each object or array
-/// bracket and comma, so a `"key":` in an enclosing or a sibling member does not
-/// classify a cursor that sits in a fresh element as a value.
-fn attribute_name_colon(line: &str) -> Option<String> {
+/// sits in and the key's colon offset within the line, or `None` for a body
+/// position. It resets at each object or array bracket and comma, so a `"key":`
+/// in an enclosing or a sibling member does not classify a cursor that sits in a
+/// fresh element as a value.
+fn attribute_name_colon(line: &str) -> Option<(String, usize)> {
     let bytes = line.as_bytes();
     let mut index = 0;
     let mut candidate: Option<String> = None;
-    let mut pending: Option<String> = None;
+    let mut pending: Option<(String, usize)> = None;
     while index < bytes.len() {
         match bytes[index] {
             b'"' => {
@@ -151,7 +170,7 @@ fn attribute_name_colon(line: &str) -> Option<String> {
                 index += 1;
             }
             b':' => {
-                pending = candidate.take();
+                pending = candidate.take().map(|name| (name, index));
                 index += 1;
             }
             _ => index += 1,
@@ -381,6 +400,24 @@ mod tests {
         // Assert
         assert_eq!(context.path, vec!["server".to_string()]);
         assert_eq!(context.kind, value("port"));
+    }
+
+    #[test]
+    fn a_json_value_token_starts_past_the_member_colon() {
+        // Arrange
+        // The buffer does not parse, and the value bytes run back through the
+        // colon and the quoted key. The token must start past the colon, so a
+        // completion never replaces the key.
+        let text = "{\n  \"mode\":en\n}\n";
+        let offset = text.find(":en").unwrap() + ":en".len();
+
+        // Act
+        let context = resolve_in_text(text, offset, Recovery::Object, ValueSeparator::Colon, false);
+
+        // Assert
+        assert_eq!(context.kind, value("mode"));
+        let (start, end) = context.token;
+        assert_eq!(&text[start..end], "en", "the value alone, not the key");
     }
 
     #[test]

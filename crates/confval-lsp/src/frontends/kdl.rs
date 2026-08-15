@@ -1,5 +1,5 @@
 use crate::Frontend;
-use crate::frontend::ValueSeparator;
+use crate::frontend::{Insert, ValueSeparator};
 use crate::frontends::is_block;
 use confval::diagnostic::Report;
 use confval::format::Fields;
@@ -26,11 +26,11 @@ impl Frontend for Kdl {
         false
     }
 
-    fn insert_text(&self, field: &SchemaField, _path: &[String]) -> String {
-        if is_block(field) {
+    fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {
+        Insert::plain(if is_block(field) {
             format!("{} {{\n  $0\n}}", field.name)
         } else {
             format!("{} ", field.name)
-        }
+        })
     }
 }

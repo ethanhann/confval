@@ -1,5 +1,5 @@
 use crate::Frontend;
-use crate::frontend::{Recovery, ValueSeparator};
+use crate::frontend::{Insert, Recovery, ValueSeparator};
 use confval::diagnostic::Report;
 use confval::format::Fields;
 use confval::format::yaml as format_yaml;
@@ -26,8 +26,8 @@ impl Frontend for Yaml {
         ValueSeparator::Colon
     }
 
-    fn insert_text(&self, field: &SchemaField, _path: &[String]) -> String {
-        match &field.ty {
+    fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {
+        Insert::plain(match &field.ty {
             // A repeated block and a string list are both sequences, so the
             // insert opens the first element with a `-` marker.
             SchemaType::Block { repeated: true, .. } | SchemaType::StringList => {
@@ -37,7 +37,11 @@ impl Frontend for Yaml {
             // indented line.
             SchemaType::Block { .. } | SchemaType::StringMap => format!("{}:\n  $0", field.name),
             _ => format!("{}: ", field.name),
-        }
+        })
+    }
+
+    fn wrap_element(&self, insert: String) -> String {
+        format!("- {insert}")
     }
 }
 
@@ -70,43 +74,43 @@ mod tests {
     #[test]
     fn a_repeated_block_opens_a_sequence_element() {
         // Arrange, Act
-        let text = Yaml.insert_text(&field("rules", block(true)), &[]);
+        let insert = Yaml.insert_text(&field("rules", block(true)), &[]);
 
         // Assert
-        assert_eq!(text, "rules:\n  - $0");
+        assert_eq!(insert.text, "rules:\n  - $0");
     }
 
     #[test]
     fn a_string_list_opens_a_sequence_element() {
         // Arrange, Act
-        let text = Yaml.insert_text(&field("tags", SchemaType::StringList), &[]);
+        let insert = Yaml.insert_text(&field("tags", SchemaType::StringList), &[]);
 
         // Assert
-        assert_eq!(text, "tags:\n  - $0");
+        assert_eq!(insert.text, "tags:\n  - $0");
     }
 
     #[test]
     fn a_single_block_opens_an_indented_body() {
         // Arrange, Act
-        let text = Yaml.insert_text(&field("limits", block(false)), &[]);
+        let insert = Yaml.insert_text(&field("limits", block(false)), &[]);
 
         // Assert
-        assert_eq!(text, "limits:\n  $0");
+        assert_eq!(insert.text, "limits:\n  $0");
     }
 
     #[test]
     fn a_string_map_opens_an_indented_body() {
         // Arrange, Act
-        let text = Yaml.insert_text(&field("labels", SchemaType::StringMap), &[]);
+        let insert = Yaml.insert_text(&field("labels", SchemaType::StringMap), &[]);
 
         // Assert
-        assert_eq!(text, "labels:\n  $0");
+        assert_eq!(insert.text, "labels:\n  $0");
     }
 
     #[test]
     fn a_scalar_writes_a_key_and_a_space() {
         // Arrange, Act
-        let text = Yaml.insert_text(
+        let insert = Yaml.insert_text(
             &field(
                 "port",
                 SchemaType::Scalar {
@@ -118,6 +122,6 @@ mod tests {
         );
 
         // Assert
-        assert_eq!(text, "port: ");
+        assert_eq!(insert.text, "port: ");
     }
 }

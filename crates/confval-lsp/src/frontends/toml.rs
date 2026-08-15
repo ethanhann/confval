@@ -1,5 +1,5 @@
 use crate::Frontend;
-use crate::frontend::Recovery;
+use crate::frontend::{Absorb, Insert, Recovery};
 use confval::diagnostic::Report;
 use confval::format::Fields;
 use confval::format::toml as format_toml;
@@ -27,7 +27,7 @@ impl Frontend for Toml {
         Recovery::Header
     }
 
-    fn insert_text(&self, field: &SchemaField, path: &[String]) -> String {
+    fn insert_text(&self, field: &SchemaField, path: &[String]) -> Insert {
         let qualified = if path.is_empty() {
             field.name.clone()
         } else {
@@ -35,12 +35,19 @@ impl Frontend for Toml {
         };
         match &field.ty {
             // A repeated block is an array of tables, written with a doubled
-            // header.
-            SchemaType::Block { repeated: true, .. } => format!("[[{qualified}]]"),
-            SchemaType::Block { .. } => format!("[{qualified}]"),
-            SchemaType::StringList => format!("{} = [$0]", field.name),
-            SchemaType::StringMap => format!("{} = {{ $0 }}", field.name),
-            _ => format!("{} = ", field.name),
+            // header. A header re-renders the `[` run the operator has already
+            // typed, so the edit absorbs it rather than doubling it.
+            SchemaType::Block { repeated: true, .. } => Insert {
+                text: format!("[[{qualified}]]"),
+                absorb: Absorb::Run(b'['),
+            },
+            SchemaType::Block { .. } => Insert {
+                text: format!("[{qualified}]"),
+                absorb: Absorb::Run(b'['),
+            },
+            SchemaType::StringList => Insert::plain(format!("{} = [$0]", field.name)),
+            SchemaType::StringMap => Insert::plain(format!("{} = {{ $0 }}", field.name)),
+            _ => Insert::plain(format!("{} = ", field.name)),
         }
     }
 }
@@ -82,7 +89,7 @@ mod tests {
         let header = Toml.insert_text(&block("limits"), &[]);
 
         // Assert
-        assert_eq!(header, "[limits]");
+        assert_eq!(header.text, "[limits]");
     }
 
     #[test]
@@ -91,7 +98,7 @@ mod tests {
         let header = Toml.insert_text(&block("sub"), &["limits".to_string()]);
 
         // Assert
-        assert_eq!(header, "[limits.sub]");
+        assert_eq!(header.text, "[limits.sub]");
     }
 
     #[test]
@@ -100,6 +107,6 @@ mod tests {
         let header = Toml.insert_text(&repeated_block("rules"), &[]);
 
         // Assert
-        assert_eq!(header, "[[rules]]");
+        assert_eq!(header.text, "[[rules]]");
     }
 }

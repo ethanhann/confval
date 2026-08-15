@@ -9,6 +9,6 @@ mod completion;
 mod diagnostics;
 mod hover;
 
-pub use completion::completion;
+pub use completion::{Cx, completion};
 pub use diagnostics::diagnostics;
 pub use hover::hover;
