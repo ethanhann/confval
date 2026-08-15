@@ -80,9 +80,9 @@ pub(crate) fn field_schema(
 ///
 /// A block's label is one required string, so the field must be a non-optional
 /// `String` leaf and cannot carry a default. A list, a map, a block, or a
-/// non-string scalar cannot be a label, an optional leaf names nothing when the
-/// block carries no label, and a default would build a value the reference pass
-/// then reports as undefined.
+/// non-string scalar cannot be a label. An optional leaf names nothing when the
+/// block carries no label. A default would build a value the reference pass then
+/// reports as undefined.
 fn reject_label_misuse(
     ident: &Ident,
     shape: &FieldShape,
