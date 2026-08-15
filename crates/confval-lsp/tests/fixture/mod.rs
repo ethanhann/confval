@@ -114,6 +114,10 @@ pub struct Upstream {
     pub port: Located<i64>,
 }
 
+impl Validate for Upstream {
+    fn validate(&self, _report: &mut Report) {}
+}
+
 /// A routing rule of the Gateway fixture, naming an upstream by its label.
 #[derive(confval::Spec)]
 pub struct Route {
@@ -122,10 +126,6 @@ pub struct Route {
     /// The upstream this rule routes to.
     #[confval(references = upstream)]
     pub upstream: Located<String>,
-}
-
-impl Validate for Upstream {
-    fn validate(&self, _report: &mut Report) {}
 }
 
 impl Validate for Route {
