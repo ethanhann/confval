@@ -20,6 +20,10 @@ use crate::source::Span;
 /// span, with the defined labels in the help. Building the index also reports a
 /// duplicate label and an empty label. The pass reads only `fields` and
 /// `schema`.
+///
+/// The pass checks file-source string values. A value carried as
+/// [`Scalar::Unparsed`], from env-var or flag layering, is skipped, so a layered
+/// reference is not checked here.
 pub fn check_references(fields: &Fields, schema: &Schema, report: &mut Report) {
     let index = build_index(fields, schema, report);
     check_level(fields, schema, &index, report);
