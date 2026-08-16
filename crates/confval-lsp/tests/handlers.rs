@@ -2080,3 +2080,47 @@ fn hover_on_a_reference_field_name_states_the_target_block() {
         "the constraint line names the target: {markdown}"
     );
 }
+
+#[test]
+fn yaml_reference_completion_after_a_bare_colon_keeps_the_colon() {
+    // Arrange
+    // The buffer parses, and `upstream:` holds a null. Accepting a label must
+    // insert ` "a"` at the cursor, so the line becomes `upstream: "a"` rather
+    // than the null's span swallowing the colon.
+    let text = "upstream:\n  - name: a\n    host: h\n    port: 1\nroutes:\n  - prefix: /x\n    upstream:\n";
+    let offset = text.rfind("upstream:").unwrap() + "upstream:".len();
+    let (tree, context) = at_with(&Yaml, text, offset);
+    assert!(tree.is_some(), "the buffer parses");
+    let index = LineIndex::new(text);
+    let schema = GatewaySpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let item = items.iter().find(|i| i.label == "a").expect("the label");
+    let edit = match &item.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit,
+        other => panic!("a replace edit, got {other:?}"),
+    };
+    assert_eq!(edit.new_text, " \"a\"", "the insert supplies the space");
+    assert_eq!(
+        edit.range.start,
+        Position {
+            line: 6,
+            character: 13
+        }
+    );
+    assert_eq!(edit.range.start, edit.range.end, "zero width at the cursor");
+}

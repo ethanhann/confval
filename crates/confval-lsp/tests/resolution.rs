@@ -620,3 +620,27 @@ fn yaml_pending_body_under_an_empty_key_carries_an_empty_body() {
     let body = context.resolved_body.as_ref().expect("a parsed body");
     assert!(!body.has("port"), "a pending body sets nothing");
 }
+
+#[test]
+fn yaml_empty_value_after_a_colon_keeps_a_zero_width_token_when_the_buffer_parses() {
+    // Arrange
+    // `upstream:` parses as null, a value outside the model. There is no value
+    // text to replace, so the token must stay the zero-width scan result at
+    // the cursor rather than the null's span, which covers the colon.
+    let frontend = Yaml;
+    let text = "rules:\n  - prefix: \"/x\"\n    upstream:\n";
+    let offset = text.find("upstream:").unwrap() + "upstream:".len();
+    assert!(frontend.parse_tree(text).is_some(), "the buffer parses");
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(
+        context.kind,
+        PositionKind::AttributeValue {
+            field: "upstream".to_string()
+        }
+    );
+    assert_eq!(context.token, (offset, offset), "zero width at the cursor");
+}

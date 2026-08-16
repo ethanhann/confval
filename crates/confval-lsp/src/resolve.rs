@@ -245,14 +245,24 @@ fn value_replace_token(field: &Field, value: &Value, text: &str, offset: usize) 
 }
 
 /// The completion replace token for the value of `name` in a resolved instance
-/// body, or `None` when the field or its value is absent. YAML resolution reads
-/// its path and kind from indentation, but takes the value token from the
-/// instance body when the buffer parses, so a completion replaces the whole
-/// value rather than stopping at a space, inside a sequence element as well.
+/// body, or `None` when the field holds no scalar the operator wrote. YAML
+/// resolution reads its path and kind from indentation, but takes the value
+/// token from the instance body when the buffer parses, so a completion
+/// replaces the whole value rather than stopping at a space, inside a sequence
+/// element as well.
+///
+/// Only a written scalar's span replaces. A bare `key:` parses as a null
+/// outside the model, whose span covers the separator, so replacing it would
+/// delete the colon. The scanned token, clamped past the colon, stands for
+/// those positions.
 pub(crate) fn value_span_in(body: &Fields, name: &str, text: &str) -> Option<(usize, usize)> {
     let field = body.get(name)?;
     match &field.kind {
-        FieldKind::Value(value) if !value.span.is_detached() => Some(span_token(value.span, text)),
+        FieldKind::Value(value)
+            if matches!(value.kind, ValueKind::Scalar(_)) && !value.span.is_detached() =>
+        {
+            Some(span_token(value.span, text))
+        }
         _ => None,
     }
 }

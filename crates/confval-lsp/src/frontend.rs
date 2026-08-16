@@ -152,7 +152,7 @@ pub struct CursorContext {
 /// Equality ignores the resolved body, the ancestors, the token text, and the
 /// new-element flag, because they are resolution outputs rather than position
 /// identity.
-/// The path, the kind, and the token identify the position, as m22 settled.
+/// The path, the kind, and the token identify the position.
 impl PartialEq for CursorContext {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path && self.kind == other.kind && self.token == other.token
