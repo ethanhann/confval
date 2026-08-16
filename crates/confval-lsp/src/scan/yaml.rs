@@ -16,7 +16,15 @@ pub(crate) fn resolve_in_yaml(text: &str, offset: usize) -> CursorContext {
     let offset = floor_char_boundary(text, offset);
     let path = yaml_path(text, offset);
     match yaml_attribute(text, offset) {
-        Some(field) => CursorContext::attribute_value(path, field, value_token(text, offset)),
+        Some((field, after_colon)) => {
+            // The scanned value token walks back through value bytes, and `:`
+            // is one, so a bare `key:` would put the key inside the token. The
+            // clamp keeps the token past the colon, so a completion never
+            // replaces the key.
+            let (start, end) = value_token(text, offset);
+            let token = (start.max(after_colon), end.max(after_colon));
+            CursorContext::attribute_value(path, field, token)
+        }
         None => CursorContext::body(path, identifier_token(text, offset)),
     }
 }
@@ -49,6 +57,11 @@ pub(crate) fn starts_new_sequence_element(text: &str, token: (usize, usize)) -> 
             }
             // A deeper dash belongs to a nested sequence, so keep looking for the
             // dash that governs the cursor's column.
+        } else if line.len() - trimmed.len() < cursor_col {
+            // The first shallower content line that is not a dash is the parent
+            // key or an outer sibling, so no dash governs the cursor and the
+            // fresh line opens the sequence's first element.
+            return true;
         }
     }
     true
@@ -100,6 +113,11 @@ fn yaml_path(text: &str, offset: usize) -> Vec<String> {
                 block_scalar = Some(indent);
             }
             stack.push((col, name));
+        } else if dash_opens_scalar(trimmed) {
+            // A `- |` or `- >` sequence item declares no key but still opens a
+            // block scalar, so its indented content is text rather than
+            // structure.
+            block_scalar = Some(indent);
         }
         flow_depth += flow_delta(line);
         if flow_depth < 0 {
@@ -139,12 +157,22 @@ fn flow_delta(line: &str) -> i32 {
     delta
 }
 
-/// The attribute whose value the cursor sits in, or `None` for a body position.
+/// A `- |` or `- >` sequence item, which opens a block scalar with no key.
+fn dash_opens_scalar(trimmed: &str) -> bool {
+    trimmed
+        .strip_prefix("- ")
+        .map(str::trim_start)
+        .is_some_and(|value| value.starts_with('|') || value.starts_with('>'))
+}
+
+/// The attribute whose value the cursor sits in, with the byte offset just past
+/// its colon, or `None` for a body position.
 ///
 /// A line with a `key:` followed by content, a space, or the end of the line is
 /// an attribute-value position. A fresh line with no `key:` is a body position,
-/// which is where a value on the next line leaves the cursor.
-fn yaml_attribute(text: &str, offset: usize) -> Option<String> {
+/// which is where a value on the next line leaves the cursor. A cursor past an
+/// unquoted `#` sits in a comment, which is no value position.
+fn yaml_attribute(text: &str, offset: usize) -> Option<(String, usize)> {
     let line_start = text[..offset].rfind('\n').map(|i| i + 1).unwrap_or(0);
     let slice = &text[line_start..offset];
     let prefix = slice.strip_suffix('\r').unwrap_or(slice);
@@ -153,13 +181,33 @@ fn yaml_attribute(text: &str, offset: usize) -> Option<String> {
         .strip_prefix("- ")
         .map(str::trim_start)
         .unwrap_or(trimmed);
+    if contains_comment(rest) {
+        return None;
+    }
     let colon = find_top_colon(rest)?;
     let after = &rest[colon + 1..];
     if !(after.is_empty() || after.starts_with(' ')) {
         return None;
     }
     let name = rest[..colon].trim().trim_matches('"');
-    (!name.is_empty()).then(|| name.to_string())
+    let after_colon = line_start + (prefix.len() - rest.len()) + colon + 1;
+    (!name.is_empty()).then(|| (name.to_string(), after_colon))
+}
+
+/// Whether a segment holds an unquoted `#` that starts a trailing comment: one
+/// at the start of the segment or after whitespace, outside a quoted string.
+fn contains_comment(segment: &str) -> bool {
+    let bytes = segment.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => index = skip_string(bytes, index),
+            b'\'' => index = skip_single(bytes, index),
+            b'#' if index == 0 || bytes[index - 1].is_ascii_whitespace() => return true,
+            _ => index += 1,
+        }
+    }
+    false
 }
 
 /// The indentation column of a line, counting a `- ` sequence marker as two
@@ -634,6 +682,82 @@ mod tests {
         // Assert
         assert_eq!(context.path, Vec::<String>::new());
         assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn the_value_token_after_a_bare_colon_starts_past_the_colon() {
+        // Arrange
+        // The buffer does not parse, so no parsed span covers the value. The
+        // scanned token must still start past the colon, so a completion never
+        // replaces the key.
+        let (text, offset) = at("limits:\n  mode:|\nbad: [\n");
+
+        // Act
+        let context = resolve_in_yaml(&text, offset);
+
+        // Assert
+        assert_eq!(
+            context.kind,
+            PositionKind::AttributeValue {
+                field: "mode".to_string()
+            }
+        );
+        assert_eq!(context.token, (offset, offset), "zero width at the cursor");
+    }
+
+    #[test]
+    fn a_trailing_comment_is_not_a_value_position() {
+        // Arrange
+        let (text, offset) = at("port: 8080  # no|te\n");
+
+        // Act
+        let context = resolve_in_yaml(&text, offset);
+
+        // Assert
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn a_block_scalar_under_a_sequence_dash_is_not_read_as_structure() {
+        // Arrange
+        // The `- |` item opens a block scalar, so its content line `x: 1` is
+        // text rather than a key, and the path keeps only `steps`.
+        let text = "steps:\n  - |\n    x: 1\n      ";
+        let offset = text.len();
+
+        // Act
+        let context = resolve_in_yaml(text, offset);
+
+        // Assert
+        assert_eq!(context.path, vec!["steps".to_string()]);
+    }
+
+    #[test]
+    fn an_empty_nested_sequence_opens_its_first_element() {
+        // Arrange
+        // The scan stops at `matchers:`, the first shallower non-dash line, so
+        // the outer sequence's dash does not govern the cursor.
+        let (text, offset) = at("upstream:\n  - name: a\n    matchers:\n      |\n");
+
+        // Act
+        let opens = starts_new_sequence_element(&text, (offset, offset));
+
+        // Assert
+        assert!(opens, "an empty sequence opens with a dash");
+    }
+
+    #[test]
+    fn a_sibling_sequence_in_the_dash_at_key_indent_form_opens_its_first_element() {
+        // Arrange
+        // The scan stops at `rules:`, so the dash of the earlier sibling
+        // sequence does not govern the cursor.
+        let (text, offset) = at("upstream:\n- name: a\nrules:\n  |\n");
+
+        // Act
+        let opens = starts_new_sequence_element(&text, (offset, offset));
+
+        // Assert
+        assert!(opens, "an empty sibling sequence opens with a dash");
     }
 
     #[test]

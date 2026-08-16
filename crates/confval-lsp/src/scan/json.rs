@@ -46,6 +46,42 @@ fn introducing_key(text: &str, open: usize) -> String {
     json_key(&text[..index - 1]).unwrap_or_default()
 }
 
+/// Whether the innermost open bracket at the offset is a JSON array, so the
+/// cursor sits directly in an array rather than inside an element object. This
+/// is the JSON half of the new-element answer the frontend resolves onto the
+/// cursor context.
+///
+/// Brackets match by kind, so an unpaired closer in a malformed buffer, the
+/// common state during completion, does not pop a bracket it never closed.
+pub(crate) fn innermost_is_array(text: &str, offset: usize) -> bool {
+    let bytes = text.as_bytes();
+    let mut stack = Vec::new();
+    let mut index = 0;
+    while index < offset {
+        match bytes[index] {
+            b'"' => index = skip_string(bytes, index),
+            b'{' | b'[' => {
+                stack.push(bytes[index]);
+                index += 1;
+            }
+            b'}' => {
+                if stack.last() == Some(&b'{') {
+                    stack.pop();
+                }
+                index += 1;
+            }
+            b']' => {
+                if stack.last() == Some(&b'[') {
+                    stack.pop();
+                }
+                index += 1;
+            }
+            _ => index += 1,
+        }
+    }
+    matches!(stack.last(), Some(b'['))
+}
+
 /// The content of the last quoted string in a segment, honoring `\"`.
 fn json_key(segment: &str) -> Option<String> {
     let bytes = segment.as_bytes();
@@ -63,4 +99,35 @@ fn json_key(segment: &str) -> Option<String> {
         }
     }
     last
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_unpaired_closing_brace_does_not_pop_the_open_array() {
+        // Arrange
+        // The `}` never closed the `[`, so the cursor still sits directly in
+        // the array and a completion wraps a new element.
+        let text = "[ }";
+
+        // Act
+        let in_array = innermost_is_array(text, text.len());
+
+        // Assert
+        assert!(in_array, "the unpaired closer leaves the array open");
+    }
+
+    #[test]
+    fn a_cursor_inside_an_element_object_is_not_directly_in_the_array() {
+        // Arrange
+        let text = "[ { ";
+
+        // Act
+        let in_array = innermost_is_array(text, text.len());
+
+        // Assert
+        assert!(!in_array, "the element object is the innermost bracket");
+    }
 }

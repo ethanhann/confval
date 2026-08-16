@@ -142,11 +142,14 @@ pub enum Constraint {
         /// The constraint's custom help line for the hover, or `None`.
         help: Option<&'static str>,
     },
-    /// The value references the labels of a top-level block. The block is named
-    /// by its config field name, the `<block>` of `#[confval(references = <block>)]`.
-    /// The reference pass checks the value against the labels the file defines.
+    /// The value references the labels of a block its scope can see. The block
+    /// is named by its config field name, the `<block>` of
+    /// `#[confval(references = <block>)]`. The reference pass resolves the name
+    /// outward from the reference's enclosing block to the nearest enclosing
+    /// scope that declares a labeled block field of that name. The root is
+    /// searched last. The value is checked against that scope's labels.
     References {
-        /// The config field name of the referenced top-level block.
+        /// The config field name of the referenced labeled block.
         block: &'static str,
     },
 }

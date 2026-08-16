@@ -19,3 +19,24 @@ rules {
   prefix   = "/api"
   upstream = "nope"
 }
+
+service {
+  name = "checkout"
+  endpoints "primary" {
+    port = 9000
+  }
+  routes {
+    prefix   = "/pay"
+    endpoint = "backup"
+  }
+}
+
+service {
+  name = "billing"
+  endpoints "backup" {
+    port = 9100
+  }
+  endpoints "backup" {
+    port = 9101
+  }
+}

@@ -12,8 +12,10 @@ use confval::format::Fields;
 use confval::schema::SchemaField;
 use confval::source::{SourceId, SourceMap};
 
-use crate::resolve::{instance_body_at, resolve_in_tree, value_span_token};
-use crate::scan::{resolve_in_text, resolve_in_yaml};
+use crate::resolve::{bodies_along_path, resolve_in_tree, value_span_in};
+use crate::scan::{
+    innermost_is_array, resolve_in_text, resolve_in_yaml, starts_new_sequence_element,
+};
 
 /// The raw-text recovery a frontend's syntax needs.
 ///
@@ -42,6 +44,48 @@ pub enum ValueSeparator {
     Colon,
     /// `name value`: KDL.
     Whitespace,
+}
+
+/// A field's rendered insert, with the format's edit geometry.
+///
+/// The completion handler applies `absorb` to the replace range, so the format
+/// decides what a typed prefix character means rather than the handler
+/// inferring it from the insert string.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Insert {
+    /// The text the completion inserts. A block insert places a `$0` where the
+    /// cursor belongs.
+    pub text: String,
+    /// What the edit absorbs to the left of the replace range.
+    pub absorb: Absorb,
+}
+
+impl Insert {
+    /// An insert with no left absorption.
+    pub fn plain(text: String) -> Self {
+        Self {
+            text,
+            absorb: Absorb::None,
+        }
+    }
+}
+
+/// What a completion edit absorbs to the left of its replace range.
+///
+/// A format whose insert re-renders a delimiter the operator has already typed
+/// absorbs that delimiter, so accepting the item does not double it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Absorb {
+    /// Nothing is absorbed.
+    None,
+    /// A run of this byte directly before the range. For example, a TOML
+    /// header re-renders the `[` run, so `[lim` completes to `[limits]` rather
+    /// than `[[limits]`.
+    Run(u8),
+    /// One occurrence of this byte directly before the range. For example, a
+    /// JSON member re-renders its opening `"`, so `"por` completes to
+    /// `"port": ` rather than a doubled quote.
+    One(u8),
 }
 
 /// The kind of position a cursor sits in.
@@ -81,16 +125,34 @@ pub struct CursorContext {
     /// when it sits on no token. It is scanned from the current text, so it stays
     /// valid and on the cursor's line even when the buffer does not parse.
     pub token: (usize, usize),
+    /// The text of `token`, carried so the handlers read the typed prefix
+    /// without holding the buffer.
+    pub token_text: String,
+    /// Whether a body completion here opens a new element of a repeated block
+    /// rather than adding a field to the element the cursor sits in. The
+    /// answer is syntactic, and the frontend resolves it. The handlers consult
+    /// it only behind the schema's repeated-block check, so the default at an
+    /// unrepeated position is never read.
+    pub new_element: bool,
     /// The fields of the block instance the cursor sits in, when the buffer
     /// parsed. The handlers read the already-set state and the hover state from
     /// it, so a repeated block addresses the instance the cursor is in rather
-    /// than the first. It is `None` on the text recovery path, which has no
-    /// parsed instance.
+    /// than the first. A pending body, a key whose body the tree does not hold
+    /// yet, carries an empty body, because nothing is set there. It is `None`
+    /// only on the text recovery path, which has no parsed instance.
     pub resolved_body: Option<Fields>,
+    /// The bodies of the enclosing block instances along `path`, root first,
+    /// one per path segment, recorded by the same descent that fills
+    /// `resolved_body`. The reference handlers search them outward for the
+    /// scope that declares a reference target, the rule the pipeline's
+    /// reference pass applies. Empty on the text recovery path.
+    pub ancestors: Vec<Fields>,
 }
 
-/// Equality ignores the resolved body, because `Fields` carries no equality and
-/// the path, the kind, and the token identify the position.
+/// Equality ignores the resolved body, the ancestors, the token text, and the
+/// new-element flag, because they are resolution outputs rather than position
+/// identity.
+/// The path, the kind, and the token identify the position.
 impl PartialEq for CursorContext {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path && self.kind == other.kind && self.token == other.token
@@ -107,7 +169,10 @@ impl CursorContext {
             path,
             kind,
             token,
+            token_text: String::new(),
+            new_element: false,
             resolved_body: None,
+            ancestors: Vec::new(),
         }
     }
 
@@ -161,43 +226,55 @@ pub trait Frontend {
         // parse states, because a block mapping's parsed span stops at its last
         // child and an empty key parses as null, so the tree does not cover a
         // pending body position.
-        if matches!(self.recovery(), Recovery::Indentation) {
+        let mut context = if matches!(self.recovery(), Recovery::Indentation) {
             let mut context = resolve_in_yaml(text, offset);
-            // The reader reads the path and kind from indentation, but a parsed
-            // value's exact span replaces the whole value, so completing a
-            // spaced or quoted value does not stop at a space.
+            // YAML resolves its path from indentation, so the instance body is
+            // read from the tree here, the second site the tree walk does not
+            // cover. The body follows the path, choosing a sequence element by
+            // offset, so a repeated block addresses the correct element and a
+            // pending body reads as empty. A parsed value's exact span from that
+            // body replaces the whole value, so completing a spaced or quoted
+            // value does not stop at a space, inside an element as well.
             if let Some(tree) = tree {
-                let field = match &context.kind {
-                    PositionKind::AttributeValue { field } => Some(field.clone()),
-                    _ => None,
-                };
-                if let Some(field) = field
-                    && let Some(token) = value_span_token(tree, &context.path, &field, text)
+                let mut bodies =
+                    bodies_along_path(tree, &context.path, offset, self.block_span_covers_body());
+                let body = bodies.pop().unwrap_or_else(|| tree.clone());
+                if let PositionKind::AttributeValue { field } = &context.kind
+                    && let Some(token) = value_span_in(&body, field, text)
                 {
                     context.token = token;
                 }
-                // YAML resolves its path from indentation, so the instance body
-                // is read from the tree here, the second site the tree walk does
-                // not cover. A repeated block then addresses the correct element.
-                context.resolved_body = Some(instance_body_at(
-                    tree,
+                context.resolved_body = Some(body);
+                context.ancestors = bodies;
+            }
+            context
+        } else {
+            match tree {
+                Some(tree) => resolve_in_tree(tree, text, offset, self.block_span_covers_body()),
+                None => resolve_in_text(
                     text,
                     offset,
-                    self.block_span_covers_body(),
-                ));
+                    self.recovery(),
+                    self.value_separator(),
+                    self.hash_is_comment(),
+                ),
             }
-            return context;
-        }
-        match tree {
-            Some(tree) => resolve_in_tree(tree, text, offset, self.block_span_covers_body()),
-            None => resolve_in_text(
-                text,
-                offset,
-                self.recovery(),
-                self.value_separator(),
-                self.hash_is_comment(),
-            ),
-        }
+        };
+        // Every context field is resolved here, once, so the handlers stop
+        // scanning the buffer. The syntactic new-element predicates live with
+        // their formats' scanners. A YAML element begins on a fresh line
+        // aligned with the sequence dash, and a JSON element begins directly
+        // in an array.
+        context.new_element = match self.recovery() {
+            Recovery::Indentation => starts_new_sequence_element(text, context.token),
+            Recovery::Object => innermost_is_array(text, context.token.0),
+            _ => false,
+        };
+        context.token_text = text
+            .get(context.token.0..context.token.1)
+            .unwrap_or_default()
+            .to_string();
+        context
     }
 
     /// Whether a block's span covers its whole body.
@@ -231,16 +308,25 @@ pub trait Frontend {
         true
     }
 
-    /// Renders a field's insert text in the format, reading the field's
+    /// Renders a field's insert in the format, reading the field's
     /// `SchemaType` to write a scalar as the format's `name = value` form or a
     /// block as its block form. `path` is the enclosing block path, which a
     /// header-based format (TOML) uses to qualify a nested block header.
     ///
-    /// A brace-delimited block insert places a `$0` where the cursor belongs,
-    /// inside the body. The completion handler emits it as a snippet tab stop
-    /// when the client supports snippets, or removes it otherwise, so the marker
-    /// never reaches a buffer literally.
-    fn insert_text(&self, field: &SchemaField, path: &[String]) -> String;
+    /// The returned [`Insert`] carries the edit geometry beside the text: what
+    /// the edit absorbs to its left. A brace-delimited block insert places a
+    /// `$0` where the cursor belongs, inside the body. The completion handler
+    /// emits it as a snippet tab stop when the client supports snippets, or
+    /// removes it otherwise, so the marker never reaches a buffer literally.
+    fn insert_text(&self, field: &SchemaField, path: &[String]) -> Insert;
+
+    /// Wraps a field insert as a new element of a repeated block. A YAML
+    /// sequence element takes a `- ` marker, and a JSON array element is an
+    /// object. The default leaves the insert unchanged, because a brace or
+    /// header format never opens an element from a body position.
+    fn wrap_element(&self, insert: String) -> String {
+        insert
+    }
 }
 
 #[cfg(test)]

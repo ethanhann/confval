@@ -12,7 +12,7 @@
 
 use confval::diagnostic::Report;
 use confval::format::{FromFields, hcl, json, kdl, toml, yaml};
-use confval::pipeline::{Validate, check_references, label_index};
+use confval::pipeline::{Validate, check_references, declares_labeled_block, scope_labels};
 use confval::schema::{Constraint, SchemaType, ToSchema};
 use confval::source::{Located, SourceId, SourceMap};
 
@@ -557,21 +557,23 @@ fn from_fields_reads_the_label_from_the_child_field_in_toml() {
 }
 
 #[test]
-fn label_index_collects_labels_with_spans_and_no_report() {
+fn scope_labels_collects_labels_with_spans_and_no_report() {
     // Arrange
     let text = HCL_RESOLVED;
     let mut sources = SourceMap::new();
     let id = sources.add("gateway", text);
     let mut report = Report::new();
     let fields = hcl::parse_hcl_fields(&sources, id, &mut report).expect("the source parses");
+    let schema = GatewaySpec::schema();
 
     // Act
-    let index = label_index(&fields, &GatewaySpec::schema());
+    let upstreams = scope_labels(&fields, &schema, "upstream");
 
     // Assert
-    let upstreams = index
-        .get("upstream")
-        .expect("the upstream block is indexed");
+    assert!(
+        declares_labeled_block(&schema, "upstream"),
+        "the root declares the labeled upstream block"
+    );
     assert_eq!(upstreams.len(), 1);
     assert_eq!(upstreams[0].value.as_str(), "api");
     assert!(
@@ -669,5 +671,188 @@ fn a_native_label_round_trips_in_kdl() {
     assert!(
         out.contains("upstream \"api\""),
         "the native label survives the round trip: {out}"
+    );
+}
+
+#[derive(confval::Spec)]
+struct MeshUpstreamSpec {
+    #[confval(label)]
+    name: Located<String>,
+    port: Located<i64>,
+}
+
+#[derive(confval::Spec)]
+struct MeshPoolSpec {
+    #[confval(label)]
+    id: Located<String>,
+}
+
+#[derive(confval::Spec)]
+struct MeshRouteSpec {
+    prefix: Option<Located<String>>,
+    #[confval(references = upstreams)]
+    upstream: Option<Located<String>>,
+    #[confval(references = pool)]
+    pool: Option<Located<String>>,
+}
+
+#[derive(confval::Spec)]
+struct MeshServiceSpec {
+    name: Located<String>,
+    #[confval(nested)]
+    routes: Vec<Located<MeshRouteSpec>>,
+    #[confval(nested)]
+    upstreams: Vec<Located<MeshUpstreamSpec>>,
+    #[confval(nested)]
+    pool: Vec<Located<MeshPoolSpec>>,
+}
+
+#[derive(confval::Spec)]
+struct MeshSpec {
+    #[confval(nested)]
+    services: Vec<Located<MeshServiceSpec>>,
+    #[confval(nested)]
+    pool: Vec<Located<MeshPoolSpec>>,
+}
+
+impl Validate for MeshUpstreamSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for MeshPoolSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for MeshRouteSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for MeshServiceSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for MeshSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// Parses HCL text and runs the reference pass against the nested mesh schema,
+/// whose labeled blocks sit below the root.
+fn mesh_report(text: &str) -> Report {
+    let mut sources = SourceMap::new();
+    let id = sources.add("mesh", text);
+    let mut report = Report::new();
+    let Some(fields) = hcl::parse_hcl_fields(&sources, id, &mut report) else {
+        panic!("the source parses");
+    };
+    check_references(&fields, &MeshSpec::schema(), &mut report);
+    report
+}
+
+/// Two services that each define an upstream and a route naming it. The label
+/// `u1` repeats across the sibling services.
+const MESH_SIBLINGS: &str = "services {\n  name = \"a\"\n  upstreams \"u1\" {\n    port = 1\n  }\n  routes {\n    upstream = \"u1\"\n  }\n}\nservices {\n  name = \"b\"\n  upstreams \"u1\" {\n    port = 2\n  }\n  routes {\n    upstream = \"u1\"\n  }\n}\n";
+
+#[test]
+fn a_sibling_scoped_reference_resolves_within_its_own_service() {
+    // Arrange
+    // Each route names the upstream of its own service. The target block sits
+    // below the root, so a root-level-only model cannot resolve it.
+    let text = MESH_SIBLINGS;
+
+    // Act
+    let report = mesh_report(text);
+
+    // Assert
+    assert!(
+        errors(&report).is_empty(),
+        "both routes resolve in their own scope: {:?}",
+        errors(&report)
+    );
+}
+
+#[test]
+fn the_same_label_in_two_sibling_scopes_is_legal() {
+    // Arrange
+    // Both services define an upstream labeled `u1`. The duplicate check is
+    // scope-local, so the repetition across siblings reports nothing.
+    let text = MESH_SIBLINGS;
+
+    // Act
+    let report = mesh_report(text);
+
+    // Assert
+    assert!(
+        !errors(&report)
+            .iter()
+            .any(|message| message.contains("duplicate")),
+        "sibling scopes may reuse a label: {:?}",
+        errors(&report)
+    );
+}
+
+#[test]
+fn a_reference_to_another_siblings_label_does_not_resolve() {
+    // Arrange
+    // Service `b` names service `a`'s upstream. The reference resolves against
+    // its own service's upstreams, so it must not see the sibling's label.
+    let text = "services {\n  name = \"a\"\n  upstreams \"ua\" {\n    port = 1\n  }\n}\nservices {\n  name = \"b\"\n  upstreams \"ub\" {\n    port = 2\n  }\n  routes {\n    upstream = \"ua\"\n  }\n}\n";
+
+    // Act
+    let report = mesh_report(text);
+
+    // Assert
+    let messages = errors(&report);
+    assert_eq!(messages, vec!["no upstreams named \"ua\"".to_string()]);
+    let issue = &report.issues()[0];
+    assert_eq!(issue.help.as_deref(), Some("defined upstreams: ub"));
+}
+
+#[test]
+fn a_repeated_block_name_resolves_at_the_nearest_scope() {
+    // Arrange
+    // `pool` is declared at the root and inside a service. The route's
+    // reference resolves at the nearest declaring scope, the service, so the
+    // root's `shared` label is out of reach.
+    let text = "pool \"shared\" {\n}\nservices {\n  name = \"a\"\n  pool \"local\" {\n  }\n  routes {\n    pool = \"shared\"\n  }\n}\n";
+
+    // Act
+    let report = mesh_report(text);
+
+    // Assert
+    let messages = errors(&report);
+    assert_eq!(messages, vec!["no pool named \"shared\"".to_string()]);
+    let issue = &report.issues()[0];
+    assert_eq!(issue.help.as_deref(), Some("defined pool: local"));
+}
+
+#[test]
+fn a_reference_resolves_in_the_nearest_scope_that_declares_the_target() {
+    // Arrange
+    let text = "pool \"shared\" {\n}\nservices {\n  name = \"a\"\n  pool \"local\" {\n  }\n  routes {\n    pool = \"local\"\n  }\n}\n";
+
+    // Act
+    let report = mesh_report(text);
+
+    // Assert
+    assert!(
+        errors(&report).is_empty(),
+        "the service's own pool resolves: {:?}",
+        errors(&report)
+    );
+}
+
+#[test]
+fn a_duplicate_label_within_one_scope_reports() {
+    // Arrange
+    let text = "services {\n  name = \"a\"\n  upstreams \"u1\" {\n    port = 1\n  }\n  upstreams \"u1\" {\n    port = 2\n  }\n}\n";
+
+    // Act
+    let report = mesh_report(text);
+
+    // Assert
+    let messages = errors(&report);
+    assert_eq!(
+        messages,
+        vec!["duplicate upstreams label \"u1\"".to_string()]
     );
 }

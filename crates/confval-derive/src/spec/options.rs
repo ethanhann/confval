@@ -112,9 +112,10 @@ pub(crate) struct FieldOptions {
     /// checked in `spec/schema.rs`.
     pub(crate) label: bool,
     /// The block field name a `#[confval(references = <block>)]` names, or `None`.
-    /// The value references the labels of that top-level block. Unlike `keywords`
-    /// and `range`, it is a bare config field name, not a Rust path, stored and
-    /// emitted as a string.
+    /// The value references the labels of that block, resolved outward to the
+    /// nearest enclosing scope that declares it. Unlike `keywords` and `range`,
+    /// it is a bare config field name, not a Rust path, stored and emitted as a
+    /// string.
     pub(crate) references: Option<Ident>,
     /// The doc comment `to_template` renders above the field, or `None`. Comes
     /// from `#[confval(doc = "...")]` if present, otherwise the field's `///`

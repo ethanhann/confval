@@ -558,3 +558,89 @@ fn yaml_value_completion_replaces_the_whole_quoted_value() {
     let (start, end) = context.token;
     assert_eq!(&text[start..end], "\"log loud\"", "the whole quoted value");
 }
+
+#[test]
+fn yaml_value_token_inside_a_sequence_element_covers_the_parsed_value() {
+    // Arrange
+    // The reference value in the last sequence element is quoted with a space.
+    // Its parsed span must be the replace token, so completion and hover read
+    // the whole value rather than stopping at the space.
+    let frontend = Yaml;
+    let text = "upstream:\n  - name: \"a b\"\n    host: h\n    port: 1\nroutes:\n  - prefix: /x\n    upstream: \"a b\"\n";
+    let offset = text.rfind("a b").unwrap();
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(
+        context.kind,
+        PositionKind::AttributeValue {
+            field: "upstream".to_string()
+        }
+    );
+    let (start, end) = context.token;
+    assert_eq!(&text[start..end], "\"a b\"", "the whole parsed value");
+}
+
+#[test]
+fn yaml_offset_at_a_sibling_key_after_a_sequence_reads_the_enclosing_level() {
+    // Arrange
+    // The cursor sits at the first character of the root `port` key, directly
+    // after the last sequence element. The element ends strictly before the
+    // sibling, so the resolved body is the root, which sets `port`.
+    let frontend = Yaml;
+    let text = "upstream:\n  - name: a\n    host: h\nport: 8080\n";
+    let offset = text.find("\nport").unwrap() + 1;
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(context.path, Vec::<String>::new());
+    let body = context.resolved_body.as_ref().expect("a parsed body");
+    assert!(body.has("port"), "the root level sets port");
+}
+
+#[test]
+fn yaml_pending_body_under_an_empty_key_carries_an_empty_body() {
+    // Arrange
+    // `admin:` parses as null, so its body is pending. The resolved body must
+    // be empty rather than the parent level, whose fields would leak into the
+    // already-set state.
+    let frontend = Yaml;
+    let text = "port: 8080\nadmin:\n  \n";
+    let offset = text.len() - 1;
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(context.path, vec!["admin".to_string()]);
+    let body = context.resolved_body.as_ref().expect("a parsed body");
+    assert!(!body.has("port"), "a pending body sets nothing");
+}
+
+#[test]
+fn yaml_empty_value_after_a_colon_keeps_a_zero_width_token_when_the_buffer_parses() {
+    // Arrange
+    // `upstream:` parses as null, a value outside the model. There is no value
+    // text to replace, so the token must stay the zero-width scan result at
+    // the cursor rather than the null's span, which covers the colon.
+    let frontend = Yaml;
+    let text = "rules:\n  - prefix: \"/x\"\n    upstream:\n";
+    let offset = text.find("upstream:").unwrap() + "upstream:".len();
+    assert!(frontend.parse_tree(text).is_some(), "the buffer parses");
+
+    // Act
+    let context = resolve(&frontend, text, offset);
+
+    // Assert
+    assert_eq!(
+        context.kind,
+        PositionKind::AttributeValue {
+            field: "upstream".to_string()
+        }
+    );
+    assert_eq!(context.token, (offset, offset), "zero width at the cursor");
+}

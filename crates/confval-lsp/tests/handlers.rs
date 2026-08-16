@@ -11,7 +11,7 @@ use lsp_types::{
 
 use confval::prelude::{Located, Report, Validate};
 use confval::schema::ToSchema;
-use confval_lsp::handlers::{completion, diagnostics, hover};
+use confval_lsp::handlers::{Cx, completion, diagnostics, hover};
 use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
 
 use fixture::{GatewaySpec, ServerSpec};
@@ -109,10 +109,12 @@ fn attribute_name_completion_offers_unset_root_fields() {
     // Act
     let items = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -138,10 +140,12 @@ fn block_type_completion_offers_the_nested_block() {
     // Act
     let items = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -169,20 +173,24 @@ fn block_completion_places_the_cursor_with_a_snippet_when_supported() {
     // Act
     let with = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         true,
     );
     let without = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -215,10 +223,12 @@ fn enum_value_completion_offers_the_allowed_strings() {
     // Act
     let items = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -251,10 +261,12 @@ fn kdl_value_completion_on_a_valueless_node_does_not_replace_the_name() {
     // Act
     let items = completion(
         &Kdl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -352,10 +364,12 @@ fn a_repeated_block_stays_offered_while_a_single_block_is_dropped() {
     // Act
     let items = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -385,10 +399,12 @@ fn a_map_body_offers_no_keys() {
     // Act
     let items = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -413,10 +429,12 @@ fn toml_block_completion_inserts_a_table_header() {
     // Act
     let items = completion(
         &Toml,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -442,10 +460,12 @@ fn kdl_scalar_completion_inserts_the_bare_name_form() {
     // Act
     let items = completion(
         &Kdl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -474,10 +494,12 @@ fn completion_inside_a_toml_array_of_tables_offers_the_block_fields() {
     // Act
     let items = completion(
         &Toml,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -504,10 +526,12 @@ fn toml_enum_value_completion_offers_the_allowed_strings() {
     // Act
     let items = completion(
         &Toml,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -532,10 +556,12 @@ fn a_half_typed_name_completes_over_a_replace_range() {
     // Act
     let items = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -582,10 +608,12 @@ fn enum_completion_over_a_value_keeps_the_items_and_replaces_only_the_value() {
     // Act
     let items = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -629,10 +657,12 @@ fn enum_completion_works_at_an_empty_value_when_the_buffer_does_not_parse() {
     // Act
     let items = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -658,10 +688,12 @@ fn body_completion_on_an_empty_line_inserts_at_the_cursor() {
     // Act
     let items = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -694,10 +726,12 @@ fn completing_a_typed_toml_header_replaces_the_bracket() {
     // Act
     let items = completion(
         &Toml,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -733,10 +767,12 @@ fn value_completion_at_a_non_keyword_field_offers_nothing() {
     // Act
     let items = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -913,10 +949,12 @@ fn json_completion_absorbs_the_opening_quote() {
     // Act
     let items = completion(
         &Json,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -956,10 +994,12 @@ fn json_member_insert_is_non_destructive() {
     // Act
     let items = completion(
         &Json,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -992,10 +1032,12 @@ fn yaml_completion_under_an_empty_key_offers_the_block_fields() {
     // Act
     let items = completion(
         &Yaml,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1123,10 +1165,12 @@ fn json_enum_value_completion_offers_the_allowed_strings() {
     // Act
     let items = completion(
         &Json,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1149,10 +1193,12 @@ fn yaml_completion_inserts_the_mapping_and_scalar_forms() {
     // Act
     let items = completion(
         &Yaml,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1182,10 +1228,12 @@ fn yaml_repeated_block_completion_opens_a_sequence() {
     // Act
     let items = completion(
         &Yaml,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1213,10 +1261,12 @@ fn yaml_field_in_a_repeated_block_opens_a_new_element() {
     // Act
     let items = completion(
         &Yaml,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1242,10 +1292,12 @@ fn json_repeated_block_completion_opens_an_array() {
     // Act
     let items = completion(
         &Json,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1277,20 +1329,24 @@ fn json_field_in_an_array_element_position_opens_an_object() {
     // Act
     let plain = completion(
         &Json,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
     );
     let snippet = completion(
         &Json,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         true,
@@ -1327,10 +1383,12 @@ fn json_list_and_map_completion_open_the_container() {
     // Act
     let items = completion(
         &Json,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1360,10 +1418,12 @@ fn yaml_list_and_map_completion_open_the_container() {
     // Act
     let items = completion(
         &Yaml,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1393,10 +1453,12 @@ fn toml_list_and_map_completion_open_the_container() {
     // Act
     let items = completion(
         &Toml,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1426,10 +1488,12 @@ fn hcl_list_and_map_completion_open_the_container() {
     // Act
     let items = completion(
         &Hcl,
-        &schema,
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1452,12 +1516,15 @@ fn hcl_list_and_map_completion_open_the_container() {
 fn gateway_offered<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Vec<String> {
     let (tree, context) = at_with(frontend, text, offset);
     let index = LineIndex::new(text);
+    let schema = GatewaySpec::schema();
     let items = completion(
         frontend,
-        &GatewaySpec::schema(),
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1689,10 +1756,12 @@ fn reference_completion_offers_nothing_without_a_parse() {
     // Act
     let items = completion(
         &Hcl,
-        &GatewaySpec::schema(),
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &GatewaySpec::schema(),
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1721,10 +1790,12 @@ fn yaml_field_inside_an_existing_element_adds_a_field_not_an_element() {
     // Act
     let items = completion(
         &Yaml,
-        &GatewaySpec::schema(),
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &GatewaySpec::schema(),
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
         false,
@@ -1760,4 +1831,296 @@ fn a_type_error_in_one_element_does_not_diagnose_a_sibling_element() {
         found[0].range.start.line, 3,
         "on the invalid port, not the valid one"
     );
+}
+
+#[test]
+fn yaml_completion_under_a_pending_block_offers_every_block_field() {
+    // Arrange
+    // The root sets `port` and `admin:` awaits its body. The pending body sets
+    // nothing, so the admin block's own `port` stays offered.
+    let text = "port: 8080\nadmin:\n  \n";
+    let offset = text.len() - 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = fixture::RelaySpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let labels = labels(&items);
+    assert!(
+        labels.contains(&"port".to_string()),
+        "expected the pending admin body to offer port, got: {labels:?}"
+    );
+}
+
+#[test]
+fn yaml_keyword_completion_after_a_bare_colon_keeps_the_key_and_adds_a_space() {
+    // Arrange
+    // The buffer does not parse, so the scanned token is the replace range. The
+    // edit must start past the colon and the insert must supply the separating
+    // space, so accepting a keyword yields `mode: "enforce"`.
+    let text = "limits:\n  mode:\nbad: [\n";
+    let offset = text.find("mode:").unwrap() + "mode:".len();
+    let (tree, context) = at_with(&Yaml, text, offset);
+    assert!(tree.is_none(), "the buffer does not parse");
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let enforce = items
+        .iter()
+        .find(|item| item.label == "enforce")
+        .expect("the enforce keyword");
+    let edit = match &enforce.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit,
+        other => panic!("a replace edit, got {other:?}"),
+    };
+    assert_eq!(
+        edit.new_text, " \"enforce\"",
+        "the insert supplies the space"
+    );
+    assert_eq!(
+        edit.range.start,
+        Position {
+            line: 1,
+            character: 7
+        }
+    );
+    assert_eq!(
+        edit.range.end,
+        Position {
+            line: 1,
+            character: 7
+        }
+    );
+}
+
+/// The mesh document the scoped editor tests share: two services, each with
+/// its own labeled upstream and a route naming it.
+const MESH_YAML: &str = "services:\n  - name: a\n    upstreams:\n      - name: ua\n        port: 1\n  - name: b\n    upstreams:\n      - name: ub\n        port: 2\n    routes:\n      - upstream: \"ub\"\n";
+
+#[test]
+fn scoped_reference_completion_offers_only_the_own_scope_labels() {
+    // Arrange
+    // The cursor sits in service b's route value. The declaring scope is that
+    // service, so only its `ub` label is offered, not the sibling's `ua`.
+    let text = MESH_YAML;
+    let offset = text.rfind("ub").unwrap();
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = fixture::MeshSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    assert_eq!(labels(&items), vec!["ub".to_string()]);
+}
+
+#[test]
+fn scoped_reference_hover_resolves_within_its_own_scope() {
+    // Arrange
+    let text = MESH_YAML;
+    let offset = text.rfind("ub").unwrap();
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = fixture::MeshSpec::schema();
+
+    // Act
+    let found = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING)
+        .expect("a hover is produced");
+
+    // Assert
+    let markdown = match found.contents {
+        HoverContents::Markup(markup) => markup.value,
+        _ => panic!("expected a markdown hover"),
+    };
+    assert!(
+        markdown.contains("References the `upstreams` block."),
+        "the target line names the block: {markdown}"
+    );
+    assert!(
+        markdown.contains("Resolves to a defined label."),
+        "the own-scope label resolves: {markdown}"
+    );
+}
+
+#[test]
+fn yaml_single_quoted_reference_value_hovers_as_resolved() {
+    // Arrange
+    // The parsed value of `'api'` is `api`, which the pipeline resolves. Hover
+    // reads the parsed value from the resolved body, so it agrees.
+    let text = "upstream:\n  - name: api\n    host: h\n    port: 1\nroutes:\n  - prefix: /a\n    upstream: 'api'\n";
+    let offset = text.rfind("api").unwrap();
+
+    // Act
+    let markdown = gateway_hover(&Yaml, text, offset);
+
+    // Assert
+    assert!(
+        markdown.contains("Resolves to a defined label."),
+        "the single-quoted value resolves like diagnostics: {markdown}"
+    );
+}
+
+#[test]
+fn a_parsed_non_string_reference_value_hovers_without_a_resolution_line() {
+    // Arrange
+    // The reference pass skips a parsed non-string without a report, so hover
+    // states the target and no resolution line.
+    let text = "upstream:\n  - name: api\n    host: h\n    port: 1\nroutes:\n  - prefix: /a\n    upstream: 123\n";
+    let offset = text.rfind("123").unwrap() + 1;
+
+    // Act
+    let markdown = gateway_hover(&Yaml, text, offset);
+
+    // Assert
+    assert!(
+        markdown.contains("References the `upstream` block."),
+        "the target line stays: {markdown}"
+    );
+    assert!(
+        !markdown.to_lowercase().contains("resolve"),
+        "no resolution claim for a value the pass skips: {markdown}"
+    );
+}
+
+#[test]
+fn completion_sorts_by_schema_declaration_order() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at(text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Hcl,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let sort_keys: Vec<String> = items
+        .iter()
+        .map(|item| item.sort_text.clone().expect("a sort text"))
+        .collect();
+    let mut sorted = sort_keys.clone();
+    sorted.sort();
+    assert_eq!(
+        sort_keys, sorted,
+        "declaration order survives a client sort"
+    );
+    assert_eq!(items[0].label, "hostname", "the first declared field leads");
+}
+
+#[test]
+fn hover_on_a_reference_field_name_states_the_target_block() {
+    // Arrange
+    // The field-name hover renders the constraint line, so a reference field
+    // names its target rather than appending an empty section.
+    let text = "upstream:\n  - name: api\n    host: h\n    port: 1\nroutes:\n  - prefix: /a\n    upstream: \"api\"\n";
+    let offset = text.rfind("upstream:").unwrap() + 1;
+
+    // Act
+    let markdown = gateway_hover(&Yaml, text, offset);
+
+    // Assert
+    assert!(
+        markdown.contains("**upstream**"),
+        "the field hover renders: {markdown}"
+    );
+    assert!(
+        markdown.contains("References the `upstream` block."),
+        "the constraint line names the target: {markdown}"
+    );
+}
+
+#[test]
+fn yaml_reference_completion_after_a_bare_colon_keeps_the_colon() {
+    // Arrange
+    // The buffer parses, and `upstream:` holds a null. Accepting a label must
+    // insert ` "a"` at the cursor, so the line becomes `upstream: "a"` rather
+    // than the null's span swallowing the colon.
+    let text = "upstream:\n  - name: a\n    host: h\n    port: 1\nroutes:\n  - prefix: /x\n    upstream:\n";
+    let offset = text.rfind("upstream:").unwrap() + "upstream:".len();
+    let (tree, context) = at_with(&Yaml, text, offset);
+    assert!(tree.is_some(), "the buffer parses");
+    let index = LineIndex::new(text);
+    let schema = GatewaySpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        false,
+    );
+
+    // Assert
+    let item = items.iter().find(|i| i.label == "a").expect("the label");
+    let edit = match &item.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit,
+        other => panic!("a replace edit, got {other:?}"),
+    };
+    assert_eq!(edit.new_text, " \"a\"", "the insert supplies the space");
+    assert_eq!(
+        edit.range.start,
+        Position {
+            line: 6,
+            character: 13
+        }
+    );
+    assert_eq!(edit.range.start, edit.range.end, "zero width at the cursor");
 }

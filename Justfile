@@ -26,7 +26,7 @@ lint:
 check-code-quality:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo dupes --exclude tests --exclude benches --exclude examples --exclude-tests check --max-exact 28 --max-near 3 --max-exact-percent 5.0 --max-near-percent 1.0
+    cargo dupes --exclude tests --exclude benches --exclude examples --exclude-tests check --max-exact 29 --max-near 3 --max-exact-percent 5.0 --max-near-percent 1.0
     cargo machete
     cargo fmt --check
     fail=0

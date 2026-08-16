@@ -6,7 +6,9 @@
 //! along the same path to find which fields the operator has already set.
 
 use confval::format::{FieldKind, Fields, ValueKind};
+use confval::pipeline::{declares_labeled_block, scope_labels};
 use confval::schema::{Schema, SchemaType};
+use confval::source::Located;
 
 use crate::frontend::CursorContext;
 
@@ -63,9 +65,10 @@ pub(crate) fn fields_at<'a>(root: &'a Fields, path: &[String]) -> Option<&'a Fie
 /// The parsed fields of the block instance the cursor resolved into.
 ///
 /// It is the resolved instance body when the buffer parsed, which addresses the
-/// exact instance of a repeated block, and otherwise the first instance at the
-/// path, the text recovery path with no parsed instance. The completion and
-/// hover handlers read the already-set state from it.
+/// exact instance of a repeated block and reads a pending body as empty. The
+/// `fields_at` fallback runs only on the text recovery path, whose context
+/// carries no body because nothing parsed. The completion and hover handlers
+/// read the already-set state from it.
 pub(crate) fn resolved_level<'a>(
     ctx: &'a CursorContext,
     fields: Option<&'a Fields>,
@@ -73,4 +76,35 @@ pub(crate) fn resolved_level<'a>(
     ctx.resolved_body
         .as_ref()
         .or_else(|| fields.and_then(|tree| fields_at(tree, &ctx.path)))
+}
+
+/// The labels a reference at the cursor resolves against.
+///
+/// It searches outward from the cursor's scope to the nearest enclosing scope
+/// whose schema declares the labeled `block`, the rule `check_references`
+/// applies, reading each scope's instance body from the bodies the context
+/// carries.
+/// Returns `None` when no enclosing scope declares the target or when the
+/// buffer did not parse, which leaves no carried bodies.
+pub(crate) fn reference_labels(
+    schema: &Schema,
+    ctx: &CursorContext,
+    block: &str,
+) -> Option<Vec<Located<String>>> {
+    let innermost = ctx.path.len();
+    for depth in (0..=innermost).rev() {
+        let Some(scope_schema) = schema_at(schema, &ctx.path[..depth]) else {
+            continue;
+        };
+        if !declares_labeled_block(scope_schema, block) {
+            continue;
+        }
+        let body = if depth == innermost {
+            ctx.resolved_body.as_ref()
+        } else {
+            ctx.ancestors.get(depth)
+        }?;
+        return Some(scope_labels(body, scope_schema, block));
+    }
+    None
 }

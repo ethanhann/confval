@@ -1,10 +1,10 @@
 use crate::Frontend;
-use crate::frontend::ValueSeparator;
+use crate::frontend::{Insert, ValueSeparator};
 use crate::frontends::is_block;
 use confval::diagnostic::Report;
 use confval::format::Fields;
 use confval::format::kdl as format_kdl;
-use confval::schema::SchemaField;
+use confval::schema::{SchemaField, SchemaType};
 use confval::source::{SourceId, SourceMap};
 
 /// The KDL frontend.
@@ -26,11 +26,61 @@ impl Frontend for Kdl {
         false
     }
 
-    fn insert_text(&self, field: &SchemaField, _path: &[String]) -> String {
-        if is_block(field) {
+    fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {
+        // A KDL map is written as a children block, like a nested block, so
+        // both open the braces and land the cursor inside.
+        let block_form = is_block(field) || matches!(field.ty, SchemaType::StringMap);
+        Insert::plain(if block_form {
             format!("{} {{\n  $0\n}}", field.name)
         } else {
             format!("{} ", field.name)
-        }
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use confval::schema::{Schema, SchemaType};
+
+    #[test]
+    fn a_string_map_opens_a_children_block() {
+        // Arrange
+        // A KDL map is written as a children block, so the insert opens the
+        // braces and lands the cursor inside.
+        let field = SchemaField::new(
+            "headers".to_string(),
+            None,
+            false,
+            true,
+            SchemaType::StringMap,
+        );
+
+        // Act
+        let insert = Kdl.insert_text(&field, &[]);
+
+        // Assert
+        assert_eq!(insert.text, "headers {\n  $0\n}");
+    }
+
+    #[test]
+    fn a_nested_block_opens_a_children_block() {
+        // Arrange
+        let field = SchemaField::new(
+            "limits".to_string(),
+            None,
+            false,
+            false,
+            SchemaType::Block {
+                schema: Box::new(Schema::new(None, Vec::new())),
+                repeated: false,
+            },
+        );
+
+        // Act
+        let insert = Kdl.insert_text(&field, &[]);
+
+        // Assert
+        assert_eq!(insert.text, "limits {\n  $0\n}");
     }
 }

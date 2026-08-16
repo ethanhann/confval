@@ -23,12 +23,14 @@ pub(crate) fn resolve_in_tree(
     covers_body: bool,
 ) -> CursorContext {
     let mut path = Vec::new();
+    let mut ancestors: Vec<Fields> = Vec::new();
     let mut level = tree;
 
     loop {
         match descend(level, text, offset, covers_body) {
             Step::Enter(name, inner) => {
                 path.push(name);
+                ancestors.push(level.clone());
                 level = inner;
             }
             Step::Here(mut context) => {
@@ -39,7 +41,10 @@ pub(crate) fn resolve_in_tree(
                 };
                 // `level` is the block instance the cursor sits in, the sibling
                 // or the sequence element `descend` chose, so the handlers read
-                // the correct instance rather than re-walking to the first.
+                // the correct instance rather than re-walking to the first. The
+                // ancestor bodies recorded on the way down give the reference
+                // handlers their enclosing scopes.
+                context.ancestors = ancestors;
                 context.resolved_body = Some(level.clone());
                 return context;
             }
@@ -47,22 +52,72 @@ pub(crate) fn resolve_in_tree(
     }
 }
 
-/// The fields of the block instance that contains `offset`, descending the same
-/// way [`resolve_in_tree`] does. YAML resolves its path from indentation, so it
-/// reads the instance body through this instead.
-pub(crate) fn instance_body_at(
+/// The bodies of the block instances along `path`, root first, choosing a
+/// repeated instance by `offset` at each level. The last body is the instance
+/// the cursor sits in, and the ones before it are its enclosing scopes. YAML
+/// resolves its path from indentation, so it reads the bodies through this
+/// rather than the tree descent, whose offset bounds stop at a span the tree
+/// does not hold.
+///
+/// A segment whose body the tree does not hold, such as a key that parses as
+/// null while its body is pending, yields an empty body, because the operator
+/// has set nothing there yet. `None` stays reserved for the recovery path with no parse.
+pub(crate) fn bodies_along_path(
     tree: &Fields,
-    text: &str,
+    path: &[String],
     offset: usize,
     covers_body: bool,
-) -> Fields {
-    let mut level = tree;
-    loop {
-        match descend(level, text, offset, covers_body) {
-            Step::Enter(_, inner) => level = inner,
-            Step::Here(_) => return level.clone(),
+) -> Vec<Fields> {
+    let mut bodies = Vec::with_capacity(path.len() + 1);
+    bodies.push(tree.clone());
+    let mut level = Some(tree);
+    for name in path {
+        level = level.and_then(|inner| enter_segment(inner, name, offset, covers_body));
+        bodies.push(match level {
+            Some(inner) => inner.clone(),
+            None => Fields::detached(Vec::new()),
+        });
+    }
+    bodies
+}
+
+/// The body one path segment enters at one level, or `None` for a pending body.
+///
+/// A repeated level chooses the sequence element or the same-named block the
+/// offset sits in. The path is the indentation truth, so a single block or map
+/// is entered without an offset check, and only the choice among instances
+/// reads the offset.
+fn enter_segment<'a>(
+    level: &'a Fields,
+    name: &str,
+    offset: usize,
+    covers_body: bool,
+) -> Option<&'a Fields> {
+    let fields: Vec<&Field> = level.iter().collect();
+    let enclosing_end = end_of(level.enclosing());
+    let mut first_block: Option<&Fields> = None;
+    for (index, &field) in fields.iter().enumerate() {
+        if field.name != name {
+            continue;
+        }
+        let next = fields.get(index + 1).map(|sibling| start_of(sibling.span));
+        match &field.kind {
+            FieldKind::Block(inner) => {
+                if in_block_body(field, inner, covers_body, next, enclosing_end, offset) {
+                    return Some(inner);
+                }
+                first_block.get_or_insert(inner);
+            }
+            FieldKind::Value(value) => match &value.kind {
+                ValueKind::Map(inner) => return Some(inner),
+                ValueKind::Seq(elements) => {
+                    return seq_element_body(elements, next, enclosing_end, offset);
+                }
+                _ => return None,
+            },
         }
     }
+    first_block
 }
 
 /// One decision at a level: descend into a block, or resolve here.
@@ -157,12 +212,12 @@ fn seq_element_body(
         let start = start_of(element.span) as usize;
         let within = match elements.get(index + 1) {
             Some(following) => offset < start_of(following.span) as usize,
-            None => {
-                offset
-                    <= next_sibling_start
-                        .unwrap_or(enclosing_end)
-                        .max(deepest_end(inner)) as usize
-            }
+            // The last element ends strictly before the next sibling, so an
+            // offset at the sibling's first character reads the enclosing level.
+            None => match next_sibling_start {
+                Some(sibling) => offset < sibling as usize,
+                None => offset <= enclosing_end.max(deepest_end(inner)) as usize,
+            },
         };
         if start <= offset && within {
             return Some(inner);
@@ -189,21 +244,25 @@ fn value_replace_token(field: &Field, value: &Value, text: &str, offset: usize) 
     (start.max(name_end), end.max(name_end))
 }
 
-/// The completion replace token for the value of `name` at `path` in the parsed
-/// tree, or `None` when the field or its value is absent. YAML resolution reads
-/// its path and kind from indentation, but takes the value token from the tree
-/// when the buffer parses, so a completion replaces the whole value rather than
-/// stopping at a space.
-pub(crate) fn value_span_token(
-    tree: &Fields,
-    path: &[String],
-    name: &str,
-    text: &str,
-) -> Option<(usize, usize)> {
-    let level = crate::walk::fields_at(tree, path)?;
-    let field = level.get(name)?;
+/// The completion replace token for the value of `name` in a resolved instance
+/// body, or `None` when the field holds no scalar the operator wrote. YAML
+/// resolution reads its path and kind from indentation, but takes the value
+/// token from the instance body when the buffer parses, so a completion
+/// replaces the whole value rather than stopping at a space, inside a sequence
+/// element as well.
+///
+/// Only a written scalar's span replaces. A bare `key:` parses as a null
+/// outside the model, whose span covers the separator, so replacing it would
+/// delete the colon. The scanned token, clamped past the colon, stands for
+/// those positions.
+pub(crate) fn value_span_in(body: &Fields, name: &str, text: &str) -> Option<(usize, usize)> {
+    let field = body.get(name)?;
     match &field.kind {
-        FieldKind::Value(value) if !value.span.is_detached() => Some(span_token(value.span, text)),
+        FieldKind::Value(value)
+            if matches!(value.kind, ValueKind::Scalar(_)) && !value.span.is_detached() =>
+        {
+            Some(span_token(value.span, text))
+        }
         _ => None,
     }
 }

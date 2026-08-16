@@ -30,3 +30,14 @@ upstream = "api"
 [[rules]]
 prefix = "/admin"
 upstream = "web"
+
+[[service]]
+name = "checkout"
+
+[[service.endpoints]]
+name = "primary"
+port = 9000
+
+[[service.routes]]
+prefix = "/pay"
+endpoint = "primary"

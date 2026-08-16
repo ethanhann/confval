@@ -27,6 +27,8 @@ mod walk;
 pub mod handlers;
 
 pub use encoding::{LineIndex, PositionEncoding};
-pub use frontend::{CursorContext, Frontend, PositionKind, Recovery, ValueSeparator};
+pub use frontend::{
+    Absorb, CursorContext, Frontend, Insert, PositionKind, Recovery, ValueSeparator,
+};
 pub use frontends::{Hcl, Json, Kdl, Toml, Yaml};
 pub use server::{Server, serve};
