@@ -10,20 +10,19 @@
 
 use lsp_types::{Location, Uri};
 
-use confval::pipeline::{scope_labels, visit_references};
+use confval::pipeline::{Scope, scope_labels, visit_references};
 use confval::schema::{Constraint, Schema, SchemaType};
 use confval::source::Span;
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, PositionKind};
-use crate::handlers::hover::field_text;
-use crate::walk::{DeclaringScope, declaring_scope, label_matches, schema_at};
+use crate::walk::{declaring_scope, field_text, label_matches, schema_at};
 
 /// The label site a cursor resolves to: the declaring scope, the block field
 /// the labels belong to, the label value under the cursor, and where that
 /// label is declared.
 struct LabelSite<'a> {
-    scope: DeclaringScope<'a>,
+    scope: Scope<'a>,
     block: String,
     value: String,
     declaration: Option<Span>,
@@ -74,12 +73,12 @@ pub fn references(
     // outward search resolves to a nearer scope carries that scope instead, so
     // shadowed references drop out by the scope-instance comparison.
     let scope_body = site.scope.body;
-    visit_references(scope_body, site.scope.schema, &mut |candidate| {
-        let Some((_, candidate_scope)) = candidate.scope else {
+    visit_references(scope_body, site.scope.schema, |candidate| {
+        let Some(candidate_scope) = candidate.scope else {
             return;
         };
         if candidate.block == site.block
-            && std::ptr::eq(candidate_scope, scope_body)
+            && std::ptr::eq(candidate_scope.body, scope_body)
             && candidate.value == site.value
         {
             spans.push(candidate.span);
@@ -164,7 +163,7 @@ fn label_field_site<'a>(
         return None;
     }
     Some(LabelSite {
-        scope: DeclaringScope {
+        scope: Scope {
             schema: scope_schema,
             body: scope_body,
         },
@@ -194,7 +193,7 @@ fn native_label_site<'a>(
         return None;
     }
     Some(LabelSite {
-        scope: DeclaringScope {
+        scope: Scope {
             schema: scope_schema,
             body: scope_body,
         },

@@ -49,9 +49,18 @@ pub struct ReferenceSite<'a> {
     pub value: String,
     /// The value's span.
     pub span: Span,
-    /// The declaring scope the outward search found, its schema and instance
-    /// body, or `None` when no scope on the chain declares the target.
-    pub scope: Option<(&'a Schema, &'a Fields)>,
+    /// The declaring scope the outward search found, or `None` when no scope
+    /// on the chain declares the target.
+    pub scope: Option<Scope<'a>>,
+}
+
+/// One scope on the reference walk: a block instance's schema and body.
+#[derive(Clone, Copy)]
+pub struct Scope<'a> {
+    /// The scope's schema level.
+    pub schema: &'a Schema,
+    /// The scope's instance body.
+    pub body: &'a Fields,
 }
 
 /// Visits every reference field below `fields`, with the declaring scope its
@@ -59,23 +68,19 @@ pub struct ReferenceSite<'a> {
 /// run this walk, so both resolve a reference by the same rule. Start it at
 /// the root to cover a document, or at one scope instance to cover that scope.
 /// In the scoped form, a site whose search stays inside the walk resolves
-/// against the walk's own chain.
+/// against the walk's own chain, and the root scope it reports is the exact
+/// `fields` reference the caller passed, so a caller may compare scope
+/// identity by pointer.
 pub fn visit_references<'a>(
     fields: &'a Fields,
     schema: &'a Schema,
-    visit: &mut dyn FnMut(ReferenceSite<'a>),
+    mut visit: impl FnMut(ReferenceSite<'a>),
 ) {
     walk_scope(fields, schema, &mut Vec::new(), &mut |event| {
         if let ScopeEvent::Reference(site) = event {
             visit(site);
         }
     });
-}
-
-/// One enclosing scope on the walk: a block instance's schema and body.
-struct Scope<'a> {
-    schema: &'a Schema,
-    body: &'a Fields,
 }
 
 /// One event of the scope walk: entering a scope instance, or a reference
@@ -86,7 +91,9 @@ enum ScopeEvent<'a> {
 }
 
 /// Walks one scope instance and its blocks in document order, emitting a scope
-/// event at each instance and a reference event at each reference field.
+/// event at each instance and a reference event at each reference field. The
+/// chain holds borrowed bodies and never clones, so a site's scope keeps the
+/// identity of the level it was collected from.
 fn walk_scope<'a>(
     body: &'a Fields,
     schema: &'a Schema,
@@ -109,7 +116,7 @@ fn walk_scope<'a>(
                         .iter()
                         .rev()
                         .find(|scope| declares_labeled_block(scope.schema, block))
-                        .map(|scope| (scope.schema, scope.body));
+                        .copied();
                     on_event(ScopeEvent::Reference(ReferenceSite {
                         block,
                         value,
@@ -132,7 +139,11 @@ fn walk_scope<'a>(
 /// Checks one visited reference against its declaring scope's labels.
 fn check_reference(site: &ReferenceSite, report: &mut Report) {
     let block = site.block;
-    let Some((scope_schema, scope_body)) = site.scope else {
+    let Some(Scope {
+        schema: scope_schema,
+        body: scope_body,
+    }) = site.scope
+    else {
         // No enclosing scope declares the target. That is a schema error, so
         // the message names the target rather than the config value.
         report

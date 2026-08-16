@@ -9,12 +9,12 @@
 
 use lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind};
 
-use confval::format::{Field, FieldKind, Fields, Scalar, ValueKind};
+use confval::format::Fields;
 use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, PositionKind};
-use crate::walk::{label_matches, reference_labels, resolved_level, schema_at};
+use crate::walk::{field_text, label_matches, reference_labels, resolved_level, schema_at};
 
 /// Produces the hover for a resolved cursor, or `None` when the cursor sits on
 /// no field.
@@ -152,17 +152,6 @@ fn reference_hover(
             value: markdown,
         }),
         range: Some(index.range_of_bytes(text, ctx.token, encoding)),
-    }
-}
-
-/// A parsed field's string value, or `None` when it is not a string.
-pub(crate) fn field_text(field: &Field) -> Option<String> {
-    match &field.kind {
-        FieldKind::Value(value) => match &value.kind {
-            ValueKind::Scalar(Scalar::String(string)) => Some(string.clone()),
-            _ => None,
-        },
-        _ => None,
     }
 }
 

@@ -5,8 +5,8 @@
 //! that path to the block that encloses the cursor, and the parsed [`Fields`]
 //! along the same path to find which fields the operator has already set.
 
-use confval::format::{FieldKind, Fields, ValueKind};
-use confval::pipeline::{declares_labeled_block, scope_labels};
+use confval::format::{Field, FieldKind, Fields, Scalar, ValueKind};
+use confval::pipeline::{Scope, declares_labeled_block, scope_labels};
 use confval::schema::{Schema, SchemaType};
 use confval::source::Located;
 
@@ -78,10 +78,16 @@ pub(crate) fn resolved_level<'a>(
         .or_else(|| fields.and_then(|tree| fields_at(tree, &ctx.path)))
 }
 
-/// A reference target's declaring scope: its schema and its instance body.
-pub(crate) struct DeclaringScope<'a> {
-    pub(crate) schema: &'a Schema,
-    pub(crate) body: &'a Fields,
+/// A parsed field's string value, or `None` when it is not a string. The
+/// hover and navigation handlers share it, beside the other tree readers.
+pub(crate) fn field_text(field: &Field) -> Option<String> {
+    match &field.kind {
+        FieldKind::Value(value) => match &value.kind {
+            ValueKind::Scalar(Scalar::String(string)) => Some(string.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 /// The declaring scope for a reference target at the cursor.
@@ -96,7 +102,7 @@ pub(crate) fn declaring_scope<'a>(
     schema: &'a Schema,
     ctx: &'a CursorContext,
     block: &str,
-) -> Option<DeclaringScope<'a>> {
+) -> Option<Scope<'a>> {
     let innermost = ctx.path.len();
     for depth in (0..=innermost).rev() {
         let Some(scope_schema) = schema_at(schema, &ctx.path[..depth]) else {
@@ -110,7 +116,7 @@ pub(crate) fn declaring_scope<'a>(
         } else {
             ctx.ancestors.get(depth)
         }?;
-        return Some(DeclaringScope {
+        return Some(Scope {
             schema: scope_schema,
             body,
         });

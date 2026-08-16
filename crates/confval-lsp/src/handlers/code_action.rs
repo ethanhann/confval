@@ -16,7 +16,7 @@ use confval::schema::{Constraint, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{Frontend, PositionKind};
-use crate::handlers::completion::Cx;
+use crate::handlers::Cx;
 use crate::resolve::value_span_in;
 use crate::walk::schema_at;
 

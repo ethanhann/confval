@@ -23,24 +23,21 @@ use confval::format::Fields;
 use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
-use crate::frontend::{Absorb, CursorContext, Frontend, PositionKind};
+use crate::frontend::{Absorb, Frontend, PositionKind};
+use crate::handlers::Cx;
 use crate::walk::{reference_labels, repeated_block_at, resolved_level, schema_at};
 
-/// The completion inputs: the document's schema, the parsed fields, the
-/// resolved cursor context, and the buffer text.
-///
-/// `fields` is the parsed field tree, used to drop the fields already set. It
-/// is `None` when the current buffer did not parse, in which case nothing is
-/// dropped.
-pub struct Cx<'a> {
-    /// The root schema.
-    pub schema: &'a Schema,
-    /// The parsed field tree, or `None` when the buffer did not parse.
-    pub fields: Option<&'a Fields>,
-    /// The resolved cursor context.
-    pub ctx: &'a CursorContext,
-    /// The buffer text, read to apply absorption and the separator space.
-    pub text: &'a str,
+/// The client's completion switches, read once at initialization: whether the
+/// client expands snippets, and whether it honors a preselected item.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ClientSupport {
+    /// Whether the client expands a completion snippet. Without it the
+    /// markers are unwrapped, so no literal `$0` or placeholder reaches the
+    /// buffer.
+    pub snippets: bool,
+    /// Whether the client honors a preselected item. Without it the flag is
+    /// withheld, so the client's own ranking stands.
+    pub preselect: bool,
 }
 
 /// One completion item with its edit as a byte range, before position encoding.
@@ -71,12 +68,11 @@ pub fn completion<F: Frontend>(
     cx: &Cx,
     index: &LineIndex,
     encoding: PositionEncoding,
-    snippets: bool,
-    preselect: bool,
+    client: ClientSupport,
 ) -> Vec<CompletionItem> {
     raw_items(frontend, cx)
         .into_iter()
-        .map(|raw| encode_item(raw, cx.text, index, encoding, snippets, preselect))
+        .map(|raw| encode_item(raw, cx.text, index, encoding, client))
         .collect()
 }
 
@@ -325,12 +321,11 @@ fn encode_item(
     text: &str,
     index: &LineIndex,
     encoding: PositionEncoding,
-    snippets: bool,
-    preselect: bool,
+    client: ClientSupport,
 ) -> CompletionItem {
     // Only a producer-marked snippet is emitted or stripped as one, so a
     // literal value item passes through untouched in both directions.
-    let is_snippet = snippets && raw.snippet;
+    let is_snippet = client.snippets && raw.snippet;
     let new_text = if is_snippet || !raw.snippet {
         raw.new_text
     } else {
@@ -342,7 +337,7 @@ fn encode_item(
         detail: raw.detail,
         filter_text: raw.filter_text,
         sort_text: Some(raw.sort_text),
-        preselect: (raw.preselect && preselect).then_some(true),
+        preselect: (raw.preselect && client.preselect).then_some(true),
         ..CompletionItem::default()
     };
     if is_snippet {

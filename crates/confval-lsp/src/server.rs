@@ -55,9 +55,8 @@ struct Document {
 pub struct Server<S, F> {
     frontend: F,
     encoding: PositionEncoding,
-    snippets: bool,
+    completion_client: handlers::ClientSupport,
     hierarchical: bool,
-    preselect: bool,
     schema: Schema,
     documents: HashMap<String, Document>,
     spec: PhantomData<fn() -> S>,
@@ -74,9 +73,8 @@ where
         Self {
             frontend,
             encoding: PositionEncoding::Utf16,
-            snippets: false,
+            completion_client: handlers::ClientSupport::default(),
             hierarchical: false,
-            preselect: false,
             schema: S::schema(),
             documents: HashMap::new(),
             spec: PhantomData,
@@ -88,9 +86,7 @@ where
         let (id, params) = connection.initialize_start()?;
         let params: InitializeParams = serde_json::from_value(params)?;
         self.encoding = negotiate(&params);
-        let support = completion_support(&params);
-        self.snippets = support.snippets;
-        self.preselect = support.preselect;
+        self.completion_client = completion_support(&params);
         self.hierarchical = supports_hierarchical_symbols(&params);
         let result = InitializeResult {
             capabilities: server_capabilities(self.encoding),
@@ -278,8 +274,7 @@ where
             },
             &index,
             self.encoding,
-            self.snippets,
-            self.preselect,
+            self.completion_client,
         );
         CompletionResponse::Array(items)
     }
