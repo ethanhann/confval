@@ -10,7 +10,9 @@ use lsp_types::{
     InsertTextFormat, Uri,
 };
 
+use confval::pipeline::range::RangeConstraint;
 use confval::prelude::{Located, Report, Validate};
+use confval::range_constraint;
 use confval::schema::ToSchema;
 use confval_lsp::handlers::{Cx, code_action, completion, diagnostics, hover};
 use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
@@ -133,7 +135,9 @@ fn hover_prints_the_rendered_default_for_the_three_states() {
     let schema = ServerSpec::schema();
     let set = "hostname: h\nport: 1\nworkers: 2\n";
     let unset = "hostname: h\nport: 1\nlimits:\n  mode\n";
-    let uncarried = "hostname: h\nport: 1\nallow:\n  - a\n";
+    // The half-typed `allow` does not parse, so the field is not set and the
+    // uncarried default line renders.
+    let uncarried = "hostname: h\nport: 1\nallow";
 
     // Act
     let set_markdown = hover_markdown(&Yaml, &schema, set, set.find("workers").unwrap() + 1);
@@ -146,7 +150,10 @@ fn hover_prints_the_rendered_default_for_the_three_states() {
     );
 
     // Assert
-    assert!(set_markdown.contains("Defaults to 4."), "{set_markdown}");
+    assert!(
+        !set_markdown.contains("Defaults to"),
+        "a set field states its state alone: {set_markdown}"
+    );
     assert!(
         set_markdown.contains("Set by the configuration."),
         "{set_markdown}"
@@ -466,4 +473,126 @@ fn the_negative_cases_offer_no_fix() {
     assert!(no_parse_actions.is_empty(), "the edit needs a parsed span");
     assert!(filtered.is_empty(), "the kind filter is honored");
     assert_eq!(requested.len(), 1, "the requested quickfix kind passes");
+}
+
+/// A spec whose defaults violate their own constraints, which the derive
+/// permits.
+#[derive(confval::Spec)]
+struct BadDefaultsSpec {
+    /// A keyword default outside its set.
+    #[confval(default = "loud".to_string(), keywords = fixture::LimitMode)]
+    mode: Located<String>,
+    /// A range default outside its bounds.
+    #[confval(default = 9999, range = BAD_WORKERS)]
+    workers: Located<i64>,
+}
+
+range_constraint!(BAD_WORKERS, i64, min: 1, max: 512);
+
+impl Validate for BadDefaultsSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_metacharacter_default_at_a_value_position_stays_literal() {
+    // Arrange
+    // The value item's text is a literal, not a snippet, so a `$`-bearing
+    // default reaches a snippet client unexpanded and a plain client whole.
+    let schema = BadgeSpec::schema();
+    let text = "home: ";
+    let offset = text.len();
+
+    // Act
+    let with = complete(&Yaml, &schema, text, offset, true, true);
+    let without = complete(&Yaml, &schema, text, offset, false, true);
+
+    // Assert
+    let snippet_item = with.first().expect("the default item");
+    assert_eq!(
+        snippet_item.insert_text_format, None,
+        "a literal, not a snippet"
+    );
+    assert_eq!(inserted(snippet_item), "\"${HOME}/x\"");
+    assert_eq!(
+        inserted(without.first().expect("the default item")),
+        "\"${HOME}/x\""
+    );
+}
+
+#[test]
+fn a_default_violating_its_own_constraint_offers_no_fix() {
+    // Arrange
+    let keyword_text = "mode: \"bogus\"\nworkers: 1\n";
+    let range_text = "mode: \"enforce\"\nworkers: 70000\n";
+    let schema = BadDefaultsSpec::schema();
+    let keyword_diagnostics = {
+        diagnostics::<BadDefaultsSpec, Yaml>(&Yaml, &schema, keyword_text, &doc_uri(), ENCODING)
+    };
+    let range_diagnostics =
+        { diagnostics::<BadDefaultsSpec, Yaml>(&Yaml, &schema, range_text, &doc_uri(), ENCODING) };
+
+    // Act
+    let keyword_actions = actions_at(
+        &Yaml,
+        &schema,
+        keyword_text,
+        keyword_text.find("bogus").unwrap(),
+        &keyword_diagnostics,
+        None,
+    );
+    let range_actions = actions_at(
+        &Yaml,
+        &schema,
+        range_text,
+        range_text.find("70000").unwrap(),
+        &range_diagnostics,
+        None,
+    );
+
+    // Assert
+    assert!(
+        keyword_actions.is_empty(),
+        "a default outside the keyword set fixes nothing: {keyword_actions:?}"
+    );
+    assert!(
+        range_actions.is_empty(),
+        "a default outside the range fixes nothing: {range_actions:?}"
+    );
+}
+
+#[test]
+fn a_diagnostic_beyond_the_buffer_offers_no_fix() {
+    // Arrange
+    let text = "hostname: h\nport: 1\nworkers: 9999";
+    let schema = ServerSpec::schema();
+    let stale = vec![lsp_types::Diagnostic {
+        range: lsp_types::Range {
+            start: lsp_types::Position {
+                line: 40,
+                character: 0,
+            },
+            end: lsp_types::Position {
+                line: 41,
+                character: 0,
+            },
+        },
+        message: "stale".to_string(),
+        ..lsp_types::Diagnostic::default()
+    }];
+
+    // Act
+    let actions = actions_at(
+        &Yaml,
+        &schema,
+        text,
+        text.find("9999").unwrap(),
+        &stale,
+        None,
+    );
+
+    // Assert
+    assert!(
+        actions.is_empty(),
+        "an out-of-buffer range is not contained"
+    );
 }

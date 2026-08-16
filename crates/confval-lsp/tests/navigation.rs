@@ -406,3 +406,72 @@ fn symbol_kinds_cover_the_field_shapes() {
     assert_eq!(kind_of("allow"), Some(SymbolKind::ARRAY));
     assert_eq!(kind_of("headers"), Some(SymbolKind::OBJECT));
 }
+
+#[test]
+fn toml_repeated_table_symbols_do_not_overlap() {
+    // Arrange
+    let text = "[[upstream]]\nname = \"api\"\nhost = \"h\"\nport = 1\n\n[[upstream]]\nname = \"web\"\nhost = \"h2\"\nport = 2\n";
+    let schema = GatewaySpec::schema();
+    let tree = Toml.parse_tree(text).expect("the buffer parses");
+    let index = LineIndex::new(text);
+
+    // Act
+    let response = document_symbols(
+        &schema,
+        &tree,
+        SymbolShape {
+            covers_body: Toml.block_span_covers_body(),
+            hierarchical: true,
+        },
+        &doc_uri(),
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let DocumentSymbolResponse::Nested(symbols) = response else {
+        panic!("the hierarchical form");
+    };
+    let upstreams: Vec<_> = symbols.iter().filter(|s| s.name == "upstream").collect();
+    assert_eq!(upstreams.len(), 2);
+    assert!(
+        upstreams[0].range.end <= upstreams[1].range.start,
+        "sibling instance ranges stay disjoint: {:?} then {:?}",
+        upstreams[0].range,
+        upstreams[1].range
+    );
+    for symbol in &upstreams {
+        assert!(
+            symbol.range.start <= symbol.selection_range.start
+                && symbol.selection_range.end <= symbol.range.end,
+            "the selection sits inside its own instance"
+        );
+        let children = symbol.children.as_ref().expect("children");
+        for child in children {
+            assert!(
+                symbol.range.start <= child.range.start && child.range.end <= symbol.range.end,
+                "each child stays inside its own instance"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_empty_label_is_no_navigation_site() {
+    // Arrange
+    // The pipeline rejects an empty label, so navigation answers nothing from
+    // it, matching definition's answer on the empty reference.
+    let text = "upstream:\n  - name: \"\"\n    host: h\n    port: 1\nroutes:\n  - prefix: /a\n    upstream: \"\"\n";
+    let offset = text.find("name: \"\"").unwrap() + "name: \"".len();
+    let schema = GatewaySpec::schema();
+
+    // Act
+    let found = references_at(&Yaml, &schema, text, offset, true);
+
+    // Assert
+    assert!(
+        found.is_empty(),
+        "an empty label defines nothing: {found:?}"
+    );
+}
