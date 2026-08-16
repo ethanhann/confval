@@ -26,9 +26,6 @@ lint:
 check-code-quality:
     #!/usr/bin/env bash
     set -euo pipefail
-    # The cap admits two duplications reviews accepted. These are the m22
-    # context constructor pair and the m23 one-line Json and Yaml wrap_element
-    # impls, whose single format! bodies fingerprint alike.
     cargo dupes --exclude tests --exclude benches --exclude examples --exclude-tests check --max-exact 29 --max-near 3 --max-exact-percent 5.0 --max-near-percent 1.0
     cargo machete
     cargo fmt --check

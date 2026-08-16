@@ -1,4 +1,4 @@
-//! Attribute-driven validation, m16. A `#[confval(range = ...)]` or
+//! Attribute-driven validation. A `#[confval(range = ...)]` or
 //! `#[confval(keywords = ...)]` on a scalar field is checked by the generated
 //! `ValidateNested::validate_recorded`, so the attribute alone enforces the
 //! constraint and the `Validate` body carries no line for it.
