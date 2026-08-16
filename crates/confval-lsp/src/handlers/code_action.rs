@@ -122,7 +122,7 @@ fn quickfix_requested(only: Option<&[CodeActionKind]>) -> bool {
 /// Whether the rendered default passes the field's own constraint.
 fn default_satisfies(constraint: &Option<Constraint>, text: &str) -> bool {
     match constraint {
-        Some(Constraint::Keywords(words)) => words.iter().any(|word| *word == text),
+        Some(Constraint::Keywords(words)) => words.contains(&text),
         Some(Constraint::Range { min, max, .. }) => {
             match (text.parse::<f64>(), min.parse::<f64>(), max.parse::<f64>()) {
                 (Ok(value), Ok(min), Ok(max)) => min <= value && value <= max,
