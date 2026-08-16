@@ -1237,7 +1237,7 @@ fn yaml_completion_inserts_the_mapping_and_scalar_forms() {
         .iter()
         .find(|item| item.label == "workers")
         .expect("the workers field is offered");
-    assert_eq!(inserted(workers), "workers: ");
+    assert_eq!(inserted(workers), "workers: 4", "the default pre-fills");
 }
 
 #[test]
