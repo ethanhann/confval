@@ -60,8 +60,8 @@ pub(crate) fn resolve_in_tree(
 /// does not hold.
 ///
 /// A segment whose body the tree does not hold, such as a key that parses as
-/// null while its body is pending, yields an empty body: the operator has set
-/// nothing there yet. `None` stays reserved for the recovery path with no parse.
+/// null while its body is pending, yields an empty body, because the operator
+/// has set nothing there yet. `None` stays reserved for the recovery path with no parse.
 pub(crate) fn bodies_along_path(
     tree: &Fields,
     path: &[String],

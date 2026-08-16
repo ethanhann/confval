@@ -146,7 +146,8 @@ impl Validate for MeshRouteSpec {
 
 /// A parent-and-child fixture whose block repeats a parent field name, for the
 /// pending-body tests. The shared `port` name makes a wrong resolution level
-/// visible: a pending `admin` body must not read the root's `port` as set.
+/// visible, because a pending `admin` body must not read the root's `port` as
+/// set.
 #[derive(confval::Spec)]
 pub struct RelaySpec {
     /// The TCP port the relay listens on.

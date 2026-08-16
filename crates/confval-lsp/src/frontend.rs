@@ -78,12 +78,13 @@ impl Insert {
 pub enum Absorb {
     /// Nothing is absorbed.
     None,
-    /// A run of this byte directly before the range: the `[` run a TOML header
-    /// re-renders, so `[lim` completes to `[limits]` rather than `[[limits]`.
+    /// A run of this byte directly before the range. For example, a TOML
+    /// header re-renders the `[` run, so `[lim` completes to `[limits]` rather
+    /// than `[[limits]`.
     Run(u8),
-    /// One occurrence of this byte directly before the range: the opening `"`
-    /// a JSON member re-renders, so `"por` completes to `"port": ` rather than
-    /// a doubled quote.
+    /// One occurrence of this byte directly before the range. For example, a
+    /// JSON member re-renders its opening `"`, so `"por` completes to
+    /// `"port": ` rather than a doubled quote.
     One(u8),
 }
 
@@ -128,17 +129,17 @@ pub struct CursorContext {
     /// without holding the buffer.
     pub token_text: String,
     /// Whether a body completion here opens a new element of a repeated block
-    /// rather than adding a field to the element the cursor sits in. It is a
-    /// purely syntactic answer, resolved by the frontend, and the handlers
-    /// consult it only behind the schema's repeated-block check, so the default
-    /// answer at an unrepeated position is never read.
+    /// rather than adding a field to the element the cursor sits in. The
+    /// answer is syntactic, and the frontend resolves it. The handlers consult
+    /// it only behind the schema's repeated-block check, so the default at an
+    /// unrepeated position is never read.
     pub new_element: bool,
     /// The fields of the block instance the cursor sits in, when the buffer
     /// parsed. The handlers read the already-set state and the hover state from
     /// it, so a repeated block addresses the instance the cursor is in rather
     /// than the first. A pending body, a key whose body the tree does not hold
-    /// yet, carries an empty body: nothing is set there. It is `None` only on
-    /// the text recovery path, which has no parsed instance.
+    /// yet, carries an empty body, because nothing is set there. It is `None`
+    /// only on the text recovery path, which has no parsed instance.
     pub resolved_body: Option<Fields>,
     /// The bodies of the enclosing block instances along `path`, root first,
     /// one per path segment, recorded by the same descent that fills
@@ -148,8 +149,9 @@ pub struct CursorContext {
     pub ancestors: Vec<Fields>,
 }
 
-/// Equality ignores the resolved body, the token text, and the new-element
-/// flag, because they are resolution outputs rather than position identity.
+/// Equality ignores the resolved body, the ancestors, the token text, and the
+/// new-element flag, because they are resolution outputs rather than position
+/// identity.
 /// The path, the kind, and the token identify the position, as m22 settled.
 impl PartialEq for CursorContext {
     fn eq(&self, other: &Self) -> bool {
@@ -258,11 +260,11 @@ pub trait Frontend {
                 ),
             }
         };
-        // The context is total: the new-element answer and the token text are
-        // resolved here, once, so the handlers stop scanning the buffer. The
-        // syntactic new-element predicates live with their formats' scanners: a
-        // YAML element begins on a fresh line aligned with the sequence dash,
-        // and a JSON element begins directly in an array.
+        // Every context field is resolved here, once, so the handlers stop
+        // scanning the buffer. The syntactic new-element predicates live with
+        // their formats' scanners. A YAML element begins on a fresh line
+        // aligned with the sequence dash, and a JSON element begins directly
+        // in an array.
         context.new_element = match self.recovery() {
             Recovery::Indentation => starts_new_sequence_element(text, context.token),
             Recovery::Object => innermost_is_array(text, context.token.0),

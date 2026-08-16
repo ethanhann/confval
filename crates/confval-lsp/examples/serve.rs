@@ -53,7 +53,7 @@ struct ServerSpec {
     /// Zero or more routing rules.
     #[confval(nested)]
     rules: Vec<Located<RuleSpec>>,
-    /// Zero or more services, the sibling-scoped reference shape: a service's
+    /// Zero or more services, the sibling-scoped reference shape. A service's
     /// route names one of that service's own endpoints.
     #[confval(nested)]
     service: Vec<Located<ServiceSpec>>,

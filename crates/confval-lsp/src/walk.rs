@@ -82,7 +82,8 @@ pub(crate) fn resolved_level<'a>(
 ///
 /// It searches outward from the cursor's scope to the nearest enclosing scope
 /// whose schema declares the labeled `block`, the rule `check_references`
-/// applies, reading each scope's instance body from the context's carry.
+/// applies, reading each scope's instance body from the bodies the context
+/// carries.
 /// Returns `None` when no enclosing scope declares the target or when the
 /// buffer did not parse, which leaves no carried bodies.
 pub(crate) fn reference_labels(

@@ -146,8 +146,8 @@ pub enum Constraint {
     /// is named by its config field name, the `<block>` of
     /// `#[confval(references = <block>)]`. The reference pass resolves the name
     /// outward from the reference's enclosing block to the nearest enclosing
-    /// scope that declares a labeled block field of that name, with the root
-    /// searched last, and checks the value against that scope's labels.
+    /// scope that declares a labeled block field of that name. The root is
+    /// searched last. The value is checked against that scope's labels.
     References {
         /// The config field name of the referenced labeled block.
         block: &'static str,

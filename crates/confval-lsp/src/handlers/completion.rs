@@ -26,8 +26,8 @@ use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{Absorb, CursorContext, Frontend, PositionKind};
 use crate::walk::{reference_labels, repeated_block_at, resolved_level, schema_at};
 
-/// The completion inputs: the document's schema and parse beside the resolved
-/// cursor context and the buffer text.
+/// The completion inputs: the document's schema, the parsed fields, the
+/// resolved cursor context, and the buffer text.
 ///
 /// `fields` is the parsed field tree, used to drop the fields already set. It
 /// is `None` when the current buffer did not parse, in which case nothing is
@@ -164,8 +164,8 @@ fn absorb_left(text: &str, start: usize, absorb: Absorb, kind: &PositionKind) ->
             }
             start
         }
-        // The body guard keeps a one-byte absorption from eating the closing
-        // quote of an adjacent value.
+        // The body guard keeps a one-byte absorption from taking the
+        // closing quote of an adjacent value.
         Absorb::One(byte) => {
             if matches!(kind, PositionKind::Body) && start > 0 && bytes[start - 1] == byte {
                 start - 1
@@ -233,7 +233,7 @@ fn reference_items(block: &str, cx: &Cx) -> Vec<RawItem> {
 fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
     // A value inserted directly after the colon supplies the separating space,
     // so the completed line parses as a mapping entry rather than a plain
-    // scalar that swallowed the colon.
+    // scalar that includes the colon.
     let after_colon = cx.ctx.token.0 > 0 && cx.text.as_bytes()[cx.ctx.token.0 - 1] == b':';
     let new_text = if after_colon {
         format!(" \"{word}\"")
