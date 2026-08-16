@@ -118,6 +118,11 @@ pub(crate) fn declaring_scope<'a>(
     None
 }
 
+/// Whether a label is a non-empty match for a reference value.
+pub(crate) fn label_matches(label: &Located<String>, value: &str) -> bool {
+    !label.value.is_empty() && label.value == value
+}
+
 /// The labels a reference at the cursor resolves against: the declaring
 /// scope's labels for `block`, or `None` when no scope declares it or the
 /// buffer did not parse.

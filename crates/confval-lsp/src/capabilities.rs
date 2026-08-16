@@ -23,18 +23,31 @@ pub(crate) fn negotiate(params: &InitializeParams) -> PositionEncoding {
     }
 }
 
-/// Whether the client expands a completion snippet, so a block insert may place
-/// the cursor with a `$0` tab stop. A client without snippet support receives the
-/// plain text with the tab stop removed, so no literal `$0` reaches the buffer.
-pub(crate) fn supports_snippets(params: &InitializeParams) -> bool {
-    params
+/// The client's completion-item switches the server honors.
+pub(crate) struct CompletionSupport {
+    /// Whether the client expands a completion snippet, so an insert may carry
+    /// a tab stop or a placeholder. A client without it receives the plain
+    /// text with the markers unwrapped.
+    pub(crate) snippets: bool,
+    /// Whether the client honors a preselected item. Without it the preselect
+    /// flag is withheld, so the client's own ranking stands.
+    pub(crate) preselect: bool,
+}
+
+/// Reads the client's completion-item switches once at initialization.
+pub(crate) fn completion_support(params: &InitializeParams) -> CompletionSupport {
+    let item = params
         .capabilities
         .text_document
         .as_ref()
         .and_then(|document| document.completion.as_ref())
-        .and_then(|completion| completion.completion_item.as_ref())
-        .and_then(|item| item.snippet_support)
-        .unwrap_or(false)
+        .and_then(|completion| completion.completion_item.as_ref());
+    CompletionSupport {
+        snippets: item.and_then(|item| item.snippet_support).unwrap_or(false),
+        preselect: item
+            .and_then(|item| item.preselect_support)
+            .unwrap_or(false),
+    }
 }
 
 /// Whether the client renders a hierarchical document-symbol tree. A client
@@ -46,19 +59,6 @@ pub(crate) fn supports_hierarchical_symbols(params: &InitializeParams) -> bool {
         .as_ref()
         .and_then(|document| document.document_symbol.as_ref())
         .and_then(|symbols| symbols.hierarchical_document_symbol_support)
-        .unwrap_or(false)
-}
-
-/// Whether the client honors a preselected completion item. Without it the
-/// preselect flag is withheld, so the client's own ranking stands.
-pub(crate) fn supports_preselect(params: &InitializeParams) -> bool {
-    params
-        .capabilities
-        .text_document
-        .as_ref()
-        .and_then(|document| document.completion.as_ref())
-        .and_then(|completion| completion.completion_item.as_ref())
-        .and_then(|item| item.preselect_support)
         .unwrap_or(false)
 }
 
@@ -150,8 +150,9 @@ mod tests {
         };
 
         // Act, Assert
-        assert!(supports_snippets(&with_snippets));
-        assert!(!supports_snippets(&InitializeParams::default()));
+        assert!(completion_support(&with_snippets).snippets);
+        assert!(!completion_support(&InitializeParams::default()).snippets);
+        assert!(!completion_support(&InitializeParams::default()).preselect);
     }
 
     #[test]

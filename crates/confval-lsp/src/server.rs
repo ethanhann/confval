@@ -30,8 +30,7 @@ use confval::pipeline::{Validate, ValidateNested};
 use confval::schema::{Schema, ToSchema};
 
 use crate::capabilities::{
-    negotiate, server_capabilities, supports_hierarchical_symbols, supports_preselect,
-    supports_snippets,
+    completion_support, negotiate, server_capabilities, supports_hierarchical_symbols,
 };
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::Frontend;
@@ -89,9 +88,10 @@ where
         let (id, params) = connection.initialize_start()?;
         let params: InitializeParams = serde_json::from_value(params)?;
         self.encoding = negotiate(&params);
-        self.snippets = supports_snippets(&params);
+        let support = completion_support(&params);
+        self.snippets = support.snippets;
+        self.preselect = support.preselect;
         self.hierarchical = supports_hierarchical_symbols(&params);
-        self.preselect = supports_preselect(&params);
         let result = InitializeResult {
             capabilities: server_capabilities(self.encoding),
             server_info: None,
