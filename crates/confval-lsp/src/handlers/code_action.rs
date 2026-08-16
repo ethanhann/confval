@@ -47,23 +47,22 @@ pub fn code_action<F: Frontend>(
     let Some(target) = enclosing.fields.iter().find(|f| &f.name == field) else {
         return Vec::new();
     };
-    let SchemaType::Scalar { leaf, .. } = &target.ty else {
+    let SchemaType::Scalar { leaf, constraint } = &target.ty else {
         return Vec::new();
     };
     // A reference names another block's label, so its default, if any, is not
     // a value to reset to.
-    if matches!(
-        &target.ty,
-        SchemaType::Scalar {
-            constraint: Some(Constraint::References { .. }),
-            ..
-        }
-    ) {
+    if matches!(constraint, Some(Constraint::References { .. })) {
         return Vec::new();
     }
     let Some(text) = &target.default_text else {
         return Vec::new();
     };
+    // The derive permits a default outside the field's own constraint. Such a
+    // default is no fix, because applying it leaves a diagnostic in place.
+    if !default_satisfies(constraint, text) {
+        return Vec::new();
+    }
     let Some(body) = &cx.ctx.resolved_body else {
         return Vec::new();
     };
@@ -109,7 +108,23 @@ fn quickfix_requested(only: Option<&[CodeActionKind]>) -> bool {
     })
 }
 
-/// Whether a diagnostic's range sits inside or equal to the value span.
+/// Whether the rendered default passes the field's own constraint.
+fn default_satisfies(constraint: &Option<Constraint>, text: &str) -> bool {
+    match constraint {
+        Some(Constraint::Keywords(words)) => words.iter().any(|word| *word == text),
+        Some(Constraint::Range { min, max, .. }) => {
+            match (text.parse::<f64>(), min.parse::<f64>(), max.parse::<f64>()) {
+                (Ok(value), Ok(min), Ok(max)) => min <= value && value <= max,
+                _ => false,
+            }
+        }
+        _ => true,
+    }
+}
+
+/// Whether a diagnostic's range sits inside or equal to the value span. A
+/// range beyond the current text is no containment, so a stale client
+/// position cannot clamp onto the final offset and qualify.
 fn contained_in(
     diagnostic: &Diagnostic,
     value_span: (usize, usize),
@@ -117,6 +132,10 @@ fn contained_in(
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> bool {
+    let line_count = text.split('\n').count() as u32;
+    if diagnostic.range.start.line >= line_count || diagnostic.range.end.line >= line_count {
+        return false;
+    }
     let start = index.offset_of(text, diagnostic.range.start, encoding);
     let end = index.offset_of(text, diagnostic.range.end, encoding);
     value_span.0 <= start && end <= value_span.1

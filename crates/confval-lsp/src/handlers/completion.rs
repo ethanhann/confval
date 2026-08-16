@@ -56,6 +56,11 @@ struct RawItem {
     /// Marks the item the client should preselect: the field's default among
     /// its values. Withheld at encode time when the client lacks the support.
     preselect: bool,
+    /// Whether `new_text` carries snippet markers a producer wrote. A value
+    /// item's text is a literal and never sets it, so user text holding `$` or
+    /// `{` is neither expanded by a snippet client nor stripped for a plain
+    /// one.
+    snippet: bool,
     edit: (usize, usize),
     new_text: String,
 }
@@ -139,6 +144,9 @@ fn field_item<F: Frontend>(
         insert.text
     };
     let start = absorb_left(cx.text, cx.ctx.token.0, insert.absorb, &cx.ctx.kind);
+    // The frontends author this text, and any user text in it is already
+    // snippet-escaped, so marker detection here is reliable.
+    let snippet = new_text.contains("$0") || new_text.contains("${");
     RawItem {
         label: field.name.clone(),
         kind,
@@ -146,6 +154,7 @@ fn field_item<F: Frontend>(
         filter_text: None,
         sort_text: sort_key(order),
         preselect: false,
+        snippet,
         edit: (start, cx.ctx.token.1),
         new_text,
     }
@@ -249,6 +258,7 @@ fn default_item<F: Frontend>(
         filter_text: Some(cx.ctx.token_text.clone()).filter(|current| !current.is_empty()),
         sort_text: sort_key(0),
         preselect: true,
+        snippet: false,
         edit: cx.ctx.token,
         new_text,
     })
@@ -298,6 +308,7 @@ fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
         filter_text: Some(cx.ctx.token_text.clone()).filter(|current| !current.is_empty()),
         sort_text: sort_key(order),
         preselect: false,
+        snippet: false,
         edit: cx.ctx.token,
         new_text,
     }
@@ -317,11 +328,10 @@ fn encode_item(
     snippets: bool,
     preselect: bool,
 ) -> CompletionItem {
-    // A snippet is anything carrying a tab stop or a placeholder, not the
-    // literal `$0` alone, so a pre-filled `${1:4}` reaches a snippet client as
-    // a snippet and a plain client as the bare value.
-    let is_snippet = snippets && (raw.new_text.contains("$0") || raw.new_text.contains("${"));
-    let new_text = if is_snippet {
+    // Only a producer-marked snippet is emitted or stripped as one, so a
+    // literal value item passes through untouched in both directions.
+    let is_snippet = snippets && raw.snippet;
+    let new_text = if is_snippet || !raw.snippet {
         raw.new_text
     } else {
         strip_snippet_markers(&raw.new_text)
@@ -345,9 +355,11 @@ fn encode_item(
     item
 }
 
-/// Removes the snippet markers for a client without snippet support. The `$0`
-/// tab stop is dropped. A `${n:value}` placeholder unwraps to its value with
-/// the snippet escaping removed, so the bare text reaches the buffer.
+/// Removes the snippet markers for a client without snippet support. The
+/// supported grammar is a closed list: a `$n` tab stop, which is dropped, and
+/// a `${n:value}` placeholder, which unwraps to its value with the backslash
+/// escaping removed, so the bare text reaches the buffer. A producer adding a
+/// new snippet form extends this list first.
 fn strip_snippet_markers(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
@@ -357,8 +369,10 @@ fn strip_snippet_markers(text: &str) -> String {
             continue;
         }
         match chars.peek() {
-            Some('0') => {
-                chars.next();
+            Some(digit) if digit.is_ascii_digit() => {
+                while chars.peek().is_some_and(char::is_ascii_digit) {
+                    chars.next();
+                }
             }
             Some('{') => {
                 chars.next();

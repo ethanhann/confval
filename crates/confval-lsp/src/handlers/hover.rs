@@ -178,10 +178,14 @@ fn render(field: &SchemaField, set: Option<bool>) -> String {
         out.push_str(&constraint_label(constraint));
         out.push_str("\n\n");
     }
-    if let Some(text) = &field.default_text {
-        out.push_str(&format!("Defaults to {}.\n\n", neutral_value(field, text)));
-    } else if field.has_default {
-        out.push_str("Has a default.\n\n");
+    // A set field states its state alone, so the default lines render only
+    // when the value could still fall through to the default.
+    if set != Some(true) {
+        if let Some(text) = &field.default_text {
+            out.push_str(&format!("Defaults to {}.\n\n", neutral_value(field, text)));
+        } else if field.has_default {
+            out.push_str("Has a default.\n\n");
+        }
     }
     if let Some(set) = set {
         out.push_str(state_label(set, field.has_default));

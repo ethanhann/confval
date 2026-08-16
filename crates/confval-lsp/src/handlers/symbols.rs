@@ -15,6 +15,7 @@ use confval::schema::{Schema, SchemaType};
 use confval::source::Span;
 
 use crate::encoding::{LineIndex, PositionEncoding};
+use crate::resolve::deepest_end;
 
 /// One symbol with byte ranges, before position encoding.
 struct RawSymbol {
@@ -105,21 +106,38 @@ fn field_symbols(
     text_len: usize,
 ) -> Vec<RawSymbol> {
     match declared {
-        SchemaType::Block { schema: inner, .. } => instances(field)
-            .into_iter()
-            .map(|(body, instance_span)| {
-                container(
-                    field,
-                    inner,
-                    body,
-                    instance_span,
-                    covers_body,
-                    next_start,
-                    enclosing_end,
-                    text_len,
-                )
-            })
-            .collect(),
+        SchemaType::Block { schema: inner, .. } => {
+            let instances = instances(field);
+            let count = instances.len();
+            instances
+                .iter()
+                .enumerate()
+                .map(|(position, (body, instance_span))| {
+                    // Each instance ends at its following sibling instance, and
+                    // only the last extends to the field-level bound, so
+                    // repeated header-only tables keep disjoint ranges.
+                    let bound = if position + 1 < count {
+                        instances
+                            .get(position + 1)
+                            .and_then(|(_, next_span)| span_range(*next_span))
+                            .map(|range| range.0)
+                            .or(next_start)
+                    } else {
+                        next_start
+                    };
+                    container(
+                        field,
+                        inner,
+                        body,
+                        *instance_span,
+                        covers_body,
+                        bound,
+                        enclosing_end,
+                        text_len,
+                    )
+                })
+                .collect()
+        }
         SchemaType::StringList => leaf(field, SymbolKind::ARRAY, text_len)
             .into_iter()
             .collect(),
@@ -219,48 +237,17 @@ fn instances(field: &Field) -> Vec<(&Fields, Span)> {
     }
 }
 
-/// The furthest non-detached end offset among a level's fields and their
-/// descendants, so an extended container still covers a nested table that runs
-/// past its parent's header.
-fn deepest_end(fields: &Fields) -> u32 {
-    let mut furthest = 0;
-    for field in fields.iter() {
-        furthest = furthest.max(span_range(field.span).map_or(0, |range| range.1));
-        if let FieldKind::Block(inner) = &field.kind {
-            furthest = furthest.max(deepest_end(inner));
-        }
-        if let FieldKind::Value(value) = &field.kind {
-            furthest = furthest.max(deepest_value_end(value));
-        }
-    }
-    furthest
-}
-
-/// The furthest end within a value, recursing through maps and sequences.
-fn deepest_value_end(value: &confval::format::Value) -> u32 {
-    let mut furthest = span_range(value.span).map_or(0, |range| range.1);
-    match &value.kind {
-        ValueKind::Map(inner) => furthest = furthest.max(deepest_end(inner)),
-        ValueKind::Seq(items) => {
-            for item in items {
-                furthest = furthest.max(deepest_value_end(item));
-            }
-        }
-        _ => {}
-    }
-    furthest
-}
-
 /// The selection range: the name span clamped inside the symbol's range, or
 /// the range start when the name has no span.
 fn clamp(name_span: Span, range: (usize, usize), text_len: usize) -> (usize, usize) {
     match span_range(name_span) {
-        Some((start, end)) => {
-            let start = (start as usize).clamp(range.0, range.1).min(text_len);
-            let end = (end as usize).clamp(start, range.1).min(text_len);
-            (start, end)
+        // A name span outside the symbol's range, such as the field-level
+        // header of a later instance, yields a zero-width selection at the
+        // instance start rather than a span clamped across the boundary.
+        Some((start, end)) if (start as usize) >= range.0 && (end as usize) <= range.1 => {
+            ((start as usize).min(text_len), (end as usize).min(text_len))
         }
-        None => (range.0, range.0),
+        _ => (range.0, range.0),
     }
 }
 

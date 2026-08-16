@@ -159,6 +159,10 @@ fn label_field_site<'a>(
     let instance = ctx.resolved_body.as_ref()?;
     let label = instance.get(field)?;
     let value = field_text(label)?;
+    // The pipeline rejects an empty label, so it defines nothing to navigate.
+    if value.is_empty() {
+        return None;
+    }
     Some(LabelSite {
         scope: DeclaringScope {
             schema: scope_schema,
@@ -186,6 +190,9 @@ fn native_label_site<'a>(
         .find(|label| {
             !label.span.is_detached() && label.span.start <= offset && offset <= label.span.end
         })?;
+    if label.value.is_empty() {
+        return None;
+    }
     Some(LabelSite {
         scope: DeclaringScope {
             schema: scope_schema,
