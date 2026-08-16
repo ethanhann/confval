@@ -17,7 +17,7 @@ use confval::source::Span;
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, PositionKind};
 use crate::handlers::hover::field_text;
-use crate::walk::{DeclaringScope, declaring_scope, schema_at};
+use crate::walk::{DeclaringScope, declaring_scope, label_matches, schema_at};
 
 /// The label site a cursor resolves to: the declaring scope, the block field
 /// the labels belong to, the label value under the cursor, and where that
@@ -133,7 +133,7 @@ fn reference_site<'a>(
     let scope = declaring_scope(schema, ctx, block)?;
     let declaration = scope_labels(scope.body, scope.schema, block)
         .into_iter()
-        .find(|label| !label.value.is_empty() && label.value == value)
+        .find(|label| label_matches(label, &value))
         .map(|label| label.span);
     Some(LabelSite {
         scope,

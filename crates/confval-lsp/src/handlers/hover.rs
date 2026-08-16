@@ -14,7 +14,7 @@ use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, PositionKind};
-use crate::walk::{reference_labels, resolved_level, schema_at};
+use crate::walk::{label_matches, reference_labels, resolved_level, schema_at};
 
 /// Produces the hover for a resolved cursor, or `None` when the cursor sits on
 /// no field.
@@ -132,11 +132,8 @@ fn reference_hover(
     let mut markdown = format!("References the `{block}` block.");
     match value {
         ReferenceValue::Text(value) => {
-            let resolves = reference_labels(schema, ctx, block).is_some_and(|labels| {
-                labels
-                    .iter()
-                    .any(|label| !label.value.is_empty() && label.value == value)
-            });
+            let resolves = reference_labels(schema, ctx, block)
+                .is_some_and(|labels| labels.iter().any(|label| label_matches(label, &value)));
             markdown.push_str("\n\n");
             markdown.push_str(if resolves {
                 "Resolves to a defined label."

@@ -73,7 +73,7 @@ fn level_symbols(
     text_len: usize,
 ) -> Vec<RawSymbol> {
     let level: Vec<&Field> = fields.iter().collect();
-    let enclosing_end = span_end(fields.enclosing()).unwrap_or(text_len as u32);
+    let enclosing_end = span_range(fields.enclosing()).map_or(text_len as u32, |range| range.1);
     let mut symbols = Vec::new();
     for (position, field) in level.iter().enumerate() {
         let Some(declared) = schema.fields.iter().find(|f| f.name == field.name) else {
@@ -81,7 +81,7 @@ fn level_symbols(
         };
         let next_start = level
             .get(position + 1)
-            .and_then(|sibling| span_start(sibling.span));
+            .and_then(|sibling| span_range(sibling.span).map(|range| range.0));
         symbols.extend(field_symbols(
             field,
             &declared.ty,
@@ -145,13 +145,15 @@ fn container(
     enclosing_end: u32,
     text_len: usize,
 ) -> RawSymbol {
-    let start = span_start(instance_span)
-        .or_else(|| span_start(field.name_span))
-        .unwrap_or(0) as usize;
+    let start = span_range(instance_span)
+        .or_else(|| span_range(field.name_span))
+        .map_or(0, |range| range.0) as usize;
     // A header-only block's span stops at its header, so the range extends to
     // the next sibling or the level end, keeping the children contained.
     let end = if covers_body {
-        span_end(instance_span).unwrap_or(0).max(deepest_end(body))
+        span_range(instance_span)
+            .map_or(0, |range| range.1)
+            .max(deepest_end(body))
     } else {
         next_start.unwrap_or(enclosing_end).max(deepest_end(body))
     } as usize;
@@ -170,8 +172,9 @@ fn container(
 
 /// One leaf symbol over the field's own span.
 fn leaf(field: &Field, kind: SymbolKind, text_len: usize) -> Option<RawSymbol> {
-    let start = span_start(field.span)? as usize;
-    let end = (span_end(field.span)? as usize).min(text_len).max(start);
+    let (span_start, span_end) = span_range(field.span)?;
+    let start = span_start as usize;
+    let end = (span_end as usize).min(text_len).max(start);
     Some(RawSymbol {
         name: field.name.clone(),
         detail: None,
@@ -222,7 +225,7 @@ fn instances(field: &Field) -> Vec<(&Fields, Span)> {
 fn deepest_end(fields: &Fields) -> u32 {
     let mut furthest = 0;
     for field in fields.iter() {
-        furthest = furthest.max(span_end(field.span).unwrap_or(0));
+        furthest = furthest.max(span_range(field.span).map_or(0, |range| range.1));
         if let FieldKind::Block(inner) = &field.kind {
             furthest = furthest.max(deepest_end(inner));
         }
@@ -235,7 +238,7 @@ fn deepest_end(fields: &Fields) -> u32 {
 
 /// The furthest end within a value, recursing through maps and sequences.
 fn deepest_value_end(value: &confval::format::Value) -> u32 {
-    let mut furthest = span_end(value.span).unwrap_or(0);
+    let mut furthest = span_range(value.span).map_or(0, |range| range.1);
     match &value.kind {
         ValueKind::Map(inner) => furthest = furthest.max(deepest_end(inner)),
         ValueKind::Seq(items) => {
@@ -251,22 +254,19 @@ fn deepest_value_end(value: &confval::format::Value) -> u32 {
 /// The selection range: the name span clamped inside the symbol's range, or
 /// the range start when the name has no span.
 fn clamp(name_span: Span, range: (usize, usize), text_len: usize) -> (usize, usize) {
-    match (span_start(name_span), span_end(name_span)) {
-        (Some(start), Some(end)) => {
+    match span_range(name_span) {
+        Some((start, end)) => {
             let start = (start as usize).clamp(range.0, range.1).min(text_len);
             let end = (end as usize).clamp(start, range.1).min(text_len);
             (start, end)
         }
-        _ => (range.0, range.0),
+        None => (range.0, range.0),
     }
 }
 
-fn span_start(span: Span) -> Option<u32> {
-    (!span.is_detached()).then_some(span.start)
-}
-
-fn span_end(span: Span) -> Option<u32> {
-    (!span.is_detached()).then_some(span.end)
+/// A span's byte range, or `None` for the detached sentinel.
+fn span_range(span: Span) -> Option<(u32, u32)> {
+    (!span.is_detached()).then_some((span.start, span.end))
 }
 
 /// Encodes one raw symbol into the protocol shape.
