@@ -23,26 +23,15 @@ pub(crate) fn negotiate(params: &InitializeParams) -> PositionEncoding {
     }
 }
 
-/// The client's completion-item switches the server honors.
-pub(crate) struct CompletionSupport {
-    /// Whether the client expands a completion snippet, so an insert may carry
-    /// a tab stop or a placeholder. A client without it receives the plain
-    /// text with the markers unwrapped.
-    pub(crate) snippets: bool,
-    /// Whether the client honors a preselected item. Without it the preselect
-    /// flag is withheld, so the client's own ranking stands.
-    pub(crate) preselect: bool,
-}
-
-/// Reads the client's completion-item switches once at initialization.
-pub(crate) fn completion_support(params: &InitializeParams) -> CompletionSupport {
+/// Reads the client's completion switches once at initialization.
+pub(crate) fn completion_support(params: &InitializeParams) -> crate::handlers::ClientSupport {
     let item = params
         .capabilities
         .text_document
         .as_ref()
         .and_then(|document| document.completion.as_ref())
         .and_then(|completion| completion.completion_item.as_ref());
-    CompletionSupport {
+    crate::handlers::ClientSupport {
         snippets: item.and_then(|item| item.snippet_support).unwrap_or(false),
         preselect: item
             .and_then(|item| item.preselect_support)
