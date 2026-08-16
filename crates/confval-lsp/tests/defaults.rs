@@ -266,13 +266,50 @@ fn a_value_position_offers_the_preselected_default_per_constraint_shape() {
     assert_eq!(range[0].preselect, Some(true));
 }
 
+/// A spec whose defaults cover every scalar leaf, for the round trips.
+#[derive(confval::Spec)]
+struct RoundTripSpec {
+    /// An integer default.
+    #[confval(default = 4)]
+    workers: Located<i64>,
+    /// A whole-number float default.
+    #[confval(default = 4.0)]
+    scale: Located<f64>,
+    /// A boolean default.
+    #[confval(default = true)]
+    secure: Located<bool>,
+    /// A string default.
+    #[confval(default = "enforce".to_string())]
+    mode: Located<String>,
+    /// A path default.
+    #[confval(default = PathBuf::from("/etc/app.conf"))]
+    config: Located<PathBuf>,
+}
+
+impl Validate for RoundTripSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// The parsed scalar of a field, for comparing a round trip against the
+/// default it inserted.
+fn parsed_scalar(tree: &confval::format::Fields, name: &str) -> Scalar {
+    let field = tree.get(name).unwrap_or_else(|| panic!("{name} parses"));
+    match &field.kind {
+        FieldKind::Value(value) => match &value.kind {
+            ValueKind::Scalar(scalar) => scalar.clone(),
+            other => panic!("{name} holds a scalar, got {other:?}"),
+        },
+        other => panic!("{name} holds a value, got {other:?}"),
+    }
+}
+
 #[test]
 fn the_rendered_default_round_trips_through_every_frontend() {
     // Arrange
-    // Completing `workers` on an empty document and parsing the result back
-    // yields the default value, so each frontend's literal form is one its
-    // parser reads.
-    let schema = ServerSpec::schema();
+    // Completing every defaulted leaf on an empty document and parsing the
+    // result back yields the default values, so each frontend's literal form
+    // is one its parser reads.
+    let schema = RoundTripSpec::schema();
 
     // Act, Assert
     fn round_trip<F: Frontend>(
@@ -281,18 +318,37 @@ fn the_rendered_default_round_trips_through_every_frontend() {
         wrap: impl Fn(&str) -> String,
     ) {
         let items = complete(frontend, schema, "", 0, false, false);
-        let workers = inserted(
-            items
-                .iter()
-                .find(|i| i.label == "workers")
-                .expect("workers"),
-        );
-        let tls = inserted(items.iter().find(|i| i.label == "tls").expect("tls"));
-        let document = wrap(&format!("{workers}\n{tls}"));
+        let field = |name: &str| {
+            inserted(
+                items
+                    .iter()
+                    .find(|item| item.label == name)
+                    .unwrap_or_else(|| panic!("{name} offered")),
+            )
+        };
+        let body = [
+            field("workers"),
+            field("scale"),
+            field("secure"),
+            field("mode"),
+            field("config"),
+        ]
+        .join("\n");
+        let document = wrap(&body);
         let tree = frontend
             .parse_tree(&document)
             .unwrap_or_else(|| panic!("the completed document parses: {document:?}"));
-        assert!(tree.has("workers") && tree.has("tls"), "{document:?}");
+        assert_eq!(parsed_scalar(&tree, "workers"), Scalar::Int(4));
+        assert_eq!(parsed_scalar(&tree, "scale"), Scalar::Float(4.0));
+        assert_eq!(parsed_scalar(&tree, "secure"), Scalar::Bool(true));
+        assert_eq!(
+            parsed_scalar(&tree, "mode"),
+            Scalar::String("enforce".to_string())
+        );
+        assert_eq!(
+            parsed_scalar(&tree, "config"),
+            Scalar::String("/etc/app.conf".to_string())
+        );
     }
     round_trip(&Hcl, &schema, |body| format!("{body}\n"));
     round_trip(&Toml, &schema, |body| format!("{body}\n"));
