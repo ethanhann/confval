@@ -95,6 +95,22 @@ pub struct MeshSpec {
     /// The services, each with its own upstreams and routes.
     #[confval(nested)]
     pub services: Vec<Located<MeshServiceSpec>>,
+    /// Root-level pools, shadowed by a service's own pools.
+    #[confval(nested)]
+    pub pools: Vec<Located<MeshPoolSpec>>,
+}
+
+/// A labeled pool block, declared at the root and inside a service, so the
+/// shadowing rule has a fixture.
+#[derive(confval::Spec)]
+pub struct MeshPoolSpec {
+    /// The pool's label.
+    #[confval(label)]
+    pub id: Located<String>,
+}
+
+impl Validate for MeshPoolSpec {
+    fn validate(&self, _report: &mut Report) {}
 }
 
 /// One service of the mesh fixture.
@@ -108,6 +124,9 @@ pub struct MeshServiceSpec {
     /// The service's routes, each naming one of its upstreams.
     #[confval(nested)]
     pub routes: Vec<Located<MeshRouteSpec>>,
+    /// The service's own pools, which shadow the root-level pools.
+    #[confval(nested)]
+    pub pools: Vec<Located<MeshPoolSpec>>,
 }
 
 /// A labeled upstream of one mesh service.
@@ -126,6 +145,9 @@ pub struct MeshRouteSpec {
     /// The upstream this route targets, within its own service.
     #[confval(references = upstreams)]
     pub upstream: Located<String>,
+    /// The pool this route uses, resolving at the nearest declaring scope.
+    #[confval(references = pools)]
+    pub pool: Option<Located<String>>,
 }
 
 impl Validate for MeshSpec {

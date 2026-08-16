@@ -46,7 +46,7 @@ fn diagnostics_report_the_pipeline_issues_at_their_ranges() {
     let uri = Uri::from_str("file:///fixture.hcl").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Hcl>(&Hcl, text, &uri, ENCODING);
+    let found = diagnostics::<ServerSpec, Hcl>(&Hcl, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let messages: Vec<&str> = found.iter().map(|d| d.message.as_str()).collect();
@@ -118,6 +118,7 @@ fn attribute_name_completion_offers_unset_root_fields() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -148,6 +149,7 @@ fn block_type_completion_offers_the_nested_block() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -182,6 +184,7 @@ fn block_completion_places_the_cursor_with_a_snippet_when_supported() {
         &index,
         ENCODING,
         true,
+        false,
     );
     let without = completion(
         &Hcl,
@@ -193,6 +196,7 @@ fn block_completion_places_the_cursor_with_a_snippet_when_supported() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -232,6 +236,7 @@ fn enum_value_completion_offers_the_allowed_strings() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -269,6 +274,7 @@ fn kdl_value_completion_on_a_valueless_node_does_not_replace_the_name() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -328,7 +334,7 @@ fn hover_omits_the_state_when_the_buffer_does_not_parse() {
 
     // Assert
     let value = markdown(hover.expect("a hover for workers"));
-    assert!(value.contains("Has a default."), "got: {value}");
+    assert!(value.contains("Defaults to 4."), "got: {value}");
     assert!(!value.contains("Not set"), "the state is omitted: {value}");
     assert!(!value.contains("Set by the configuration"), "{value}");
 }
@@ -373,6 +379,7 @@ fn a_repeated_block_stays_offered_while_a_single_block_is_dropped() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -408,6 +415,7 @@ fn a_map_body_offers_no_keys() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -437,6 +445,7 @@ fn toml_block_completion_inserts_a_table_header() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -468,6 +477,7 @@ fn kdl_scalar_completion_inserts_the_bare_name_form() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -503,6 +513,7 @@ fn completion_inside_a_toml_array_of_tables_offers_the_block_fields() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -535,6 +546,7 @@ fn toml_enum_value_completion_offers_the_allowed_strings() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -565,6 +577,7 @@ fn a_half_typed_name_completes_over_a_replace_range() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -587,7 +600,7 @@ fn a_half_typed_name_completes_over_a_replace_range() {
                     },
                 }
             );
-            assert_eq!(edit.new_text, "workers = ");
+            assert_eq!(edit.new_text, "workers = 4", "the default pre-fills");
         }
         other => panic!("expected a replace edit, got: {other:?}"),
     }
@@ -616,6 +629,7 @@ fn enum_completion_over_a_value_keeps_the_items_and_replaces_only_the_value() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -666,6 +680,7 @@ fn enum_completion_works_at_an_empty_value_when_the_buffer_does_not_parse() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -697,6 +712,7 @@ fn body_completion_on_an_empty_line_inserts_at_the_cursor() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -708,7 +724,7 @@ fn body_completion_on_an_empty_line_inserts_at_the_cursor() {
         panic!("expected a replace edit");
     };
     assert_eq!(edit.range.start, edit.range.end, "a zero-width insert");
-    assert_eq!(edit.new_text, "mode = ");
+    assert_eq!(edit.new_text, "mode = \"enforce\"", "the default pre-fills");
 }
 
 #[test]
@@ -734,6 +750,7 @@ fn completing_a_typed_toml_header_replaces_the_bracket() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -775,6 +792,7 @@ fn value_completion_at_a_non_keyword_field_offers_nothing() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -825,7 +843,7 @@ fn a_spanless_warning_maps_to_the_first_line_with_related_information() {
     let uri = Uri::from_str("file:///plain.hcl").unwrap();
 
     // Act
-    let found = diagnostics::<PlainSpec, Hcl>(&Hcl, text, &uri, ENCODING);
+    let found = diagnostics::<PlainSpec, Hcl>(&Hcl, &PlainSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let warning = found
@@ -873,7 +891,7 @@ fn json_diagnostics_report_the_pipeline_issues() {
     let uri = Uri::from_str("file:///fixture.json").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Json>(&Json, text, &uri, ENCODING);
+    let found = diagnostics::<ServerSpec, Json>(&Json, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let messages: Vec<&str> = found.iter().map(|d| d.message.as_str()).collect();
@@ -899,7 +917,7 @@ fn json_root_not_an_object_reports_a_parse_error() {
     let uri = Uri::from_str("file:///fixture.json").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Json>(&Json, text, &uri, ENCODING);
+    let found = diagnostics::<ServerSpec, Json>(&Json, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     assert!(
@@ -917,7 +935,7 @@ fn yaml_diagnostics_report_the_pipeline_issues() {
     let uri = Uri::from_str("file:///fixture.yaml").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, text, &uri, ENCODING);
+    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let messages: Vec<&str> = found.iter().map(|d| d.message.as_str()).collect();
@@ -957,6 +975,7 @@ fn json_completion_absorbs_the_opening_quote() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -1003,6 +1022,7 @@ fn json_member_insert_is_non_destructive() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -1041,6 +1061,7 @@ fn yaml_completion_under_an_empty_key_offers_the_block_fields() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -1078,7 +1099,7 @@ fn yaml_second_document_reports_a_parse_error() {
     let uri = Uri::from_str("file:///fixture.yaml").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, text, &uri, ENCODING);
+    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     assert!(
@@ -1096,7 +1117,7 @@ fn json_diagnostic_range_survives_a_non_ascii_earlier_value() {
     let uri = Uri::from_str("file:///fixture.json").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Json>(&Json, text, &uri, ENCODING);
+    let found = diagnostics::<ServerSpec, Json>(&Json, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let port = found
@@ -1119,7 +1140,7 @@ fn yaml_diagnostic_range_survives_a_non_ascii_earlier_value() {
     let uri = Uri::from_str("file:///fixture.yaml").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, text, &uri, ENCODING);
+    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let port = found
@@ -1174,6 +1195,7 @@ fn json_enum_value_completion_offers_the_allowed_strings() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -1201,6 +1223,7 @@ fn yaml_completion_inserts_the_mapping_and_scalar_forms() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -1237,6 +1260,7 @@ fn yaml_repeated_block_completion_opens_a_sequence() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -1270,6 +1294,7 @@ fn yaml_field_in_a_repeated_block_opens_a_new_element() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -1300,6 +1325,7 @@ fn json_repeated_block_completion_opens_an_array() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -1338,6 +1364,7 @@ fn json_field_in_an_array_element_position_opens_an_object() {
         &index,
         ENCODING,
         false,
+        false,
     );
     let snippet = completion(
         &Json,
@@ -1350,6 +1377,7 @@ fn json_field_in_an_array_element_position_opens_an_object() {
         &index,
         ENCODING,
         true,
+        false,
     );
 
     // Assert
@@ -1392,6 +1420,7 @@ fn json_list_and_map_completion_open_the_container() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -1426,6 +1455,7 @@ fn yaml_list_and_map_completion_open_the_container() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -1462,6 +1492,7 @@ fn toml_list_and_map_completion_open_the_container() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -1497,6 +1528,7 @@ fn hcl_list_and_map_completion_open_the_container() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -1527,6 +1559,7 @@ fn gateway_offered<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Vec<
         },
         &index,
         ENCODING,
+        false,
         false,
     );
     labels(&items)
@@ -1765,6 +1798,7 @@ fn reference_completion_offers_nothing_without_a_parse() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -1799,6 +1833,7 @@ fn yaml_field_inside_an_existing_element_adds_a_field_not_an_element() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -1822,7 +1857,8 @@ fn a_type_error_in_one_element_does_not_diagnose_a_sibling_element() {
     let uri = Uri::from_str("file:///g.yaml").unwrap();
 
     // Act
-    let found = diagnostics::<GatewaySpec, Yaml>(&Yaml, text, &uri, ENCODING);
+    let found =
+        diagnostics::<GatewaySpec, Yaml>(&Yaml, &GatewaySpec::schema(), text, &uri, ENCODING);
 
     // Assert
     assert_eq!(found.len(), 1, "one diagnostic: {found:?}");
@@ -1855,6 +1891,7 @@ fn yaml_completion_under_a_pending_block_offers_every_block_field() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -1890,6 +1927,7 @@ fn yaml_keyword_completion_after_a_bare_colon_keeps_the_key_and_adds_a_space() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -1948,6 +1986,7 @@ fn scoped_reference_completion_offers_only_the_own_scope_labels() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
@@ -2043,6 +2082,7 @@ fn completion_sorts_by_schema_declaration_order() {
         &index,
         ENCODING,
         false,
+        false,
     );
 
     // Assert
@@ -2105,6 +2145,7 @@ fn yaml_reference_completion_after_a_bare_colon_keeps_the_colon() {
         },
         &index,
         ENCODING,
+        false,
         false,
     );
 
