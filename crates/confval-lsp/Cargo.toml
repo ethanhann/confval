@@ -14,6 +14,7 @@ workspace = true
 confval = { path = "../confval", features = ["hcl", "toml", "kdl", "json", "yaml"] }
 lsp-types = { workspace = true }
 lsp-server = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 line-index = { workspace = true }
 
