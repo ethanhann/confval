@@ -36,7 +36,7 @@ impl Frontend for Yaml {
             // A single nested mapping and a map both open a body on the next
             // indented line.
             SchemaType::Block { .. } | SchemaType::StringMap => format!("{}:\n  $0", field.name),
-            _ => format!("{}: ", field.name),
+            _ => format!("{}: {}", field.name, super::value_placeholder(self, field)),
         })
     }
 
