@@ -78,7 +78,9 @@ pub struct SchemaField {
     /// write so a whole number keeps its `.0`, and a path through its lossy
     /// string form. A defaulted list, map, or block carries `None`, because
     /// there is no single value to render. The reader pairs the text with the
-    /// field's leaf type to know what it holds.
+    /// field's leaf type to know what it holds. The evaluation runs wherever
+    /// `schema()` runs, including inside a long-running language server, so a
+    /// default expression must not panic and must not carry side effects.
     pub default_text: Option<String>,
     /// The field's declared type.
     pub ty: SchemaType,
