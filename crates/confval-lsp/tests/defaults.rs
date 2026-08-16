@@ -446,6 +446,14 @@ fn the_negative_cases_offer_no_fix() {
         &server_diagnostics("hostname: h\nport: 1\nworkers: 9999\n"),
         Some(&[CodeActionKind::REFACTOR]),
     );
+    let requested = actions_at(
+        &Yaml,
+        &schema,
+        "hostname: h\nport: 1\nworkers: 9999\n",
+        "hostname: h\nport: 1\nworkers: 99".len(),
+        &server_diagnostics("hostname: h\nport: 1\nworkers: 9999\n"),
+        Some(&[CodeActionKind::QUICKFIX]),
+    );
 
     // Assert
     assert!(no_default_actions.is_empty(), "no default, no fix");
@@ -457,4 +465,5 @@ fn the_negative_cases_offer_no_fix() {
     assert!(empty_context.is_empty(), "an empty context yields nothing");
     assert!(no_parse_actions.is_empty(), "the edit needs a parsed span");
     assert!(filtered.is_empty(), "the kind filter is honored");
+    assert_eq!(requested.len(), 1, "the requested quickfix kind passes");
 }

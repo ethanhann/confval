@@ -134,3 +134,87 @@ pub(crate) fn reference_labels(
     let scope = declaring_scope(schema, ctx, block)?;
     Some(scope_labels(scope.body, scope.schema, block))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::PositionKind;
+    use confval::schema::{ScalarType, SchemaField};
+
+    fn labeled_block(name: &str) -> SchemaField {
+        let label = SchemaField::new(
+            "id".to_string(),
+            None,
+            true,
+            false,
+            SchemaType::Scalar {
+                leaf: ScalarType::String,
+                constraint: None,
+            },
+        )
+        .as_label();
+        SchemaField::new(
+            name.to_string(),
+            None,
+            false,
+            false,
+            SchemaType::Block {
+                schema: Box::new(Schema::new(None, vec![label])),
+                repeated: true,
+            },
+        )
+    }
+
+    fn map_field(name: &str) -> SchemaField {
+        SchemaField::new(name.to_string(), None, true, false, SchemaType::StringMap)
+    }
+
+    fn context(path: Vec<String>) -> CursorContext {
+        let mut ctx = CursorContext::body(path, (0, 0));
+        ctx.resolved_body = Some(Fields::detached(Vec::new()));
+        ctx
+    }
+
+    #[test]
+    fn a_label_matches_only_a_non_empty_equal_value() {
+        // Arrange
+        let empty = confval::source::Located::detached(String::new());
+        let named = confval::source::Located::detached("api".to_string());
+
+        // Act, Assert
+        assert!(!label_matches(&empty, ""));
+        assert!(!label_matches(&named, "web"));
+        assert!(label_matches(&named, "api"));
+    }
+
+    #[test]
+    fn the_outward_search_skips_a_path_level_the_schema_cannot_name() {
+        // Arrange
+        // The path descends into an open-ended map, which names no child
+        // schema, so that level is skipped and the root still declares the
+        // target.
+        let schema = Schema::new(None, vec![map_field("headers"), labeled_block("pool")]);
+        let mut ctx = context(vec!["headers".to_string()]);
+        ctx.ancestors = vec![Fields::detached(Vec::new())];
+        assert_eq!(ctx.kind, PositionKind::Body);
+
+        // Act
+        let scope = declaring_scope(&schema, &ctx, "pool");
+
+        // Assert
+        assert!(scope.is_some(), "the root declares the target");
+    }
+
+    #[test]
+    fn no_declaring_scope_answers_none() {
+        // Arrange
+        let schema = Schema::new(None, vec![map_field("headers")]);
+        let ctx = context(Vec::new());
+
+        // Act
+        let labels = reference_labels(&schema, &ctx, "pool");
+
+        // Assert
+        assert!(labels.is_none(), "no scope declares the target");
+    }
+}

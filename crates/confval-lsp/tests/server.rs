@@ -412,6 +412,59 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
     client
         .sender
         .send(Message::Request(Request::new(
+            RequestId::from(5),
+            lsp_types::request::CodeActionRequest::METHOD.to_string(),
+            lsp_types::CodeActionParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                range: lsp_types::Range {
+                    start: Position {
+                        line: 0,
+                        character: 12,
+                    },
+                    end: Position {
+                        line: 0,
+                        character: 12,
+                    },
+                },
+                context: lsp_types::CodeActionContext::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            },
+        )))
+        .unwrap();
+    let action: Response = recv_until(&client, |message| match message {
+        Message::Response(response) if response.id == RequestId::from(5) => Some(response.clone()),
+        _ => None,
+    });
+    let ghost = Uri::from_str("file:///ghost.hcl").unwrap();
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(6),
+            lsp_types::request::References::METHOD.to_string(),
+            lsp_types::ReferenceParams {
+                text_document_position: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier { uri: ghost },
+                    position: Position {
+                        line: 0,
+                        character: 0,
+                    },
+                },
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+                context: lsp_types::ReferenceContext {
+                    include_declaration: false,
+                },
+            },
+        )))
+        .unwrap();
+    let ghost_references: Response = recv_until(&client, |message| match message {
+        Message::Response(response) if response.id == RequestId::from(6) => Some(response.clone()),
+        _ => None,
+    });
+    client
+        .sender
+        .send(Message::Request(Request::new(
             RequestId::from(9),
             Shutdown::METHOD.to_string(),
             (),
@@ -447,4 +500,13 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
 
     let outline = symbols.response_result.expect("symbols route");
     assert!(!outline.is_null(), "a parsed document has an outline");
+    assert!(
+        action.response_result.is_ok(),
+        "the code action routes: {action:?}"
+    );
+    assert_eq!(
+        ghost_references.response_result.expect("an empty list"),
+        serde_json::json!([]),
+        "an unopened document answers empty"
+    );
 }

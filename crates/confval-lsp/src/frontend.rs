@@ -471,6 +471,24 @@ mod tests {
     }
 
     #[test]
+    fn the_default_literal_quotes_strings_and_paths_and_passes_numbers() {
+        // Arrange
+        let frontend = Hcl;
+
+        // Act, Assert
+        assert_eq!(frontend.default_literal(&ScalarType::Int, "4"), "4");
+        assert_eq!(frontend.default_literal(&ScalarType::Bool, "true"), "true");
+        assert_eq!(
+            frontend.default_literal(&ScalarType::Path, "/etc/app.conf"),
+            "\"/etc/app.conf\""
+        );
+        assert_eq!(
+            frontend.default_literal(&ScalarType::String, "a \"b\" \\c"),
+            "\"a \\\"b\\\" \\\\c\""
+        );
+    }
+
+    #[test]
     fn an_indentation_frontend_without_a_tree_reads_the_raw_text() {
         // Arrange
         // A two-document YAML stream cannot hold one configuration, so it does not

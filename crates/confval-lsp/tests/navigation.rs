@@ -373,3 +373,36 @@ fn the_flat_form_lists_every_symbol_with_its_container() {
         .expect("a nested field");
     assert_eq!(port.container_name.as_deref(), Some("upstream"));
 }
+
+#[test]
+fn symbol_kinds_cover_the_field_shapes() {
+    // Arrange
+    let text = "hostname: h\nport: 1\nallow:\n  - a\nheaders:\n  X-Env: prod\n";
+    let schema = ServerSpec::schema();
+    let tree = Yaml.parse_tree(text).expect("the buffer parses");
+    let uri = doc_uri();
+    let index = LineIndex::new(text);
+
+    // Act
+    let response = document_symbols(
+        &schema,
+        &tree,
+        SymbolShape {
+            covers_body: true,
+            hierarchical: true,
+        },
+        &uri,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let DocumentSymbolResponse::Nested(symbols) = response else {
+        panic!("the hierarchical form");
+    };
+    let kind_of = |name: &str| symbols.iter().find(|s| s.name == name).map(|s| s.kind);
+    assert_eq!(kind_of("port"), Some(SymbolKind::FIELD));
+    assert_eq!(kind_of("allow"), Some(SymbolKind::ARRAY));
+    assert_eq!(kind_of("headers"), Some(SymbolKind::OBJECT));
+}
