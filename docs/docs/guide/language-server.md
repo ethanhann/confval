@@ -51,25 +51,33 @@ A diagnostic the editor shows is a diagnostic the program would produce, because
 Completion offers what is legal at the cursor.
 A body position offers the attribute names and block types the schema declares there, minus the single-valued fields already set.
 The items keep the schema's declaration order, so related fields stay together in the editor's list.
-A defaulted scalar's insert pre-fills the rendered default as the selected snippet placeholder, so accepting `workers` writes `workers = 4` with the `4` selected and one keystroke replaces it.
-A value position on a defaulted field offers the default as a preselected item, and on a keyword field the default's own item gains the preselection.
 A value position for a field with a keyword set offers the allowed strings, which the schema carries from a `#[confval(keywords = ...)]` attribute.
 A value position for a field marked `#[confval(references = <block>)]` offers the labels of the block it names, collected from the scope the reference resolves in.
 These are the labels the reference check accepts.
+
+A defaulted scalar's insert pre-fills the rendered default as the selected snippet placeholder.
+For example, accepting `workers` writes `workers = 4` with the `4` selected.
+One keystroke replaces it.
+A value position on a defaulted field offers the default as a preselected item.
+On a keyword field the default's own item is preselected instead.
 
 Hover reads the field under the cursor.
 It renders the field's doc comment, its declared type, whether it has a default, and its constraint.
 It also states whether the field is set by the configuration or left to its default.
 This state comes from the field's presence in the parsed file.
-A scalar default prints its value, "Defaults to 4.", and a defaulted shape the schema cannot render states that a default applies.
+A scalar default prints its value.
+For example, hover on `workers` reads "Defaults to 4."
+A defaulted shape the schema cannot render, such as a list, states that a default applies.
 Hover on a reference value names the block it references and states whether the value resolves to a defined label.
 Diagnostics run the reference pass as well, so an undefined reference, a duplicate label, and an empty label appear in the editor the way `check_references` reports them in your pipeline.
 
 A diagnostic on a defaulted scalar's value carries a quick fix.
-The action sets the field to its rendered default, a value the schema vouches for, so an out-of-range `workers = 9999` resets to `workers = 4` in one step.
+The action sets the field to its rendered default.
+For example, an out-of-range `workers = 9999` resets to `workers = 4` in one step.
 
 Navigation follows the label model.
-Go-to-definition jumps from a reference value to the matching label in its declaring scope, and find-references lists every reference value that resolves to a label, from the label or from any of its references.
+Go-to-definition jumps from a reference value to the matching label in its declaring scope.
+Find-references lists every reference value that resolves to a label, whether you start from the label or from one of its references.
 Document symbols answer the editor's outline and breadcrumbs with the block tree, each instance carrying its label.
 
 ## The formats it serves
