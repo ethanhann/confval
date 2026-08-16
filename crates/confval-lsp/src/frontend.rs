@@ -9,7 +9,7 @@
 
 use confval::diagnostic::Report;
 use confval::format::Fields;
-use confval::schema::SchemaField;
+use confval::schema::{ScalarType, SchemaField};
 use confval::source::{SourceId, SourceMap};
 
 use crate::resolve::{bodies_along_path, resolve_in_tree, value_span_in};
@@ -327,6 +327,25 @@ pub trait Frontend {
     fn wrap_element(&self, insert: String) -> String {
         insert
     }
+
+    /// Renders a default value as the format's literal text, from the leaf and
+    /// the carried text. The pre-filled insert, the preselected value item,
+    /// and the code-action edit all go through it, so the editor writes the
+    /// value the way the format reads it. The default quotes a string and a
+    /// path and passes the rest through, and KDL overrides the boolean forms.
+    fn default_literal(&self, leaf: &ScalarType, text: &str) -> String {
+        match leaf {
+            ScalarType::String | ScalarType::Path => quoted_literal(text),
+            _ => text.to_string(),
+        }
+    }
+}
+
+/// A quoted string literal with its inner quotes and backslashes escaped, the
+/// form every frontend's string syntax reads.
+pub(crate) fn quoted_literal(text: &str) -> String {
+    let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{escaped}\"")
 }
 
 #[cfg(test)]

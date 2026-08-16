@@ -2,8 +2,9 @@
 //! server capabilities.
 
 use lsp_types::{
-    CompletionOptions, HoverProviderCapability, InitializeParams, PositionEncodingKind,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    CodeActionProviderCapability, CompletionOptions, HoverProviderCapability, InitializeParams,
+    OneOf, PositionEncodingKind, ServerCapabilities, TextDocumentSyncCapability,
+    TextDocumentSyncKind,
 };
 
 use crate::encoding::PositionEncoding;
@@ -36,6 +37,31 @@ pub(crate) fn supports_snippets(params: &InitializeParams) -> bool {
         .unwrap_or(false)
 }
 
+/// Whether the client renders a hierarchical document-symbol tree. A client
+/// without it receives the flat form.
+pub(crate) fn supports_hierarchical_symbols(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|document| document.document_symbol.as_ref())
+        .and_then(|symbols| symbols.hierarchical_document_symbol_support)
+        .unwrap_or(false)
+}
+
+/// Whether the client honors a preselected completion item. Without it the
+/// preselect flag is withheld, so the client's own ranking stands.
+pub(crate) fn supports_preselect(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|document| document.completion.as_ref())
+        .and_then(|completion| completion.completion_item.as_ref())
+        .and_then(|item| item.preselect_support)
+        .unwrap_or(false)
+}
+
 /// The server's advertised capabilities.
 pub(crate) fn server_capabilities(encoding: PositionEncoding) -> ServerCapabilities {
     ServerCapabilities {
@@ -43,6 +69,10 @@ pub(crate) fn server_capabilities(encoding: PositionEncoding) -> ServerCapabilit
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         completion_provider: Some(CompletionOptions::default()),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
+        definition_provider: Some(OneOf::Left(true)),
+        references_provider: Some(OneOf::Left(true)),
+        document_symbol_provider: Some(OneOf::Left(true)),
+        code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
         ..ServerCapabilities::default()
     }
 }

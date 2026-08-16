@@ -14,18 +14,25 @@ use lsp_types::notification::{
     DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Notification as _,
     PublishDiagnostics,
 };
-use lsp_types::request::{Completion, HoverRequest, Request as _};
+use lsp_types::request::{
+    CodeActionRequest, Completion, DocumentSymbolRequest, GotoDefinition, HoverRequest,
+    References, Request as _,
+};
 use lsp_types::{
-    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, Hover, HoverParams, InitializeParams, InitializeResult,
-    PublishDiagnosticsParams, Uri,
+    CodeActionOrCommand, CodeActionParams, CompletionParams, CompletionResponse,
+    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, Hover, HoverParams,
+    InitializeParams, InitializeResult, PublishDiagnosticsParams, ReferenceParams, Uri,
 };
 
 use confval::format::{Fields, FromFields};
 use confval::pipeline::{Validate, ValidateNested};
 use confval::schema::{Schema, ToSchema};
 
-use crate::capabilities::{negotiate, server_capabilities, supports_snippets};
+use crate::capabilities::{
+    negotiate, server_capabilities, supports_hierarchical_symbols, supports_preselect,
+    supports_snippets,
+};
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::Frontend;
 use crate::handlers;
@@ -50,6 +57,8 @@ pub struct Server<S, F> {
     frontend: F,
     encoding: PositionEncoding,
     snippets: bool,
+    hierarchical: bool,
+    preselect: bool,
     schema: Schema,
     documents: HashMap<String, Document>,
     spec: PhantomData<fn() -> S>,
@@ -67,6 +76,8 @@ where
             frontend,
             encoding: PositionEncoding::Utf16,
             snippets: false,
+            hierarchical: false,
+            preselect: false,
             schema: S::schema(),
             documents: HashMap::new(),
             spec: PhantomData,
@@ -79,6 +90,8 @@ where
         let params: InitializeParams = serde_json::from_value(params)?;
         self.encoding = negotiate(&params);
         self.snippets = supports_snippets(&params);
+        self.hierarchical = supports_hierarchical_symbols(&params);
+        self.preselect = supports_preselect(&params);
         let result = InitializeResult {
             capabilities: server_capabilities(self.encoding),
             server_info: None,
@@ -119,6 +132,28 @@ where
                 Ok((id, params)) => Response::new_ok(id, self.hover(params)),
                 Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
             },
+            GotoDefinition::METHOD => {
+                match request.extract::<GotoDefinitionParams>(GotoDefinition::METHOD) {
+                    Ok((id, params)) => Response::new_ok(id, self.definition(params)),
+                    Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
+                }
+            }
+            References::METHOD => match request.extract::<ReferenceParams>(References::METHOD) {
+                Ok((id, params)) => Response::new_ok(id, self.references(params)),
+                Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
+            },
+            DocumentSymbolRequest::METHOD => {
+                match request.extract::<DocumentSymbolParams>(DocumentSymbolRequest::METHOD) {
+                    Ok((id, params)) => Response::new_ok(id, self.document_symbols(params)),
+                    Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
+                }
+            }
+            CodeActionRequest::METHOD => {
+                match request.extract::<CodeActionParams>(CodeActionRequest::METHOD) {
+                    Ok((id, params)) => Response::new_ok(id, self.code_action(params)),
+                    Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
+                }
+            }
             _ => Response::new_err(id, METHOD_NOT_FOUND, format!("unhandled method: {method}")),
         };
         connection.sender.send(Message::Response(response))?;
@@ -185,8 +220,13 @@ where
         let Some(document) = self.documents.get(&key(uri)) else {
             return Ok(());
         };
-        let diagnostics =
-            handlers::diagnostics::<S, F>(&self.frontend, &document.text, uri, self.encoding);
+        let diagnostics = handlers::diagnostics::<S, F>(
+            &self.frontend,
+            &self.schema,
+            &document.text,
+            uri,
+            self.encoding,
+        );
         let params = PublishDiagnosticsParams {
             uri: uri.clone(),
             diagnostics,
@@ -239,8 +279,99 @@ where
             &index,
             self.encoding,
             self.snippets,
+            self.preselect,
         );
         CompletionResponse::Array(items)
+    }
+
+    /// Resolves the cursor of a positioned request against a stored document.
+    fn resolve_at(
+        &self,
+        uri: &Uri,
+        position: lsp_types::Position,
+    ) -> Option<(&Document, LineIndex, crate::frontend::CursorContext)> {
+        let document = self.documents.get(&key(uri))?;
+        let index = LineIndex::new(&document.text);
+        let offset = index.offset_of(&document.text, position, self.encoding);
+        let context = self
+            .frontend
+            .resolve(document.tree.as_ref(), &document.text, offset);
+        Some((document, index, context))
+    }
+
+    /// Computes the definition response for a request.
+    fn definition(&self, params: GotoDefinitionParams) -> Option<lsp_types::Location> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        let (document, index, context) = self.resolve_at(uri, position)?;
+        handlers::definition(
+            &self.schema,
+            &context,
+            uri,
+            &document.text,
+            &index,
+            self.encoding,
+        )
+    }
+
+    /// Computes the references response for a request.
+    fn references(&self, params: ReferenceParams) -> Vec<lsp_types::Location> {
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let Some((document, index, context)) = self.resolve_at(uri, position) else {
+            return Vec::new();
+        };
+        handlers::references(
+            &self.schema,
+            &context,
+            params.context.include_declaration,
+            uri,
+            &document.text,
+            &index,
+            self.encoding,
+        )
+    }
+
+    /// Computes the document-symbol response for a request. A buffer that does
+    /// not parse answers nothing, because the outline reads parsed spans.
+    fn document_symbols(&self, params: DocumentSymbolParams) -> Option<DocumentSymbolResponse> {
+        let uri = &params.text_document.uri;
+        let document = self.documents.get(&key(uri))?;
+        let tree = document.tree.as_ref()?;
+        let index = LineIndex::new(&document.text);
+        Some(handlers::document_symbols(
+            &self.schema,
+            tree,
+            self.frontend.block_span_covers_body(),
+            self.hierarchical,
+            uri,
+            &document.text,
+            &index,
+            self.encoding,
+        ))
+    }
+
+    /// Computes the code-action response for a request, resolved at the
+    /// request range's start.
+    fn code_action(&self, params: CodeActionParams) -> Vec<CodeActionOrCommand> {
+        let uri = &params.text_document.uri;
+        let Some((document, index, context)) = self.resolve_at(uri, params.range.start) else {
+            return Vec::new();
+        };
+        handlers::code_action(
+            &self.frontend,
+            &handlers::Cx {
+                schema: &self.schema,
+                fields: document.tree.as_ref(),
+                ctx: &context,
+                text: &document.text,
+            },
+            &params.context.diagnostics,
+            params.context.only.as_deref(),
+            uri,
+            &index,
+            self.encoding,
+        )
     }
 
     /// Computes the hover response for a request.

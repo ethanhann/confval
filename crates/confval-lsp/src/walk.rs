@@ -78,7 +78,13 @@ pub(crate) fn resolved_level<'a>(
         .or_else(|| fields.and_then(|tree| fields_at(tree, &ctx.path)))
 }
 
-/// The labels a reference at the cursor resolves against.
+/// A reference target's declaring scope: its schema and its instance body.
+pub(crate) struct DeclaringScope<'a> {
+    pub(crate) schema: &'a Schema,
+    pub(crate) body: &'a Fields,
+}
+
+/// The declaring scope for a reference target at the cursor.
 ///
 /// It searches outward from the cursor's scope to the nearest enclosing scope
 /// whose schema declares the labeled `block`, the rule `check_references`
@@ -86,11 +92,11 @@ pub(crate) fn resolved_level<'a>(
 /// carries.
 /// Returns `None` when no enclosing scope declares the target or when the
 /// buffer did not parse, which leaves no carried bodies.
-pub(crate) fn reference_labels(
-    schema: &Schema,
-    ctx: &CursorContext,
+pub(crate) fn declaring_scope<'a>(
+    schema: &'a Schema,
+    ctx: &'a CursorContext,
     block: &str,
-) -> Option<Vec<Located<String>>> {
+) -> Option<DeclaringScope<'a>> {
     let innermost = ctx.path.len();
     for depth in (0..=innermost).rev() {
         let Some(scope_schema) = schema_at(schema, &ctx.path[..depth]) else {
@@ -104,7 +110,22 @@ pub(crate) fn reference_labels(
         } else {
             ctx.ancestors.get(depth)
         }?;
-        return Some(scope_labels(body, scope_schema, block));
+        return Some(DeclaringScope {
+            schema: scope_schema,
+            body,
+        });
     }
     None
+}
+
+/// The labels a reference at the cursor resolves against: the declaring
+/// scope's labels for `block`, or `None` when no scope declares it or the
+/// buffer did not parse.
+pub(crate) fn reference_labels(
+    schema: &Schema,
+    ctx: &CursorContext,
+    block: &str,
+) -> Option<Vec<Located<String>>> {
+    let scope = declaring_scope(schema, ctx, block)?;
+    Some(scope_labels(scope.body, scope.schema, block))
 }
