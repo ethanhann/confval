@@ -8,12 +8,20 @@ use std::str::FromStr;
 use lsp_types::{DocumentSymbolResponse, Location, SymbolKind, Uri};
 
 use confval::schema::ToSchema;
-use confval_lsp::handlers::{definition, document_symbols, references};
+use confval_lsp::handlers::{SymbolShape, definition, document_symbols, references};
 use confval_lsp::{Frontend, Hcl, LineIndex, PositionEncoding, Toml, Yaml};
 
 use fixture::{GatewaySpec, MeshSpec, ServerSpec};
 
 const ENCODING: PositionEncoding = PositionEncoding::Utf8;
+
+/// The test document URI.
+fn doc_uri() -> Uri {
+    match Uri::from_str("file:///doc") {
+        Ok(uri) => uri,
+        Err(_) => panic!("a valid uri"),
+    }
+}
 
 /// The byte range a location covers, for asserting against the text.
 fn covered(location: &Location, text: &str, index: &LineIndex) -> String {
@@ -31,7 +39,7 @@ fn definition_at<F: Frontend>(
 ) -> Option<Location> {
     let tree = frontend.parse_tree(text);
     let context = frontend.resolve(tree.as_ref(), text, offset);
-    let uri = Uri::from_str("file:///doc").unwrap();
+    let uri = doc_uri();
     let index = LineIndex::new(text);
     definition(schema, &context, &uri, text, &index, ENCODING)
 }
@@ -46,7 +54,7 @@ fn references_at<F: Frontend>(
 ) -> Vec<Location> {
     let tree = frontend.parse_tree(text);
     let context = frontend.resolve(tree.as_ref(), text, offset);
-    let uri = Uri::from_str("file:///doc").unwrap();
+    let uri = doc_uri();
     let index = LineIndex::new(text);
     references(
         schema,
@@ -256,7 +264,18 @@ fn hierarchical_symbols_nest_the_blocks_with_their_labels() {
     let index = LineIndex::new(text);
 
     // Act
-    let response = document_symbols(&schema, &tree, true, true, &uri, text, &index, ENCODING);
+    let response = document_symbols(
+        &schema,
+        &tree,
+        SymbolShape {
+            covers_body: true,
+            hierarchical: true,
+        },
+        &uri,
+        text,
+        &index,
+        ENCODING,
+    );
 
     // Assert
     let DocumentSymbolResponse::Nested(symbols) = response else {
@@ -291,8 +310,10 @@ fn toml_container_ranges_contain_their_children() {
     let response = document_symbols(
         &schema,
         &tree,
-        Toml.block_span_covers_body(),
-        true,
+        SymbolShape {
+            covers_body: Toml.block_span_covers_body(),
+            hierarchical: true,
+        },
         &uri,
         text,
         &index,
@@ -329,7 +350,18 @@ fn the_flat_form_lists_every_symbol_with_its_container() {
     let index = LineIndex::new(text);
 
     // Act
-    let response = document_symbols(&schema, &tree, true, false, &uri, text, &index, ENCODING);
+    let response = document_symbols(
+        &schema,
+        &tree,
+        SymbolShape {
+            covers_body: true,
+            hierarchical: false,
+        },
+        &uri,
+        text,
+        &index,
+        ENCODING,
+    );
 
     // Assert
     let DocumentSymbolResponse::Flat(symbols) = response else {

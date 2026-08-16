@@ -17,4 +17,4 @@ pub use completion::{Cx, completion};
 pub use diagnostics::diagnostics;
 pub use hover::hover;
 pub use navigation::{definition, references};
-pub use symbols::document_symbols;
+pub use symbols::{SymbolShape, document_symbols};

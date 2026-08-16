@@ -26,24 +26,31 @@ struct RawSymbol {
     children: Vec<RawSymbol>,
 }
 
+/// The two answers that shape a symbol response: the frontend's block-span
+/// form and the client's hierarchy support.
+pub struct SymbolShape {
+    /// The frontend's block-span answer. When a block's span covers only its
+    /// header, a container's range extends to the next sibling or the level
+    /// end, the same extension cursor resolution applies, so a TOML
+    /// container's range contains its children.
+    pub covers_body: bool,
+    /// Whether the client renders the hierarchical tree. Without it the flat
+    /// form answers.
+    pub hierarchical: bool,
+}
+
 /// Produces the document symbols for a parsed document.
-///
-/// `covers_body` is the frontend's block-span answer: when a block's span
-/// covers only its header, a container's range extends to the next sibling or
-/// the level end, the same extension cursor resolution applies, so a TOML
-/// container's range contains its children.
 pub fn document_symbols(
     schema: &Schema,
     fields: &Fields,
-    covers_body: bool,
-    hierarchical: bool,
+    shape: SymbolShape,
     uri: &Uri,
     text: &str,
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> DocumentSymbolResponse {
-    let symbols = level_symbols(schema, fields, covers_body, text.len());
-    if hierarchical {
+    let symbols = level_symbols(schema, fields, shape.covers_body, text.len());
+    if shape.hierarchical {
         DocumentSymbolResponse::Nested(
             symbols
                 .into_iter()
