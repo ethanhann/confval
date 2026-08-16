@@ -117,8 +117,8 @@ fn label_site<'a>(schema: &'a Schema, ctx: &'a CursorContext) -> Option<LabelSit
 }
 
 /// The site for a cursor on a reference value. The declaration is the first
-/// matching label in document order, a deterministic pick for the duplicate
-/// buffer diagnostics already flag.
+/// matching label in document order, a deterministic pick for a buffer whose
+/// duplicate labels diagnostics already flag.
 fn reference_site<'a>(
     schema: &'a Schema,
     ctx: &'a CursorContext,

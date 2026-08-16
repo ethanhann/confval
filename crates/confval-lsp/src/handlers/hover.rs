@@ -2,9 +2,9 @@
 //!
 //! It resolves the field under the cursor and renders its doc comment, declared
 //! type, its default, and its constraint. A scalar default prints its rendered
-//! value in a format-neutral form, and a defaulted shape the schema cannot
-//! render, such as a list, states that a default applies. It reads operator-set
-//! versus defaulted from the field's presence in the parsed fields, not from a
+//! value in a format-neutral form. A defaulted shape the schema cannot render,
+//! such as a list, states that a default applies. It reads operator-set versus
+//! defaulted from the field's presence in the parsed fields, not from a
 //! sentinel span.
 
 use lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind};

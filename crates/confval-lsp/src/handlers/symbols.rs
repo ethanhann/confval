@@ -30,9 +30,9 @@ struct RawSymbol {
 /// form and the client's hierarchy support.
 pub struct SymbolShape {
     /// The frontend's block-span answer. When a block's span covers only its
-    /// header, a container's range extends to the next sibling or the level
-    /// end, the same extension cursor resolution applies, so a TOML
-    /// container's range contains its children.
+    /// header, the container's range extends to the next sibling or the level
+    /// end. Cursor resolution applies the same extension. A TOML container's
+    /// range therefore contains its children.
     pub covers_body: bool,
     /// Whether the client renders the hierarchical tree. Without it the flat
     /// form answers.

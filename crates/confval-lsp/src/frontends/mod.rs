@@ -41,7 +41,7 @@ fn value_placeholder<F: Frontend + ?Sized>(frontend: &F, field: &SchemaField) ->
     format!("${{1:{literal}}}")
 }
 
-/// Escapes the snippet metacharacters, so user text travels through a
+/// Escapes the snippet metacharacters, so user text passes through a
 /// placeholder verbatim.
 fn snippet_escape(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len());

@@ -96,7 +96,7 @@ fn definition_on_a_reference_value_answers_the_label_span() {
 #[test]
 fn definition_on_a_duplicated_label_answers_the_first_in_document_order() {
     // Arrange
-    // Both upstreams carry the label `api`, a buffer diagnostics already flag.
+    // Both upstreams carry the label `api`, which diagnostics already flag.
     // The pick is the first declaration, deterministically.
     let text = "upstream:\n  - name: api\n    host: h\n    port: 1\n  - name: api\n    host: h2\n    port: 2\nroutes:\n  - prefix: /a\n    upstream: \"api\"\n";
     let offset = text.rfind("\"api\"").unwrap() + 1;

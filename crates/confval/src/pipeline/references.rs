@@ -55,11 +55,11 @@ pub struct ReferenceSite<'a> {
 }
 
 /// Visits every reference field below `fields`, with the declaring scope its
-/// outward search resolves. The reference pass and the language server drive
-/// the same walk, so the resolution rule cannot drift between them. Start it at
-/// the root to cover a document, or at one scope instance to cover that scope,
-/// in which case a site whose search stays inside the walk resolves against the
-/// walk's own chain.
+/// outward search resolves. The reference pass and the language server both
+/// run this walk, so both resolve a reference by the same rule. Start it at
+/// the root to cover a document, or at one scope instance to cover that scope.
+/// In the scoped form, a site whose search stays inside the walk resolves
+/// against the walk's own chain.
 pub fn visit_references<'a>(
     fields: &'a Fields,
     schema: &'a Schema,

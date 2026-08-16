@@ -83,8 +83,9 @@ pub(crate) fn field_schema(
 /// The rendered default text for a scalar leaf, evaluated inside the generated
 /// `schema()`. The typed binding pins the expression to the leaf's Rust type,
 /// so a bare default renders that type's own default. A float renders through
-/// `{:?}` so a whole number keeps its `.0`, matching the emitters, and a path
-/// renders through its lossy string form, matching the populate walk.
+/// `{:?}`, so a whole number keeps its `.0`, the form the emitters write. A
+/// path renders through its lossy string form, the form the populate walk
+/// reads.
 fn default_text(leaf: &Leaf, expr: &TokenStream2) -> TokenStream2 {
     match leaf {
         Leaf::String => quote! {

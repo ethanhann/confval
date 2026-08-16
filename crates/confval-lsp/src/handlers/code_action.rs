@@ -2,10 +2,9 @@
 //!
 //! A diagnostic contained in the value span of a scalar field that carries a
 //! rendered default gets one quick fix: set the field to its default. The
-//! default is a value the schema vouches for, so the fix is safe for a
-//! constraint violation and a type mismatch alike. The diagnostics come from
-//! the request's context, the client's own published set, so the server
-//! recomputes nothing.
+//! default comes from the schema, so the fix resolves a constraint violation
+//! and a type mismatch alike. The diagnostics come from the request's context,
+//! the client's own published set, so the server recomputes nothing.
 
 use std::collections::HashMap;
 
@@ -25,8 +24,8 @@ use crate::walk::schema_at;
 ///
 /// The context resolves at the request range's start. The action is offered
 /// only at a value position of a defaulted scalar, when a context diagnostic
-/// sits inside the parsed value span, so a diagnostic anchored at an enclosing
-/// block or the file never lights a fix. `only` is the client's kind filter.
+/// is inside the parsed value span. A diagnostic anchored at an enclosing
+/// block or the file produces no fix. `only` is the client's kind filter.
 pub fn code_action<F: Frontend>(
     frontend: &F,
     cx: &Cx,

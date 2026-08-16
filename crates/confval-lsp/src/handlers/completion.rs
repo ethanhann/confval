@@ -345,9 +345,9 @@ fn encode_item(
     item
 }
 
-/// Removes the snippet markers for a client without snippet support: the `$0`
-/// tab stop is dropped, and a `${n:value}` placeholder unwraps to its value
-/// with the snippet escaping removed, so the bare text reaches the buffer.
+/// Removes the snippet markers for a client without snippet support. The `$0`
+/// tab stop is dropped. A `${n:value}` placeholder unwraps to its value with
+/// the snippet escaping removed, so the bare text reaches the buffer.
 fn strip_snippet_markers(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();

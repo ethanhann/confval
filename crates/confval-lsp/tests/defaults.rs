@@ -393,7 +393,7 @@ fn the_negative_cases_offer_no_fix() {
     // `port` carries no default, so its range violation offers nothing.
     let no_default = "hostname: h\nport: 99999\n";
     // The missing-required diagnostic anchors at the enclosing span, so it
-    // never lights a defaulted value elsewhere.
+    // does not qualify a defaulted value elsewhere.
     let enclosing = "port: 1\nworkers: 2\n";
     let no_parse = "workers: 9999\nbad: [\n";
 

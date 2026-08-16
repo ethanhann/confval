@@ -332,7 +332,7 @@ pub trait Frontend {
     /// the carried text. The pre-filled insert, the preselected value item,
     /// and the code-action edit all go through it, so the editor writes the
     /// value the way the format reads it. The default quotes a string and a
-    /// path and passes the rest through, and KDL overrides the boolean forms.
+    /// path and passes the rest through. KDL overrides the boolean forms.
     fn default_literal(&self, leaf: &ScalarType, text: &str) -> String {
         match leaf {
             ScalarType::String | ScalarType::Path => quoted_literal(text),
