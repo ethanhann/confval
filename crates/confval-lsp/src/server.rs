@@ -15,8 +15,8 @@ use lsp_types::notification::{
     PublishDiagnostics,
 };
 use lsp_types::request::{
-    CodeActionRequest, Completion, DocumentSymbolRequest, GotoDefinition, HoverRequest,
-    References, Request as _,
+    CodeActionRequest, Completion, DocumentSymbolRequest, GotoDefinition, HoverRequest, References,
+    Request as _,
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionParams, CompletionParams, CompletionResponse,
@@ -342,8 +342,10 @@ where
         Some(handlers::document_symbols(
             &self.schema,
             tree,
-            self.frontend.block_span_covers_body(),
-            self.hierarchical,
+            handlers::SymbolShape {
+                covers_body: self.frontend.block_span_covers_body(),
+                hierarchical: self.hierarchical,
+            },
             uri,
             &document.text,
             &index,

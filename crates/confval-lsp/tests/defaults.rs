@@ -76,8 +76,7 @@ fn hover_markdown<F: Frontend>(
     let tree = frontend.parse_tree(text);
     let context = frontend.resolve(tree.as_ref(), text, offset);
     let index = LineIndex::new(text);
-    let found =
-        hover(schema, tree.as_ref(), &context, text, &index, ENCODING).expect("a hover");
+    let found = hover(schema, tree.as_ref(), &context, text, &index, ENCODING).expect("a hover");
     match found.contents {
         HoverContents::Markup(markup) => markup.value,
         _ => panic!("expected a markdown hover"),
@@ -130,8 +129,12 @@ fn hover_prints_the_rendered_default_for_the_three_states() {
     // Act
     let set_markdown = hover_markdown(&Yaml, &schema, set, set.find("workers").unwrap() + 1);
     let unset_markdown = hover_markdown(&Yaml, &schema, unset, unset.find("mode").unwrap() + 1);
-    let uncarried_markdown =
-        hover_markdown(&Yaml, &schema, uncarried, uncarried.find("allow").unwrap() + 1);
+    let uncarried_markdown = hover_markdown(
+        &Yaml,
+        &schema,
+        uncarried,
+        uncarried.find("allow").unwrap() + 1,
+    );
 
     // Assert
     assert!(set_markdown.contains("Defaults to 4."), "{set_markdown}");
@@ -217,8 +220,15 @@ fn a_value_position_offers_the_preselected_default_per_constraint_shape() {
     let range = complete(&Yaml, &schema, range_text, range_offset, false, true);
 
     // Assert
-    let enforce = keywords.iter().find(|i| i.label == "enforce").expect("enforce");
-    assert_eq!(enforce.preselect, Some(true), "the default keyword preselects");
+    let enforce = keywords
+        .iter()
+        .find(|i| i.label == "enforce")
+        .expect("enforce");
+    assert_eq!(
+        enforce.preselect,
+        Some(true),
+        "the default keyword preselects"
+    );
     assert!(
         keywords
             .iter()
@@ -251,7 +261,12 @@ fn the_rendered_default_round_trips_through_every_frontend() {
         wrap: impl Fn(&str) -> String,
     ) {
         let items = complete(frontend, schema, "", 0, false, false);
-        let workers = inserted(items.iter().find(|i| i.label == "workers").expect("workers"));
+        let workers = inserted(
+            items
+                .iter()
+                .find(|i| i.label == "workers")
+                .expect("workers"),
+        );
         let tls = inserted(items.iter().find(|i| i.label == "tls").expect("tls"));
         let document = wrap(&format!("{workers}\n{tls}"));
         let tree = frontend

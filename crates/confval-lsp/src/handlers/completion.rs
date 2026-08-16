@@ -187,7 +187,12 @@ fn absorb_left(text: &str, start: usize, absorb: Absorb, kind: &PositionKind) ->
 /// schema. A reference field offers the labels of the block it names, collected
 /// from the root schema and the parsed fields, because the target block sits
 /// elsewhere in the document.
-fn value_items<F: Frontend>(frontend: &F, enclosing: &Schema, field: &str, cx: &Cx) -> Vec<RawItem> {
+fn value_items<F: Frontend>(
+    frontend: &F,
+    enclosing: &Schema,
+    field: &str,
+    cx: &Cx,
+) -> Vec<RawItem> {
     let Some(target) = enclosing
         .fields
         .iter()

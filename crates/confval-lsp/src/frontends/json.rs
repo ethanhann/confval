@@ -44,7 +44,11 @@ impl Frontend for Json {
             SchemaType::Block { .. } => format!("\"{}\": {{\n  $0\n}}", field.name),
             SchemaType::StringList => format!("\"{}\": [$0]", field.name),
             SchemaType::StringMap => format!("\"{}\": {{ $0 }}", field.name),
-            _ => format!("\"{}\": {}", field.name, super::value_placeholder(self, field)),
+            _ => format!(
+                "\"{}\": {}",
+                field.name,
+                super::value_placeholder(self, field)
+            ),
         };
         Insert {
             text,
