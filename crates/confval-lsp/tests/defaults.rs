@@ -19,6 +19,14 @@ use fixture::{LimitsSpec, ServerSpec};
 
 const ENCODING: PositionEncoding = PositionEncoding::Utf8;
 
+/// The test document URI.
+fn doc_uri() -> Uri {
+    match Uri::from_str("file:///doc") {
+        Ok(uri) => uri,
+        Err(_) => panic!("a valid uri"),
+    }
+}
+
 /// A spec whose string default carries snippet metacharacters.
 #[derive(confval::Spec)]
 struct BadgeSpec {
@@ -76,7 +84,9 @@ fn hover_markdown<F: Frontend>(
     let tree = frontend.parse_tree(text);
     let context = frontend.resolve(tree.as_ref(), text, offset);
     let index = LineIndex::new(text);
-    let found = hover(schema, tree.as_ref(), &context, text, &index, ENCODING).expect("a hover");
+    let Some(found) = hover(schema, tree.as_ref(), &context, text, &index, ENCODING) else {
+        panic!("a hover is produced");
+    };
     match found.contents {
         HoverContents::Markup(markup) => markup.value,
         _ => panic!("expected a markdown hover"),
@@ -94,7 +104,7 @@ fn actions_at<F: Frontend>(
 ) -> Vec<CodeActionOrCommand> {
     let tree = frontend.parse_tree(text);
     let context = frontend.resolve(tree.as_ref(), text, offset);
-    let uri = Uri::from_str("file:///doc").unwrap();
+    let uri = doc_uri();
     let index = LineIndex::new(text);
     code_action(
         frontend,
@@ -114,8 +124,7 @@ fn actions_at<F: Frontend>(
 
 /// The real pipeline diagnostics for a YAML ServerSpec document.
 fn server_diagnostics(text: &str) -> Vec<lsp_types::Diagnostic> {
-    let uri = Uri::from_str("file:///doc").unwrap();
-    diagnostics::<ServerSpec, Yaml>(&Yaml, &ServerSpec::schema(), text, &uri, ENCODING)
+    diagnostics::<ServerSpec, Yaml>(&Yaml, &ServerSpec::schema(), text, &doc_uri(), ENCODING)
 }
 
 #[test]
@@ -333,9 +342,14 @@ fn a_range_violation_gets_the_reset_quick_fix() {
         action.diagnostics.as_ref().is_some_and(|d| !d.is_empty()),
         "the action carries the diagnostic it fixes"
     );
-    let changes = action.edit.as_ref().unwrap().changes.as_ref().unwrap();
-    let edit = &changes.values().next().unwrap()[0];
-    assert_eq!(edit.new_text, "4");
+    let edits: Vec<lsp_types::TextEdit> = action
+        .edit
+        .as_ref()
+        .and_then(|edit| edit.changes.as_ref())
+        .map(|changes| changes.values().flatten().cloned().collect())
+        .unwrap_or_default();
+    assert_eq!(edits.len(), 1);
+    assert_eq!(edits[0].new_text, "4");
 }
 
 #[test]
