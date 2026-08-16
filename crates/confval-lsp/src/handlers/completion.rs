@@ -20,7 +20,7 @@ use lsp_types::{
 };
 
 use confval::format::Fields;
-use confval::schema::{Constraint, Schema, SchemaField, SchemaType};
+use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{Absorb, CursorContext, Frontend, PositionKind};
@@ -53,6 +53,9 @@ struct RawItem {
     /// Orders the client's list by schema declaration order rather than
     /// alphabetically, so related fields stay together.
     sort_text: String,
+    /// Marks the item the client should preselect: the field's default among
+    /// its values. Withheld at encode time when the client lacks the support.
+    preselect: bool,
     edit: (usize, usize),
     new_text: String,
 }
@@ -64,10 +67,11 @@ pub fn completion<F: Frontend>(
     index: &LineIndex,
     encoding: PositionEncoding,
     snippets: bool,
+    preselect: bool,
 ) -> Vec<CompletionItem> {
     raw_items(frontend, cx)
         .into_iter()
-        .map(|raw| encode_item(raw, cx.text, index, encoding, snippets))
+        .map(|raw| encode_item(raw, cx.text, index, encoding, snippets, preselect))
         .collect()
 }
 
@@ -79,7 +83,7 @@ fn raw_items<F: Frontend>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
     };
     match &cx.ctx.kind {
         PositionKind::Body => body_items(frontend, enclosing, cx),
-        PositionKind::AttributeValue { field } => value_items(enclosing, field, cx),
+        PositionKind::AttributeValue { field } => value_items(frontend, enclosing, field, cx),
         PositionKind::BlockLabel { .. } => Vec::new(),
     }
 }
@@ -141,6 +145,7 @@ fn field_item<F: Frontend>(
         detail: field.doc.clone(),
         filter_text: None,
         sort_text: sort_key(order),
+        preselect: false,
         edit: (start, cx.ctx.token.1),
         new_text,
     }
@@ -182,7 +187,7 @@ fn absorb_left(text: &str, start: usize, absorb: Absorb, kind: &PositionKind) ->
 /// schema. A reference field offers the labels of the block it names, collected
 /// from the root schema and the parsed fields, because the target block sits
 /// elsewhere in the document.
-fn value_items(enclosing: &Schema, field: &str, cx: &Cx) -> Vec<RawItem> {
+fn value_items<F: Frontend>(frontend: &F, enclosing: &Schema, field: &str, cx: &Cx) -> Vec<RawItem> {
     let Some(target) = enclosing
         .fields
         .iter()
@@ -197,16 +202,61 @@ fn value_items(enclosing: &Schema, field: &str, cx: &Cx) -> Vec<RawItem> {
         } => words
             .iter()
             .enumerate()
-            .map(|(order, word)| keyword_item(word, cx, order))
+            .map(|(order, word)| {
+                let mut item = keyword_item(word, cx, order);
+                // The default among the keywords is preselected rather than
+                // duplicated. A default absent from the set, which the derive
+                // permits, preselects nothing, because the set is
+                // authoritative.
+                item.preselect = target.default_text.as_deref() == Some(*word);
+                item
+            })
             .collect(),
         SchemaType::Scalar {
             constraint: Some(Constraint::References { block }),
             ..
         } => reference_items(block, cx),
-        // A `Range` constraint bounds a number, which is typed rather than
-        // chosen from a closed set, so it deliberately falls through to no
-        // items.
+        // A number bounded by a `Range` and an unconstrained scalar are typed
+        // rather than chosen from a closed set, so they offer only the
+        // rendered default, when the field carries one.
+        SchemaType::Scalar { leaf, .. } => default_item(frontend, leaf, target, cx)
+            .into_iter()
+            .collect(),
         _ => Vec::new(),
+    }
+}
+
+/// The one preselected item a defaulted scalar offers at a value position: the
+/// rendered default in the format's literal form.
+fn default_item<F: Frontend>(
+    frontend: &F,
+    leaf: &ScalarType,
+    target: &SchemaField,
+    cx: &Cx,
+) -> Option<RawItem> {
+    let text = target.default_text.as_deref()?;
+    let literal = frontend.default_literal(leaf, text);
+    let new_text = separated(cx, literal);
+    Some(RawItem {
+        label: text.to_string(),
+        kind: CompletionItemKind::VALUE,
+        detail: None,
+        filter_text: Some(cx.ctx.token_text.clone()).filter(|current| !current.is_empty()),
+        sort_text: sort_key(0),
+        preselect: true,
+        edit: cx.ctx.token,
+        new_text,
+    })
+}
+
+/// Prefixes the separating space when the replace range starts directly after
+/// the colon, so the completed line parses as a mapping entry rather than a
+/// plain scalar that includes the colon.
+fn separated(cx: &Cx, value: String) -> String {
+    if cx.ctx.token.0 > 0 && cx.text.as_bytes()[cx.ctx.token.0 - 1] == b':' {
+        format!(" {value}")
+    } else {
+        value
     }
 }
 
@@ -231,15 +281,7 @@ fn reference_items(block: &str, cx: &Cx) -> Vec<RawItem> {
 
 /// One completion item for an allowed keyword, inserted as a quoted string.
 fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
-    // A value inserted directly after the colon supplies the separating space,
-    // so the completed line parses as a mapping entry rather than a plain
-    // scalar that includes the colon.
-    let after_colon = cx.ctx.token.0 > 0 && cx.text.as_bytes()[cx.ctx.token.0 - 1] == b':';
-    let new_text = if after_colon {
-        format!(" \"{word}\"")
-    } else {
-        format!("\"{word}\"")
-    };
+    let new_text = separated(cx, format!("\"{word}\""));
     RawItem {
         label: word.to_string(),
         kind: CompletionItemKind::ENUM_MEMBER,
@@ -250,6 +292,7 @@ fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
         // every keyword.
         filter_text: Some(cx.ctx.token_text.clone()).filter(|current| !current.is_empty()),
         sort_text: sort_key(order),
+        preselect: false,
         edit: cx.ctx.token,
         new_text,
     }
@@ -267,12 +310,16 @@ fn encode_item(
     index: &LineIndex,
     encoding: PositionEncoding,
     snippets: bool,
+    preselect: bool,
 ) -> CompletionItem {
-    let is_snippet = snippets && raw.new_text.contains("$0");
-    let new_text = if snippets {
+    // A snippet is anything carrying a tab stop or a placeholder, not the
+    // literal `$0` alone, so a pre-filled `${1:4}` reaches a snippet client as
+    // a snippet and a plain client as the bare value.
+    let is_snippet = snippets && (raw.new_text.contains("$0") || raw.new_text.contains("${"));
+    let new_text = if is_snippet {
         raw.new_text
     } else {
-        raw.new_text.replace("$0", "")
+        strip_snippet_markers(&raw.new_text)
     };
     let mut item = CompletionItem {
         label: raw.label,
@@ -280,6 +327,7 @@ fn encode_item(
         detail: raw.detail,
         filter_text: raw.filter_text,
         sort_text: Some(raw.sort_text),
+        preselect: (raw.preselect && preselect).then_some(true),
         ..CompletionItem::default()
     };
     if is_snippet {
@@ -290,6 +338,47 @@ fn encode_item(
         new_text,
     }));
     item
+}
+
+/// Removes the snippet markers for a client without snippet support: the `$0`
+/// tab stop is dropped, and a `${n:value}` placeholder unwraps to its value
+/// with the snippet escaping removed, so the bare text reaches the buffer.
+fn strip_snippet_markers(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(character) = chars.next() {
+        if character != '$' {
+            out.push(character);
+            continue;
+        }
+        match chars.peek() {
+            Some('0') => {
+                chars.next();
+            }
+            Some('{') => {
+                chars.next();
+                while chars.peek().is_some_and(char::is_ascii_digit) {
+                    chars.next();
+                }
+                if chars.peek() == Some(&':') {
+                    chars.next();
+                }
+                while let Some(inner) = chars.next() {
+                    match inner {
+                        '\\' => {
+                            if let Some(escaped) = chars.next() {
+                                out.push(escaped);
+                            }
+                        }
+                        '}' => break,
+                        other => out.push(other),
+                    }
+                }
+            }
+            _ => out.push('$'),
+        }
+    }
+    out
 }
 
 #[cfg(test)]
