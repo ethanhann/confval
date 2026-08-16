@@ -14,7 +14,7 @@ test-with-coverage:
 
 # Enforce the workspace line-coverage floor. Slow, so it runs here and in pre-release rather than in validate.
 check-coverage:
-    cargo llvm-cov nextest --workspace --exclude confval-derive --all-features --ignore-filename-regex 'tests/|examples/' --fail-under-lines 95
+    cargo llvm-cov nextest --workspace --exclude confval-derive --all-features --ignore-filename-regex 'tests/|examples/|confval-derive/' --fail-under-lines 95
 
 format:
     cargo fmt
