@@ -115,40 +115,20 @@ where
         Ok(())
     }
 
-    /// Dispatches a completion or hover request.
+    /// Dispatches a request to its handler.
     fn on_request(&mut self, connection: &Connection, request: Request) -> Result<(), LspError> {
         let id = request.id.clone();
         let method = request.method.clone();
         let response = match method.as_str() {
-            Completion::METHOD => match request.extract::<CompletionParams>(Completion::METHOD) {
-                Ok((id, params)) => Response::new_ok(id, self.completion(params)),
-                Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
-            },
-            HoverRequest::METHOD => match request.extract::<HoverParams>(HoverRequest::METHOD) {
-                Ok((id, params)) => Response::new_ok(id, self.hover(params)),
-                Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
-            },
-            GotoDefinition::METHOD => {
-                match request.extract::<GotoDefinitionParams>(GotoDefinition::METHOD) {
-                    Ok((id, params)) => Response::new_ok(id, self.definition(params)),
-                    Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
-                }
-            }
-            References::METHOD => match request.extract::<ReferenceParams>(References::METHOD) {
-                Ok((id, params)) => Response::new_ok(id, self.references(params)),
-                Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
-            },
+            Completion::METHOD => respond(request, method, |params| self.completion(params)),
+            HoverRequest::METHOD => respond(request, method, |params| self.hover(params)),
+            GotoDefinition::METHOD => respond(request, method, |params| self.definition(params)),
+            References::METHOD => respond(request, method, |params| self.references(params)),
             DocumentSymbolRequest::METHOD => {
-                match request.extract::<DocumentSymbolParams>(DocumentSymbolRequest::METHOD) {
-                    Ok((id, params)) => Response::new_ok(id, self.document_symbols(params)),
-                    Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
-                }
+                respond(request, method, |params| self.document_symbols(params))
             }
             CodeActionRequest::METHOD => {
-                match request.extract::<CodeActionParams>(CodeActionRequest::METHOD) {
-                    Ok((id, params)) => Response::new_ok(id, self.code_action(params)),
-                    Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
-                }
+                respond(request, method, |params| self.code_action(params))
             }
             _ => Response::new_err(id, METHOD_NOT_FOUND, format!("unhandled method: {method}")),
         };
@@ -389,6 +369,20 @@ where
             &index,
             self.encoding,
         )
+    }
+}
+
+/// Extracts a request's parameters and answers through one handler, or answers
+/// the invalid-params error when the parameters do not deserialize.
+fn respond<P, T>(request: Request, method: String, handle: impl FnOnce(P) -> T) -> Response
+where
+    P: serde::de::DeserializeOwned,
+    T: serde::Serialize,
+{
+    let id = request.id.clone();
+    match request.extract::<P>(&method) {
+        Ok((id, params)) => Response::new_ok(id, handle(params)),
+        Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
     }
 }
 

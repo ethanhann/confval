@@ -83,7 +83,7 @@ pub fn code_action<F: Frontend>(
         new_text: literal.clone(),
     };
     let action = CodeAction {
-        title: format!("Set {field} to the default {literal}"),
+        title: format!("Set {field} to the default {}", shortened(&literal)),
         kind: Some(CodeActionKind::QUICKFIX),
         diagnostics: Some(contained),
         edit: Some(WorkspaceEdit {
@@ -94,6 +94,17 @@ pub fn code_action<F: Frontend>(
         ..CodeAction::default()
     };
     vec![CodeActionOrCommand::CodeAction(action)]
+}
+
+/// The literal bounded for a menu title. The edit keeps the whole text, and
+/// only the title elides a long default.
+fn shortened(literal: &str) -> String {
+    const LIMIT: usize = 40;
+    if literal.chars().count() <= LIMIT {
+        return literal.to_string();
+    }
+    let head: String = literal.chars().take(LIMIT).collect();
+    format!("{head}...")
 }
 
 /// Whether the client's kind filter admits a quick fix. An absent filter

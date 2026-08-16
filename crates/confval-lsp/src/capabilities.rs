@@ -155,4 +155,26 @@ mod tests {
             Some(PositionEncodingKind::UTF8)
         );
     }
+
+    #[test]
+    fn the_hierarchical_symbol_gate_reads_the_client_capability() {
+        // Arrange
+        let mut with_hierarchy = InitializeParams::default();
+        with_hierarchy.capabilities.text_document =
+            Some(lsp_types::TextDocumentClientCapabilities {
+                document_symbol: Some(lsp_types::DocumentSymbolClientCapabilities {
+                    hierarchical_document_symbol_support: Some(true),
+                    ..lsp_types::DocumentSymbolClientCapabilities::default()
+                }),
+                ..lsp_types::TextDocumentClientCapabilities::default()
+            });
+
+        // Act
+        let with_support = supports_hierarchical_symbols(&with_hierarchy);
+        let without = supports_hierarchical_symbols(&InitializeParams::default());
+
+        // Assert
+        assert!(with_support);
+        assert!(!without);
+    }
 }

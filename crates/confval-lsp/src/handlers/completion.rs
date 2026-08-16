@@ -19,10 +19,11 @@ use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionTextEdit, InsertTextFormat, TextEdit,
 };
 
-use confval::format::Fields;
 use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
+#[cfg(test)]
+use crate::frontend::CursorContext;
 use crate::frontend::{Absorb, Frontend, PositionKind};
 use crate::handlers::Cx;
 use crate::walk::{reference_labels, repeated_block_at, resolved_level, schema_at};
