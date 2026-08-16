@@ -10,12 +10,14 @@ use lsp_types::{
     InsertTextFormat, Uri,
 };
 
+use confval::format::{FieldKind, Scalar, ValueKind};
 use confval::pipeline::range::RangeConstraint;
 use confval::prelude::{Located, Report, Validate};
 use confval::range_constraint;
 use confval::schema::ToSchema;
-use confval_lsp::handlers::{Cx, code_action, completion, diagnostics, hover};
+use confval_lsp::handlers::{ClientSupport, Cx, code_action, completion, diagnostics, hover};
 use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
+use std::path::PathBuf;
 
 use fixture::{LimitsSpec, ServerSpec};
 
@@ -71,8 +73,10 @@ fn complete<F: Frontend>(
         },
         &index,
         ENCODING,
-        snippets,
-        preselect,
+        ClientSupport {
+            snippets,
+            preselect,
+        },
     )
 }
 
@@ -595,4 +599,146 @@ fn a_diagnostic_beyond_the_buffer_offers_no_fix() {
         actions.is_empty(),
         "an out-of-buffer range is not contained"
     );
+}
+
+/// A labeled block plus a defaulted reference to it, for the reference rows.
+#[derive(confval::Spec)]
+struct RefDefaultSpec {
+    /// The labeled upstreams.
+    #[confval(nested)]
+    upstream: Vec<Located<RefUpstream>>,
+    /// A defaulted reference, whose value position offers labels only.
+    #[confval(default = "api".to_string(), references = upstream)]
+    target: Located<String>,
+}
+
+/// One labeled upstream of the reference fixture.
+#[derive(confval::Spec)]
+struct RefUpstream {
+    /// The label.
+    #[confval(label)]
+    name: Located<String>,
+}
+
+impl Validate for RefDefaultSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for RefUpstream {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn the_remaining_constraint_shapes_answer_per_the_table() {
+    // Arrange
+    // An unconstrained defaulted scalar offers its default, a defaulted
+    // reference offers the labels only, and a keyword default outside its set
+    // preselects nothing.
+    let unconstrained_text = "tls: \n";
+    let reference_text = "upstream:\n  - name: web\ntarget: \n";
+    let keyword_text = "mode: \nworkers: 1\n";
+
+    // Act
+    let unconstrained = complete(
+        &Yaml,
+        &ServerSpec::schema(),
+        unconstrained_text,
+        "tls: ".len(),
+        false,
+        true,
+    );
+    let reference = complete(
+        &Yaml,
+        &RefDefaultSpec::schema(),
+        reference_text,
+        reference_text.find("target: ").unwrap() + "target: ".len(),
+        false,
+        true,
+    );
+    let keyword = complete(
+        &Yaml,
+        &BadDefaultsSpec::schema(),
+        keyword_text,
+        "mode: ".len(),
+        false,
+        true,
+    );
+
+    // Assert
+    assert_eq!(labels_of(&unconstrained), vec!["false"]);
+    assert_eq!(unconstrained[0].preselect, Some(true));
+    assert_eq!(
+        labels_of(&reference),
+        vec!["web"],
+        "labels only, never the default"
+    );
+    assert!(reference[0].preselect.is_none());
+    assert_eq!(labels_of(&keyword), vec!["enforce", "log", "off"]);
+    assert!(
+        keyword.iter().all(|item| item.preselect.is_none()),
+        "a default outside the set preselects nothing"
+    );
+}
+
+/// The labels of a set of completion items.
+fn labels_of(items: &[CompletionItem]) -> Vec<String> {
+    items.iter().map(|item| item.label.clone()).collect()
+}
+
+#[test]
+fn a_defaulted_reference_offers_no_fix_and_an_empty_kind_admits_one() {
+    // Arrange
+    let reference_text = "upstream:\n  - name: web\ntarget: \"nope\"\n";
+    let reference_schema = RefDefaultSpec::schema();
+    let reference_diagnostics = diagnostics::<RefDefaultSpec, Yaml>(
+        &Yaml,
+        &reference_schema,
+        reference_text,
+        &doc_uri(),
+        ENCODING,
+    );
+    let fix_text = "hostname: h\nport: 1\nworkers: 9999\n";
+    let fix_schema = ServerSpec::schema();
+    let fix_diagnostics = server_diagnostics(fix_text);
+    let empty_kind = [CodeActionKind::from("".to_string())];
+
+    // Act
+    let reference_actions = actions_at(
+        &Yaml,
+        &reference_schema,
+        reference_text,
+        reference_text.find("nope").unwrap(),
+        &reference_diagnostics,
+        None,
+    );
+    let admitted = actions_at(
+        &Yaml,
+        &fix_schema,
+        fix_text,
+        fix_text.find("9999").unwrap(),
+        &fix_diagnostics,
+        Some(&empty_kind),
+    );
+
+    // Assert
+    assert!(
+        reference_actions.is_empty(),
+        "a reference's default is not a value to reset to"
+    );
+    assert_eq!(admitted.len(), 1, "the empty kind admits everything");
+}
+
+#[test]
+fn hover_prints_a_boolean_default() {
+    // Arrange
+    // The half-typed `tls` does not parse, so the state is unknown and the
+    // default line renders.
+    let text = "port: 1\ntls";
+    let schema = ServerSpec::schema();
+
+    // Act
+    let markdown = hover_markdown(&Yaml, &schema, text, text.len());
+
+    // Assert
+    assert!(markdown.contains("Defaults to false."), "{markdown}");
 }

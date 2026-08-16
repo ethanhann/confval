@@ -510,3 +510,89 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
         "an unopened document answers empty"
     );
 }
+
+#[test]
+fn a_document_that_does_not_parse_has_no_outline() {
+    // Arrange
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || Server::<ServerSpec, Hcl>::new(Hcl).run(&server));
+    let uri = Uri::from_str("file:///broken.hcl").unwrap();
+
+    // Act
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(1),
+            Initialize::METHOD.to_string(),
+            InitializeParams::default(),
+        )))
+        .unwrap();
+    let _init: Response = recv_until(&client, |message| match message {
+        Message::Response(response) if response.id == RequestId::from(1) => Some(response.clone()),
+        _ => None,
+    });
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            Initialized::METHOD.to_string(),
+            InitializedParams {},
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            DidOpenTextDocument::METHOD.to_string(),
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "hcl".to_string(),
+                    version: 1,
+                    text: "port = = 1\n".to_string(),
+                },
+            },
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(2),
+            lsp_types::request::DocumentSymbolRequest::METHOD.to_string(),
+            lsp_types::DocumentSymbolParams {
+                text_document: TextDocumentIdentifier { uri },
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            },
+        )))
+        .unwrap();
+    let symbols: Response = recv_until(&client, |message| match message {
+        Message::Response(response) if response.id == RequestId::from(2) => Some(response.clone()),
+        _ => None,
+    });
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(9),
+            Shutdown::METHOD.to_string(),
+            (),
+        )))
+        .unwrap();
+    let _shutdown: Response = recv_until(&client, |message| match message {
+        Message::Response(response) if response.id == RequestId::from(9) => Some(response.clone()),
+        _ => None,
+    });
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            Exit::METHOD.to_string(),
+            (),
+        )))
+        .unwrap();
+    handle.join().unwrap().unwrap();
+
+    // Assert
+    assert_eq!(
+        symbols.response_result.expect("symbols route"),
+        serde_json::Value::Null,
+        "the outline reads spans only a parse provides"
+    );
+}

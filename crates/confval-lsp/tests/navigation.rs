@@ -9,7 +9,7 @@ use lsp_types::{DocumentSymbolResponse, Location, SymbolKind, Uri};
 
 use confval::schema::ToSchema;
 use confval_lsp::handlers::{SymbolShape, definition, document_symbols, references};
-use confval_lsp::{Frontend, Hcl, LineIndex, PositionEncoding, Toml, Yaml};
+use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
 
 use fixture::{GatewaySpec, MeshSpec, ServerSpec};
 
@@ -220,10 +220,11 @@ fn references_stay_within_the_declaring_scope() {
 }
 
 #[test]
-fn references_prune_a_shadowing_inner_scope() {
+fn references_drop_a_site_resolving_to_a_nearer_scope() {
     // Arrange
     // The root and service both declare `pools`. The route's `shared` resolves
-    // to the service's own pools, so the root label's references stay empty.
+    // to the service's own pools, a nearer scope, so the root label's
+    // references stay empty.
     let text = "pools:\n  - id: shared\nservices:\n  - name: a\n    pools:\n      - id: shared\n    routes:\n      - upstream: \"u\"\n        pool: \"shared\"\n    upstreams:\n      - name: u\n        port: 1\n";
     let offset = text.find("id: shared").unwrap() + "id: s".len();
     let schema = MeshSpec::schema();
@@ -474,4 +475,167 @@ fn an_empty_label_is_no_navigation_site() {
         found.is_empty(),
         "an empty label defines nothing: {found:?}"
     );
+}
+
+const GATEWAY_TOML: &str = "[[upstream]]\nname = \"api\"\nhost = \"h\"\nport = 1\n\n[[routes]]\nprefix = \"/a\"\nupstream = \"api\"\n\n[[routes]]\nprefix = \"/b\"\nupstream = \"api\"\n";
+
+const GATEWAY_KDL: &str = "upstream \"api\" {\n  host \"h\"\n  port 1\n}\nroutes {\n  prefix \"/a\"\n  upstream \"api\"\n}\nroutes {\n  prefix \"/b\"\n  upstream \"api\"\n}\n";
+
+const GATEWAY_JSON: &str = "{\n  \"upstream\": [{ \"name\": \"api\", \"host\": \"h\", \"port\": 1 }],\n  \"routes\": [\n    { \"prefix\": \"/a\", \"upstream\": \"api\" },\n    { \"prefix\": \"/b\", \"upstream\": \"api\" }\n  ]\n}\n";
+
+#[test]
+fn kdl_native_label_answers_references_and_no_definition() {
+    // Arrange
+    let text = GATEWAY_KDL;
+    let offset = text.find("\"api\"").unwrap() + 1;
+    let schema = GatewaySpec::schema();
+
+    // Act
+    let found = references_at(&Kdl, &schema, text, offset, false);
+    let definition = definition_at(&Kdl, &schema, text, offset);
+
+    // Assert
+    assert_eq!(found.len(), 2, "both routes name the label: {found:?}");
+    assert!(definition.is_none(), "a label is its own definition");
+}
+
+#[test]
+fn toml_designated_label_field_answers_references_and_no_definition() {
+    // Arrange
+    let text = GATEWAY_TOML;
+    let offset = text.find("name = \"api\"").unwrap() + "name = \"a".len();
+    let schema = GatewaySpec::schema();
+
+    // Act
+    let found = references_at(&Toml, &schema, text, offset, false);
+    let definition = definition_at(&Toml, &schema, text, offset);
+
+    // Assert
+    assert_eq!(found.len(), 2, "both routes name the label: {found:?}");
+    assert!(definition.is_none(), "the label field is the definition");
+}
+
+#[test]
+fn json_designated_label_field_answers_references() {
+    // Arrange
+    let text = GATEWAY_JSON;
+    let offset = text.find("\"name\": \"api\"").unwrap() + "\"name\": \"a".len();
+    let schema = GatewaySpec::schema();
+
+    // Act
+    let found = references_at(&Json, &schema, text, offset, true);
+
+    // Assert
+    assert_eq!(found.len(), 3, "the declaration and both routes: {found:?}");
+}
+
+#[test]
+fn toml_and_json_reference_values_answer_a_definition() {
+    // Arrange
+    let schema = GatewaySpec::schema();
+    let toml_offset = GATEWAY_TOML.find("upstream = \"api\"").unwrap() + "upstream = \"a".len();
+    let json_offset =
+        GATEWAY_JSON.find("\"upstream\": \"api\"").unwrap() + "\"upstream\": \"a".len();
+
+    // Act
+    let toml_definition = definition_at(&Toml, &schema, GATEWAY_TOML, toml_offset);
+    let json_definition = definition_at(&Json, &schema, GATEWAY_JSON, json_offset);
+
+    // Assert
+    assert!(toml_definition.is_some(), "the TOML reference resolves");
+    assert!(json_definition.is_some(), "the JSON reference resolves");
+}
+
+#[test]
+fn the_non_site_positions_answer_empty() {
+    // Arrange
+    let text = GATEWAY_YAML;
+    let schema = GatewaySpec::schema();
+    let name_offset = text.find("name: api").unwrap() + 1;
+    let plain_offset = text.find("host: h").unwrap() + "host: ".len();
+    let no_parse = "routes:\n  - upstream: \"api\"\nbad: [\n";
+
+    // Act
+    let name_definition = definition_at(&Yaml, &schema, text, name_offset);
+    let plain_definition = definition_at(&Yaml, &schema, text, plain_offset);
+    let no_parse_references = references_at(
+        &Yaml,
+        &schema,
+        no_parse,
+        no_parse.find("api").unwrap(),
+        true,
+    );
+
+    // Assert
+    assert!(name_definition.is_none(), "a field name defines nothing");
+    assert!(
+        plain_definition.is_none(),
+        "an ordinary value defines nothing"
+    );
+    assert!(no_parse_references.is_empty(), "navigation needs a parse");
+}
+
+#[test]
+fn hcl_native_label_details_the_container_symbol() {
+    // Arrange
+    let text = GATEWAY_HCL;
+    let schema = GatewaySpec::schema();
+    let tree = Hcl.parse_tree(text).expect("the buffer parses");
+    let index = LineIndex::new(text);
+
+    // Act
+    let response = document_symbols(
+        &schema,
+        &tree,
+        SymbolShape {
+            covers_body: true,
+            hierarchical: true,
+        },
+        &doc_uri(),
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let DocumentSymbolResponse::Nested(symbols) = response else {
+        panic!("the hierarchical form");
+    };
+    let upstream = symbols
+        .iter()
+        .find(|s| s.name == "upstream")
+        .expect("upstream");
+    assert_eq!(upstream.detail.as_deref(), Some("api"));
+}
+
+#[test]
+fn a_single_nested_block_is_a_container_symbol() {
+    // Arrange
+    let text = "hostname: h\nport: 1\nlimits:\n  mode: \"enforce\"\n";
+    let schema = ServerSpec::schema();
+    let tree = Yaml.parse_tree(text).expect("the buffer parses");
+    let index = LineIndex::new(text);
+
+    // Act
+    let response = document_symbols(
+        &schema,
+        &tree,
+        SymbolShape {
+            covers_body: true,
+            hierarchical: true,
+        },
+        &doc_uri(),
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let DocumentSymbolResponse::Nested(symbols) = response else {
+        panic!("the hierarchical form");
+    };
+    let limits = symbols.iter().find(|s| s.name == "limits").expect("limits");
+    assert_eq!(limits.kind, SymbolKind::STRUCT);
+    let children = limits.children.as_ref().expect("children");
+    assert!(children.iter().any(|c| c.name == "mode"));
 }
