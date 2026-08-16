@@ -90,7 +90,8 @@ A handwritten spec still calls the check itself, because the derive generates no
 
 ## How a reference resolves
 
-A reference names its target block by a bare name, and the name resolves outward from the reference's enclosing block.
+A reference names its target block by a bare name.
+The name resolves outward from the reference's enclosing block.
 The nearest enclosing scope whose schema declares a labeled block field of that name wins, and the root is searched last.
 Labels are collected within that one scope instance.
 So two sibling instances of the enclosing block may reuse a label, and a reference sees only the labels of its own scope.

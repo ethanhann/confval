@@ -52,7 +52,8 @@ Completion offers what is legal at the cursor.
 A body position offers the attribute names and block types the schema declares there, minus the single-valued fields already set.
 The items keep the schema's declaration order, so related fields stay together in the editor's list.
 A value position for a field with a keyword set offers the allowed strings, which the schema carries from a `#[confval(keywords = ...)]` attribute.
-A value position for a field marked `#[confval(references = <block>)]` offers the labels of the block it names, collected from the scope the reference resolves in, so the editor offers the labels the reference check accepts.
+A value position for a field marked `#[confval(references = <block>)]` offers the labels of the block it names, collected from the scope the reference resolves in.
+These are the labels the reference check accepts.
 
 Hover reads the field under the cursor.
 It renders the field's doc comment, its declared type, whether it has a default, and its constraint.
