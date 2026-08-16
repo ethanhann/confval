@@ -496,3 +496,110 @@ fn the_struct_doc_comment_reaches_the_schema_doc() {
         Some("The server's top-level configuration.")
     );
 }
+
+/// A spec whose defaults cover every scalar leaf, for the rendered-default
+/// carry.
+#[derive(confval::Spec)]
+struct DefaultedSpec {
+    /// An expression default on an integer leaf.
+    #[confval(default = 4)]
+    workers: Located<i64>,
+    /// A whole-number float default, which keeps its `.0`.
+    #[confval(default = 4.0)]
+    scale: Located<f64>,
+    /// A boolean default.
+    #[confval(default = true)]
+    tls: Located<bool>,
+    /// A string default.
+    #[confval(default = "enforce".to_string())]
+    mode: Located<String>,
+    /// A path default, rendered through its lossy string form.
+    #[confval(default = std::path::PathBuf::from("/etc/app.conf"))]
+    config: Located<PathBuf>,
+    /// A bare default, which renders the leaf type's own default.
+    #[confval(default)]
+    retries: Located<i64>,
+    /// A bare default on a list, which carries no text.
+    #[confval(default)]
+    allow: Vec<Located<String>>,
+    /// No default, which carries no text.
+    port: Located<i64>,
+}
+
+impl Validate for DefaultedSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn an_expression_default_renders_per_leaf() {
+    // Arrange
+    let schema = DefaultedSpec::schema();
+
+    // Act
+    let texts: Vec<Option<&str>> = ["workers", "scale", "tls", "mode", "config"]
+        .iter()
+        .map(|name| field(&schema, name).default_text.as_deref())
+        .collect();
+
+    // Assert
+    assert_eq!(
+        texts,
+        vec![
+            Some("4"),
+            Some("4.0"),
+            Some("true"),
+            Some("enforce"),
+            Some("/etc/app.conf"),
+        ]
+    );
+}
+
+#[test]
+fn a_bare_default_renders_the_leaf_types_own_default() {
+    // Arrange
+    let schema = DefaultedSpec::schema();
+
+    // Act
+    let text = field(&schema, "retries").default_text.as_deref();
+
+    // Assert
+    assert_eq!(text, Some("0"));
+}
+
+#[test]
+fn a_non_scalar_or_absent_default_carries_no_text() {
+    // Arrange
+    let schema = DefaultedSpec::schema();
+
+    // Act
+    let list = field(&schema, "allow").default_text.as_deref();
+    let bare = field(&schema, "port").default_text.as_deref();
+
+    // Assert
+    assert_eq!(list, None, "a defaulted list has no single value to render");
+    assert_eq!(bare, None, "an undefaulted field carries nothing");
+    assert!(field(&schema, "allow").has_default);
+}
+
+#[test]
+fn a_handwritten_field_carries_the_builder_text() {
+    // Arrange
+    let built = confval::schema::SchemaField::new(
+        "workers".to_string(),
+        None,
+        true,
+        true,
+        SchemaType::Scalar {
+            leaf: ScalarType::Int,
+            constraint: None,
+        },
+    );
+
+    // Act
+    let built = built.with_default_text("4".to_string());
+
+    // Assert
+    assert_eq!(built.default_text.as_deref(), Some("4"));
+    assert!(built.has_default);
+    assert!(!built.required, "a defaulted field is not required");
+}
