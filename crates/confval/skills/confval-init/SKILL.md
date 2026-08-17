@@ -91,7 +91,20 @@ See the complete documentation for the handwritten path.
 
 ### 4. Write validation
 
-Write a `Validate` impl for each spec type.
+Declare a mechanical constraint on the field that carries it.
+`#[confval(range = PORT)]` records a `range_constraint!`, and `#[confval(keywords = LimitMode)]` records a `keyword_enum!` set.
+The derive runs a recorded constraint during validation and records it in the schema, so an editor's hover and completion read the same rule, and the `Validate` body carries no line for it.
+
+```rust
+#[derive(confval::Spec)]
+struct ServerSpec {
+    hostname: Located<String>,
+    #[confval(range = PORT)]
+    port: Located<i64>,
+}
+```
+
+Write a `Validate` impl for the rules an attribute cannot express: a cross-field rule or a value with its own logic.
 Its `validate` reports the rules for that type's own fields.
 `validate_all` reaches the children, so a validator never calls a child's validator by hand.
 Accumulate into the `Report` with no early return, so one run reports every problem.
@@ -100,7 +113,6 @@ Report at the offending field's span.
 ```rust
 impl Validate for ServerSpec {
     fn validate(&self, report: &mut Report) {
-        PORT.check_located(&self.port, "port", report);
         if self.hostname.value.is_empty() {
             report
                 .error("hostname must not be empty")
@@ -111,7 +123,6 @@ impl Validate for ServerSpec {
 }
 ```
 
-Check a numeric range with a `range_constraint!` and a closed set with a keyword set.
 Leave numeric narrowing and keyword-to-enum conversion to lowering, where the `narrow` helpers report an out-of-range value that a rule missed.
 Add a second location to a diagnostic with `.related(span, label)`.
 For example, point a duplicate at the line that declared it first.

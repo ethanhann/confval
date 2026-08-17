@@ -29,10 +29,13 @@ Add the field to the spec struct as a `Located<T>`.
 Use `#[confval(nested)]` on a new block and give the block its own spec struct.
 Use `Vec<Located<T>>` for a block that may repeat.
 Hold a closed set of strings as a `Located<String>` with a `keyword_enum!` for its enum, rather than an enum in the spec.
+Mark the child field that names a repeated block's instances with `#[confval(label)]`, and mark a string field that points at one of those names with `#[confval(references = <block>)]`.
 
 ### 2. The validation
 
-Add the field's rule to the spec type's `Validate` impl.
+Declare a numeric range with `#[confval(range = ...)]` and a closed set with `#[confval(keywords = ...)]` on the field.
+The derive runs a recorded constraint during validation, so the `Validate` impl carries no line for it.
+Add a rule an attribute cannot express to the spec type's `Validate` impl.
 A new block needs its own `Validate` impl, which `validate_all` reaches on its own through the generated traversal, so you do not call it by hand.
 Report at the field's span and accumulate into the `Report` with no early return.
 
