@@ -39,7 +39,7 @@ toml_edit = { workspace = true, optional = true }
 kdl = { workspace = true, optional = true }
 jsonc-parser = { workspace = true, optional = true }
 saphyr-parser = { workspace = true, optional = true }
-confval-derive = { version = "=0.7.3", path = "../confval-derive", optional = true }
+confval-derive = { version = "=0.8.0", path = "../confval-derive", optional = true }
 
 [dev-dependencies]
 hcl-edit = "0.9"
