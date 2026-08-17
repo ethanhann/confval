@@ -38,7 +38,15 @@ where
     F: Frontend,
 {
     let (tree, report) = frontend.parse_buffer(text);
-    diagnostics::<S>(schema, tree.as_ref(), &report, text, uri, encoding)
+    diagnostics::<S>(
+        schema,
+        tree.as_ref(),
+        &report,
+        uri,
+        text,
+        &LineIndex::new(text),
+        encoding,
+    )
 }
 
 const ENCODING: PositionEncoding = PositionEncoding::Utf8;
@@ -343,12 +351,12 @@ fn the_rendered_default_round_trips_through_every_frontend() {
     // is one its parser reads.
     let schema = RoundTripSpec::schema();
 
-    // Act, Assert
     fn round_trip<F: Frontend>(
         frontend: &F,
         schema: &confval::schema::Schema,
         wrap: impl Fn(&str) -> String,
     ) {
+        // Act
         let items = complete(frontend, schema, "", 0, false, false);
         let field = |name: &str| {
             inserted(
@@ -371,6 +379,8 @@ fn the_rendered_default_round_trips_through_every_frontend() {
         let tree = frontend
             .parse_tree(&document)
             .unwrap_or_else(|| panic!("the completed document parses: {document:?}"));
+
+        // Assert
         assert_eq!(parsed_scalar(&tree, "workers"), Scalar::Int(4));
         assert_eq!(parsed_scalar(&tree, "scale"), Scalar::Float(4.0));
         assert_eq!(parsed_scalar(&tree, "secure"), Scalar::Bool(true));

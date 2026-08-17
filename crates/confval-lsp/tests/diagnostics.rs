@@ -13,7 +13,7 @@ use lsp_types::{DiagnosticSeverity, Position, Uri};
 use confval::prelude::{Located, Report, Validate};
 use confval::schema::ToSchema;
 use confval_lsp::handlers::diagnostics;
-use confval_lsp::{Frontend, Hcl, Json, PositionEncoding, Yaml};
+use confval_lsp::{Frontend, Hcl, Json, LineIndex, PositionEncoding, Yaml};
 
 use fixture::{GatewaySpec, ServerSpec};
 use support::ENCODING;
@@ -35,7 +35,15 @@ where
     F: Frontend,
 {
     let (tree, report) = frontend.parse_buffer(text);
-    diagnostics::<S>(schema, tree.as_ref(), &report, text, uri, encoding)
+    diagnostics::<S>(
+        schema,
+        tree.as_ref(),
+        &report,
+        uri,
+        text,
+        &LineIndex::new(text),
+        encoding,
+    )
 }
 
 #[test]

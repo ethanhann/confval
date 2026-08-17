@@ -71,14 +71,17 @@ fn reference_value_completion_offers_the_defined_labels() {
     let yaml = "upstream:\n  - name: api\n    host: h\n    port: 1\n  - name: web\n    host: h2\n    port: 2\nroutes:\n  - prefix: /a\n    upstream: \"\"\n";
     let yaml_off = yaml.rfind("upstream: \"").unwrap() + "upstream: \"".len();
 
-    // Act, Assert
-    for (format, labels) in [
+    // Act
+    let offered = [
         ("hcl", gateway_offered(&Hcl, hcl, hcl_off)),
         ("kdl", gateway_offered(&Kdl, kdl, kdl_off)),
         ("toml", gateway_offered(&Toml, toml, toml_off)),
         ("json", gateway_offered(&Json, json, json_off)),
         ("yaml", gateway_offered(&Yaml, yaml, yaml_off)),
-    ] {
+    ];
+
+    // Assert
+    for (format, labels) in offered {
         assert!(
             labels.contains(&"api".to_string()) && labels.contains(&"web".to_string()),
             "{format} offers the defined upstream labels: {labels:?}"
