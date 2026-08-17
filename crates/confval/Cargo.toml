@@ -10,6 +10,11 @@ readme.workspace = true
 keywords = ["configuration", "validation", "config"]
 categories = ["config", "development-tools"]
 
+[package.metadata.docs.rs]
+# docs.rs builds with no features by default, which hides every frontend
+# module. The list is every public feature except the internal one.
+features = ["serde", "color", "hcl", "toml", "kdl", "json", "yaml", "derive", "layering"]
+
 [lints]
 workspace = true
 
