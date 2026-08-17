@@ -139,10 +139,11 @@ check-doc-snippets:
       exit 1
     fi
 
-# Publish both crates to crates.io, confval-derive first (confval pins it with `=`).
+# Publish the crates to crates.io in dependency order (each is pinned with `=`).
 publish:
     cargo publish -p confval-derive
     cargo publish -p confval
+    cargo publish -p confval-lsp
 
 docs:
     cd docs && npm run start
