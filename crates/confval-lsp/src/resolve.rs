@@ -39,7 +39,7 @@ pub(crate) fn resolve_in_tree(
                     full.append(&mut context.path);
                     full
                 };
-                // `level` is the block instance the cursor sits in, the sibling
+                // `level` is the block instance the cursor is in, the sibling
                 // or the sequence element `descend` chose, so the handlers read
                 // the correct instance rather than re-walking to the first. The
                 // ancestor bodies recorded on the way down give the reference
@@ -54,7 +54,7 @@ pub(crate) fn resolve_in_tree(
 
 /// The bodies of the block instances along `path`, root first, choosing a
 /// repeated instance by `offset` at each level. The last body is the instance
-/// the cursor sits in, and the ones before it are its enclosing scopes. YAML
+/// the cursor is in, and the ones before it are its enclosing scopes. YAML
 /// resolves its path from indentation, so it reads the bodies through this
 /// rather than the tree descent, whose offset bounds stop at a span the tree
 /// does not hold.
@@ -84,7 +84,7 @@ pub(crate) fn bodies_along_path(
 /// The body one path segment enters at one level, or `None` for a pending body.
 ///
 /// A repeated level chooses the sequence element or the same-named block the
-/// offset sits in. The path is the indentation truth, so a single block or map
+/// offset is in. The path already reflects the indentation, so a single block or map
 /// is entered without an offset check, and only the choice among instances
 /// reads the offset.
 fn enter_segment<'a>(
@@ -102,7 +102,7 @@ fn enter_segment<'a>(
         }
         let next = fields.get(index + 1).map(|sibling| start_of(sibling.span));
         match &field.kind {
-            // The path is the indentation truth, so a map is entered without
+            // The path already reflects the indentation, so a map is entered without
             // an offset check.
             FieldKind::Value(value) => match &value.kind {
                 ValueKind::Map(inner) => return Some(inner),
@@ -124,7 +124,7 @@ fn enter_segment<'a>(
 
 /// The body of one field's instance that `offset` enters, or `None`. This is
 /// the instance-selection rule: a block body by its span, a map by its value
-/// span, and a sequence by the element the offset sits in. Both descents call
+/// span, and a sequence by the element the offset is in. Both descents call
 /// it, so choosing an instance cannot diverge between the offset-driven walk
 /// and the name-driven one.
 fn instance_body(
@@ -161,7 +161,7 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
     let enclosing_end = end_of(level.enclosing());
     for (index, &field) in fields.iter().enumerate() {
         let next = fields.get(index + 1).map(|sibling| start_of(sibling.span));
-        // A cursor in the native label sits between the block type and the
+        // A cursor in the native label is between the block type and the
         // body, so it is checked before the body, which would otherwise claim
         // any offset past the type name.
         if let FieldKind::Block(inner) = &field.kind
@@ -292,7 +292,7 @@ fn span_token(span: Span, text: &str) -> (usize, usize) {
     (start, end)
 }
 
-/// Whether `offset` sits inside a block's body, past its name.
+/// Whether `offset` is inside a block's body, past its name.
 ///
 /// A block whose span covers its body (HCL, KDL) is bounded by that span. A
 /// header-only block (a TOML table) owns the region up to the next sibling, or
@@ -376,7 +376,7 @@ fn contains(span: Span, offset: usize) -> bool {
 }
 
 /// The completion replace range for a body position: the identifier the cursor
-/// sits in or at the end of, scanned from the current text, or a zero-width range
+/// is in or at the end of, scanned from the current text, or a zero-width range
 /// at the cursor when no identifier is adjacent. Reading the current text rather
 /// than the parse keeps the range valid and on the cursor's line even when the
 /// buffer does not parse.
@@ -385,7 +385,7 @@ pub(crate) fn identifier_token(text: &str, offset: usize) -> (usize, usize) {
 }
 
 /// The completion replace range for a value position: the run of value
-/// characters the cursor sits in, scanned from the current text and bounded to
+/// characters the cursor is in, scanned from the current text and bounded to
 /// the cursor's line, so replacing an enum value never reaches across a line.
 pub(crate) fn value_token(text: &str, offset: usize) -> (usize, usize) {
     token_around(text, offset, is_value_byte)

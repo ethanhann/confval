@@ -356,7 +356,7 @@ fn a_half_typed_name_completes_over_a_replace_range() {
 #[test]
 fn enum_completion_over_a_value_keeps_the_items_and_replaces_only_the_value() {
     // Arrange
-    // The value sits one line above a sibling block. The enum members do not
+    // The value is one line above a sibling block. The enum members do not
     // prefix-match `loud`, so each carries a filter text equal to the value, and
     // the replace edit covers only the value, never reaching into `rules`.
     let text = "limits {\n  mode = \"loud\"\n}\nrules {\n  prefix = \"/a\"\n}\n";

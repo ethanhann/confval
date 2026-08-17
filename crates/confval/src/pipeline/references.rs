@@ -29,7 +29,7 @@ use crate::source::{Located, Span};
 /// reference is not checked here.
 ///
 /// This pass reports a duplicate label, an empty label, and an undefined
-/// reference. The other half of the label check lives in the derived
+/// reference. The other half of the label check is in the derived
 /// `FromFields`, which reports a native label a block does not designate and a
 /// child field that duplicates a native label. A caller that wants the whole
 /// label story runs `from_fields` and then this pass.

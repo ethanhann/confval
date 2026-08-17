@@ -2,7 +2,7 @@
 //! `#[confval(nested)]` field, emitted as an
 //! `impl confval::pipeline::ValidateNested` alongside the parser.
 //!
-//! The rules themselves are not generated. They live in a `Validate` impl the
+//! The rules themselves are not generated. They are in a `Validate` impl the
 //! author writes, because only the author knows which values are legal.
 //! Descending into child blocks is derived from the struct definition rather
 //! than maintained by hand.

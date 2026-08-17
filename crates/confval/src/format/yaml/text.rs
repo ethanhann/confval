@@ -103,7 +103,7 @@ pub(super) fn write_key(out: &mut String, name: &str) {
 }
 
 /// Whether a key is plainly safe: ASCII letters, digits, `_`, and `-`, opening
-/// with a letter or `_`. The check is deliberately narrow, because a key that
+/// with a letter or `_`. The check is narrow, because a key that
 /// resolves to something other than a string would change meaning.
 fn is_plain_name(name: &str) -> bool {
     let mut characters = name.chars();

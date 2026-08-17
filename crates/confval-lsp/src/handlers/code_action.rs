@@ -133,7 +133,7 @@ fn default_satisfies(constraint: &Option<Constraint>, text: &str) -> bool {
     }
 }
 
-/// Whether a diagnostic's range sits inside or equal to the value span. A
+/// Whether a diagnostic's range is inside or equal to the value span. A
 /// position beyond the current text is no containment, so a stale client
 /// position cannot clamp onto a line end or the final offset and qualify.
 fn contained_in(

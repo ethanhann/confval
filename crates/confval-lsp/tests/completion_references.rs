@@ -160,7 +160,7 @@ fn reference_completion_offers_nothing_without_a_parse() {
 #[test]
 fn scoped_reference_completion_offers_only_the_own_scope_labels() {
     // Arrange
-    // The cursor sits in service b's route value. The declaring scope is that
+    // The cursor is in service b's route value. The declaring scope is that
     // service, so only its `ub` label is offered, not the sibling's `ua`.
     let text = MESH_YAML;
     let offset = text.rfind("ub").unwrap();

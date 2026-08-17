@@ -27,7 +27,7 @@
 //! Most of the work is therefore "looking at a field and deciding which snippet
 //! of code to emit for it."
 //!
-//! The two derives are independent. Each lives in its own module (`spec`,
+//! The two derives are independent. Each is in its own module (`spec`,
 //! `config`). `common` holds the small `syn` type-inspection helpers they
 //! both use.
 

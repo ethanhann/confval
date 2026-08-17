@@ -207,8 +207,8 @@ pub(super) fn scalar_kind(text: &str, style: ScalarStyle, tag: Option<&Tag>) -> 
             Some(core) => of_core(core, text),
             None => ValueKind::Other(TAGGED),
         },
-        // A core tag naming a collection sits on the wrong node kind here, and
-        // an unknown `!!name` has no reading at all.
+        // A core tag naming a collection is on the wrong node kind here, and
+        // an unknown `!!name` has no reading.
         _ => ValueKind::Other(TAGGED),
     }
 }

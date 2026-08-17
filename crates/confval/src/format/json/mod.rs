@@ -7,7 +7,7 @@
 //! jsonc-parser type escapes. The leaf parsers, the derive-generated walks, and
 //! the handwritten [`FromFields`] impls all work against the neutral model.
 //!
-//! The write path, [`emit_json`], lives in the sibling `emit` module.
+//! The write path, [`emit_json`], is in the sibling `emit` module.
 //!
 //! A JSON document holds one value. A configuration is a set of named fields,
 //! so the root must be an object. Its members become the root level. Below the

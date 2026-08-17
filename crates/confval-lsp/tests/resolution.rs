@@ -122,7 +122,7 @@ fn kdl_offset_table_maps_each_offset() {
 #[test]
 fn kdl_value_completion_on_a_valueless_node_inserts_after_the_name() {
     // Arrange
-    // A KDL node with no argument parses, and its value span sits on the node
+    // A KDL node with no argument parses, and its value span is on the node
     // name. Value completion must insert after the name, so `mode ` becomes
     // `mode "enforce"` and never replaces `mode` with the value.
     let frontend = Kdl;
@@ -496,7 +496,7 @@ fn yaml_body_under_an_empty_key_resolves_into_it_on_a_clean_parse() {
 #[test]
 fn json_recovers_a_body_inside_an_inline_array_element() {
     // Arrange
-    // The cursor sits in a fresh element on the SAME line as the `rules` key, so
+    // The cursor is in a fresh element on the SAME line as the `rules` key, so
     // the value-position scan must not read the `rules` colon as the separator.
     let frontend = Json;
     let text = "{ \"rules\": [{ \"prefix\": \"/a\" }, {  ";
@@ -586,7 +586,7 @@ fn yaml_value_token_inside_a_sequence_element_covers_the_parsed_value() {
 #[test]
 fn yaml_offset_at_a_sibling_key_after_a_sequence_reads_the_enclosing_level() {
     // Arrange
-    // The cursor sits at the first character of the root `port` key, directly
+    // The cursor is at the first character of the root `port` key, directly
     // after the last sequence element. The element ends strictly before the
     // sibling, so the resolved body is the root, which sets `port`.
     let frontend = Yaml;
@@ -648,7 +648,7 @@ fn yaml_empty_value_after_a_colon_keeps_a_zero_width_token_when_the_buffer_parse
 #[test]
 fn a_trailing_comment_in_the_recovery_is_not_a_value_position() {
     // Arrange
-    // Each buffer does not parse, and the cursor sits inside a trailing
+    // Each buffer does not parse, and the cursor is inside a trailing
     // comment. The recovery must not classify the comment as the value of the
     // field before it.
     let hcl_hash = "bad = = 1\nport = 1 # note\n";

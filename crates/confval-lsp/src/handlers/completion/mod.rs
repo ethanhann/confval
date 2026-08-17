@@ -103,7 +103,7 @@ fn body_items<F: Frontend>(frontend: &F, enclosing: &Schema, cx: &Cx) -> Vec<Raw
     // nothing, because the element has no fields yet. The new-element answer is
     // consulted only behind the schema's repeated-block check, so its default
     // at an unrepeated position is never read. Otherwise the resolved instance
-    // body addresses the exact instance the cursor sits in, falling back to the
+    // body addresses the exact instance the cursor is in, falling back to the
     // first instance only on the text recovery path.
     let set: HashSet<&str> = if repeated && cx.ctx.new_element {
         HashSet::new()
@@ -287,7 +287,7 @@ mod tests {
         // Arrange
         // One table per body case: the same schema, with the context varying in
         // new-element state and typed prefix. The schema declares a scalar and
-        // a repeated block, and the cursor path sits inside the repeated block.
+        // a repeated block, and the cursor path is inside the repeated block.
         let schema = Schema::new(None, vec![repeated("rules", vec![scalar("prefix")])]);
         let cases: Vec<BodyCase> = vec![
             (

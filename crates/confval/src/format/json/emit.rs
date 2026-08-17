@@ -71,7 +71,7 @@ fn members_of(fields: &Fields) -> Vec<(&str, Member<'_>)> {
 }
 
 /// Writes one level as an object. `level` is the nesting depth of the line the
-/// opening brace sits on, so the closing brace lines up with it.
+/// opening brace is on, so the closing brace lines up with it.
 fn write_object(
     out: &mut String,
     fields: &Fields,

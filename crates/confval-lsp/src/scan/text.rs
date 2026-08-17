@@ -3,8 +3,8 @@
 //! When the current buffer parses, resolution walks the neutral field tree,
 //! whose spans align with the text exactly. When it does not, this module
 //! reconstructs the enclosing block path and the position kind from the raw
-//! text, so completion still resolves inside the block the cursor sits in and at
-//! the value the cursor sits on. It reads only the current text, so its offsets
+//! text, so completion still resolves inside the block the cursor is in and at
+//! the value the cursor is on. It reads only the current text, so its offsets
 //! are always current.
 
 use super::json::object_path;
@@ -129,9 +129,9 @@ fn parse_header(line: &str) -> Option<Vec<String>> {
     )
 }
 
-/// The name of the attribute whose value the cursor sits in, with the byte
+/// The name of the attribute whose value the cursor is in, with the byte
 /// offset just past its separator when the separator is a value byte, or `None`
-/// for a body position. A cursor past a comment marker sits in the comment,
+/// for a body position. A cursor past a comment marker is in the comment,
 /// which is no value position.
 fn attribute_name(
     text: &str,
@@ -157,9 +157,9 @@ fn attribute_name(
 }
 
 /// A value position in a `:` format (JSON): the member key whose value the cursor
-/// sits in and the key's colon offset within the line, or `None` for a body
+/// is in and the key's colon offset within the line, or `None` for a body
 /// position. It resets at each object or array bracket and comma, so a `"key":`
-/// in an enclosing or a sibling member does not classify a cursor that sits in a
+/// in an enclosing or a sibling member does not classify a cursor that is in a
 /// fresh element as a value.
 fn attribute_name_colon(line: &str) -> Option<(String, usize)> {
     let bytes = line.as_bytes();
@@ -201,7 +201,7 @@ fn attribute_name_equals(line: &str) -> Option<String> {
 }
 
 /// A value position in a whitespace format: the line names a node and the cursor
-/// sits past the node name in its argument region, with no block brace.
+/// is past the node name in its argument region, with no block brace.
 fn attribute_name_space(line: &str) -> Option<String> {
     if line.contains('{') {
         return None;
@@ -267,7 +267,7 @@ fn last_identifier(segment: &str) -> Option<String> {
 
 /// Whether the segment starts with one of the format's comment markers. The
 /// segment is bytes rather than text because the scanners index byte by byte,
-/// and a byte index may sit inside a multi-byte character.
+/// and a byte index may be inside a multi-byte character.
 fn starts_comment(segment: &[u8], comments: &[&str]) -> bool {
     comments
         .iter()
@@ -275,7 +275,7 @@ fn starts_comment(segment: &[u8], comments: &[&str]) -> bool {
 }
 
 /// Whether the cursor's line prefix holds a comment start outside a string, so
-/// the cursor sits inside the comment.
+/// the cursor is inside the comment.
 fn past_comment(line: &str, comments: &[&str]) -> bool {
     let bytes = line.as_bytes();
     let mut index = 0;
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn a_brace_inside_a_block_comment_does_not_close_a_block() {
         // Arrange
-        // The `}` sits inside an HCL `/* */` comment, so it must not close the
+        // The `}` is inside an HCL `/* */` comment, so it must not close the
         // `server` block.
         let text = "server {\n  /* } */\n  port = \n}\n";
         let offset = text.find("port = ").unwrap() + "port = ".len();
@@ -503,7 +503,7 @@ mod tests {
     fn a_multibyte_character_in_an_hcl_value_does_not_panic_the_brace_scan() {
         // Arrange
         // The brace scan crosses `é`, whose continuation byte is not a char
-        // boundary. Slicing the text there panicked before the byte-wise fix.
+        // boundary. Slicing the text at that byte would panic.
         let text = "region = eu-wést-1\n";
         let offset = text.len() - 1;
 
@@ -565,7 +565,7 @@ mod tests {
     fn a_line_ending_in_a_backslash_does_not_panic_the_colon_scan() {
         // Arrange
         // The trailing backslash makes `skip_string` step past the end of the
-        // line, and the key slice panicked before the clamp.
+        // line, and slicing the key past the line end would panic.
         let text = "{\n  \"path\": \"C:\\";
         let offset = text.len();
 

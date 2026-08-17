@@ -7,8 +7,8 @@
 //! and the handwritten [`FromFields`] impls all work against the neutral model.
 //!
 //! The core schema resolution, which decides what a scalar's text, style, and
-//! tag mean, lives in the sibling `resolve` module. The write path,
-//! [`emit_yaml`], lives in `emit`, its member model in `member`, and its text
+//! tag mean, is in the sibling `resolve` module. The write path,
+//! [`emit_yaml`], is in `emit`, its member model in `member`, and its text
 //! mechanics in `text`.
 //!
 //! The frontend drives the parser's pull API rather than loading a document
@@ -281,7 +281,7 @@ impl<'input> Reader<'input, '_> {
     }
 
     /// Reads one node, whose opening event has already been taken. `depth` is
-    /// the nesting level the node sits at, checked against [`MAX_DEPTH`]
+    /// the nesting level the node is at, checked against [`MAX_DEPTH`]
     /// before the collection arms recurse.
     fn node(&mut self, event: Event<'input>, span: YamlSpan, depth: u32) -> Option<Value> {
         match event {
@@ -660,7 +660,7 @@ mod tests {
     fn a_valueless_key_widens_its_zero_width_span() {
         // Arrange
         // `key:` reads as a null whose scalar has no extent, and a zero-width
-        // span renders as no highlight at all.
+        // span renders as no highlight.
         let input = "key:\nport: 1\n";
 
         // Act

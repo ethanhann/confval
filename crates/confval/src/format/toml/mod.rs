@@ -8,7 +8,7 @@
 //! frontend does, so the leaf parsers, the derive-generated walks, and the
 //! handwritten [`FromFields`] impls work against it unchanged.
 //!
-//! The write path, [`emit_toml`], lives in the sibling `emit` module.
+//! The write path, [`emit_toml`], is in the sibling `emit` module.
 //!
 //! TOML's structural shapes map onto the neutral model as follows:
 //!

@@ -384,7 +384,7 @@ where
 /// Extracts a request's parameters and answers through one handler, or answers
 /// the invalid-params error when the parameters do not deserialize. A panic in
 /// the handler answers the internal error, so one bad request does not take
-/// down the server. This guard needs an unwinding panic runtime; a build with
+/// down the server. This guard needs an unwinding panic runtime. A build with
 /// `panic = "abort"` still aborts.
 fn respond<P, T>(request: Request, method: String, handle: impl FnOnce(P) -> T) -> Response
 where

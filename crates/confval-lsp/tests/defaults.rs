@@ -1072,7 +1072,7 @@ fn an_undefaulted_bool_offers_both_literals_with_no_preselect() {
 #[test]
 fn json_bool_completion_replaces_the_whole_literal() {
     // Arrange
-    // The cursor sits mid-literal, on the `r` of `true`. The replace range
+    // The cursor is mid-literal, on the `r` of `true`. The replace range
     // covers the whole literal, so accepting `false` cannot splice the two.
     let text = "{ \"hostname\": \"h\", \"port\": 1, \"tls\": true }";
     let offset = text.find("true").unwrap() + 2;

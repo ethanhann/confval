@@ -38,7 +38,7 @@ pub(crate) enum FieldShape {
     NestedList { spec_ty: Box<Type> },
     /// An open-ended, string-keyed map, `BTreeMap<String, Located<String>>`,
     /// marked `#[confval(map)]`. The value keeps its span, and the key is a
-    /// plain `String`. Only the bare form ships in this release.
+    /// plain `String`. Only the bare form is supported.
     Map,
 }
 
@@ -194,9 +194,6 @@ fn leaf_type(located_inner: &Type, ty: &Type) -> syn::Result<Leaf> {
     }
 }
 
-/// Internal helper function to determine if a type is `Located<String>`.
-///
-/// Returns `true` if `ty` is a `Located` wrapper around `String`, `false` otherwise.
 fn is_located_string(ty: &Type) -> bool {
     unwrap_generic(ty, "Located")
         .is_some_and(|element| last_segment(element).as_deref() == Some("String"))

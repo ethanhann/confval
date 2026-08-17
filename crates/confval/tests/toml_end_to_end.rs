@@ -454,7 +454,7 @@ fn a_populated_spec_round_trips_through_emitted_toml() {
 #[test]
 fn a_template_carries_the_doc_comment_and_reparses_to_the_populated_spec() {
     // Arrange
-    // The comment content and placement rules live in the template suite; this
+    // The comment content and placement rules are in the template suite; this
     // pins that a TOML template parses back with the unset optional fields
     // absent rather than shown.
     let spec = spec_of("hostname = \"127.0.0.1\"\nport = 8080\ndaemon = false\n");

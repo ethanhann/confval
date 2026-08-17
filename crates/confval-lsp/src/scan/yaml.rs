@@ -30,7 +30,7 @@ pub(crate) fn resolve_in_yaml(text: &str, offset: usize) -> CursorContext {
 }
 
 /// Whether a body completion on a fresh line opens a new sequence element rather
-/// than adding a field to the element the cursor sits in.
+/// than adding a field to the element the cursor is in.
 ///
 /// A YAML sequence element begins at a dash column, and its fields sit past the
 /// dash. So a fresh line opens a new element only when it aligns with the nearest
@@ -165,13 +165,13 @@ fn dash_opens_scalar(trimmed: &str) -> bool {
         .is_some_and(|value| value.starts_with('|') || value.starts_with('>'))
 }
 
-/// The attribute whose value the cursor sits in, with the byte offset just past
+/// The attribute whose value the cursor is in, with the byte offset just past
 /// its colon, or `None` for a body position.
 ///
 /// A line with a `key:` followed by content, a space, or the end of the line is
 /// an attribute-value position. A fresh line with no `key:` is a body position,
 /// which is where a value on the next line leaves the cursor. A cursor past an
-/// unquoted `#` sits in a comment, which is no value position.
+/// unquoted `#` is in a comment, which is no value position.
 fn yaml_attribute(text: &str, offset: usize) -> Option<(String, usize)> {
     let line_start = text[..offset].rfind('\n').map(|i| i + 1).unwrap_or(0);
     let slice = &text[line_start..offset];

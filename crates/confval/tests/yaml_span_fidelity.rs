@@ -51,7 +51,7 @@ fn scalar(text: &str, nth: usize) -> (String, ScalarStyle, Span) {
 #[test]
 fn scalar_positions_are_character_indices() {
     // Arrange
-    // The euro sign is three bytes and one character. `port` sits at byte 12
+    // The euro sign is three bytes and one character. `port` is at byte 12
     // and character 10, so this assertion is what tells the two apart.
     let byte = INPUT.find("port").unwrap();
 

@@ -120,7 +120,7 @@ pub enum Absorb {
     One(u8),
 }
 
-/// The kind of position a cursor sits in.
+/// The kind of position a cursor is in.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PositionKind {
@@ -128,7 +128,7 @@ pub enum PositionKind {
     Body,
     /// An attribute-value position for the named field.
     AttributeValue {
-        /// The name of the field whose value the cursor sits in.
+        /// The name of the field whose value the cursor is in.
         field: String,
     },
     /// A block-label position, the region between a block's type and its body in
@@ -144,31 +144,31 @@ pub enum PositionKind {
 /// The resolved query result the handlers read.
 ///
 /// It names the schema path from the root to the block that encloses the cursor,
-/// the kind of position the cursor sits in, and the byte range of the identifier
+/// the kind of position the cursor is in, and the byte range of the identifier
 /// or value under the cursor.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct CursorContext {
     /// The schema path from the root to the block that encloses the cursor, each
-    /// element the field name of a block the cursor sits inside.
+    /// element the field name of a block the cursor is inside.
     pub path: Vec<String>,
-    /// The kind of position the cursor sits in.
+    /// The kind of position the cursor is in.
     pub kind: PositionKind,
     /// The byte range in the current text that a completion replaces: the
     /// identifier or value under the cursor, or a zero-width range at the cursor
-    /// when it sits on no token. It is scanned from the current text, so it stays
+    /// when it is on no token. It is scanned from the current text, so it stays
     /// valid and on the cursor's line even when the buffer does not parse.
     pub token: (usize, usize),
     /// The text of `token`, carried so the handlers read the typed prefix
     /// without holding the buffer.
     pub token_text: String,
     /// Whether a body completion here opens a new element of a repeated block
-    /// rather than adding a field to the element the cursor sits in. The
+    /// rather than adding a field to the element the cursor is in. The
     /// answer is syntactic, and the frontend resolves it. The handlers consult
     /// it only behind the schema's repeated-block check, so the default at an
     /// unrepeated position is never read.
     pub new_element: bool,
-    /// The fields of the block instance the cursor sits in, when the buffer
+    /// The fields of the block instance the cursor is in, when the buffer
     /// parsed. The handlers read the already-set state and the hover state from
     /// it, so a repeated block addresses the instance the cursor is in rather
     /// than the first. A pending body, a key whose body the tree does not hold
@@ -345,7 +345,7 @@ pub trait Frontend {
 
     /// The line-comment starts the format reads outside a string. The
     /// text-based recovery skips a comment when it scans blocks and refuses a
-    /// value position inside one. The default is HCL's pair; KDL drops the
+    /// value position inside one. The default is HCL's pair. KDL drops the
     /// hash, because it writes booleans `#true`.
     fn line_comments(&self) -> &'static [&'static str] {
         &["#", "//"]

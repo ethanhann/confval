@@ -6,7 +6,7 @@
 //! `hcl_edit` type escapes. The leaf parsers, the derive-generated walks, and
 //! the handwritten [`FromFields`] impls all work against the neutral model.
 //!
-//! The write path, [`emit_hcl`], lives in the sibling `emit` module.
+//! The write path, [`emit_hcl`], is in the sibling `emit` module.
 //!
 //! HCL offers two ways to write a nested structure: blocks (`server { ... }`)
 //! and object-valued attributes (`server = { ... }`). A block becomes a

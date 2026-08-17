@@ -1,6 +1,6 @@
 //! The attribute-value completions: enum keywords, references, booleans, and
 //! rendered defaults. Each producer builds [`RawItem`](super::RawItem) values
-//! against the resolved cursor, and the shared geometry helpers live in the
+//! against the resolved cursor, and the shared geometry helpers are in the
 //! parent module.
 
 use std::collections::HashSet;
@@ -181,7 +181,7 @@ fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
         label: word.to_string(),
         kind: CompletionItemKind::ENUM_MEMBER,
         detail: None,
-        // Keep the item visible when the cursor sits on a value the enum
+        // Keep the item visible when the cursor is on a value the enum
         // members do not prefix-match, such as `loud`, by filtering against
         // that value rather than the label. Without this a client discards
         // every keyword.

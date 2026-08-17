@@ -413,7 +413,7 @@ tls {
     let span = issue
         .span
         .expect("missing-field errors carry the enclosing span");
-    // The enclosing span sits inside the children braces.
+    // The enclosing span is inside the children braces.
     let brace = input.find('{').unwrap();
     assert!(span.start as usize > brace);
 }

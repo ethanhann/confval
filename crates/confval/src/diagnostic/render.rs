@@ -1,6 +1,6 @@
 //! Rendering of a [`Report`] into human- and machine-readable output.
 //!
-//! The report data model lives in [`report`](super::report). This module reads a
+//! The report data model is in [`report`](super::report). This module reads a
 //! finished report and formats it against a [`SourceMap`]. The plain and JSON
 //! formats resolve each span's byte offset into a line and column, and the pretty
 //! format passes byte ranges to `annotate-snippets`, which resolves them. Three

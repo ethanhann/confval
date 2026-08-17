@@ -299,7 +299,7 @@ fn json_repeated_block_completion_opens_an_array() {
 #[test]
 fn json_field_in_an_array_element_position_opens_an_object() {
     // Arrange
-    // The cursor sits directly in the rules array, after the first element, so a
+    // The cursor is directly in the rules array, after the first element, so a
     // field completes as a new object element rather than a bare member.
     let text = "{\n  \"rules\": [\n    { \"prefix\": \"/api\" },\n    \n  ]\n}\n";
     let offset = text.find("},\n    \n").unwrap() + "},\n    ".len();

@@ -2,7 +2,7 @@
 //!
 //! It reconstructs the enclosing object path from the open braces and brackets
 //! and the property key before the cursor, so completion still resolves inside
-//! the object or the array element the cursor sits in while the buffer is broken.
+//! the object or the array element the cursor is in while the buffer is broken.
 
 use super::text::skip_string;
 
@@ -47,7 +47,7 @@ fn introducing_key(text: &str, open: usize) -> String {
 }
 
 /// Whether the innermost open bracket at the offset is a JSON array, so the
-/// cursor sits directly in an array rather than inside an element object. This
+/// cursor is directly in an array rather than inside an element object. This
 /// is the JSON half of the new-element answer the frontend resolves onto the
 /// cursor context.
 ///
@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn an_unpaired_closing_brace_does_not_pop_the_open_array() {
         // Arrange
-        // The `}` never closed the `[`, so the cursor still sits directly in
+        // The `}` never closed the `[`, so the cursor is still directly in
         // the array and a completion wraps a new element.
         let text = "[ }";
 

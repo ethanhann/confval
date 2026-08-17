@@ -1,7 +1,7 @@
 //! Base resolution, the plan and apply pair, and the error type.
 //!
-//! `plan` decides an outcome for one file without touching the file system
-//! beyond a read, and `apply` carries it out. Splitting the two lets the
+//! `plan` decides an outcome for one file without writing to the file
+//! system, and `apply` carries it out. Splitting the two lets the
 //! outcome table be unit tested without a spawned process.
 
 use std::fmt;
@@ -119,7 +119,7 @@ pub(crate) fn base(scope: Scope, cwd: &Path) -> Result<PathBuf, CliError> {
 }
 
 /// The base resolution with the home lookup passed in, so the user-scope and
-/// `NoHome` arms are testable without touching the environment.
+/// `NoHome` arms are testable without reading the environment.
 fn base_with_home(scope: Scope, cwd: &Path, home: Option<PathBuf>) -> Result<PathBuf, CliError> {
     match scope {
         Scope::Project => Ok(project_base(cwd)),
@@ -141,7 +141,7 @@ fn project_base(cwd: &Path) -> PathBuf {
     cwd.to_path_buf()
 }
 
-/// Decides an outcome without touching the file system beyond a read.
+/// Decides an outcome without writing to the file system.
 pub(crate) fn plan(path: &Path, rendered: &str, force: bool) -> Result<Outcome, CliError> {
     match fs::read(path) {
         Ok(existing) if existing == rendered.as_bytes() => Ok(Outcome::Unchanged),

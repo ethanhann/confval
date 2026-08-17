@@ -8,7 +8,7 @@
 //!
 //! The parser walks the `Fields` view, matches fields by name, reports unknown
 //! and missing fields, and builds the struct. It checks no values. Semantic
-//! rules live in the `Validate` impl the author writes and in validator
+//! rules are in the `Validate` impl the author writes and in validator
 //! functions that operate on the parsed `Located` values.
 //!
 //! The traversal is generated here rather than under its own derive because it
@@ -113,8 +113,6 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let ident = field.ident.as_ref().ok_or_else(|| {
             syn::Error::new_spanned(field, "named field is missing an identifier")
         })?;
-        // Read the field's attributes, work out its parsing shape, and reject a
-        // `default` on a shape that cannot honor it.
         let options = parse_options(field)?;
         // A block designates one label field, so a second `#[confval(label)]`
         // is rejected here, the only place that sees every field.
@@ -148,8 +146,6 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         to_schema_emits.push(field_schema(ident, &shape, &options)?);
         recorded_checks.extend(field_recorded_check(ident, &shape, &options));
 
-        // Emit the parsing fragments for this field, tailored to its shape, and
-        // splice each into its bucket.
         let parsed = field_parser(ident, &shape, &options);
         slot_decls.extend(parsed.slot_decls);
         match_arms.extend(parsed.match_arms);
@@ -186,8 +182,8 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     );
     let to_schema = to_schema_impl(name, &struct_options.doc, &to_schema_emits);
 
-    // Splice the four parsing buckets into the generated parser. This is the
-    // code that runs at the caller's runtime, once per parsed struct.
+    // This is the code that runs at the caller's runtime, once per parsed
+    // struct.
     Ok(quote! {
         impl ::confval::format::FromFields for #name {
             fn from_fields(

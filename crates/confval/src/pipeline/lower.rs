@@ -22,7 +22,7 @@ pub trait Lower<S>: Sized {
 /// type. Auto-mapped fields with incompatible types fail as a missing
 /// `LowerAuto` implementation, naming both types.
 ///
-/// Numeric narrowing is deliberately absent. The range that makes a cast
+/// Numeric narrowing is absent. The range that makes a cast
 /// safe is knowledge this trait does not have, so narrowing always goes
 /// through an explicit lowering function.
 pub trait LowerAuto<Target> {

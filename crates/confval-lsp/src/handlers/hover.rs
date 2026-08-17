@@ -16,7 +16,7 @@ use crate::frontend::{CursorContext, PositionKind};
 use crate::handlers::Cx;
 use crate::walk::{field_text, label_matches, reference_labels, resolved_level, schema_at};
 
-/// Produces the hover for a resolved cursor, or `None` when the cursor sits on
+/// Produces the hover for a resolved cursor, or `None` when the cursor is on
 /// no field.
 pub fn hover(cx: &Cx, index: &LineIndex, encoding: PositionEncoding) -> Option<Hover> {
     let (schema, fields, ctx, text) = (cx.schema, cx.fields, cx.ctx, cx.text);

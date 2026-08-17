@@ -146,7 +146,7 @@ fn definition_on_a_no_parse_buffer_answers_empty() {
 #[test]
 fn references_from_a_native_label_list_the_reference_values() {
     // Arrange
-    // The cursor sits in the HCL block label. Both routes name it.
+    // The cursor is in the HCL block label. Both routes name it.
     let text = GATEWAY_HCL;
     let offset = text.find("\"api\"").unwrap() + 1;
     let schema = GatewaySpec::schema();
@@ -242,7 +242,7 @@ fn references_drop_a_site_resolving_to_a_nearer_scope() {
 #[test]
 fn references_on_a_label_field_name_answer_empty() {
     // Arrange
-    // The cursor sits on the `name` key itself, a body position. Navigation
+    // The cursor is on the `name` key itself, a body position. Navigation
     // answers on the value, not the name.
     let text = GATEWAY_YAML;
     let offset = text.find("name: api").unwrap() + 1;

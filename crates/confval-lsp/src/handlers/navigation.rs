@@ -26,7 +26,7 @@ struct LabelSite<'a> {
     block: String,
     value: String,
     declaration: Option<Span>,
-    /// Whether the cursor sits on a reference value rather than on the label
+    /// Whether the cursor is on a reference value rather than on the label
     /// itself. Definition answers only here, because a label is its own
     /// definition.
     is_reference: bool,

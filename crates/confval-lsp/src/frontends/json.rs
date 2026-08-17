@@ -32,7 +32,7 @@ impl Frontend for Json {
 
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {
         // A member alone, with no comma. A missing comma is a visible diagnostic,
-        // and a misplaced comma would be a destructive edit, so v0 leaves the
+        // and a misplaced comma would be a destructive edit, so the operator supplies the
         // comma to the operator. Every member re-renders its opening quote, so
         // the edit absorbs one the operator has already typed.
         let (text, snippet) = match &field.ty {

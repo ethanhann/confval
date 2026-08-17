@@ -3,7 +3,7 @@
 //! Run it with `cargo run -p confval-lsp --example serve [hcl|toml|kdl|json|yaml]`, then
 //! point an LSP client at the built binary. It binds the core to the demo spec
 //! below, so it is a testing convenience rather than a real deployment. The real
-//! server names its own root spec and lives in the snakeway repository.
+//! server names its own root spec and is in the snakeway repository.
 //!
 //! The demo spec mirrors the crate's test fixture, so the sample documents in
 //! `dev/sample_configs/` parse against it.

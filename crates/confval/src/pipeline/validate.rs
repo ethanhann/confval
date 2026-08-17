@@ -7,7 +7,7 @@ use core::ops::ControlFlow;
 /// fields: ranges, closed-set keywords, formats, each reported at the span
 /// the offending field already carries. Checks that need an enclosing span,
 /// cross-field structure, or sibling context do not belong here.
-/// They live in the central validators that hold the surrounding `Located` wrappers.
+/// They are in the central validators that hold the surrounding `Located` wrappers.
 ///
 /// The trait exists so the requirement can be written as a bound.
 /// `#[derive(Config)]` emits `impl Lower<S> ... where S: Validate + ValidateNested`

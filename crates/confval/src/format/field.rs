@@ -9,7 +9,7 @@
 //! the `#[derive(Spec)]`-generated walks, and the handwritten [`FromFields`]
 //! impls.
 //!
-//! The model is deliberately owned (no borrow of the format's AST). Config
+//! The model is owned and borrows nothing from the format's AST. Config
 //! files are small, so the one copy out of the parse tree is cheap and removes
 //! every dependence on one format's node types.
 
