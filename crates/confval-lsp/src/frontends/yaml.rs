@@ -69,7 +69,7 @@ mod tests {
         SchemaField::new(name.to_string(), None, ty).required()
     }
 
-    fn block(repeated: bool) -> SchemaType {
+    fn block_type(repeated: bool) -> SchemaType {
         SchemaType::Block {
             schema: Box::new(Schema::new(None, Vec::new())),
             repeated,
@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn a_repeated_block_opens_a_sequence_element() {
         // Arrange, Act
-        let insert = Yaml.insert_text(&field("rules", block(true)), &[]);
+        let insert = Yaml.insert_text(&field("rules", block_type(true)), &[]);
 
         // Assert
         assert_eq!(insert.text, "rules:\n  - $0");
@@ -106,7 +106,7 @@ mod tests {
     #[test]
     fn a_single_block_opens_an_indented_body() {
         // Arrange, Act
-        let insert = Yaml.insert_text(&field("limits", block(false)), &[]);
+        let insert = Yaml.insert_text(&field("limits", block_type(false)), &[]);
 
         // Assert
         assert_eq!(insert.text, "limits:\n  $0");

@@ -69,3 +69,77 @@ impl Frontend for Json {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use confval::schema::{ScalarType, Schema, SchemaType};
+
+    fn field(name: &str, ty: SchemaType) -> SchemaField {
+        SchemaField::new(name.to_string(), None, ty).required()
+    }
+
+    fn block_type(repeated: bool) -> SchemaType {
+        SchemaType::Block {
+            schema: Box::new(Schema::new(None, Vec::new())),
+            repeated,
+        }
+    }
+
+    #[test]
+    fn a_repeated_block_opens_an_array_of_objects() {
+        // Arrange, Act
+        let insert = Json.insert_text(&field("rules", block_type(true)), &[]);
+
+        // Assert
+        assert_eq!(insert.text, "\"rules\": [{ $0 }]");
+        assert!(insert.snippet);
+    }
+
+    #[test]
+    fn a_single_block_opens_an_object_body() {
+        // Arrange, Act
+        let insert = Json.insert_text(&field("limits", block_type(false)), &[]);
+
+        // Assert
+        assert_eq!(insert.text, "\"limits\": {\n  $0\n}");
+    }
+
+    #[test]
+    fn a_string_list_opens_an_array() {
+        // Arrange, Act
+        let insert = Json.insert_text(&field("allow", SchemaType::StringList), &[]);
+
+        // Assert
+        assert_eq!(insert.text, "\"allow\": [$0]");
+    }
+
+    #[test]
+    fn a_string_map_opens_an_inline_object() {
+        // Arrange, Act
+        let insert = Json.insert_text(&field("headers", SchemaType::StringMap), &[]);
+
+        // Assert
+        assert_eq!(insert.text, "\"headers\": { $0 }");
+    }
+
+    #[test]
+    fn a_member_absorbs_its_typed_opening_quote() {
+        // Arrange, Act
+        let insert = Json.insert_text(
+            &field(
+                "port",
+                SchemaType::Scalar {
+                    leaf: ScalarType::Int,
+                    constraint: None,
+                },
+            ),
+            &[],
+        );
+
+        // Assert
+        assert_eq!(insert.text, "\"port\": ");
+        assert_eq!(insert.absorb, Absorb::One(b'"'));
+        assert!(!insert.snippet);
+    }
+}
