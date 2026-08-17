@@ -61,7 +61,7 @@ fn brace_path(text: &str, offset: usize, comments: &[&str]) -> Vec<String> {
     while index < offset {
         match bytes[index] {
             b'"' => index = skip_string(bytes, index),
-            _ if starts_comment(&text[index..], comments) => index = skip_line(bytes, index),
+            _ if starts_comment(&bytes[index..], comments) => index = skip_line(bytes, index),
             b'/' if bytes.get(index + 1) == Some(&b'*') => index = skip_block_comment(bytes, index),
             b'{' => {
                 stack.push(statement_identifier(text, index));
@@ -256,9 +256,13 @@ fn last_identifier(segment: &str) -> Option<String> {
     Some(segment[start..end].to_string())
 }
 
-/// Whether the segment starts with one of the format's comment markers.
-fn starts_comment(segment: &str, comments: &[&str]) -> bool {
-    comments.iter().any(|marker| segment.starts_with(marker))
+/// Whether the segment starts with one of the format's comment markers. The
+/// segment is bytes rather than text because the scanners index byte by byte,
+/// and a byte index may sit inside a multi-byte character.
+fn starts_comment(segment: &[u8], comments: &[&str]) -> bool {
+    comments
+        .iter()
+        .any(|marker| segment.starts_with(marker.as_bytes()))
 }
 
 /// Whether the cursor's line prefix holds a comment start outside a string, so
@@ -271,7 +275,7 @@ fn past_comment(line: &str, comments: &[&str]) -> bool {
             index = skip_string(bytes, index);
             continue;
         }
-        if starts_comment(&line[index..], comments) {
+        if starts_comment(&bytes[index..], comments) {
             return true;
         }
         index += 1;
@@ -280,6 +284,8 @@ fn past_comment(line: &str, comments: &[&str]) -> bool {
 }
 
 /// The index just past a string literal that starts at `open`, honoring `\"`.
+/// An unterminated string ends at the buffer, even when its last byte is a
+/// backslash whose escape would step past the end.
 pub(crate) fn skip_string(bytes: &[u8], open: usize) -> usize {
     let mut index = open + 1;
     while index < bytes.len() {
@@ -289,7 +295,7 @@ pub(crate) fn skip_string(bytes: &[u8], open: usize) -> usize {
             _ => index += 1,
         }
     }
-    index
+    bytes.len()
 }
 
 /// The index just past a `/* */` block comment that starts at `start`.
@@ -476,6 +482,83 @@ mod tests {
         assert_eq!(context.kind, value("mode"));
         let (start, end) = context.token;
         assert_eq!(&text[start..end], "en", "the value alone, not the key");
+    }
+
+    #[test]
+    fn a_multibyte_character_in_an_hcl_value_does_not_panic_the_brace_scan() {
+        // Arrange
+        // The brace scan crosses `é`, whose continuation byte is not a char
+        // boundary. Slicing the text there panicked before the byte-wise fix.
+        let text = "region = eu-wést-1\n";
+        let offset = text.len() - 1;
+
+        // Act
+        let context = resolve_in_text(
+            text,
+            offset,
+            Recovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(context.kind, value("region"));
+    }
+
+    #[test]
+    fn a_multibyte_character_in_a_toml_value_does_not_panic_the_comment_scan() {
+        // Arrange
+        let text = "[a]\nname = héllo";
+        let offset = text.len();
+
+        // Act
+        let context = resolve_in_text(
+            text,
+            offset,
+            Recovery::Header,
+            ValueSeparator::Equals,
+            &["#"],
+        );
+
+        // Assert
+        assert_eq!(context.path, vec!["a".to_string()]);
+        assert_eq!(context.kind, value("name"));
+    }
+
+    #[test]
+    fn a_multibyte_character_in_a_kdl_node_name_does_not_panic_the_scan() {
+        // Arrange
+        let text = "café 1\n";
+        let offset = text.len() - 1;
+
+        // Act
+        let context = resolve_in_text(
+            text,
+            offset,
+            Recovery::Braces,
+            ValueSeparator::Whitespace,
+            &["//"],
+        );
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn a_line_ending_in_a_backslash_does_not_panic_the_colon_scan() {
+        // Arrange
+        // The trailing backslash makes `skip_string` step past the end of the
+        // line, and the key slice panicked before the clamp.
+        let text = "{\n  \"path\": \"C:\\";
+        let offset = text.len();
+
+        // Act
+        let context = resolve_in_text(text, offset, Recovery::Object, ValueSeparator::Colon, &[]);
+
+        // Assert
+        assert_eq!(context.kind, value("path"));
     }
 
     #[test]
