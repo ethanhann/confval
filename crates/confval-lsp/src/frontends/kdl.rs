@@ -1,10 +1,10 @@
 use crate::Frontend;
-use crate::frontend::{Insert, ValueSeparator};
+use crate::frontend::{Insert, ValueSeparator, quoted_literal};
 use crate::frontends::is_block;
 use confval::diagnostic::Report;
 use confval::format::Fields;
 use confval::format::kdl as format_kdl;
-use confval::schema::{SchemaField, SchemaType};
+use confval::schema::{ScalarType, SchemaField, SchemaType};
 use confval::source::{SourceId, SourceMap};
 
 /// The KDL frontend.
@@ -21,6 +21,15 @@ impl Frontend for Kdl {
         ValueSeparator::Whitespace
     }
 
+    fn default_literal(&self, leaf: &ScalarType, text: &str) -> String {
+        // KDL writes booleans `#true` and `#false`.
+        match leaf {
+            ScalarType::Bool => format!("#{text}"),
+            ScalarType::String | ScalarType::Path => quoted_literal(text),
+            _ => text.to_string(),
+        }
+    }
+
     fn hash_is_comment(&self) -> bool {
         // KDL writes booleans `#true` and `#false`, so `#` is not a comment.
         false
@@ -33,7 +42,7 @@ impl Frontend for Kdl {
         Insert::plain(if block_form {
             format!("{} {{\n  $0\n}}", field.name)
         } else {
-            format!("{} ", field.name)
+            format!("{} {}", field.name, super::value_placeholder(self, field))
         })
     }
 }

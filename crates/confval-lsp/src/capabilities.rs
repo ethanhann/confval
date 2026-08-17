@@ -2,8 +2,9 @@
 //! server capabilities.
 
 use lsp_types::{
-    CompletionOptions, HoverProviderCapability, InitializeParams, PositionEncodingKind,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    CodeActionProviderCapability, CompletionOptions, HoverProviderCapability, InitializeParams,
+    OneOf, PositionEncodingKind, ServerCapabilities, TextDocumentSyncCapability,
+    TextDocumentSyncKind,
 };
 
 use crate::encoding::PositionEncoding;
@@ -22,17 +23,31 @@ pub(crate) fn negotiate(params: &InitializeParams) -> PositionEncoding {
     }
 }
 
-/// Whether the client expands a completion snippet, so a block insert may place
-/// the cursor with a `$0` tab stop. A client without snippet support receives the
-/// plain text with the tab stop removed, so no literal `$0` reaches the buffer.
-pub(crate) fn supports_snippets(params: &InitializeParams) -> bool {
-    params
+/// Reads the client's completion switches once at initialization.
+pub(crate) fn completion_support(params: &InitializeParams) -> crate::handlers::ClientSupport {
+    let item = params
         .capabilities
         .text_document
         .as_ref()
         .and_then(|document| document.completion.as_ref())
-        .and_then(|completion| completion.completion_item.as_ref())
-        .and_then(|item| item.snippet_support)
+        .and_then(|completion| completion.completion_item.as_ref());
+    crate::handlers::ClientSupport {
+        snippets: item.and_then(|item| item.snippet_support).unwrap_or(false),
+        preselect: item
+            .and_then(|item| item.preselect_support)
+            .unwrap_or(false),
+    }
+}
+
+/// Whether the client renders a hierarchical document-symbol tree. A client
+/// without it receives the flat form.
+pub(crate) fn supports_hierarchical_symbols(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|document| document.document_symbol.as_ref())
+        .and_then(|symbols| symbols.hierarchical_document_symbol_support)
         .unwrap_or(false)
 }
 
@@ -43,6 +58,10 @@ pub(crate) fn server_capabilities(encoding: PositionEncoding) -> ServerCapabilit
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         completion_provider: Some(CompletionOptions::default()),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
+        definition_provider: Some(OneOf::Left(true)),
+        references_provider: Some(OneOf::Left(true)),
+        document_symbol_provider: Some(OneOf::Left(true)),
+        code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
         ..ServerCapabilities::default()
     }
 }
@@ -120,8 +139,9 @@ mod tests {
         };
 
         // Act, Assert
-        assert!(supports_snippets(&with_snippets));
-        assert!(!supports_snippets(&InitializeParams::default()));
+        assert!(completion_support(&with_snippets).snippets);
+        assert!(!completion_support(&InitializeParams::default()).snippets);
+        assert!(!completion_support(&InitializeParams::default()).preselect);
     }
 
     #[test]
@@ -134,5 +154,27 @@ mod tests {
             capabilities.position_encoding,
             Some(PositionEncodingKind::UTF8)
         );
+    }
+
+    #[test]
+    fn the_hierarchical_symbol_gate_reads_the_client_capability() {
+        // Arrange
+        let mut with_hierarchy = InitializeParams::default();
+        with_hierarchy.capabilities.text_document =
+            Some(lsp_types::TextDocumentClientCapabilities {
+                document_symbol: Some(lsp_types::DocumentSymbolClientCapabilities {
+                    hierarchical_document_symbol_support: Some(true),
+                    ..lsp_types::DocumentSymbolClientCapabilities::default()
+                }),
+                ..lsp_types::TextDocumentClientCapabilities::default()
+            });
+
+        // Act
+        let with_support = supports_hierarchical_symbols(&with_hierarchy);
+        let without = supports_hierarchical_symbols(&InitializeParams::default());
+
+        // Assert
+        assert!(with_support);
+        assert!(!without);
     }
 }

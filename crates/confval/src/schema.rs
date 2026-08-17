@@ -71,6 +71,17 @@ pub struct SchemaField {
     /// marker. There the spec field stays absent and the config side fills the
     /// default, so a hover should not read it as filled when absent.
     pub has_default: bool,
+    /// The default value rendered to text, for a scalar leaf that declares one,
+    /// or `None`. The derive evaluates the default expression when `schema()`
+    /// runs and renders it per leaf: a string as its text, an integer and a
+    /// boolean through their display forms, a float in the form the emitters
+    /// write so a whole number keeps its `.0`, and a path through its lossy
+    /// string form. A defaulted list, map, or block carries `None`, because
+    /// there is no single value to render. The reader pairs the text with the
+    /// field's leaf type to know what it holds. The evaluation runs wherever
+    /// `schema()` runs, including inside a long-running language server, so a
+    /// default expression must not panic and must not carry side effects.
+    pub default_text: Option<String>,
     /// The field's declared type.
     pub ty: SchemaType,
     /// Whether this field is its block's label field, marked `#[confval(label)]`.
@@ -186,6 +197,7 @@ impl SchemaField {
             doc,
             required: structurally_required && !has_default,
             has_default,
+            default_text: None,
             ty,
             label: false,
         }
@@ -195,6 +207,15 @@ impl SchemaField {
     /// `#[confval(label)]` field.
     pub fn as_label(mut self) -> Self {
         self.label = true;
+        self
+    }
+
+    /// Carries the field's default value rendered to text. The derive calls it
+    /// for a defaulted scalar leaf, and a handwritten spec calls it the same
+    /// way. See [`default_text`](SchemaField::default_text) for the per-leaf
+    /// forms.
+    pub fn with_default_text(mut self, text: String) -> Self {
+        self.default_text = Some(text);
         self
     }
 }

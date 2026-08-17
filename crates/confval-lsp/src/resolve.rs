@@ -324,8 +324,9 @@ fn block_body_end(block_span: Span, inner: &Fields) -> u32 {
 }
 
 /// The furthest non-detached end offset among a level's fields and their
-/// descendants.
-fn deepest_end(fields: &Fields) -> u32 {
+/// descendants. The document-symbol outline shares it, so a container's
+/// extension cannot drift from cursor resolution.
+pub(crate) fn deepest_end(fields: &Fields) -> u32 {
     let mut furthest = 0;
     for field in fields.iter() {
         furthest = furthest.max(end_of(field.span));

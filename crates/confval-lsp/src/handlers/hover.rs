@@ -1,19 +1,20 @@
 //! The hover handler.
 //!
 //! It resolves the field under the cursor and renders its doc comment, declared
-//! type, whether it has a default, and its constraint. The IR records only that
-//! a field has a default, not the rendered value, so hover states that a default
-//! applies rather than printing it. It reads operator-set versus defaulted from
-//! the field's presence in the parsed fields, not from a sentinel span.
+//! type, its default, and its constraint. A scalar default prints its rendered
+//! value in a format-neutral form. A defaulted shape the schema cannot render,
+//! such as a list, states that a default applies. It reads operator-set versus
+//! defaulted from the field's presence in the parsed fields, not from a
+//! sentinel span.
 
 use lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind};
 
-use confval::format::{Field, FieldKind, Fields, Scalar, ValueKind};
+use confval::format::Fields;
 use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, PositionKind};
-use crate::walk::{reference_labels, resolved_level, schema_at};
+use crate::walk::{field_text, label_matches, reference_labels, resolved_level, schema_at};
 
 /// Produces the hover for a resolved cursor, or `None` when the cursor sits on
 /// no field.
@@ -131,11 +132,8 @@ fn reference_hover(
     let mut markdown = format!("References the `{block}` block.");
     match value {
         ReferenceValue::Text(value) => {
-            let resolves = reference_labels(schema, ctx, block).is_some_and(|labels| {
-                labels
-                    .iter()
-                    .any(|label| !label.value.is_empty() && label.value == value)
-            });
+            let resolves = reference_labels(schema, ctx, block)
+                .is_some_and(|labels| labels.iter().any(|label| label_matches(label, &value)));
             markdown.push_str("\n\n");
             markdown.push_str(if resolves {
                 "Resolves to a defined label."
@@ -157,17 +155,6 @@ fn reference_hover(
     }
 }
 
-/// A parsed field's string value, or `None` when it is not a string.
-fn field_text(field: &Field) -> Option<String> {
-    match &field.kind {
-        FieldKind::Value(value) => match &value.kind {
-            ValueKind::Scalar(Scalar::String(string)) => Some(string.clone()),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
 /// Renders a field's hover as Markdown. `set` is `None` when the buffer does not
 /// parse, so the state line is omitted rather than guessed.
 fn render(field: &SchemaField, set: Option<bool>) -> String {
@@ -180,13 +167,31 @@ fn render(field: &SchemaField, set: Option<bool>) -> String {
         out.push_str(&constraint_label(constraint));
         out.push_str("\n\n");
     }
-    if field.has_default {
-        out.push_str("Has a default.\n\n");
+    // A set field states its state alone, so the default lines render only
+    // when the value could still fall through to the default.
+    if set != Some(true) {
+        if let Some(text) = &field.default_text {
+            out.push_str(&format!("Defaults to {}.\n\n", neutral_value(field, text)));
+        } else if field.has_default {
+            out.push_str("Has a default.\n\n");
+        }
     }
     if let Some(set) = set {
         out.push_str(state_label(set, field.has_default));
     }
     out
+}
+
+/// A default value in the format-neutral hover form: a string and a path
+/// quoted, everything else as its text.
+fn neutral_value(field: &SchemaField, text: &str) -> String {
+    match &field.ty {
+        SchemaType::Scalar {
+            leaf: ScalarType::String | ScalarType::Path,
+            ..
+        } => format!("{text:?}"),
+        _ => text.to_string(),
+    }
 }
 
 /// The state line: operator-set, defaulted, or absent.

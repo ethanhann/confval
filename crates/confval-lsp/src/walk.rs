@@ -5,8 +5,8 @@
 //! that path to the block that encloses the cursor, and the parsed [`Fields`]
 //! along the same path to find which fields the operator has already set.
 
-use confval::format::{FieldKind, Fields, ValueKind};
-use confval::pipeline::{declares_labeled_block, scope_labels};
+use confval::format::{Field, FieldKind, Fields, Scalar, ValueKind};
+use confval::pipeline::{Scope, declares_labeled_block, scope_labels};
 use confval::schema::{Schema, SchemaType};
 use confval::source::Located;
 
@@ -78,7 +78,19 @@ pub(crate) fn resolved_level<'a>(
         .or_else(|| fields.and_then(|tree| fields_at(tree, &ctx.path)))
 }
 
-/// The labels a reference at the cursor resolves against.
+/// A parsed field's string value, or `None` when it is not a string. The
+/// hover and navigation handlers share it, beside the other tree readers.
+pub(crate) fn field_text(field: &Field) -> Option<String> {
+    match &field.kind {
+        FieldKind::Value(value) => match &value.kind {
+            ValueKind::Scalar(Scalar::String(string)) => Some(string.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The declaring scope for a reference target at the cursor.
 ///
 /// It searches outward from the cursor's scope to the nearest enclosing scope
 /// whose schema declares the labeled `block`, the rule `check_references`
@@ -86,11 +98,11 @@ pub(crate) fn resolved_level<'a>(
 /// carries.
 /// Returns `None` when no enclosing scope declares the target or when the
 /// buffer did not parse, which leaves no carried bodies.
-pub(crate) fn reference_labels(
-    schema: &Schema,
-    ctx: &CursorContext,
+pub(crate) fn declaring_scope<'a>(
+    schema: &'a Schema,
+    ctx: &'a CursorContext,
     block: &str,
-) -> Option<Vec<Located<String>>> {
+) -> Option<Scope<'a>> {
     let innermost = ctx.path.len();
     for depth in (0..=innermost).rev() {
         let Some(scope_schema) = schema_at(schema, &ctx.path[..depth]) else {
@@ -104,7 +116,111 @@ pub(crate) fn reference_labels(
         } else {
             ctx.ancestors.get(depth)
         }?;
-        return Some(scope_labels(body, scope_schema, block));
+        return Some(Scope {
+            schema: scope_schema,
+            body,
+        });
     }
     None
+}
+
+/// Whether a label is a non-empty match for a reference value.
+pub(crate) fn label_matches(label: &Located<String>, value: &str) -> bool {
+    !label.value.is_empty() && label.value == value
+}
+
+/// The labels a reference at the cursor resolves against: the declaring
+/// scope's labels for `block`, or `None` when no scope declares it or the
+/// buffer did not parse.
+pub(crate) fn reference_labels(
+    schema: &Schema,
+    ctx: &CursorContext,
+    block: &str,
+) -> Option<Vec<Located<String>>> {
+    let scope = declaring_scope(schema, ctx, block)?;
+    Some(scope_labels(scope.body, scope.schema, block))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::PositionKind;
+    use confval::schema::{ScalarType, SchemaField};
+
+    fn labeled_block(name: &str) -> SchemaField {
+        let label = SchemaField::new(
+            "id".to_string(),
+            None,
+            true,
+            false,
+            SchemaType::Scalar {
+                leaf: ScalarType::String,
+                constraint: None,
+            },
+        )
+        .as_label();
+        SchemaField::new(
+            name.to_string(),
+            None,
+            false,
+            false,
+            SchemaType::Block {
+                schema: Box::new(Schema::new(None, vec![label])),
+                repeated: true,
+            },
+        )
+    }
+
+    fn map_field(name: &str) -> SchemaField {
+        SchemaField::new(name.to_string(), None, true, false, SchemaType::StringMap)
+    }
+
+    fn context(path: Vec<String>) -> CursorContext {
+        let mut ctx = CursorContext::body(path, (0, 0));
+        ctx.resolved_body = Some(Fields::detached(Vec::new()));
+        ctx
+    }
+
+    #[test]
+    fn a_label_matches_only_a_non_empty_equal_value() {
+        // Arrange
+        let empty = confval::source::Located::detached(String::new());
+        let named = confval::source::Located::detached("api".to_string());
+
+        // Act, Assert
+        assert!(!label_matches(&empty, ""));
+        assert!(!label_matches(&named, "web"));
+        assert!(label_matches(&named, "api"));
+    }
+
+    #[test]
+    fn the_outward_search_skips_a_path_level_the_schema_cannot_name() {
+        // Arrange
+        // The path descends into an open-ended map, which names no child
+        // schema, so that level is skipped and the root still declares the
+        // target.
+        let schema = Schema::new(None, vec![map_field("headers"), labeled_block("pool")]);
+        let mut ctx = context(vec!["headers".to_string()]);
+        ctx.ancestors = vec![Fields::detached(Vec::new())];
+        assert_eq!(ctx.kind, PositionKind::Body);
+
+        // Act
+        let scope = declaring_scope(&schema, &ctx, "pool");
+
+        // Assert
+        assert!(scope.is_some(), "the root declares the target");
+    }
+
+    #[test]
+    fn no_declaring_scope_answers_none() {
+        // Arrange
+        let schema = Schema::new(None, vec![map_field("headers")]);
+        let ctx = context(Vec::new());
+
+        // Act
+        let labels = reference_labels(&schema, &ctx, "pool");
+
+        // Assert
+        assert!(labels.is_none(), "no scope declares the target");
+    }
 }

@@ -242,9 +242,11 @@ impl ToSchema for ServiceSpec {
             None,
             vec![
                 sf("name", true, false, leaf(ScalarType::String)),
-                sf("workers", true, true, workers),
-                sf("sample_rate", true, true, leaf(ScalarType::Float)),
-                sf("verbose", true, true, leaf(ScalarType::Bool)),
+                sf("workers", true, true, workers).with_default_text("4".to_string()),
+                sf("sample_rate", true, true, leaf(ScalarType::Float))
+                    .with_default_text("1.0".to_string()),
+                sf("verbose", true, true, leaf(ScalarType::Bool))
+                    .with_default_text("false".to_string()),
                 sf("pid_file", false, false, leaf(ScalarType::Path)),
                 sf("events", true, true, SchemaType::StringList),
                 sf("phases", false, false, SchemaType::StringList),

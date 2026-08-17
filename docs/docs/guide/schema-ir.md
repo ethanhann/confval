@@ -42,9 +42,12 @@ A `PathBuf` leaf reads as `Path`, the name for the path string an operator write
 
 A block recurses into the child's own `schema()`, so one call at the root builds the whole tree.
 
-The schema does not carry rendered default values.
-It records only whether a field has a default.
-To read the concrete default text, use the [template](./templates.md) walk, `ServerSpec::default().to_template()`.
+The schema carries a scalar leaf's default rendered to text.
+The derive evaluates the default expression when `schema()` runs and stores the result on the field, so `#[confval(default = 4)]` reads back as `"4"`.
+A defaulted list, map, or block carries no text, because there is no single value to render.
+`has_default` still records that one applies.
+A handwritten spec carries a default the same way, through `with_default_text` beside the other builder calls.
+To render a whole document of defaults, use the [template](./templates.md) walk, `ServerSpec::default().to_template()`.
 
 ## When a field is required
 

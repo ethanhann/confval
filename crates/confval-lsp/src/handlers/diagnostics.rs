@@ -10,7 +10,7 @@ use lsp_types::{Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Lo
 use confval::diagnostic::{Issue, Report, Severity};
 use confval::format::FromFields;
 use confval::pipeline::{Validate, ValidateNested, check_references};
-use confval::schema::ToSchema;
+use confval::schema::{Schema, ToSchema};
 use confval::source::SourceMap;
 
 use crate::encoding::{LineIndex, PositionEncoding};
@@ -18,10 +18,13 @@ use crate::frontend::Frontend;
 
 /// Produces the diagnostics for a document.
 ///
-/// `S` is the root spec, `frontend` its format. The `uri` is the document's own
-/// URI, used for the related locations of a cross-field issue.
+/// `S` is the root spec, `frontend` its format, and `schema` the caller's
+/// already-built schema, so a default expression evaluates once per server
+/// rather than on every publish. The `uri` is the document's own URI, used for
+/// the related locations of a cross-field issue.
 pub fn diagnostics<S, F>(
     frontend: &F,
+    schema: &Schema,
     text: &str,
     uri: &Uri,
     encoding: PositionEncoding,
@@ -40,7 +43,7 @@ where
         if let Some(spec) = S::from_fields(&fields, &mut report) {
             spec.validate_all(&mut report);
         }
-        check_references(&fields, &S::schema(), &mut report);
+        check_references(&fields, schema, &mut report);
     }
 
     let index = LineIndex::new(text);
@@ -150,7 +153,13 @@ mod tests {
         let uri = Uri::from_str("file:///gateway.hcl").unwrap();
 
         // Act
-        let produced = diagnostics::<Gateway, Hcl>(&Hcl, text, &uri, PositionEncoding::Utf16);
+        let produced = diagnostics::<Gateway, Hcl>(
+            &Hcl,
+            &Gateway::schema(),
+            text,
+            &uri,
+            PositionEncoding::Utf16,
+        );
 
         // Assert
         assert!(

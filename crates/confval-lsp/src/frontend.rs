@@ -9,7 +9,7 @@
 
 use confval::diagnostic::Report;
 use confval::format::Fields;
-use confval::schema::SchemaField;
+use confval::schema::{ScalarType, SchemaField};
 use confval::source::{SourceId, SourceMap};
 
 use crate::resolve::{bodies_along_path, resolve_in_tree, value_span_in};
@@ -327,6 +327,37 @@ pub trait Frontend {
     fn wrap_element(&self, insert: String) -> String {
         insert
     }
+
+    /// Renders a default value as the format's literal text, from the leaf and
+    /// the carried text. The pre-filled insert, the preselected value item,
+    /// and the code-action edit all go through it, so the editor writes the
+    /// value the way the format reads it. The default quotes a string and a
+    /// path and passes the rest through. KDL overrides the boolean forms.
+    fn default_literal(&self, leaf: &ScalarType, text: &str) -> String {
+        match leaf {
+            ScalarType::String | ScalarType::Path => quoted_literal(text),
+            _ => text.to_string(),
+        }
+    }
+}
+
+/// A quoted string literal with its inner quotes, backslashes, and control
+/// characters escaped, the forms every frontend's double-quoted string reads.
+pub(crate) fn quoted_literal(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len() + 2);
+    escaped.push('"');
+    for character in text.chars() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\t' => escaped.push_str("\\t"),
+            '\r' => escaped.push_str("\\r"),
+            other => escaped.push(other),
+        }
+    }
+    escaped.push('"');
+    escaped
 }
 
 #[cfg(test)]
@@ -449,6 +480,24 @@ mod tests {
         assert_eq!(context.kind, PositionKind::Body);
         let (start, end) = context.token;
         assert_eq!(&text[start..end], "mode");
+    }
+
+    #[test]
+    fn the_default_literal_quotes_strings_and_paths_and_passes_numbers() {
+        // Arrange
+        let frontend = Hcl;
+
+        // Act, Assert
+        assert_eq!(frontend.default_literal(&ScalarType::Int, "4"), "4");
+        assert_eq!(frontend.default_literal(&ScalarType::Bool, "true"), "true");
+        assert_eq!(
+            frontend.default_literal(&ScalarType::Path, "/etc/app.conf"),
+            "\"/etc/app.conf\""
+        );
+        assert_eq!(
+            frontend.default_literal(&ScalarType::String, "a \"b\" \\c"),
+            "\"a \\\"b\\\" \\\\c\""
+        );
     }
 
     #[test]

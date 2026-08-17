@@ -60,7 +60,7 @@ pub(crate) fn field_schema(
     let structurally_required = structurally_required(shape);
     let ty = schema_type(shape, options)?;
     reject_label_misuse(ident, shape, options)?;
-    let field = quote! {
+    let mut field = quote! {
         ::confval::schema::SchemaField::new(
             #name.to_string(),
             #doc,
@@ -69,10 +69,43 @@ pub(crate) fn field_schema(
             #ty,
         )
     };
+    if let (FieldShape::Leaf { leaf, .. }, Some(expr)) = (shape, options.default_value()) {
+        let rendered = default_text(leaf, &expr);
+        field = quote! { #field.with_default_text(#rendered) };
+    }
     if options.label {
         Ok(quote! { #field.as_label() })
     } else {
         Ok(field)
+    }
+}
+
+/// The rendered default text for a scalar leaf, evaluated inside the generated
+/// `schema()`. The typed binding pins the expression to the leaf's Rust type,
+/// so a bare default renders that type's own default. A float renders through
+/// `{:?}`, so a whole number keeps its `.0`, the form the emitters write. A
+/// path renders through its lossy string form, the form the populate walk
+/// reads.
+fn default_text(leaf: &Leaf, expr: &TokenStream2) -> TokenStream2 {
+    match leaf {
+        Leaf::String => quote! {
+            { let value: ::std::string::String = #expr; value }
+        },
+        Leaf::Int => quote! {
+            ::std::string::ToString::to_string(&{ let value: i64 = #expr; value })
+        },
+        Leaf::Float => quote! {
+            ::std::format!("{:?}", { let value: f64 = #expr; value })
+        },
+        Leaf::Bool => quote! {
+            ::std::string::ToString::to_string(&{ let value: bool = #expr; value })
+        },
+        Leaf::PathBuf => quote! {
+            {
+                let value: ::std::path::PathBuf = #expr;
+                value.to_string_lossy().into_owned()
+            }
+        },
     }
 }
 

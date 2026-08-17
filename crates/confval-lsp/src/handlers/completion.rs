@@ -19,28 +19,26 @@ use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionTextEdit, InsertTextFormat, TextEdit,
 };
 
-use confval::format::Fields;
-use confval::schema::{Constraint, Schema, SchemaField, SchemaType};
+use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
-use crate::frontend::{Absorb, CursorContext, Frontend, PositionKind};
+#[cfg(test)]
+use crate::frontend::CursorContext;
+use crate::frontend::{Absorb, Frontend, PositionKind, quoted_literal};
+use crate::handlers::Cx;
 use crate::walk::{reference_labels, repeated_block_at, resolved_level, schema_at};
 
-/// The completion inputs: the document's schema, the parsed fields, the
-/// resolved cursor context, and the buffer text.
-///
-/// `fields` is the parsed field tree, used to drop the fields already set. It
-/// is `None` when the current buffer did not parse, in which case nothing is
-/// dropped.
-pub struct Cx<'a> {
-    /// The root schema.
-    pub schema: &'a Schema,
-    /// The parsed field tree, or `None` when the buffer did not parse.
-    pub fields: Option<&'a Fields>,
-    /// The resolved cursor context.
-    pub ctx: &'a CursorContext,
-    /// The buffer text, read to apply absorption and the separator space.
-    pub text: &'a str,
+/// The client's completion switches, read once at initialization: whether the
+/// client expands snippets, and whether it honors a preselected item.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ClientSupport {
+    /// Whether the client expands a completion snippet. Without it the
+    /// markers are unwrapped, so no literal `$0` or placeholder reaches the
+    /// buffer.
+    pub snippets: bool,
+    /// Whether the client honors a preselected item. Without it the flag is
+    /// withheld, so the client's own ranking stands.
+    pub preselect: bool,
 }
 
 /// One completion item with its edit as a byte range, before position encoding.
@@ -53,6 +51,14 @@ struct RawItem {
     /// Orders the client's list by schema declaration order rather than
     /// alphabetically, so related fields stay together.
     sort_text: String,
+    /// Marks the item the client should preselect: the field's default among
+    /// its values. Withheld at encode time when the client lacks the support.
+    preselect: bool,
+    /// Whether `new_text` carries snippet markers a producer wrote. A value
+    /// item's text is a literal and never sets it, so user text holding `$` or
+    /// `{` is neither expanded by a snippet client nor stripped for a plain
+    /// one.
+    snippet: bool,
     edit: (usize, usize),
     new_text: String,
 }
@@ -63,11 +69,11 @@ pub fn completion<F: Frontend>(
     cx: &Cx,
     index: &LineIndex,
     encoding: PositionEncoding,
-    snippets: bool,
+    client: ClientSupport,
 ) -> Vec<CompletionItem> {
     raw_items(frontend, cx)
         .into_iter()
-        .map(|raw| encode_item(raw, cx.text, index, encoding, snippets))
+        .map(|raw| encode_item(raw, cx.text, index, encoding, client))
         .collect()
 }
 
@@ -79,7 +85,7 @@ fn raw_items<F: Frontend>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
     };
     match &cx.ctx.kind {
         PositionKind::Body => body_items(frontend, enclosing, cx),
-        PositionKind::AttributeValue { field } => value_items(enclosing, field, cx),
+        PositionKind::AttributeValue { field } => value_items(frontend, enclosing, field, cx),
         PositionKind::BlockLabel { .. } => Vec::new(),
     }
 }
@@ -135,12 +141,17 @@ fn field_item<F: Frontend>(
         insert.text
     };
     let start = absorb_left(cx.text, cx.ctx.token.0, insert.absorb, &cx.ctx.kind);
+    // The frontends author this text, and any user text in it is already
+    // snippet-escaped, so marker detection here is reliable.
+    let snippet = new_text.contains("$0") || new_text.contains("${");
     RawItem {
         label: field.name.clone(),
         kind,
         detail: field.doc.clone(),
         filter_text: None,
         sort_text: sort_key(order),
+        preselect: false,
+        snippet,
         edit: (start, cx.ctx.token.1),
         new_text,
     }
@@ -182,7 +193,12 @@ fn absorb_left(text: &str, start: usize, absorb: Absorb, kind: &PositionKind) ->
 /// schema. A reference field offers the labels of the block it names, collected
 /// from the root schema and the parsed fields, because the target block sits
 /// elsewhere in the document.
-fn value_items(enclosing: &Schema, field: &str, cx: &Cx) -> Vec<RawItem> {
+fn value_items<F: Frontend>(
+    frontend: &F,
+    enclosing: &Schema,
+    field: &str,
+    cx: &Cx,
+) -> Vec<RawItem> {
     let Some(target) = enclosing
         .fields
         .iter()
@@ -197,16 +213,117 @@ fn value_items(enclosing: &Schema, field: &str, cx: &Cx) -> Vec<RawItem> {
         } => words
             .iter()
             .enumerate()
-            .map(|(order, word)| keyword_item(word, cx, order))
+            .map(|(order, word)| {
+                let mut item = keyword_item(word, cx, order);
+                // The default among the keywords is preselected rather than
+                // duplicated. A default absent from the set, which the derive
+                // permits, preselects nothing, because the set is
+                // authoritative.
+                item.preselect = target.default_text.as_deref() == Some(*word);
+                item
+            })
             .collect(),
         SchemaType::Scalar {
             constraint: Some(Constraint::References { block }),
             ..
         } => reference_items(block, cx),
-        // A `Range` constraint bounds a number, which is typed rather than
-        // chosen from a closed set, so it deliberately falls through to no
-        // items.
+        // A boolean is its own closed set. A written value offers the literal
+        // it could change to, and an empty value offers both, with the
+        // default preselected when the field carries one.
+        SchemaType::Scalar {
+            leaf: ScalarType::Bool,
+            constraint: None,
+        } => bool_items(frontend, target, field, cx),
+        // A number bounded by a `Range` and an unconstrained scalar are typed
+        // rather than chosen from a closed set, so they offer only the
+        // rendered default, when the field carries one.
+        SchemaType::Scalar { leaf, .. } => default_item(frontend, leaf, target, cx)
+            .into_iter()
+            .collect(),
         _ => Vec::new(),
+    }
+}
+
+/// The boolean literals a boolean value position offers, in the format's own
+/// form. A parsed current value narrows the offer to the other literal, and
+/// an unwritten value offers both, with the field's default preselected.
+fn bool_items<F: Frontend>(
+    frontend: &F,
+    target: &SchemaField,
+    field: &str,
+    cx: &Cx,
+) -> Vec<RawItem> {
+    let current = cx
+        .ctx
+        .resolved_body
+        .as_ref()
+        .and_then(|body| body.get(field))
+        .and_then(bool_value);
+    let literals: &[&str] = match current {
+        Some(true) => &["false"],
+        Some(false) => &["true"],
+        None => &["true", "false"],
+    };
+    literals
+        .iter()
+        .enumerate()
+        .map(|(order, literal)| RawItem {
+            label: literal.to_string(),
+            kind: CompletionItemKind::ENUM_MEMBER,
+            detail: None,
+            filter_text: Some(cx.ctx.token_text.clone()).filter(|text| !text.is_empty()),
+            sort_text: sort_key(order),
+            preselect: current.is_none() && target.default_text.as_deref() == Some(*literal),
+            snippet: false,
+            edit: cx.ctx.token,
+            new_text: separated(cx, frontend.default_literal(&ScalarType::Bool, literal)),
+        })
+        .collect()
+}
+
+/// A parsed field's boolean value, or `None` when it holds none.
+fn bool_value(field: &confval::format::Field) -> Option<bool> {
+    match &field.kind {
+        confval::format::FieldKind::Value(value) => match &value.kind {
+            confval::format::ValueKind::Scalar(confval::format::Scalar::Bool(flag)) => Some(*flag),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The one preselected item a defaulted scalar offers at a value position: the
+/// rendered default in the format's literal form.
+fn default_item<F: Frontend>(
+    frontend: &F,
+    leaf: &ScalarType,
+    target: &SchemaField,
+    cx: &Cx,
+) -> Option<RawItem> {
+    let text = target.default_text.as_deref()?;
+    let literal = frontend.default_literal(leaf, text);
+    let new_text = separated(cx, literal);
+    Some(RawItem {
+        label: text.to_string(),
+        kind: CompletionItemKind::VALUE,
+        detail: None,
+        filter_text: Some(cx.ctx.token_text.clone()).filter(|current| !current.is_empty()),
+        sort_text: sort_key(0),
+        preselect: true,
+        snippet: false,
+        edit: cx.ctx.token,
+        new_text,
+    })
+}
+
+/// Prefixes the separating space when the replace range starts directly after
+/// the colon, so the completed line parses as a mapping entry rather than a
+/// plain scalar that includes the colon.
+fn separated(cx: &Cx, value: String) -> String {
+    if cx.ctx.token.0 > 0 && cx.text.as_bytes()[cx.ctx.token.0 - 1] == b':' {
+        format!(" {value}")
+    } else {
+        value
     }
 }
 
@@ -231,15 +348,7 @@ fn reference_items(block: &str, cx: &Cx) -> Vec<RawItem> {
 
 /// One completion item for an allowed keyword, inserted as a quoted string.
 fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
-    // A value inserted directly after the colon supplies the separating space,
-    // so the completed line parses as a mapping entry rather than a plain
-    // scalar that includes the colon.
-    let after_colon = cx.ctx.token.0 > 0 && cx.text.as_bytes()[cx.ctx.token.0 - 1] == b':';
-    let new_text = if after_colon {
-        format!(" \"{word}\"")
-    } else {
-        format!("\"{word}\"")
-    };
+    let new_text = separated(cx, quoted_literal(word));
     RawItem {
         label: word.to_string(),
         kind: CompletionItemKind::ENUM_MEMBER,
@@ -250,6 +359,8 @@ fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
         // every keyword.
         filter_text: Some(cx.ctx.token_text.clone()).filter(|current| !current.is_empty()),
         sort_text: sort_key(order),
+        preselect: false,
+        snippet: false,
         edit: cx.ctx.token,
         new_text,
     }
@@ -266,13 +377,15 @@ fn encode_item(
     text: &str,
     index: &LineIndex,
     encoding: PositionEncoding,
-    snippets: bool,
+    client: ClientSupport,
 ) -> CompletionItem {
-    let is_snippet = snippets && raw.new_text.contains("$0");
-    let new_text = if snippets {
+    // Only a producer-marked snippet is emitted or stripped as one, so a
+    // literal value item passes through untouched in both directions.
+    let is_snippet = client.snippets && raw.snippet;
+    let new_text = if is_snippet || !raw.snippet {
         raw.new_text
     } else {
-        raw.new_text.replace("$0", "")
+        strip_snippet_markers(&raw.new_text)
     };
     let mut item = CompletionItem {
         label: raw.label,
@@ -280,6 +393,7 @@ fn encode_item(
         detail: raw.detail,
         filter_text: raw.filter_text,
         sort_text: Some(raw.sort_text),
+        preselect: (raw.preselect && client.preselect).then_some(true),
         ..CompletionItem::default()
     };
     if is_snippet {
@@ -290,6 +404,51 @@ fn encode_item(
         new_text,
     }));
     item
+}
+
+/// Removes the snippet markers for a client without snippet support. The
+/// supported grammar is a closed list: a `$n` tab stop, which is dropped, and
+/// a `${n:value}` placeholder, which unwraps to its value with the backslash
+/// escaping removed, so the bare text reaches the buffer. A producer adding a
+/// new snippet form extends this list first.
+fn strip_snippet_markers(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(character) = chars.next() {
+        if character != '$' {
+            out.push(character);
+            continue;
+        }
+        match chars.peek() {
+            Some(digit) if digit.is_ascii_digit() => {
+                while chars.peek().is_some_and(char::is_ascii_digit) {
+                    chars.next();
+                }
+            }
+            Some('{') => {
+                chars.next();
+                while chars.peek().is_some_and(char::is_ascii_digit) {
+                    chars.next();
+                }
+                if chars.peek() == Some(&':') {
+                    chars.next();
+                }
+                while let Some(inner) = chars.next() {
+                    match inner {
+                        '\\' => {
+                            if let Some(escaped) = chars.next() {
+                                out.push(escaped);
+                            }
+                        }
+                        '}' => break,
+                        other => out.push(other),
+                    }
+                }
+            }
+            _ => out.push('$'),
+        }
+    }
+    out
 }
 
 #[cfg(test)]

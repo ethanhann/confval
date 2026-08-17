@@ -47,7 +47,11 @@ impl Frontend for Toml {
             },
             SchemaType::StringList => Insert::plain(format!("{} = [$0]", field.name)),
             SchemaType::StringMap => Insert::plain(format!("{} = {{ $0 }}", field.name)),
-            _ => Insert::plain(format!("{} = ", field.name)),
+            _ => Insert::plain(format!(
+                "{} = {}",
+                field.name,
+                super::value_placeholder(self, field)
+            )),
         }
     }
 }

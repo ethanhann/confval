@@ -34,24 +34,73 @@ use crate::source::{Located, Span};
 /// child field that duplicates a native label. A caller that wants the whole
 /// label story runs `from_fields` and then this pass.
 pub fn check_references(fields: &Fields, schema: &Schema, report: &mut Report) {
-    check_scope(fields, schema, &mut Vec::new(), report);
+    walk_scope(fields, schema, &mut Vec::new(), &mut |event| match event {
+        ScopeEvent::Scope(body, schema) => report_scope_label_issues(body, schema, report),
+        ScopeEvent::Reference(site) => check_reference(&site, report),
+    });
 }
 
-/// One enclosing scope on the walk: a block instance's schema and body.
-struct Scope<'a> {
+/// One reference occurrence the scope walk visits: the target it names, its
+/// parsed value and span, and the declaring scope the outward search found.
+pub struct ReferenceSite<'a> {
+    /// The target block name the constraint carries.
+    pub block: &'static str,
+    /// The reference's parsed string value.
+    pub value: String,
+    /// The value's span.
+    pub span: Span,
+    /// The declaring scope the outward search found, or `None` when no scope
+    /// on the chain declares the target.
+    pub scope: Option<Scope<'a>>,
+}
+
+/// One scope on the reference walk: a block instance's schema and body.
+#[derive(Clone, Copy)]
+pub struct Scope<'a> {
+    /// The scope's schema level.
+    pub schema: &'a Schema,
+    /// The scope's instance body.
+    pub body: &'a Fields,
+}
+
+/// Visits every reference field below `fields`, with the declaring scope its
+/// outward search resolves. The reference pass and the language server both
+/// run this walk, so both resolve a reference by the same rule. Start it at
+/// the root to cover a document, or at one scope instance to cover that scope.
+/// In the scoped form, a site whose search stays inside the walk resolves
+/// against the walk's own chain, and the root scope it reports is the exact
+/// `fields` reference the caller passed, so a caller may compare scope
+/// identity by pointer.
+pub fn visit_references<'a>(
+    fields: &'a Fields,
     schema: &'a Schema,
-    body: &'a Fields,
+    mut visit: impl FnMut(ReferenceSite<'a>),
+) {
+    walk_scope(fields, schema, &mut Vec::new(), &mut |event| {
+        if let ScopeEvent::Reference(site) = event {
+            visit(site);
+        }
+    });
 }
 
-/// Walks one scope instance: reports its label issues, checks its reference
-/// fields against the chain of enclosing scopes, and recurses into its blocks.
-fn check_scope<'a>(
+/// One event of the scope walk: entering a scope instance, or a reference
+/// field with its resolved declaring scope.
+enum ScopeEvent<'a> {
+    Scope(&'a Fields, &'a Schema),
+    Reference(ReferenceSite<'a>),
+}
+
+/// Walks one scope instance and its blocks in document order, emitting a scope
+/// event at each instance and a reference event at each reference field. The
+/// chain holds borrowed bodies and never clones, so a site's scope keeps the
+/// identity of the level it was collected from.
+fn walk_scope<'a>(
     body: &'a Fields,
     schema: &'a Schema,
     chain: &mut Vec<Scope<'a>>,
-    report: &mut Report,
+    on_event: &mut dyn FnMut(ScopeEvent<'a>),
 ) {
-    report_scope_label_issues(body, schema, report);
+    on_event(ScopeEvent::Scope(body, schema));
     chain.push(Scope { schema, body });
     for field in body.iter() {
         let Some(declared) = schema.fields.iter().find(|s| s.name == field.name) else {
@@ -63,12 +112,22 @@ fn check_scope<'a>(
                 ..
             } => {
                 if let Some((value, span)) = field_string(field) {
-                    check_reference(block, &value, span, chain, report);
+                    let scope = chain
+                        .iter()
+                        .rev()
+                        .find(|scope| declares_labeled_block(scope.schema, block))
+                        .copied();
+                    on_event(ScopeEvent::Reference(ReferenceSite {
+                        block,
+                        value,
+                        span,
+                        scope,
+                    }));
                 }
             }
             SchemaType::Block { schema: inner, .. } => {
                 for instance in instance_bodies(field) {
-                    check_scope(instance, inner, chain, report);
+                    walk_scope(instance, inner, chain, on_event);
                 }
             }
             _ => {}
@@ -77,32 +136,34 @@ fn check_scope<'a>(
     chain.pop();
 }
 
-/// Checks one reference value by the outward search over the scope chain.
-fn check_reference(block: &str, value: &str, span: Span, chain: &[Scope], report: &mut Report) {
-    let declaring = chain
-        .iter()
-        .rev()
-        .find(|scope| declares_labeled_block(scope.schema, block));
-    let Some(scope) = declaring else {
+/// Checks one visited reference against its declaring scope's labels.
+fn check_reference(site: &ReferenceSite, report: &mut Report) {
+    let block = site.block;
+    let Some(Scope {
+        schema: scope_schema,
+        body: scope_body,
+    }) = site.scope
+    else {
         // No enclosing scope declares the target. That is a schema error, so
         // the message names the target rather than the config value.
         report
             .error(format!("reference target {block} is not a labeled block"))
-            .at(span)
+            .at(site.span)
             .emit();
         return;
     };
-    let labels = scope_labels(scope.body, scope.schema, block);
+    let labels = scope_labels(scope_body, scope_schema, block);
     let defined = distinct_labels(&labels);
-    if !defined.contains(&value) {
+    if !defined.contains(&site.value.as_str()) {
         let help = if defined.is_empty() {
             format!("the file defines no {block}")
         } else {
             format!("defined {block}: {}", defined.join(", "))
         };
+        let value = &site.value;
         report
             .error(format!("no {block} named {value:?}"))
-            .at(span)
+            .at(site.span)
             .help(help)
             .emit();
     }

@@ -14,18 +14,24 @@ use lsp_types::notification::{
     DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Notification as _,
     PublishDiagnostics,
 };
-use lsp_types::request::{Completion, HoverRequest, Request as _};
+use lsp_types::request::{
+    CodeActionRequest, Completion, DocumentSymbolRequest, GotoDefinition, HoverRequest, References,
+    Request as _,
+};
 use lsp_types::{
-    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, Hover, HoverParams, InitializeParams, InitializeResult,
-    PublishDiagnosticsParams, Uri,
+    CodeActionOrCommand, CodeActionParams, CompletionParams, CompletionResponse,
+    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, Hover, HoverParams,
+    InitializeParams, InitializeResult, PublishDiagnosticsParams, ReferenceParams, Uri,
 };
 
 use confval::format::{Fields, FromFields};
 use confval::pipeline::{Validate, ValidateNested};
 use confval::schema::{Schema, ToSchema};
 
-use crate::capabilities::{negotiate, server_capabilities, supports_snippets};
+use crate::capabilities::{
+    completion_support, negotiate, server_capabilities, supports_hierarchical_symbols,
+};
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::Frontend;
 use crate::handlers;
@@ -49,7 +55,8 @@ struct Document {
 pub struct Server<S, F> {
     frontend: F,
     encoding: PositionEncoding,
-    snippets: bool,
+    completion_client: handlers::ClientSupport,
+    hierarchical: bool,
     schema: Schema,
     documents: HashMap<String, Document>,
     spec: PhantomData<fn() -> S>,
@@ -66,7 +73,8 @@ where
         Self {
             frontend,
             encoding: PositionEncoding::Utf16,
-            snippets: false,
+            completion_client: handlers::ClientSupport::default(),
+            hierarchical: false,
             schema: S::schema(),
             documents: HashMap::new(),
             spec: PhantomData,
@@ -78,7 +86,8 @@ where
         let (id, params) = connection.initialize_start()?;
         let params: InitializeParams = serde_json::from_value(params)?;
         self.encoding = negotiate(&params);
-        self.snippets = supports_snippets(&params);
+        self.completion_client = completion_support(&params);
+        self.hierarchical = supports_hierarchical_symbols(&params);
         let result = InitializeResult {
             capabilities: server_capabilities(self.encoding),
             server_info: None,
@@ -106,19 +115,21 @@ where
         Ok(())
     }
 
-    /// Dispatches a completion or hover request.
+    /// Dispatches a request to its handler.
     fn on_request(&mut self, connection: &Connection, request: Request) -> Result<(), LspError> {
         let id = request.id.clone();
         let method = request.method.clone();
         let response = match method.as_str() {
-            Completion::METHOD => match request.extract::<CompletionParams>(Completion::METHOD) {
-                Ok((id, params)) => Response::new_ok(id, self.completion(params)),
-                Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
-            },
-            HoverRequest::METHOD => match request.extract::<HoverParams>(HoverRequest::METHOD) {
-                Ok((id, params)) => Response::new_ok(id, self.hover(params)),
-                Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
-            },
+            Completion::METHOD => respond(request, method, |params| self.completion(params)),
+            HoverRequest::METHOD => respond(request, method, |params| self.hover(params)),
+            GotoDefinition::METHOD => respond(request, method, |params| self.definition(params)),
+            References::METHOD => respond(request, method, |params| self.references(params)),
+            DocumentSymbolRequest::METHOD => {
+                respond(request, method, |params| self.document_symbols(params))
+            }
+            CodeActionRequest::METHOD => {
+                respond(request, method, |params| self.code_action(params))
+            }
             _ => Response::new_err(id, METHOD_NOT_FOUND, format!("unhandled method: {method}")),
         };
         connection.sender.send(Message::Response(response))?;
@@ -185,8 +196,13 @@ where
         let Some(document) = self.documents.get(&key(uri)) else {
             return Ok(());
         };
-        let diagnostics =
-            handlers::diagnostics::<S, F>(&self.frontend, &document.text, uri, self.encoding);
+        let diagnostics = handlers::diagnostics::<S, F>(
+            &self.frontend,
+            &self.schema,
+            &document.text,
+            uri,
+            self.encoding,
+        );
         let params = PublishDiagnosticsParams {
             uri: uri.clone(),
             diagnostics,
@@ -238,9 +254,101 @@ where
             },
             &index,
             self.encoding,
-            self.snippets,
+            self.completion_client,
         );
         CompletionResponse::Array(items)
+    }
+
+    /// Resolves the cursor of a positioned request against a stored document.
+    fn resolve_at(
+        &self,
+        uri: &Uri,
+        position: lsp_types::Position,
+    ) -> Option<(&Document, LineIndex, crate::frontend::CursorContext)> {
+        let document = self.documents.get(&key(uri))?;
+        let index = LineIndex::new(&document.text);
+        let offset = index.offset_of(&document.text, position, self.encoding);
+        let context = self
+            .frontend
+            .resolve(document.tree.as_ref(), &document.text, offset);
+        Some((document, index, context))
+    }
+
+    /// Computes the definition response for a request.
+    fn definition(&self, params: GotoDefinitionParams) -> Option<lsp_types::Location> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        let (document, index, context) = self.resolve_at(uri, position)?;
+        handlers::definition(
+            &self.schema,
+            &context,
+            uri,
+            &document.text,
+            &index,
+            self.encoding,
+        )
+    }
+
+    /// Computes the references response for a request.
+    fn references(&self, params: ReferenceParams) -> Vec<lsp_types::Location> {
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let Some((document, index, context)) = self.resolve_at(uri, position) else {
+            return Vec::new();
+        };
+        handlers::references(
+            &self.schema,
+            &context,
+            params.context.include_declaration,
+            uri,
+            &document.text,
+            &index,
+            self.encoding,
+        )
+    }
+
+    /// Computes the document-symbol response for a request. A buffer that does
+    /// not parse answers nothing, because the outline reads parsed spans.
+    fn document_symbols(&self, params: DocumentSymbolParams) -> Option<DocumentSymbolResponse> {
+        let uri = &params.text_document.uri;
+        let document = self.documents.get(&key(uri))?;
+        let tree = document.tree.as_ref()?;
+        let index = LineIndex::new(&document.text);
+        Some(handlers::document_symbols(
+            &self.schema,
+            tree,
+            handlers::SymbolShape {
+                covers_body: self.frontend.block_span_covers_body(),
+                hierarchical: self.hierarchical,
+            },
+            uri,
+            &document.text,
+            &index,
+            self.encoding,
+        ))
+    }
+
+    /// Computes the code-action response for a request, resolved at the
+    /// request range's start.
+    fn code_action(&self, params: CodeActionParams) -> Vec<CodeActionOrCommand> {
+        let uri = &params.text_document.uri;
+        let Some((document, index, context)) = self.resolve_at(uri, params.range.start) else {
+            return Vec::new();
+        };
+        handlers::code_action(
+            &self.frontend,
+            &handlers::Cx {
+                schema: &self.schema,
+                fields: document.tree.as_ref(),
+                ctx: &context,
+                text: &document.text,
+            },
+            &params.context.diagnostics,
+            params.context.only.as_deref(),
+            uri,
+            &index,
+            self.encoding,
+        )
     }
 
     /// Computes the hover response for a request.
@@ -261,6 +369,20 @@ where
             &index,
             self.encoding,
         )
+    }
+}
+
+/// Extracts a request's parameters and answers through one handler, or answers
+/// the invalid-params error when the parameters do not deserialize.
+fn respond<P, T>(request: Request, method: String, handle: impl FnOnce(P) -> T) -> Response
+where
+    P: serde::de::DeserializeOwned,
+    T: serde::Serialize,
+{
+    let id = request.id.clone();
+    match request.extract::<P>(&method) {
+        Ok((id, params)) => Response::new_ok(id, handle(params)),
+        Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
     }
 }
 
