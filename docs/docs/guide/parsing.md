@@ -276,7 +276,8 @@ let spec: Option<ServerSpec> = confval::format::kdl::parse_kdl(&sources, id, &mu
 ```
 
 A repeated node is a list when the field is a list and a `duplicate field` error when it is not.
-An argument on a node that also has properties or children is an error, because the model has no block labels.
+A block node's first string argument is its native label, the `upstream "api" { ... }` idiom, and it fills the child field the spec marks with `#[confval(label)]`.
+A non-string label, an argument past the first, and a label on a block whose spec designates none are each reported.
 A bare node where a single value is expected reports `expected string, found array`, because a bare node means an
 empty list.
 

@@ -54,6 +54,21 @@ requiring it to be at least 90 days in the future.
 Spans come from the `Located` fields, so validation works the same whether the spec was parsed from a file or
 constructed in code.
 
+A spec with `#[confval(references = ...)]` fields has one more semantic check, and it reads the parsed tree rather
+than `&self`.
+Run `check_references` beside `validate_all`, with the parsed `Fields`, the schema, and the report:
+
+```rust
+use confval::pipeline::check_references;
+
+check_references(&fields, &ServerSpec::schema(), &mut report);
+```
+
+The pass resolves every reference against the labels its scope can see, and reports a duplicate label, an empty
+label, and a reference no label matches.
+[Running the reference check](./guide/schema-ir.md#running-the-reference-check) shows the wiring, and
+[How a reference resolves](./guide/schema-ir.md#how-a-reference-resolves) covers the scoping rule.
+
 :::info
 The `Validate` trait exists so the requirement can be written as a bound.
 Every generated `Lower` impl carries `where SpecType: Validate + ValidateNested`, so a config does not compile unless

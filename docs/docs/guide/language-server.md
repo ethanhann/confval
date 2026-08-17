@@ -84,6 +84,12 @@ Document symbols answer the editor's outline and breadcrumbs with the block tree
 ## The formats it serves
 
 The core serves every format confval parses: HCL, TOML, KDL, JSON, and YAML.
+Each format is a cargo feature and every one is on by default, so a server for one format turns the defaults off and enables its own, and it compiles one parser rather than five.
+
+```toml
+[dependencies]
+confval-lsp = { version = "0.8.0", default-features = false, features = ["toml"] }
+```
 
 HCL, TOML, KDL, and JSON resolve a cursor through the parsed tree, and reconstruct it from the raw text while the buffer is mid-edit and does not parse.
 JSON nests through object braces and array brackets, so a cursor inside an array element resolves into the element.

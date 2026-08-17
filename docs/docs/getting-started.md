@@ -58,12 +58,14 @@ This example parses an HCL document, validates it, checks the report for errors,
 
 The crate ships the same program as multiple runnable examples.
 `hcl.rs`, `toml.rs`, `kdl.rs`, `json.rs`, and `yaml.rs` each supply a source document and the two format calls that parse and emit it.
-All five pull everything after parsing from a shared `common/mod.rs`.
+All five pull everything after parsing from a shared `common` module.
+The listing below is a trimmed version of that module and the `hcl` example's `main`.
 
 Read through it once for the overall shape.
 
 ```rust
 use confval::prelude::*;
+use std::collections::{BTreeMap, HashMap};
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
@@ -78,11 +80,20 @@ keyword_enum!(pub LimitMode, {
 #[derive(confval::Spec)]
 struct ServerSpec {
     hostname: Located<String>,
+    #[confval(range = PORT)]
     port: Located<i64>,
-    #[confval(default = 4)]
+    #[confval(default = 4, range = WORKERS)]
     workers: Located<i64>,
     #[confval(default = false)]
     tls: Located<bool>,
+    // A list field. The bare `default` reads an absent list as empty. Each
+    // element keeps its own span, so a bad entry is reported at that entry.
+    #[confval(default)]
+    allow: Vec<Located<String>>,
+    // An open-ended, string-keyed map, for keys that are not known ahead of
+    // time, such as header names.
+    #[confval(map, default)]
+    headers: BTreeMap<String, Located<String>>,
     // Optional in the source. When the block is omitted, the spec keeps it
     // `None`, so a spec dump stays source-faithful. The config side fills the
     // default at lowering time.
@@ -93,24 +104,23 @@ struct ServerSpec {
 #[derive(confval::Spec)]
 #[confval(derive_default)]
 struct LimitsSpec {
-    #[confval(default = 16)]
+    #[confval(default = 16, range = MAX_BODY_MB)]
     max_body_mb: Located<i64>,
-    #[confval(default = "enforce".to_string())]
+    #[confval(default = "enforce".to_string(), keywords = LimitMode)]
     mode: Located<String>,
 }
 
 impl Validate for LimitsSpec {
-    fn validate(&self, report: &mut Report) {
-        MAX_BODY_MB.check_located(&self.max_body_mb, "max_body_mb", report);
-        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
-    }
+    // `max_body_mb` and `mode` record their constraints with `#[confval(range)]`
+    // and `#[confval(keywords)]`, so the derive checks them. Every rule this
+    // block has is recorded, so its `Validate` body is empty.
+    fn validate(&self, _report: &mut Report) {}
 }
 
 impl Validate for ServerSpec {
     fn validate(&self, report: &mut Report) {
-        PORT.check_located(&self.port, "port", report);
-        WORKERS.check_located(&self.workers, "workers", report);
-
+        // `port` and `workers` record their ranges, so the derive checks them.
+        // This body holds only the rules an attribute cannot express.
         if self.hostname.value.is_empty() {
             report
                 .error("hostname must not be empty")
@@ -126,6 +136,16 @@ impl Validate for ServerSpec {
                 .help("This might be undesired.")
                 .emit();
         }
+
+        for entry in &self.allow {
+            if entry.value.is_empty() {
+                report
+                    .error("allow entries must not be empty")
+                    .at(entry.span)
+                    .help("Remove the entry or set it to a network, e.g. \"10.0.0.0/8\".")
+                    .emit();
+            }
+        }
     }
 }
 
@@ -135,9 +155,15 @@ struct ServerConfig {
     hostname: String,
     #[confval(lower(from = port, with = narrow::i64_to_u16))]
     port: u16,
-    #[confval(lower(from = workers, with = workers_to_usize))]
+    #[confval(lower(from = workers, with = narrow::i64_to_usize))]
     workers: usize,
     tls: bool,
+    #[confval(lower(from = allow, with = allow_to_vec))]
+    allow: Vec<String>,
+    // Auto-mapped from the spec's `BTreeMap<String, Located<String>>`. The
+    // `LowerAuto` impl drops each value's span and hands back a plain runtime
+    // map.
+    headers: HashMap<String, String>,
     // The spec field is `Option<Located<LimitsSpec>>`. With `default` an absent
     // block lowers `LimitsSpec::default()` instead of producing a missing-field
     // error, and the runtime field stays non-optional.
@@ -154,9 +180,8 @@ struct LimitsConfig {
     mode: LimitMode,
 }
 
-fn workers_to_usize(value: &Located<i64>, _report: &mut Report) -> Option<usize> {
-    // Safe: the range was validated and lowering only runs on a clean report.
-    Some(value.value as usize)
+fn allow_to_vec(value: &[Located<String>], _report: &mut Report) -> Option<Vec<String>> {
+    Some(value.iter().map(|entry| entry.value.clone()).collect())
 }
 
 fn main() {
@@ -216,7 +241,8 @@ Each maps to one stage of the [pipeline](pipeline.md) and has its own guide page
 - The spec types, `ServerSpec` and `LimitsSpec`, declare the fields you parse a file into.
   `#[confval(derive_default)]` on `LimitsSpec` derives its `Default` from the same attribute defaults that fill an omitted field.
   See [Parsing](./guide/parsing.md).
-- The `Validate` impls check what the values mean and report at each field's span.
+- A mechanical constraint is recorded on its field with `#[confval(range = ...)]` or `#[confval(keywords = ...)]`, and the derive checks it during validation.
+  The `Validate` impls hold the remaining rules and report at each field's span.
   See [Validation](./guide/validation.md).
 - The config types, `ServerConfig` and `LimitsConfig`, are the runtime form the validated spec lowers into.
   See [Lowering](./guide/lowering.md).

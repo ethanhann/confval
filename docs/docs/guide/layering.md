@@ -95,6 +95,11 @@ let spec: Option<ServerSpec> = Assembly::new()
 When two layers set the same nested block, the blocks combine field by field.
 When two layers set the same array, the higher-precedence array replaces the lower one.
 
+A repeated block follows the array rule, with one boundary case.
+The merge reads the parsed tree without the schema, so a repeated block that holds exactly one instance in both layers is indistinguishable from a singleton block, and the two instances combine field by field.
+With more than one instance on either side, the higher-precedence group replaces the lower one whole.
+An overlay that should replace a repeated block deterministically therefore lists every instance it wants, rather than a partial instance to merge.
+
 ## Environment Variables
 
 `env_fields` reads process environment variables that begin with a prefix.

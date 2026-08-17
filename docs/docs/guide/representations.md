@@ -110,7 +110,7 @@ use confval::schema::ToSchema;
 let schema = ServerSpec::schema();
 ```
 
-The [schema IR](./schema-ir.md) page covers what it carries, the two recording attributes that link a field to its constraint, and why it needs no instance.
+The [schema IR](./schema-ir.md) page covers what it carries, the attributes that declare a field's constraint and run it during validation, and why it needs no instance.
 
 ## Why a Separate Walk
 

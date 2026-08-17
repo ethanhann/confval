@@ -66,6 +66,11 @@ HCL rejects `i64::MIN` because its parser reads the literal as a negation applie
 For example, a KDL config with `rate #inf` converts to TOML, where it emits as `inf`.
 Converting the same config to JSON returns an error at `rate`, because JSON's grammar has no token for infinity.
 
+Block labels follow the same rule.
+HCL and KDL write a parsed block's native label back as label syntax, so `upstream "api" { ... }` round-trips.
+TOML, JSON, and YAML have no label syntax, and a parsed tree does not name the schema field that holds the label, so emitting a natively labeled level into one of them returns an `EmitError` rather than dropping the label.
+To convert a labeled configuration into those formats, parse it through the spec and emit a spec walk such as `to_fields`, which writes the label as its designated child field.
+
 ## Names and repetition
 
 A name can also be one the target cannot write.
