@@ -24,7 +24,7 @@ use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 use crate::encoding::{LineIndex, PositionEncoding};
 #[cfg(test)]
 use crate::frontend::CursorContext;
-use crate::frontend::{Absorb, Frontend, PositionKind};
+use crate::frontend::{Absorb, Frontend, PositionKind, quoted_literal};
 use crate::handlers::Cx;
 use crate::walk::{reference_labels, repeated_block_at, resolved_level, schema_at};
 
@@ -293,7 +293,7 @@ fn reference_items(block: &str, cx: &Cx) -> Vec<RawItem> {
 
 /// One completion item for an allowed keyword, inserted as a quoted string.
 fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
-    let new_text = separated(cx, format!("\"{word}\""));
+    let new_text = separated(cx, quoted_literal(word));
     RawItem {
         label: word.to_string(),
         kind: CompletionItemKind::ENUM_MEMBER,

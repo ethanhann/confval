@@ -134,8 +134,8 @@ fn default_satisfies(constraint: &Option<Constraint>, text: &str) -> bool {
 }
 
 /// Whether a diagnostic's range sits inside or equal to the value span. A
-/// range beyond the current text is no containment, so a stale client
-/// position cannot clamp onto the final offset and qualify.
+/// position beyond the current text is no containment, so a stale client
+/// position cannot clamp onto a line end or the final offset and qualify.
 fn contained_in(
     diagnostic: &Diagnostic,
     value_span: (usize, usize),
@@ -143,11 +143,24 @@ fn contained_in(
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> bool {
-    let line_count = text.split('\n').count() as u32;
-    if diagnostic.range.start.line >= line_count || diagnostic.range.end.line >= line_count {
+    let (Some(start), Some(end)) = (
+        offset_within(diagnostic.range.start, text, index, encoding),
+        offset_within(diagnostic.range.end, text, index, encoding),
+    ) else {
         return false;
-    }
-    let start = index.offset_of(text, diagnostic.range.start, encoding);
-    let end = index.offset_of(text, diagnostic.range.end, encoding);
+    };
     value_span.0 <= start && end <= value_span.1
+}
+
+/// The byte offset of a position that lies within the current text, or `None`
+/// for a position the conversion had to clamp.
+fn offset_within(
+    position: lsp_types::Position,
+    text: &str,
+    index: &LineIndex,
+    encoding: PositionEncoding,
+) -> Option<usize> {
+    let offset = index.offset_of(text, position, encoding);
+    let round_trip = index.range_of_bytes(text, (offset, offset), encoding).start;
+    (round_trip == position).then_some(offset)
 }

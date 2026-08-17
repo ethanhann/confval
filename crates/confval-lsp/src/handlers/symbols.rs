@@ -40,6 +40,13 @@ pub struct SymbolShape {
     pub hierarchical: bool,
 }
 
+/// The build inputs every level shares: the frontend's block-span answer and
+/// the text bound the ranges clamp to.
+struct Build {
+    covers_body: bool,
+    text_len: usize,
+}
+
 /// Produces the document symbols for a parsed document.
 pub fn document_symbols(
     schema: &Schema,
@@ -50,7 +57,11 @@ pub fn document_symbols(
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> DocumentSymbolResponse {
-    let symbols = level_symbols(schema, fields, shape.covers_body, text.len());
+    let build = Build {
+        covers_body: shape.covers_body,
+        text_len: text.len(),
+    };
+    let symbols = level_symbols(schema, fields, &build);
     if shape.hierarchical {
         DocumentSymbolResponse::Nested(
             symbols
@@ -67,14 +78,10 @@ pub fn document_symbols(
 
 /// The symbols of one level, in document order, skipping fields the schema
 /// does not declare.
-fn level_symbols(
-    schema: &Schema,
-    fields: &Fields,
-    covers_body: bool,
-    text_len: usize,
-) -> Vec<RawSymbol> {
+fn level_symbols(schema: &Schema, fields: &Fields, build: &Build) -> Vec<RawSymbol> {
     let level: Vec<&Field> = fields.iter().collect();
-    let enclosing_end = span_range(fields.enclosing()).map_or(text_len as u32, |range| range.1);
+    let enclosing_end =
+        span_range(fields.enclosing()).map_or(build.text_len as u32, |range| range.1);
     let mut symbols = Vec::new();
     for (position, field) in level.iter().enumerate() {
         let Some(declared) = schema.fields.iter().find(|f| f.name == field.name) else {
@@ -86,10 +93,9 @@ fn level_symbols(
         symbols.extend(field_symbols(
             field,
             &declared.ty,
-            covers_body,
             next_start,
             enclosing_end,
-            text_len,
+            build,
         ));
     }
     symbols
@@ -100,10 +106,9 @@ fn level_symbols(
 fn field_symbols(
     field: &Field,
     declared: &SchemaType,
-    covers_body: bool,
     next_start: Option<u32>,
     enclosing_end: u32,
-    text_len: usize,
+    build: &Build,
 ) -> Vec<RawSymbol> {
     match declared {
         SchemaType::Block { schema: inner, .. } => {
@@ -130,21 +135,20 @@ fn field_symbols(
                         inner,
                         body,
                         *instance_span,
-                        covers_body,
                         bound,
                         enclosing_end,
-                        text_len,
+                        build,
                     )
                 })
                 .collect()
         }
-        SchemaType::StringList => leaf(field, SymbolKind::ARRAY, text_len)
+        SchemaType::StringList => leaf(field, SymbolKind::ARRAY, build.text_len)
             .into_iter()
             .collect(),
-        SchemaType::StringMap => leaf(field, SymbolKind::OBJECT, text_len)
+        SchemaType::StringMap => leaf(field, SymbolKind::OBJECT, build.text_len)
             .into_iter()
             .collect(),
-        _ => leaf(field, SymbolKind::FIELD, text_len)
+        _ => leaf(field, SymbolKind::FIELD, build.text_len)
             .into_iter()
             .collect(),
     }
@@ -152,31 +156,29 @@ fn field_symbols(
 
 /// One container symbol for one block instance, with its label as the detail
 /// and its children walked recursively.
-#[allow(clippy::too_many_arguments)]
 fn container(
     field: &Field,
     inner_schema: &Schema,
     body: &Fields,
     instance_span: Span,
-    covers_body: bool,
-    next_start: Option<u32>,
+    bound: Option<u32>,
     enclosing_end: u32,
-    text_len: usize,
+    build: &Build,
 ) -> RawSymbol {
     let start = span_range(instance_span)
         .or_else(|| span_range(field.name_span))
         .map_or(0, |range| range.0) as usize;
     // A header-only block's span stops at its header, so the range extends to
     // the next sibling or the level end, keeping the children contained.
-    let end = if covers_body {
+    let end = if build.covers_body {
         span_range(instance_span)
             .map_or(0, |range| range.1)
             .max(deepest_end(body))
     } else {
-        next_start.unwrap_or(enclosing_end).max(deepest_end(body))
+        bound.unwrap_or(enclosing_end).max(deepest_end(body))
     } as usize;
-    let end = end.min(text_len).max(start);
-    let selection = clamp(field.name_span, (start, end), text_len);
+    let end = end.min(build.text_len).max(start);
+    let selection = clamp(field.name_span, (start, end), build.text_len);
     let detail = instance_label(body, inner_schema);
     RawSymbol {
         name: field.name.clone(),
@@ -184,7 +186,7 @@ fn container(
         kind: SymbolKind::STRUCT,
         range: (start, end),
         selection,
-        children: level_symbols(inner_schema, body, covers_body, text_len),
+        children: level_symbols(inner_schema, body, build),
     }
 }
 

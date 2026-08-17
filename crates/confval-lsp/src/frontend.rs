@@ -341,11 +341,23 @@ pub trait Frontend {
     }
 }
 
-/// A quoted string literal with its inner quotes and backslashes escaped, the
-/// form every frontend's string syntax reads.
+/// A quoted string literal with its inner quotes, backslashes, and control
+/// characters escaped, the forms every frontend's double-quoted string reads.
 pub(crate) fn quoted_literal(text: &str) -> String {
-    let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
-    format!("\"{escaped}\"")
+    let mut escaped = String::with_capacity(text.len() + 2);
+    escaped.push('"');
+    for character in text.chars() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\t' => escaped.push_str("\\t"),
+            '\r' => escaped.push_str("\\r"),
+            other => escaped.push(other),
+        }
+    }
+    escaped.push('"');
+    escaped
 }
 
 #[cfg(test)]
