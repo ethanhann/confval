@@ -43,6 +43,8 @@ type LspError = Box<dyn std::error::Error + Send + Sync>;
 const METHOD_NOT_FOUND: i32 = -32601;
 /// JSON-RPC error code for invalid request parameters.
 const INVALID_PARAMS: i32 = -32602;
+/// JSON-RPC error code for a server-side failure.
+const INTERNAL_ERROR: i32 = -32603;
 
 /// One open document: its current text and its current parse, `None` when the
 /// text does not parse.
@@ -107,7 +109,14 @@ where
                     self.on_request(connection, request)?;
                 }
                 Message::Notification(notification) => {
-                    self.on_notification(connection, notification)?;
+                    // The same guard as `respond`: a panic while updating a
+                    // document or publishing diagnostics drops that
+                    // notification instead of taking down the server.
+                    if let Ok(result) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                        || self.on_notification(connection, notification),
+                    )) {
+                        result?;
+                    }
                 }
                 Message::Response(_) => {}
             }
@@ -373,7 +382,10 @@ where
 }
 
 /// Extracts a request's parameters and answers through one handler, or answers
-/// the invalid-params error when the parameters do not deserialize.
+/// the invalid-params error when the parameters do not deserialize. A panic in
+/// the handler answers the internal error, so one bad request does not take
+/// down the server. This guard needs an unwinding panic runtime; a build with
+/// `panic = "abort"` still aborts.
 fn respond<P, T>(request: Request, method: String, handle: impl FnOnce(P) -> T) -> Response
 where
     P: serde::de::DeserializeOwned,
@@ -381,7 +393,16 @@ where
 {
     let id = request.id.clone();
     match request.extract::<P>(&method) {
-        Ok((id, params)) => Response::new_ok(id, handle(params)),
+        Ok((id, params)) => {
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| handle(params))) {
+                Ok(value) => Response::new_ok(id, value),
+                Err(_) => Response::new_err(
+                    id,
+                    INTERNAL_ERROR,
+                    format!("the {method} handler failed"),
+                ),
+            }
+        }
         Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
     }
 }
@@ -542,6 +563,36 @@ mod tests {
         };
         assert_eq!(response.id, RequestId::from(9));
         assert_eq!(response.response_result.unwrap_err().code, INVALID_PARAMS);
+    }
+
+    #[test]
+    fn a_panicking_handler_answers_an_internal_error_instead_of_dying() {
+        // Arrange
+        let request = Request::new(
+            RequestId::from(10),
+            HoverRequest::METHOD.to_string(),
+            serde_json::to_value(HoverParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier {
+                        uri: Uri::from_str("file:///panic.hcl").unwrap(),
+                    },
+                    position: Position {
+                        line: 0,
+                        character: 0,
+                    },
+                },
+                work_done_progress_params: Default::default(),
+            })
+            .unwrap(),
+        );
+
+        // Act
+        let response = respond(request, HoverRequest::METHOD.to_string(),
+            |_: HoverParams| -> Option<Hover> { panic!("handler defect") });
+
+        // Assert
+        assert_eq!(response.id, RequestId::from(10));
+        assert_eq!(response.response_result.unwrap_err().code, INTERNAL_ERROR);
     }
 
     #[test]
