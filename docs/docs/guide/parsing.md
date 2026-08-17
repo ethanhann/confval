@@ -14,7 +14,7 @@ Parsing checks structure only.
 It determines whether each field is present and has the right type.
 What the values mean is left to [validation](./validation.md).
 
-## Concept Overview
+## A first parse
 
 You define a spec as a struct, then parse a file into it with the frontend for the format you enabled.
 
@@ -56,7 +56,7 @@ pub struct Located<T> {
 A `Located<T>` contains a span.
 A span is a byte range in the configuration file.
 It gives each field its provenance.
-The span records where the value came from, so a later error can point at the exact line and column.
+The span records where the value came from, so a later error can point at the line and column.
 `Span` and the `SourceMap` that resolves it are covered under [Diagnostics](./diagnostics.md#spans-and-source).
 
 A few behaviors are worth knowing:
@@ -213,10 +213,11 @@ A map of another value type, or a map of nested structs, needs a handwritten par
 
 ### Unknown fields
 
-A setting in a configuration file that does not exist in the Rust struct will be interpreted as a parsing error.
-There is no lenient mode that ignores extra settings/keys.
+The parser reports a setting that the spec struct does not declare as an unknown field error.
+There is no lenient mode that ignores extra settings.
 
-Strictness matters most for LLM-edited configuration files, because an LLM will invent settings that do not exist.
+An agent editing a configuration file can add a setting the spec does not declare.
+The strict parse reports that setting instead of ignoring it.
 
 ### What the derive does not handle
 
@@ -362,7 +363,6 @@ The model has no null.
 Omit the member when you want an optional setting left unset.
 
 A duplicate key is a list when the field is a list and a `duplicate field` error when it is not.
-A repeated KDL node follows the same rule.
 
 A scalar where a nested object is expected reports `expected block, found string`.
 The expected side of a mismatch is shared across formats, so the message names a block even though JSON has no blocks.
@@ -445,8 +445,8 @@ Every string emits double-quoted, so a value the schema would otherwise resolve,
 the string it was.
 
 A list field also accepts a single string as a one-element list, in every format.
-KDL forces the question, because it has no array literal and writes a one-element list as a single value, and the
-answer is uniform so the same configuration means the same thing whichever frontend read it.
+KDL has no array literal, so it writes a one-element list as a single value.
+Every frontend applies the same rule, so one configuration reads the same way whichever frontend parsed it.
 
 :::note
 `hcl-edit` rejects duplicate attribute keys while parsing, so a repeated attribute is a syntax error, and TOML rejects
@@ -461,7 +461,8 @@ means.
 
 ## Writing parsers by hand
 
-Most specs never need this.
+Sometimes a block's remaining fields depend on the value of a discriminator field.
+The `Spec` derive cannot express that shape, so you write the parser yourself.
 The `Spec` derive covers plain structs, which is nearly everything given the
 confval [pipeline contract](../pipeline.md).
 

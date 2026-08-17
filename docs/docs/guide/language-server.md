@@ -84,7 +84,9 @@ Document symbols answer the editor's outline and breadcrumbs with the block tree
 ## The formats it serves
 
 The core serves every format confval parses: HCL, TOML, KDL, JSON, and YAML.
-Each format is a cargo feature and every one is on by default, so a server for one format turns the defaults off and enables its own, and it compiles one parser rather than five.
+Each format is a cargo feature, and all of them are on by default.
+A server for one format turns the defaults off and enables its own feature.
+It then compiles one parser rather than five.
 
 ```toml
 [dependencies]
@@ -110,4 +112,3 @@ When you assemble a configuration from several layers, a later layer can supply 
 A diagnostic that reports a missing required field is then a false positive, because the field is present once the layers combine.
 
 Layer-aware validation needs the whole layer stack, which only the assembling program holds.
-It is planned as a later addition.

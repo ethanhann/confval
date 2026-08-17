@@ -64,7 +64,8 @@ A value that does not fit is reported at its span and lowering fails, so a missi
 `keyword::<T>` lowers a validated keyword string into the enum that [`keyword_enum!`](./validation.md#keyword_enum) generates, reading that enum's `TryFrom<&str>`.
 Name it with a turbofish so the derive knows which enum to parse into.
 The field was validated against the same set the `TryFrom` accepts, so the conversion does not fail in a running pipeline.
-The helper reports at the value's span when the `keyword_set()` check was left out of the `Validate` impl, or when a hand-rolled keyword set and its enum disagree, a drift `keyword_enum!` rules out.
+The helper reports at the value's span in two cases: a `keyword_set()` check left out of the `Validate` impl, and a hand-rolled keyword set that disagrees with its enum.
+`keyword_enum!` prevents the second case.
 
 `keyword_list::<T>` does the same for a list field, lowering a `Vec<Located<String>>` into a `Vec<T>`.
 Every element that fails is reported before the call returns, so an operator sees all of them in one run, and a single

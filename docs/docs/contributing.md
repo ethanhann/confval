@@ -9,7 +9,7 @@ sidebar_position: 6
 Various just recipes are available, but these are the most useful:
 
 - `just docs`: run the docs site locally
-- `just validate`: Test everything (lint, unit tests, etc.)
+- `just validate`: test everything, including lint and unit tests
 - `just mutants`: run mutation testing to find gaps the suite does not cover
 
 `just validate` is the gate a change has to pass.
@@ -21,7 +21,7 @@ Its behavior is covered by the integration and trybuild tests in the `confval` p
 ## Design
 
 confval is built around five design decisions.
-These design decisions should be adhered to.
+A change that departs from one of these decisions needs a reason in the pull request.
 
 ### Spans travel with values
 

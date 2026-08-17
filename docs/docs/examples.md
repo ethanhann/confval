@@ -146,9 +146,7 @@ Pick a format, then launch an LSP client at the built binary.
 cargo run -p confval-lsp --example serve hcl
 ```
 
-## Additional Examples
-
-Additional examples are available for reference:
+## More examples
 
 - An example PR for [mini-redis](https://github.com/ethanhann/mini-redis/pull/1).
 - Snakeway reverse proxy's [snakeway-conf crate](https://github.com/snakewayhq/snakeway/tree/main/crates/snakeway-conf/src) (advanced usage)

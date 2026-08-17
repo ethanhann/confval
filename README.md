@@ -23,7 +23,7 @@ Only the source text, its file name, and the two format calls that parse and emi
 The [layering example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/layering.rs) assembles one configuration from a file, the environment,
 and the command line.
 
-The [templates example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/templates.rs) writes an annotated configuration file from the spec types (it essentially runs the pipeline backward).
+The [templates example](https://github.com/ethanhann/confval/tree/main/crates/confval/examples/templates.rs) writes an annotated configuration file from the spec types, which runs the pipeline backward.
 
 Fifteen examples ship in total, fourteen in the confval crate and a runnable language server in confval-lsp.
 The [Examples](https://ethanhann.com/confval/docs/examples) page lists what each one covers along with its run command.
@@ -35,7 +35,8 @@ The confval crate was extracted from the [Snakeway reverse proxy](https://snakew
 ## Language server
 
 The [confval-lsp](https://github.com/ethanhann/confval/tree/main/crates/confval-lsp) crate is a schema-generic language server core.
-It binds to your `#[derive(Spec)]` root and a format frontend, and serves diagnostics, completion, hover, navigation, document symbols, and quick fixes for any of the five formats.
+It binds to your `#[derive(Spec)]` root and a format frontend.
+It then serves diagnostics, completion, hover, navigation, document symbols, and quick fixes for any of the five formats.
 See [Language Server](https://ethanhann.com/confval/docs/guide/language-server) for the walkthrough and a runnable example.
 
 ## Usage examples

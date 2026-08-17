@@ -90,9 +90,8 @@ Call `report.has_errors()` after validation and return before lowering when it i
 Report also has `has_warnings()` and `has_issues()` (i.e., has warnings or errors).
 You decide whether warnings also stop lowering.
 
-In practice, a sensible approach would be to gracefully exit a running program when errors are found or gracefully stop
-a hot reload request.
-If warnings are found, they may be shown, but the start/reload operation continues.
+Exit the program when the report holds errors, or reject the hot reload request.
+Warnings can print without stopping either one.
 
 ### 4. Lower
 
@@ -197,8 +196,8 @@ End-to-end examples ship in `crates/confval/examples/`.
 Everything after parsing lives in `common/mod.rs`: the spec types, the validators, the config types, and the lowering
 functions.
 All five share that file verbatim.
-The format-neutrality of the later stages is visible in the layout.
-`common/mod.rs` annotates it.
+Every stage after parsing is in one module that all five format examples share.
+The `common` module's comments explain the split.
 `issue_severity.rs` reuses the same types to show a warning passing the gate.
 `validate_traversal.rs` stands alone to show what `validate_all` reaches and what a `descend` override prunes.
 See [Getting Started](getting-started.md) to run them.

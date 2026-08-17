@@ -31,7 +31,7 @@ It surveys the project, reads the configuration format, adds the dependency, and
 
 `confval-add-block` keeps the layers in sync when you add a field or block to a project that already has a pipeline.
 A new setting runs through the spec type, the validation, the runtime type, the lowering, and the `Default` impl.
-The skill's job is that none of the five is missed.
+The skill updates all five layers for the setting it adds.
 
 The skills are written to disk rather than injected into one session, because `confval-add-block` is a maintenance procedure you need long after anyone ran `confval init`.
 
@@ -86,7 +86,8 @@ Each file gets one outcome, decided by comparing the bytes on disk with the byte
 | the file differs, without `--force`     | `skipped`   |
 | the file differs, with `--force`        | `updated`   |
 
-The version of confval the binary was built from is substituted into the skill text when it writes, so an upgraded binary reports an untouched older file as differing.
+The binary writes its own version into the skill text.
+An upgraded binary therefore reports an untouched older file as differing.
 That is the drift signal, and `--force` is how you take the newer text.
 The report describes the file as differing from the copy the binary ships rather than as edited, because an older binary's output differs for the same reason.
 
@@ -106,4 +107,5 @@ A file you edited reports as differing from the copy the binary ships, and it is
 An upgraded binary reports the same way for a file it did not write.
 
 Nothing is deleted.
-A reference file a later release stops shipping stays on disk until you remove it, and a file already in a skill directory that the binary does not ship is left alone and not reported.
+A reference file a later release stops shipping stays on disk until you remove it.
+A file in a skill directory that the binary does not ship stays in place, and the report does not name it.

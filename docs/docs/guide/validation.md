@@ -14,10 +14,9 @@ Every spec lowered into a config must implement it, or the config does not compi
 The bound guarantees a validator exists.
 It does not guarantee that every field is checked inside that validator.
 
-confval ships a minimal set of checks.
-confval provides only two domain-agnostic checks: `RangeConstraint` and `KeywordSet`.
+confval ships two domain-agnostic checks, `RangeConstraint` and `KeywordSet`.
 
-## Concept Overview
+## A first validator
 
 A spec type checks its own fields.
 The two mechanical checks, a numeric range and a closed keyword set, are recorded on the field, and the derive runs them.
@@ -53,7 +52,7 @@ It runs each type's recorded checks and its `validate`, then descends into every
 spec.validate_all(&mut report);
 ```
 
-[Recording a constraint on the field](#recording-a-constraint-on-the-field) covers the attributes, and the sections after it cover the hand-written rules.
+[Recording a constraint on the field](#recording-a-constraint-on-the-field) covers the attributes, and the sections after it cover the handwritten rules.
 
 ## Where a rule lives
 
@@ -74,10 +73,10 @@ You implement the `Validate` trait, but you call `validate_all` once on the root
 More information on this can be found [in this section](#validate-impl-contains-the-rules-validate_all-runs-them).
 :::
 
-### Validator Functions
+### Validator functions
 
 Validator functions are necessary primarily for cross-file and cross-block validation.
-Depending on the domain, there may be complex semantic rules between files/blocks.
+Depending on the domain, there may be complex semantic rules between files or blocks.
 For example, imagine a server with a central configuration file that has global settings, like enabling TLS, and
 subconfiguration files that may or may not be correct if TLS is enabled.
 A validator function handles this case.
@@ -91,7 +90,7 @@ fn validate_tls_agreement(server: &ServerSpec, upstreams: &[UpstreamSpec], repor
 ```
 
 Nothing generates these and nothing calls them for you.
-They run alongside `validate_all`, before the gate.
+They run alongside `validate_all`, before the `has_errors` check that stops the run.
 
 ## RangeConstraint
 
@@ -275,7 +274,7 @@ A flattening lowering, meaning one with no per-entity `Lower` impl, can put the 
 
 The bound guarantees that the validator exists, but it does not make lowering call it, so validation stays an explicit
 step before the gate.
-What the trait rules out is a spec that was never given a validator at all.
+The trait rules out a spec with no validator.
 
 ## `Validate` impl contains the rules, `validate_all` runs them
 

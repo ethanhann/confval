@@ -59,7 +59,8 @@ KDL's gaps all follow from one rule.
 A KDL argument must be a scalar, and the language has no inline array literal, so there is no way to write an inner array or an object inside a grouped repetition.
 YAML has no gap in this table, and it carries two markers no other format produces.
 An alias is not expanded, and a tag outside the core schema has no reading.
-A decimal that overflows `f64` refuses rather than becoming an infinity the operator never wrote, which JSON does too.
+A decimal that overflows `f64` refuses rather than becoming an infinity the operator never wrote.
+JSON refuses the same value for the same reason.
 
 HCL rejects `i64::MIN` because its parser reads the literal as a negation applied to a number that overflows on the way back in.
 
@@ -68,7 +69,9 @@ Converting the same config to JSON returns an error at `rate`, because JSON's gr
 
 Block labels follow the same rule.
 HCL and KDL write a parsed block's native label back as label syntax, so `upstream "api" { ... }` round-trips.
-TOML, JSON, and YAML have no label syntax, and a parsed tree does not name the schema field that holds the label, so emitting a natively labeled level into one of them returns an `EmitError` rather than dropping the label.
+TOML, JSON, and YAML have no label syntax.
+A parsed tree does not name the schema field that holds the label.
+Emitting a natively labeled level into one of these formats returns an `EmitError` rather than dropping the label.
 To convert a labeled configuration into those formats, parse it through the spec and emit a spec walk such as `to_fields`, which writes the label as its designated child field.
 
 ## Names and repetition

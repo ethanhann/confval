@@ -7,7 +7,7 @@ sidebar_position: 4
 When parsing or validation finds a problem, it does not throw.
 It records the problem in a `Report`.
 confval renders that report for people to read.
-Spans are what let each message point at the exact place in the file.
+A span lets each message point at the line and column in the file.
 
 ## Report and IssueBuilder
 

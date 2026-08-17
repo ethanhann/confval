@@ -88,7 +88,9 @@ struct ServerSpec {
 
 An attribute on the wrong leaf, or on a list, a map, or a block, is a compile error.
 
-The attribute records the constraint for the schema, and on a derived spec the derive also runs the check during validation, so the attribute is the single source and the `Validate` body carries no line for it.
+The attribute records the constraint for the schema.
+On a derived spec the derive also runs the check during validation.
+The `Validate` body therefore carries no line for that field.
 A handwritten spec still calls the check itself, because the derive generates nothing for it.
 
 ## How a reference resolves
