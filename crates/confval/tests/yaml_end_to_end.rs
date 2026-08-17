@@ -642,3 +642,52 @@ fn a_template_renders_absent_optional_fields_as_commented_entries() {
     assert!(round.tls.is_none());
     assert_eq!(round, spec_of(input));
 }
+
+#[derive(Debug, PartialEq, confval::Spec)]
+struct FleetSpec {
+    #[confval(nested)]
+    service: Vec<Located<ServiceSpec>>,
+}
+
+#[derive(Debug, PartialEq, confval::Spec)]
+struct ServiceSpec {
+    name: Located<String>,
+}
+
+impl Validate for FleetSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for ServiceSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_repeated_block_with_one_instance_round_trips() {
+    // Arrange
+    // With one instance the emitter writes a bare mapping rather than a
+    // one-element sequence, so the parser must read that form back as a
+    // one-element list.
+    let fleet = FleetSpec {
+        service: vec![Located::detached(ServiceSpec {
+            name: Located::detached("api".to_string()),
+        })],
+    };
+    let text = emit_yaml(&fleet.to_fields()).expect("emit yaml");
+    let mut sources = SourceMap::new();
+    let id = sources.add("one.yaml", text.clone());
+    let mut report = Report::new();
+
+    // Act
+    let round: Option<FleetSpec> = parse_yaml(&sources, id, &mut report);
+
+    // Assert
+    assert!(
+        !report.has_issues(),
+        "the emitted text should reparse cleanly, got: {text}\nissues: {:?}",
+        report.issues()
+    );
+    let round = round.unwrap();
+    assert_eq!(round.service.len(), 1);
+    assert_eq!(round.service[0].value.name.value, "api");
+}

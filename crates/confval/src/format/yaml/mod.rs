@@ -60,6 +60,9 @@ const ROOT_MUST_BE_A_MAPPING: &str = "expected a mapping at the document root";
 const ONE_DOCUMENT: &str = "expected a single document";
 /// The message a key the model has no name for reports.
 const SCALAR_KEY: &str = "expected a scalar key";
+/// The deepest nesting the reader accepts. The reader recurses one frame per
+/// level, so the bound keeps a hostile document from exhausting the stack.
+const MAX_DEPTH: u32 = 128;
 
 /// Parses one registered source into the neutral [`Fields`] tree.
 ///
@@ -197,7 +200,7 @@ impl<'input> Reader<'input, '_> {
             self.report.error(ROOT_MUST_BE_A_MAPPING).at(at).emit();
             return None;
         };
-        let (items, _) = self.entries(span)?;
+        let (items, _) = self.entries(span, 0)?;
         let fields = Fields::new(self.source, document, items);
         loop {
             let (event, span) = self.next()?;
@@ -216,7 +219,7 @@ impl<'input> Reader<'input, '_> {
     /// Reads one mapping's entries, and the span running from its opening event
     /// through its closing one. The span is what a nested level reports a
     /// missing field at.
-    fn entries(&mut self, start: YamlSpan) -> Option<(Vec<Field>, Span)> {
+    fn entries(&mut self, start: YamlSpan, depth: u32) -> Option<(Vec<Field>, Span)> {
         let mut items: Vec<Field> = Vec::new();
         loop {
             let (event, key_span) = self.next()?;
@@ -236,7 +239,7 @@ impl<'input> Reader<'input, '_> {
             };
             let name_span = self.span(key_span);
             let (event, value_span) = self.next()?;
-            let value = self.node(event, value_span)?;
+            let value = self.node(event, value_span, depth)?;
             let field_span = Span::new(self.source, name_span.start, value.span.end);
             items.push(Field::parsed(
                 name,
@@ -249,19 +252,21 @@ impl<'input> Reader<'input, '_> {
     }
 
     /// Reads one sequence's elements and its whole span.
-    fn elements(&mut self, start: YamlSpan) -> Option<(Vec<Value>, Span)> {
+    fn elements(&mut self, start: YamlSpan, depth: u32) -> Option<(Vec<Value>, Span)> {
         let mut elements: Vec<Value> = Vec::new();
         loop {
             let (event, span) = self.next()?;
             if matches!(event, Event::SequenceEnd) {
                 return Some((elements, self.range(start, span)));
             }
-            elements.push(self.node(event, span)?);
+            elements.push(self.node(event, span, depth)?);
         }
     }
 
-    /// Reads one node, whose opening event has already been taken.
-    fn node(&mut self, event: Event<'input>, span: YamlSpan) -> Option<Value> {
+    /// Reads one node, whose opening event has already been taken. `depth` is
+    /// the nesting level the node sits at, checked against [`MAX_DEPTH`]
+    /// before the collection arms recurse.
+    fn node(&mut self, event: Event<'input>, span: YamlSpan, depth: u32) -> Option<Value> {
         match event {
             Event::Scalar(text, style, _, tag) => Some(Value {
                 span: self.span(span),
@@ -274,8 +279,11 @@ impl<'input> Reader<'input, '_> {
                 kind: ValueKind::Other("alias"),
             }),
             Event::SequenceStart(_, tag) => {
+                if depth >= MAX_DEPTH {
+                    return self.refuse_depth(span);
+                }
                 if reads_through(tag.as_deref(), "seq") {
-                    let (elements, whole) = self.elements(span)?;
+                    let (elements, whole) = self.elements(span, depth + 1)?;
                     return Some(Value {
                         span: whole,
                         kind: ValueKind::Seq(elements),
@@ -284,8 +292,11 @@ impl<'input> Reader<'input, '_> {
                 self.refuse(span)
             }
             Event::MappingStart(_, tag) => {
+                if depth >= MAX_DEPTH {
+                    return self.refuse_depth(span);
+                }
                 if reads_through(tag.as_deref(), "map") {
-                    let (items, whole) = self.entries(span)?;
+                    let (items, whole) = self.entries(span, depth + 1)?;
                     return Some(Value {
                         span: whole,
                         kind: ValueKind::Map(Fields::new(self.source, whole, items)),
@@ -305,6 +316,16 @@ impl<'input> Reader<'input, '_> {
                 None
             }
         }
+    }
+
+    /// Reports a collection nested past [`MAX_DEPTH`] and fails the parse.
+    fn refuse_depth(&mut self, span: YamlSpan) -> Option<Value> {
+        let at = self.span(span);
+        self.report
+            .error(format!("nesting exceeds {MAX_DEPTH} levels"))
+            .at(at)
+            .emit();
+        None
     }
 
     /// Consumes a collection carrying a tag the frontend refuses, so parsing
@@ -769,6 +790,36 @@ mod tests {
             span.end,
             input.len()
         );
+    }
+
+    #[test]
+    fn nesting_past_the_depth_limit_is_reported_rather_than_fatal() {
+        // Arrange
+        // The reader recurses one frame per level, so without a bound this
+        // roughly 5 KB input overflows the stack and aborts the process.
+        let input = format!("a:\n{}1\n", "- ".repeat(2500));
+
+        // Act
+        let report = reject(&input);
+
+        // Assert
+        assert!(
+            report.issues()[0].message.contains("nesting"),
+            "got: {:?}",
+            report.issues()
+        );
+    }
+
+    #[test]
+    fn nesting_inside_the_depth_limit_parses() {
+        // Arrange
+        let input = format!("a:\n{}1\n", "- ".repeat(100));
+
+        // Act
+        let fields = parse(&input);
+
+        // Assert
+        assert!(fields.get("a").is_some());
     }
 
     #[test]
