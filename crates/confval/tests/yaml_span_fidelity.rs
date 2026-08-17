@@ -10,8 +10,6 @@
 //! rather than silently misplacing every span past a multibyte character.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-#![cfg(feature = "yaml")]
-
 use saphyr_parser::{Event, Parser, ScalarStyle, Span};
 
 /// The euro sign ahead of every later entry makes a character count disagree

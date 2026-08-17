@@ -4,8 +4,6 @@
 //! constraint and the `Validate` body carries no line for it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-#![cfg(feature = "derive")]
-
 use confval::prelude::*;
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
@@ -411,4 +409,63 @@ fn the_migrated_fixture_reports_the_same_ordered_diagnostics() {
         ]
     );
     assert_eq!(report.issues()[0].span, Some(port_span));
+}
+
+#[derive(confval::Spec)]
+struct BadDefault {
+    #[confval(default = 99999, range = PORT)]
+    port: Located<i64>,
+}
+
+impl Validate for BadDefault {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_default_that_violates_its_recorded_constraint_names_the_spec() {
+    // Arrange
+    // The operator never wrote the value, so the failure names the spec's
+    // default rather than reporting a config error with no location.
+    let spec = BadDefault {
+        port: Located::detached(99999),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    let issue = report
+        .issues()
+        .iter()
+        .find(|issue| {
+            issue.message
+                == "the default for `port` fails its recorded constraint: port must be at most 65535"
+        })
+        .unwrap_or_else(|| panic!("expected the spec-default error, got: {:?}", report.issues()));
+    assert!(
+        issue
+            .help
+            .as_deref()
+            .is_some_and(|help| help.contains("#[confval(default = ...)]")),
+        "the help points at the spec declaration: {:?}",
+        issue.help
+    );
+}
+
+#[test]
+fn an_operator_value_keeps_the_ordinary_constraint_message() {
+    // Arrange
+    // A value the operator wrote carries a span and fails with the ordinary
+    // message, even on a field that declares a default.
+    let mut sources = SourceMap::new();
+    let id = sources.add("server.toml", "port = 70000\n");
+    let spec = BadDefault {
+        port: Located::new(70000, confval::source::Span::new(id, 7, 12)),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(messages(&report), vec!["port must be at most 65535"]);
 }

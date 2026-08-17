@@ -1,5 +1,5 @@
 error: #[confval(label)] cannot be optional
- --> tests/ui/fail/schema_label_optional.rs:6:5
+ --> tests/ui/fail/schema_label_optional.rs:5:15
   |
-6 |     name: Option<Located<String>>,
-  |     ^^^^
+5 |     #[confval(label)]
+  |               ^^^^^

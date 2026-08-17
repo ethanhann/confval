@@ -4,8 +4,6 @@
 //! blocks. If an hcl-edit upgrade breaks any of these, error attribution
 //! breaks with it.
 
-#![cfg(feature = "hcl")]
-
 use hcl_edit::Span as _;
 use hcl_edit::parser::parse_body;
 

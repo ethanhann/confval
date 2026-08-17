@@ -3,8 +3,6 @@
 //! and the runtime lowering.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-#![cfg(feature = "derive")]
-
 use confval::format::{FieldKind, ToFields, Value, ValueKind};
 use confval::prelude::*;
 use std::collections::{BTreeMap, HashMap};

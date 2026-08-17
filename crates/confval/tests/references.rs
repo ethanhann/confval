@@ -1,15 +1,6 @@
 //! Label references: `#[confval(label)]`, `#[confval(references = <block>)]`, the
 //! native-label read for HCL and KDL, and the reference resolution pass.
 
-#![cfg(all(
-    feature = "derive",
-    feature = "hcl",
-    feature = "toml",
-    feature = "kdl",
-    feature = "json",
-    feature = "yaml"
-))]
-
 use confval::diagnostic::Report;
 use confval::format::{FromFields, hcl, json, kdl, toml, yaml};
 use confval::pipeline::{Validate, check_references, declares_labeled_block, scope_labels};
@@ -854,5 +845,69 @@ fn a_duplicate_label_within_one_scope_reports() {
     assert_eq!(
         messages,
         vec!["duplicate upstreams label \"u1\"".to_string()]
+    );
+}
+
+#[derive(confval::Spec)]
+struct ScopedRootSpec {
+    #[confval(references = pool)]
+    active_pool: Located<String>,
+    #[confval(nested)]
+    services: Vec<Located<ScopedServicesSpec>>,
+}
+
+#[derive(confval::Spec)]
+struct ScopedServicesSpec {
+    name: Located<String>,
+    #[confval(nested)]
+    pool: Vec<Located<ScopedPoolSpec>>,
+}
+
+#[derive(confval::Spec)]
+struct ScopedPoolSpec {
+    #[confval(label)]
+    id: Located<String>,
+    size: Located<i64>,
+}
+
+impl Validate for ScopedRootSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for ScopedServicesSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for ScopedPoolSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_reference_out_of_scope_names_scoping_rather_than_the_target() {
+    // Arrange
+    // `pool` is a labeled block, but only inside `services`, so a root-level
+    // reference has no enclosing scope that declares it. The message names
+    // scoping as the cause rather than calling the target unlabeled.
+    let text =
+        "active_pool = \"a\"\nservices {\n  name = \"svc\"\n  pool \"a\" {\n    size = 1\n  }\n}\n";
+    let mut sources = SourceMap::new();
+    let id = sources.add("gateway.hcl", text);
+    let mut report = Report::new();
+    let fields = hcl::parse_hcl_fields(&sources, id, &mut report).expect("the source parses");
+
+    // Act
+    check_references(&fields, &ScopedRootSpec::schema(), &mut report);
+
+    // Assert
+    let issue = report
+        .issues()
+        .iter()
+        .find(|issue| issue.message == "no pool is in scope at this reference")
+        .unwrap_or_else(|| panic!("expected the scoping error, got: {:?}", report.issues()));
+    assert_eq!(
+        issue.help.as_deref(),
+        Some(
+            "pool is declared in a nested scope, and a reference resolves outward through its enclosing blocks"
+        )
     );
 }

@@ -7,8 +7,6 @@
 //! literal.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-#![cfg(feature = "derive")]
-
 use confval::prelude::*;
 use confval::schema::{Constraint, ScalarType, Schema, SchemaType};
 use std::collections::BTreeMap;
@@ -615,13 +613,13 @@ fn a_handwritten_field_carries_the_builder_text() {
     let built = confval::schema::SchemaField::new(
         "workers".to_string(),
         None,
-        true,
-        true,
         SchemaType::Scalar {
             leaf: ScalarType::Int,
             constraint: None,
         },
-    );
+    )
+    .required()
+    .with_default();
 
     // Act
     let built = built.with_default_text("4".to_string());
