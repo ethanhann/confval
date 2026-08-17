@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Examples
 
-The crate ships fourteen runnable examples in `crates/confval/examples/`.
+Fifteen runnable examples ship in the repository: fourteen in `crates/confval/examples/` and a runnable language server in `crates/confval-lsp/examples/`.
 
 `hcl`, `toml`, `kdl`, `json`, and `yaml` are the same program five times.
 Each renders the diagnostics for a failing variant to stderr, feeds a valid document, prints the lowered config, and emits the populated spec back to canonical text.
@@ -134,6 +134,16 @@ It prints the diagnostics, the runtime config, the populated and source views, t
 
 ```shell
 cargo run -q -p confval --example handwritten --features derive,color,toml,hcl
+```
+
+## serve
+
+The serve example runs the language server over stdio against a demo spec, so you can point an editor at a running server before writing your own.
+Pick a format, then launch an LSP client at the built binary.
+[The language server core](./guide/language-server.md#trying-it-against-an-editor) walks through an editor setup.
+
+```shell
+cargo run -p confval-lsp --example serve hcl
 ```
 
 ## Additional Examples
