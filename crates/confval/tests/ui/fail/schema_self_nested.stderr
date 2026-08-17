@@ -1,0 +1,5 @@
+error: #[confval(nested)] cannot nest a spec inside itself; a configuration schema is a finite tree
+ --> tests/ui/fail/schema_self_nested.rs:7:27
+  |
+7 |     children: Vec<Located<Node>>,
+  |                           ^^^^
