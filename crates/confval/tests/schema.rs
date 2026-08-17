@@ -522,8 +522,27 @@ struct DefaultedSpec {
     /// A bare default on a list, which carries no text.
     #[confval(default)]
     allow: Vec<Located<String>>,
+    /// A bare default on a map, which carries no text.
+    #[confval(map, default)]
+    headers: BTreeMap<String, Located<String>>,
+    /// A defaulted nested block, which carries no text.
+    #[confval(nested, default)]
+    limits: Option<Located<DefaultedChild>>,
     /// No default, which carries no text.
     port: Located<i64>,
+}
+
+/// The nested child of the defaulted fixture.
+#[derive(confval::Spec)]
+#[confval(derive_default)]
+struct DefaultedChild {
+    /// A defaulted leaf inside the child.
+    #[confval(default = 1)]
+    depth: Located<i64>,
+}
+
+impl Validate for DefaultedChild {
+    fn validate(&self, _report: &mut Report) {}
 }
 
 impl Validate for DefaultedSpec {
@@ -573,12 +592,21 @@ fn a_non_scalar_or_absent_default_carries_no_text() {
 
     // Act
     let list = field(&schema, "allow").default_text.as_deref();
+    let map = field(&schema, "headers").default_text.as_deref();
+    let block = field(&schema, "limits").default_text.as_deref();
     let bare = field(&schema, "port").default_text.as_deref();
 
     // Assert
     assert_eq!(list, None, "a defaulted list has no single value to render");
+    assert_eq!(map, None, "a defaulted map has no single value to render");
+    assert_eq!(
+        block, None,
+        "a defaulted block has no single value to render"
+    );
     assert_eq!(bare, None, "an undefaulted field carries nothing");
     assert!(field(&schema, "allow").has_default);
+    assert!(field(&schema, "headers").has_default);
+    assert!(field(&schema, "limits").has_default);
 }
 
 #[test]
