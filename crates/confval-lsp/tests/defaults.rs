@@ -284,6 +284,9 @@ struct RoundTripSpec {
     /// A path default.
     #[confval(default = PathBuf::from("/etc/app.conf"))]
     config: Located<PathBuf>,
+    /// A default carrying control characters, which must render escaped.
+    #[confval(default = "a\nb\tc".to_string())]
+    banner: Located<String>,
 }
 
 impl Validate for RoundTripSpec {
@@ -332,6 +335,7 @@ fn the_rendered_default_round_trips_through_every_frontend() {
             field("secure"),
             field("mode"),
             field("config"),
+            field("banner"),
         ]
         .join("\n");
         let document = wrap(&body);
@@ -348,6 +352,10 @@ fn the_rendered_default_round_trips_through_every_frontend() {
         assert_eq!(
             parsed_scalar(&tree, "config"),
             Scalar::String("/etc/app.conf".to_string())
+        );
+        assert_eq!(
+            parsed_scalar(&tree, "banner"),
+            Scalar::String("a\nb\tc".to_string())
         );
     }
     round_trip(&Hcl, &schema, |body| format!("{body}\n"));
@@ -797,4 +805,90 @@ fn hover_prints_a_boolean_default() {
 
     // Assert
     assert!(markdown.contains("Defaults to false."), "{markdown}");
+}
+
+/// A spec with an unwieldy string default, for the title elision.
+#[derive(confval::Spec)]
+struct LongDefaultSpec {
+    /// A sixty-character default.
+    #[confval(default = "012345678901234567890123456789012345678901234567890123456789".to_string())]
+    banner: Located<String>,
+}
+
+impl Validate for LongDefaultSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_stale_character_position_past_the_line_offers_no_fix() {
+    // Arrange
+    // The diagnostic's line exists, and its characters sit past the line's
+    // content, so the clamped offsets must not read as containment.
+    let text = "hostname: h\nport: 1\nworkers: 9999\n";
+    let schema = ServerSpec::schema();
+    let stale = vec![lsp_types::Diagnostic {
+        range: lsp_types::Range {
+            start: lsp_types::Position {
+                line: 2,
+                character: 50,
+            },
+            end: lsp_types::Position {
+                line: 2,
+                character: 60,
+            },
+        },
+        message: "stale".to_string(),
+        ..lsp_types::Diagnostic::default()
+    }];
+
+    // Act
+    let actions = actions_at(
+        &Yaml,
+        &schema,
+        text,
+        text.find("9999").unwrap(),
+        &stale,
+        None,
+    );
+
+    // Assert
+    assert!(actions.is_empty(), "a clamped character is not containment");
+}
+
+#[test]
+fn a_long_default_elides_in_the_title_and_stays_whole_in_the_edit() {
+    // Arrange
+    let text = "banner: 123\n";
+    let schema = LongDefaultSpec::schema();
+    let found = diagnostics::<LongDefaultSpec, Yaml>(&Yaml, &schema, text, &doc_uri(), ENCODING);
+
+    // Act
+    let actions = actions_at(
+        &Yaml,
+        &schema,
+        text,
+        text.find("123").unwrap(),
+        &found,
+        None,
+    );
+
+    // Assert
+    let CodeActionOrCommand::CodeAction(action) = actions.first().expect("one fix") else {
+        panic!("a code action");
+    };
+    assert!(
+        action.title.ends_with("..."),
+        "the title elides: {}",
+        action.title
+    );
+    let edits: Vec<lsp_types::TextEdit> = action
+        .edit
+        .as_ref()
+        .and_then(|edit| edit.changes.as_ref())
+        .map(|changes| changes.values().flatten().cloned().collect())
+        .unwrap_or_default();
+    assert!(
+        edits[0].new_text.len() > 50,
+        "the edit keeps the whole default"
+    );
 }

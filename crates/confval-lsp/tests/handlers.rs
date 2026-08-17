@@ -2131,3 +2131,33 @@ fn yaml_reference_completion_after_a_bare_colon_keeps_the_colon() {
     );
     assert_eq!(edit.range.start, edit.range.end, "zero width at the cursor");
 }
+
+#[test]
+fn a_label_with_an_inner_quote_completes_escaped() {
+    // Arrange
+    // The label text enters the quoted insert, so its own quote must be
+    // escaped rather than ending the literal early.
+    let text = "upstream:\n  - name: 'a\"b'\n    host: h\n    port: 1\nroutes:\n  - prefix: /x\n    upstream: \n";
+    let offset = text.rfind("upstream: ").unwrap() + "upstream: ".len();
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = GatewaySpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+
+    // Assert
+    let item = items.first().expect("the label");
+    assert_eq!(inserted(item), "\"a\\\"b\"", "the inner quote is escaped");
+}
