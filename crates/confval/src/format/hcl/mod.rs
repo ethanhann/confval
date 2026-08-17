@@ -96,7 +96,7 @@ pub fn parse_hcl<T: FromFields>(
 
 /// Converts an hcl-edit node's span to a confval [`Span`]. Nodes not emitted by
 /// the parser have no span and map to a detached one.
-pub fn span_of(node: &impl hcl_edit::Span, source: SourceId) -> Span {
+fn span_of(node: &impl hcl_edit::Span, source: SourceId) -> Span {
     match node.span() {
         Some(range) => Span::new(source, range.start as u32, range.end as u32),
         None => Span::detached(),
