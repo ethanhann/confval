@@ -176,9 +176,11 @@ fn a_resolved_reference_reports_nothing_in_every_format() {
         ("yaml", YAML_RESOLVED),
     ];
 
-    // Act, Assert
     for (format, text) in cases {
+        // Act
         let report = parse(format, text);
+
+        // Assert
         assert!(
             errors(&report).is_empty(),
             "{format}: {:?}",
@@ -242,9 +244,11 @@ fn an_undefined_reference_reports_in_every_format() {
         ),
     ];
 
-    // Act, Assert
     for (format, text) in cases {
+        // Act
         let report = parse(format, &text);
+
+        // Assert
         let issue = report
             .issues()
             .iter()

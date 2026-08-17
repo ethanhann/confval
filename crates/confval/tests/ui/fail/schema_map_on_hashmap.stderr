@@ -1,5 +1,5 @@
 error: map fields must be BTreeMap<String, Located<String>>
- --> tests/ui/fail/spec_map_on_hashmap.rs:7:14
+ --> tests/ui/fail/schema_map_on_hashmap.rs:7:14
   |
 7 |     headers: HashMap<String, Located<String>>,
   |              ^^^^^^^

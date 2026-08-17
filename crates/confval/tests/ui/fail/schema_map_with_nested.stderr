@@ -1,5 +1,5 @@
 error: #[confval(map)] and #[confval(nested)] cannot be combined; a map holds scalar values, not a sub-struct
- --> tests/ui/fail/spec_map_with_nested.rs:6:5
+ --> tests/ui/fail/schema_map_with_nested.rs:6:5
   |
 6 | /     #[confval(map, nested)]
 7 | |     headers: BTreeMap<String, Located<String>>,
