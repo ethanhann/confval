@@ -2,7 +2,7 @@
 //! a runtime type, print the result, and emit the populated spec back to
 //! canonical TOML text.
 //!
-//! The spec types, validators, config types, and lowering functions all live in
+//! The spec types, validators, config types, and lowering functions all are in
 //! `common`, which the `hcl`, `kdl`, `json`, and `yaml` examples share
 //! verbatim. Those four examples run the same steps in the same order as
 //! this one. Only the source text, its file name, and the two format calls,

@@ -1,7 +1,7 @@
 //! Three representations of one loaded spec, each answering a different
 //! question about the configuration.
 //!
-//! The source view shows what the operator actually set, with defaults omitted.
+//! The source view shows what the operator set, with defaults omitted.
 //! The populated view shows what the service resolved to after defaults. The
 //! runtime view shows the typed values the program runs on.
 //!
