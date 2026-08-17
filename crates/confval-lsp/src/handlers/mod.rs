@@ -16,6 +16,10 @@ mod symbols;
 
 pub use code_action::code_action;
 pub use completion::{ClientSupport, completion};
+pub use diagnostics::diagnostics;
+pub use hover::hover;
+pub use navigation::{definition, references};
+pub use symbols::{SymbolShape, document_symbols};
 
 use confval::format::Fields;
 use confval::schema::Schema;
@@ -38,7 +42,3 @@ pub struct Cx<'a> {
     /// The buffer text.
     pub text: &'a str,
 }
-pub use diagnostics::diagnostics;
-pub use hover::hover;
-pub use navigation::{definition, references};
-pub use symbols::{SymbolShape, document_symbols};
