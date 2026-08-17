@@ -90,6 +90,7 @@ pub fn parse_yaml_fields(sources: &SourceMap, id: SourceId, report: &mut Report)
     Reader {
         parser: Parser::new_from_str(text),
         offsets: Offsets::new(&source.text),
+        original: &source.text,
         source: id,
         report,
     }
@@ -155,6 +156,9 @@ impl Offsets {
 struct Reader<'input, 'report> {
     parser: Parser<'input, StrInput<'input>>,
     offsets: Offsets,
+    /// The original source text, read for char-boundary math when a span
+    /// widens, so a widened edge never splits a character.
+    original: &'input str,
     source: SourceId,
     report: &'report mut Report,
 }
@@ -397,14 +401,29 @@ impl<'input> Reader<'input, '_> {
             return span;
         }
         if span.start < self.offsets.len {
-            return Span::new(span.source, span.start, span.start + 1);
+            let end = ceil_boundary(self.original, span.start as usize + 1);
+            return Span::new(span.source, span.start, end as u32);
         }
-        Span::new(
-            span.source,
-            self.offsets.len.saturating_sub(1),
-            self.offsets.len,
-        )
+        let start = floor_boundary(self.original, self.offsets.len.saturating_sub(1) as usize);
+        Span::new(span.source, start as u32, self.offsets.len)
     }
+}
+
+/// The nearest char boundary at or below `at`.
+fn floor_boundary(text: &str, mut at: usize) -> usize {
+    while at > 0 && !text.is_char_boundary(at) {
+        at -= 1;
+    }
+    at
+}
+
+/// The nearest char boundary at or above `at`, capped at the text's end.
+fn ceil_boundary(text: &str, mut at: usize) -> usize {
+    at = at.min(text.len());
+    while at < text.len() && !text.is_char_boundary(at) {
+        at += 1;
+    }
+    at
 }
 
 /// The depth one event opens: one for a collection, zero for anything that
@@ -787,9 +806,10 @@ mod tests {
     #[test]
     fn a_span_at_the_end_of_input_stays_inside_the_source() {
         // Arrange
-        // An unterminated collection reports at the end, where there is no byte
-        // ahead to widen into.
-        let input = "a: [1, 2";
+        // An unterminated collection reports at the end, where there is no
+        // byte ahead to widen into. The last character is multi-byte, so a
+        // byte-wise step back would split it.
+        let input = "a: [1, €";
 
         // Act
         let report = reject(input);

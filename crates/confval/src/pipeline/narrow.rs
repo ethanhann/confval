@@ -271,7 +271,7 @@ mod tests {
 
         // Assert
         assert_eq!(parsed, None);
-        assert!(report.has_errors());
+        assert_eq!(report.issues()[0].message, "unknown keyword: mauve");
     }
 
     #[test]
@@ -302,7 +302,10 @@ mod tests {
         let value = Located::detached(-1_i64);
 
         assert_eq!(i64_to_u64(&value, &mut report), None);
-        assert!(report.has_errors());
+        assert_eq!(
+            report.issues()[0].message,
+            "value -1 is out of range for u64"
+        );
     }
 
     #[test]
@@ -380,7 +383,10 @@ mod tests {
 
         // Assert
         assert_eq!(narrowed, None);
-        assert!(report.has_errors());
+        assert_eq!(
+            report.issues()[0].message,
+            "value -1 is out of range for u16"
+        );
     }
 
     #[test]
@@ -408,7 +414,10 @@ mod tests {
 
         // Assert
         assert_eq!(narrowed, None);
-        assert!(report.has_errors());
+        assert_eq!(
+            report.issues()[0].message,
+            "value -9223372036854775808 is out of range for u16"
+        );
     }
 
     #[test]

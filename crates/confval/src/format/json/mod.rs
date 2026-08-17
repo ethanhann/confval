@@ -30,7 +30,10 @@
 //! - A root that is not an object and an empty document each report
 //!   `expected an object at the document root` and return `None`.
 //! - The frontend classifies a number by how it is written. Raw text with a `.`,
-//!   an `e`, or an `E` is a float, and any other number is an integer.
+//!   an `e`, or an `E` is a float, and any other number is an integer. Two
+//!   edges follow from that rule: `-0` has no float marker, so it reads as
+//!   integer zero and its sign is not kept, and a decimal too small for `f64`,
+//!   such as `1e-999`, underflows to `0.0` the way float parsing does.
 //! - Values outside the neutral model (`null`, an integer beyond `i64`, a
 //!   number whose `f64` value is not finite) become [`ValueKind::Other`]
 //!   carrying a diagnostic label, so they surface as ordinary type mismatches

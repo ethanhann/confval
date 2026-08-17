@@ -304,13 +304,13 @@ fn a_reference_to_an_absent_block_reports_a_target_error() {
     check_references(&fields, &TypoSpec::schema(), &mut report);
 
     // Assert
-    assert!(
-        errors(&report)
-            .iter()
-            .any(|m| m == "reference target nowhere is not a labeled block"),
-        "got: {:?}",
-        errors(&report)
-    );
+    let issue = report
+        .issues()
+        .iter()
+        .find(|issue| issue.message == "reference target nowhere is not a labeled block")
+        .unwrap_or_else(|| panic!("expected a target error, got: {:?}", errors(&report)));
+    let span = issue.span.expect("the error carries a span");
+    assert_eq!(&text[span.start as usize..span.end as usize], "\"x\"");
 }
 
 #[test]
@@ -910,4 +910,6 @@ fn a_reference_out_of_scope_names_scoping_rather_than_the_target() {
             "pool is declared in a nested scope, and a reference resolves outward through its enclosing blocks"
         )
     );
+    let span = issue.span.expect("the error carries a span");
+    assert_eq!(&text[span.start as usize..span.end as usize], "\"a\"");
 }

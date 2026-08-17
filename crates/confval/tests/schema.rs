@@ -399,8 +399,10 @@ fn a_float_leaf_reads_from_the_rust_type_and_carries_a_range() {
     let Some(Constraint::Range { min, max, .. }) = constraint(&schema, "ratio") else {
         panic!("ratio should carry a range");
     };
-    assert_eq!(min.as_str(), "0");
-    assert_eq!(max.as_str(), "1");
+    // A float bound keeps its float form, so hover on a float field reads
+    // float text rather than suggesting integers.
+    assert_eq!(min.as_str(), "0.0");
+    assert_eq!(max.as_str(), "1.0");
 }
 
 #[test]

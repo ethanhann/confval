@@ -282,11 +282,24 @@ fn constraint_tokens(leaf: &Leaf, options: &FieldOptions) -> syn::Result<TokenSt
                     "#[confval(range = ...)] requires an Int or Float leaf",
                 ));
             }
+            // A float bound renders through `{:?}`, the form the default text
+            // uses, so a whole-number bound keeps its `.0` and hover on a
+            // float field reads float text.
+            let (min, max) = match leaf {
+                Leaf::Float => (
+                    quote! { ::std::format!("{:?}", #path.min) },
+                    quote! { ::std::format!("{:?}", #path.max) },
+                ),
+                _ => (
+                    quote! { ::std::string::ToString::to_string(&#path.min) },
+                    quote! { ::std::string::ToString::to_string(&#path.max) },
+                ),
+            };
             Ok(quote! {
                 ::core::option::Option::Some(
                     ::confval::schema::Constraint::Range {
-                        min: ::std::string::ToString::to_string(&#path.min),
-                        max: ::std::string::ToString::to_string(&#path.max),
+                        min: #min,
+                        max: #max,
                         units: #path.units,
                         help: #path.help,
                     },

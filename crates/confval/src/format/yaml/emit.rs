@@ -1034,6 +1034,9 @@ mod tests {
         let out = emit_yaml(&fields).unwrap();
 
         // Assert
+        // The template as emitted, before any uncommenting, parses as a
+        // configuration that sets nothing.
+        assert_eq!(reparse(&out).iter().count(), 0);
         let uncommented = out.replace('#', "");
         let round = reparse(&uncommented);
         let mut report = Report::new();

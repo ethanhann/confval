@@ -83,17 +83,42 @@ fn diagnostics_report_the_pipeline_issues_at_their_ranges() {
         messages.iter().any(|m| m.contains("mode")),
         "expected a keyword diagnostic, got: {messages:?}"
     );
-    // The unknown-field diagnostic points at the exact span the pipeline
-    // produced: `bogus` starts the third line.
+    // Each diagnostic carries the exact range the pipeline produced, start
+    // and end, so a wrong span in any of the three would fail here. `bogus`
+    // is the whole name on the third line, `99999` the port value on the
+    // second, and `"nope"` the quoted keyword inside the block.
     let bogus = found
         .iter()
         .find(|d| d.message.contains("bogus"))
         .expect("an unknown-field diagnostic");
     assert_eq!(
-        bogus.range.start,
-        Position {
-            line: 2,
-            character: 0
+        bogus.range,
+        lsp_types::Range {
+            start: Position {
+                line: 2,
+                character: 0
+            },
+            end: Position {
+                line: 2,
+                character: 5
+            },
+        }
+    );
+    let port = found
+        .iter()
+        .find(|d| d.message.contains("port"))
+        .expect("a port range diagnostic");
+    assert_eq!(
+        port.range,
+        lsp_types::Range {
+            start: Position {
+                line: 1,
+                character: 7
+            },
+            end: Position {
+                line: 1,
+                character: 12
+            },
         }
     );
     // The keyword help is carried as related information, not appended to the
@@ -102,6 +127,19 @@ fn diagnostics_report_the_pipeline_issues_at_their_ranges() {
         .iter()
         .find(|d| d.message.contains("mode"))
         .expect("a keyword diagnostic");
+    assert_eq!(
+        mode.range,
+        lsp_types::Range {
+            start: Position {
+                line: 4,
+                character: 9
+            },
+            end: Position {
+                line: 4,
+                character: 15
+            },
+        }
+    );
     assert!(
         !mode.message.contains("expected one of"),
         "help is not in the message: {}",

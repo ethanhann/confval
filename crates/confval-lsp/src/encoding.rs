@@ -65,7 +65,10 @@ impl LineIndex {
     /// The byte offset of an LSP position in the negotiated encoding.
     ///
     /// A character past the end of its line clamps to the line's end. A line
-    /// past the end of the text clamps to the end of the text.
+    /// past the end of the text clamps to the end of the text. A character
+    /// with no exact byte offset, such as the middle of a surrogate pair,
+    /// floors to the nearest char boundary, so the offset never splits a
+    /// character.
     pub fn offset_of(&self, text: &str, position: Position, encoding: PositionEncoding) -> usize {
         let col = match encoding {
             PositionEncoding::Utf8 => position.character,
@@ -94,7 +97,7 @@ impl LineIndex {
             })
             .map(usize::from)
             .unwrap_or(line_start);
-        offset.min(content_end)
+        floor_char_boundary(text, offset.min(content_end))
     }
 
     /// The LSP range of a `confval` span in the negotiated encoding.
