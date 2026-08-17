@@ -26,6 +26,12 @@ impl Frontend for Yaml {
         ValueSeparator::Colon
     }
 
+    fn line_comments(&self) -> &'static [&'static str] {
+        // The YAML reader handles its own comments, whitespace-preceded, so
+        // this vocabulary serves only the trait's contract.
+        &["#"]
+    }
+
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {
         Insert::plain(match &field.ty {
             // A repeated block and a string list are both sequences, so the

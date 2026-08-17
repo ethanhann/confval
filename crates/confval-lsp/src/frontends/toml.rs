@@ -27,6 +27,11 @@ impl Frontend for Toml {
         Recovery::Header
     }
 
+    fn line_comments(&self) -> &'static [&'static str] {
+        // TOML comments with the hash alone.
+        &["#"]
+    }
+
     fn insert_text(&self, field: &SchemaField, path: &[String]) -> Insert {
         let qualified = if path.is_empty() {
             field.name.clone()

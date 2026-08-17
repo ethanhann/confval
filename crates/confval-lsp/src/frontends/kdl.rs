@@ -30,9 +30,9 @@ impl Frontend for Kdl {
         }
     }
 
-    fn hash_is_comment(&self) -> bool {
+    fn line_comments(&self) -> &'static [&'static str] {
         // KDL writes booleans `#true` and `#false`, so `#` is not a comment.
-        false
+        &["//"]
     }
 
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {

@@ -25,9 +25,9 @@ impl Frontend for Json {
         ValueSeparator::Colon
     }
 
-    fn hash_is_comment(&self) -> bool {
-        // Strict JSON has no comment, so `#` is an ordinary character.
-        false
+    fn line_comments(&self) -> &'static [&'static str] {
+        // Strict JSON has no comment.
+        &[]
     }
 
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {

@@ -256,7 +256,7 @@ pub trait Frontend {
                     offset,
                     self.recovery(),
                     self.value_separator(),
-                    self.hash_is_comment(),
+                    self.line_comments(),
                 ),
             }
         };
@@ -301,11 +301,12 @@ pub trait Frontend {
         ValueSeparator::Equals
     }
 
-    /// Whether `#` starts a line comment (HCL) rather than a value token (KDL
-    /// writes booleans `#true`). The text-based recovery reads this when it scans
-    /// blocks. The default is `true`.
-    fn hash_is_comment(&self) -> bool {
-        true
+    /// The line-comment starts the format reads outside a string. The
+    /// text-based recovery skips a comment when it scans blocks and refuses a
+    /// value position inside one. The default is HCL's pair; KDL drops the
+    /// hash, because it writes booleans `#true`.
+    fn line_comments(&self) -> &'static [&'static str] {
+        &["#", "//"]
     }
 
     /// Renders a field's insert in the format, reading the field's
@@ -376,7 +377,7 @@ mod tests {
         // Assert
         assert_eq!(recovery, Recovery::Braces);
         assert_eq!(frontend.value_separator(), ValueSeparator::Equals);
-        assert!(frontend.hash_is_comment());
+        assert_eq!(frontend.line_comments(), &["#", "//"]);
         assert!(frontend.block_span_covers_body());
     }
 

@@ -15,26 +15,27 @@ use crate::resolve::{identifier_token, value_token};
 /// Resolves an offset from raw text.
 ///
 /// `recovery` selects how the enclosing path is reconstructed, and `separator`
-/// selects how a value position is detected. `hash_comment` is true when `#`
-/// starts a line comment (HCL) and false when it does not (KDL, JSON).
+/// selects how a value position is detected. `comments` is the format's
+/// line-comment vocabulary, read to skip a comment while scanning blocks and
+/// to refuse a value position inside one.
 /// `Recovery::Indentation` is handled by the YAML reader, not here.
 pub(crate) fn resolve_in_text(
     text: &str,
     offset: usize,
     recovery: Recovery,
     separator: ValueSeparator,
-    hash_comment: bool,
+    comments: &[&str],
 ) -> CursorContext {
     let offset = floor_char_boundary(text, offset);
     let path = match recovery {
-        Recovery::Braces => brace_path(text, offset, hash_comment),
+        Recovery::Braces => brace_path(text, offset, comments),
         Recovery::Header => header_path(text, offset),
         Recovery::Object => object_path(text, offset),
         // `Frontend::resolve` routes indentation recovery to the YAML reader
         // before this function is called, so it never reaches here.
         Recovery::Indentation => unreachable!("indentation recovery is routed to the YAML reader"),
     };
-    match attribute_name(text, offset, separator) {
+    match attribute_name(text, offset, separator, comments) {
         Some((field, value_start)) => {
             // In a colon format the scanned value token walks back through the
             // colon and the quoted key, because both are value bytes. The clamp
@@ -53,15 +54,14 @@ pub(crate) fn resolve_in_text(
 
 /// The enclosing block path in a brace-delimited format: the identifiers of the
 /// blocks whose braces are open at the offset.
-fn brace_path(text: &str, offset: usize, hash_comment: bool) -> Vec<String> {
+fn brace_path(text: &str, offset: usize, comments: &[&str]) -> Vec<String> {
     let bytes = text.as_bytes();
     let mut stack: Vec<String> = Vec::new();
     let mut index = 0;
     while index < offset {
         match bytes[index] {
             b'"' => index = skip_string(bytes, index),
-            b'#' if hash_comment => index = skip_line(bytes, index),
-            b'/' if bytes.get(index + 1) == Some(&b'/') => index = skip_line(bytes, index),
+            _ if starts_comment(&text[index..], comments) => index = skip_line(bytes, index),
             b'/' if bytes.get(index + 1) == Some(&b'*') => index = skip_block_comment(bytes, index),
             b'{' => {
                 stack.push(statement_identifier(text, index));
@@ -122,17 +122,22 @@ fn parse_header(line: &str) -> Option<Vec<String>> {
 
 /// The name of the attribute whose value the cursor sits in, with the byte
 /// offset just past its separator when the separator is a value byte, or `None`
-/// for a body position.
+/// for a body position. A cursor past a comment marker sits in the comment,
+/// which is no value position.
 fn attribute_name(
     text: &str,
     offset: usize,
     separator: ValueSeparator,
+    comments: &[&str],
 ) -> Option<(String, Option<usize>)> {
     let line_start = text[..offset]
         .rfind('\n')
         .map(|index| index + 1)
         .unwrap_or(0);
     let line = &text[line_start..offset];
+    if past_comment(line, comments) {
+        return None;
+    }
     match separator {
         ValueSeparator::Equals => attribute_name_equals(line).map(|name| (name, None)),
         ValueSeparator::Colon => {
@@ -251,6 +256,29 @@ fn last_identifier(segment: &str) -> Option<String> {
     Some(segment[start..end].to_string())
 }
 
+/// Whether the segment starts with one of the format's comment markers.
+fn starts_comment(segment: &str, comments: &[&str]) -> bool {
+    comments.iter().any(|marker| segment.starts_with(marker))
+}
+
+/// Whether the cursor's line prefix holds a comment start outside a string, so
+/// the cursor sits inside the comment.
+fn past_comment(line: &str, comments: &[&str]) -> bool {
+    let bytes = line.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'"' {
+            index = skip_string(bytes, index);
+            continue;
+        }
+        if starts_comment(&line[index..], comments) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
 /// The index just past a string literal that starts at `open`, honoring `\"`.
 pub(crate) fn skip_string(bytes: &[u8], open: usize) -> usize {
     let mut index = open + 1;
@@ -314,7 +342,13 @@ mod tests {
         let offset = text.find("mode = ").unwrap() + "mode = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
+        let context = resolve_in_text(
+            text,
+            offset,
+            Recovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
 
         // Assert
         assert_eq!(context.path, vec!["limits".to_string()]);
@@ -328,7 +362,13 @@ mod tests {
         let offset = text.find("mode = ").unwrap() + "mode = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Header, ValueSeparator::Equals, true);
+        let context = resolve_in_text(
+            text,
+            offset,
+            Recovery::Header,
+            ValueSeparator::Equals,
+            &["#"],
+        );
 
         // Assert
         assert_eq!(context.path, vec!["limits".to_string()]);
@@ -347,7 +387,7 @@ mod tests {
             offset,
             Recovery::Braces,
             ValueSeparator::Whitespace,
-            false,
+            &["//"],
         );
 
         // Assert
@@ -362,7 +402,13 @@ mod tests {
         let offset = text.find("  mo\n").unwrap() + "  mo".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
+        let context = resolve_in_text(
+            text,
+            offset,
+            Recovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
 
         // Assert
         assert_eq!(context.path, vec!["limits".to_string()]);
@@ -378,7 +424,13 @@ mod tests {
         let offset = text.find("port = ").unwrap() + "port = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
+        let context = resolve_in_text(
+            text,
+            offset,
+            Recovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
 
         // Assert
         // The `{` in the string must not leave a block open.
@@ -395,7 +447,13 @@ mod tests {
         let offset = text.find("port = ").unwrap() + "port = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
+        let context = resolve_in_text(
+            text,
+            offset,
+            Recovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
 
         // Assert
         assert_eq!(context.path, vec!["server".to_string()]);
@@ -412,7 +470,7 @@ mod tests {
         let offset = text.find(":en").unwrap() + ":en".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Object, ValueSeparator::Colon, false);
+        let context = resolve_in_text(text, offset, Recovery::Object, ValueSeparator::Colon, &[]);
 
         // Assert
         assert_eq!(context.kind, value("mode"));
@@ -434,7 +492,7 @@ mod tests {
             offset,
             Recovery::Braces,
             ValueSeparator::Whitespace,
-            false,
+            &["//"],
         );
 
         // Assert
