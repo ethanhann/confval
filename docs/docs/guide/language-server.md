@@ -13,6 +13,7 @@ It is generic over your root spec and over the format frontend, so one core serv
 
 ## Running a server for your spec
 
+Add the crate to the program that owns your spec with `cargo add confval-lsp`.
 Bind the core to your `#[derive(Spec)]` root and a frontend, then run it over stdio.
 The `serve` function owns the connection, the initialize handshake, and the request loop.
 
