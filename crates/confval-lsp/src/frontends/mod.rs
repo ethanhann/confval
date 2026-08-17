@@ -31,11 +31,6 @@ use confval::schema::{SchemaField, SchemaType};
 
 use crate::Frontend;
 
-/// Whether a field is written as a block rather than an attribute.
-fn is_block(field: &SchemaField) -> bool {
-    matches!(field.ty, SchemaType::Block { .. })
-}
-
 /// The insert for a scalar attribute: a snippet when a default placeholder is
 /// present, a literal otherwise.
 fn scalar_insert(text: String, placeholder: &str) -> crate::frontend::Insert {

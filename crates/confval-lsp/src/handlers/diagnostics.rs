@@ -28,8 +28,9 @@ pub fn diagnostics<S>(
     schema: &Schema,
     fields: Option<&Fields>,
     parse_report: &Report,
-    text: &str,
     uri: &Uri,
+    text: &str,
+    index: &LineIndex,
     encoding: PositionEncoding,
 ) -> Vec<Diagnostic>
 where
@@ -46,12 +47,11 @@ where
         check_references(fields, schema, &mut report);
     }
 
-    let index = LineIndex::new(text);
     parse_report
         .issues()
         .iter()
         .chain(report.issues().iter())
-        .map(|issue| to_diagnostic(issue, &index, text, uri, encoding))
+        .map(|issue| to_diagnostic(issue, index, text, uri, encoding))
         .collect()
 }
 
@@ -160,8 +160,9 @@ mod tests {
             &Gateway::schema(),
             tree.as_ref(),
             &report,
-            text,
             &uri,
+            text,
+            &LineIndex::new(text),
             PositionEncoding::Utf16,
         );
 

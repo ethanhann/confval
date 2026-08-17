@@ -215,8 +215,9 @@ where
             &self.schema,
             document.tree.as_ref(),
             &document.report,
-            &document.text,
             uri,
+            &document.text,
+            &LineIndex::new(&document.text),
             self.encoding,
         );
         let params = PublishDiagnosticsParams {

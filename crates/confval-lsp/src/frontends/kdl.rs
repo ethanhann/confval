@@ -1,6 +1,5 @@
 use crate::Frontend;
 use crate::frontend::{Insert, ValueSeparator, quoted_literal};
-use crate::frontends::is_block;
 use confval::diagnostic::Report;
 use confval::format::Fields;
 use confval::format::kdl as format_kdl;
@@ -38,7 +37,10 @@ impl Frontend for Kdl {
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {
         // A KDL map is written as a children block, like a nested block, so
         // both open the braces and land the cursor inside.
-        let block_form = is_block(field) || matches!(field.ty, SchemaType::StringMap);
+        let block_form = matches!(
+            field.ty,
+            SchemaType::Block { .. } | SchemaType::StringMap
+        );
         if block_form {
             Insert::snippet(format!("{} {{\n  $0\n}}", field.name))
         } else {
