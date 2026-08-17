@@ -140,7 +140,7 @@ cargo run -q -p confval --example handwritten --features derive,color,toml,hcl
 
 The serve example runs the language server over stdio against a demo spec, so you can point an editor at a running server before writing your own.
 Pick a format, then launch an LSP client at the built binary.
-[The language server core](./guide/language-server.md#trying-it-against-an-editor) walks through an editor setup.
+[Language Server](./guide/language-server.md#trying-it-against-an-editor) walks through an editor setup.
 
 ```shell
 cargo run -p confval-lsp --example serve hcl

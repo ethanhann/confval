@@ -253,6 +253,38 @@ A block, `bind { port = 8080 }`, and an attribute set to an object, `bind = { po
 TOML lines up with this: a `[table]` is a block, an inline `{ ... }` is an object, and an array of tables (`[[x]]`) is a
 repeating block, so a `Vec` of nested structs reads from it the same way it reads from an HCL list of objects.
 
+For example, these two documents fill the same spec:
+
+```hcl
+hostname = "127.0.0.1"
+port = 8080
+allow = ["10.0.0.0/8", "192.168.0.0/16"]
+
+bind {
+  port = 8080
+}
+```
+
+```toml
+hostname = "127.0.0.1"
+port = 8080
+allow = ["10.0.0.0/8", "192.168.0.0/16"]
+
+[bind]
+port = 8080
+```
+
+```rust
+let spec: Option<ServerSpec> = confval::format::toml::parse_toml(&sources, id, &mut report);
+```
+
+Writing the model back out with `confval::format::hcl::emit_hcl` or `confval::format::toml::emit_toml` produces
+canonical text in the same shapes, values before blocks at each level:
+
+```rust
+let text = confval::format::hcl::emit_hcl(&spec.to_fields())?;
+```
+
 KDL writes the same shapes with nodes.
 It parses with the KDL 2.0 grammar alone.
 A children block, `bind { port 8080 }`, and properties on one node, `bind port=8080`, are the same nested structure.
@@ -280,6 +312,12 @@ A block node's first string argument is its native label, the `upstream "api" { 
 A non-string label, an argument past the first, and a label on a block whose spec designates none are each reported.
 A bare node where a single value is expected reports `expected string, found array`, because a bare node means an
 empty list.
+
+Writing the model back out with `confval::format::kdl::emit_kdl` produces canonical KDL:
+
+```rust
+let text = confval::format::kdl::emit_kdl(&spec.to_fields())?;
+```
 
 JSON has one way to nest, the object, which the model reads wherever it accepts a block.
 An array is a list.
@@ -341,7 +379,8 @@ JSON has no comment syntax, so emitted JSON carries no comments.
 
 YAML nests two ways, the block mapping and the flow mapping, and the model reads both wherever it accepts a block.
 The document root must be a mapping, and any other root reports `expected a mapping at the document root`.
-An empty document, a whitespace-only file, and a file holding only comments each report the same thing.
+An empty document, a whitespace-only file, and a file holding only comments each parse as a configuration that sets
+nothing, the way an empty TOML or HCL file does.
 A configuration file is one document, so a second one reports `expected a single document` rather than being discarded.
 
 For example, this document fills the same spec the snippets above fill:

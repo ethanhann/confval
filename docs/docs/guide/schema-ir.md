@@ -2,7 +2,7 @@
 sidebar_position: 8
 ---
 
-# The Schema IR
+# Schema IR
 
 Sometimes you need the type of a spec rather than a value of it.
 An editor writing completions is one example.

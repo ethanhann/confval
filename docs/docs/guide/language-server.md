@@ -2,7 +2,7 @@
 sidebar_position: 10
 ---
 
-# The language server core
+# Language Server
 
 confval rejects an unknown field at process startup, so a mistake in a handwritten configuration surfaces as a hard failure rather than a silently ignored key.
 A language server moves that feedback into the editor.
