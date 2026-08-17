@@ -19,7 +19,9 @@ keyword_enum!(pub LimitMode, {
 
 The macro generates the enum, a `KEYWORDS` array, `as_str`, a `TryFrom<&str>`, a `Display`, and a `keyword_set()`.
 Declare the check on the field with `#[confval(keywords = LimitMode)]`.
-The derive runs it during validation and records it in the schema, so an editor's hover and completion read the same rule, and your `Validate` body carries no line for it.
+The derive runs it during validation and records it in the schema.
+An editor's hover and completion read that same rule.
+Your `Validate` body carries no line for the field.
 Lowering names `narrow::keyword::<LimitMode>` to read the `TryFrom`.
 Once the check is in place, a value that fails it never reaches the `TryFrom`, so the set and the enum cannot drift.
 
@@ -101,10 +103,19 @@ JSON has no comment syntax, so a JSON template equals the plain dump.
 
 Sometimes a repeated block names its instances, and another field points at one by name.
 `#[confval(label)]` marks the child field that holds the name, and the HCL and KDL frontends read the native label syntax, so `upstream "api" { ... }` fills the marked field.
-`#[confval(references = upstream)]` marks a string field whose value must name one of those labels.
-Run `check_references` with the parsed fields, the schema, and the report after parsing, and the pass reports a reference no label in scope matches.
+`#[confval(references = upstream)]` marks a string field whose value must name one of those labels, where `upstream` is the parent's field name for the labeled block.
+After parsing, call `check_references` with the parsed fields, the schema, and the report.
+The pass reports a reference that no label in scope matches.
 
 ```rust
+#[derive(confval::Spec)]
+struct GatewaySpec {
+    #[confval(nested)]
+    upstream: Vec<Located<UpstreamSpec>>,
+    #[confval(nested)]
+    rules: Vec<Located<RuleSpec>>,
+}
+
 #[derive(confval::Spec)]
 struct UpstreamSpec {
     #[confval(label)]

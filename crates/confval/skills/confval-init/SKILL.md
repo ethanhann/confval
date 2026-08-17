@@ -93,7 +93,9 @@ See the complete documentation for the handwritten path.
 
 Declare a mechanical constraint on the field that carries it.
 `#[confval(range = PORT)]` records a `range_constraint!`, and `#[confval(keywords = LimitMode)]` records a `keyword_enum!` set.
-The derive runs a recorded constraint during validation and records it in the schema, so an editor's hover and completion read the same rule, and the `Validate` body carries no line for it.
+The derive runs a recorded constraint during validation and records it in the schema.
+An editor's hover and completion read that same rule.
+The `Validate` body carries no line for the field.
 
 ```rust
 #[derive(confval::Spec)]
@@ -217,7 +219,9 @@ fn a_bad_fixture_reports_every_problem_at_once() {
 ### 8. Verify
 
 Run `cargo check`, then `cargo test`.
-Read the spec, validation, and lowering back against the current confval crate, because the guards catch a renamed type but not advice that is merely wrong.
+Read the spec, validation, and lowering back against the current confval crate.
+`cargo check` catches a renamed type.
+It does not catch advice that is wrong.
 
 ## Provenance
 

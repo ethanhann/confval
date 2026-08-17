@@ -5,7 +5,7 @@ This file carries one row per frontend and the per-format limitations that chang
 
 It does not restate how each format maps onto the field model.
 That detail is in the complete confval documentation at https://ethanhann.com/confval/llms-full.txt.
-Read it when you need the exact spelling a format uses for a nested block or a list.
+Read it when you need the syntax a format uses for a nested block or a list.
 That file tracks the latest release, so confirm any API against the confval version this project pins.
 
 ## One row per frontend
@@ -26,7 +26,8 @@ The result is the same whichever frontend ran, so validation and lowering never 
 
 The emit column matters only when you generate a template.
 Emitting a populated spec fails only for a numeric default the target format has no literal for.
-If your defaults are ordinary numbers, the emit result depends on the format.
+If your defaults are ordinary numbers, emit succeeds in every format.
+The failures below apply only to the two numeric cases.
 
 - TOML, KDL, and YAML never fail.
 - HCL fails only on `i64::MIN` or a non-finite float.
@@ -47,10 +48,10 @@ A repeated KDL node follows the same rule.
 The practical consequence for a spec is that a list field accepts the repetition and a single-value field reports it.
 Declare a field `Vec<Located<String>>` when the format may legitimately repeat it.
 
-## Nesting spellings
+## Nesting syntax
 
 Operators write a nested block in more than one way.
-The field model normalizes them, so one nested spec accepts every spelling with identical spans.
+The field model normalizes them, so one nested spec accepts each of these forms with identical spans.
 
 - HCL writes a block, `limits { ... }`, or an attribute set to an object, `limits = { ... }`.
 - TOML writes a `[table]`, an inline `{ ... }`, or an array of tables, `[[repeated]]`, which fills a `Vec` of nested structs.
@@ -58,7 +59,7 @@ The field model normalizes them, so one nested spec accepts every spelling with 
 - JSON writes an object, the one way it nests.
 - YAML writes a block mapping or a flow mapping.
 
-You write `#[confval(nested)]` once, and every format's spelling reads into it.
+You write `#[confval(nested)]` once, and every format's form reads into it.
 
 ## Values outside the model
 

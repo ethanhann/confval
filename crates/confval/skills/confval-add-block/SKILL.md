@@ -6,10 +6,10 @@ description: Keep a confval pipeline in sync when a field or block is added, so 
 # Add a field or block to a confval pipeline
 
 You are adding a setting to a project that already has a confval pipeline.
-A configuration setting is not one edit.
-It runs through the spec, the validation, the runtime type, the lowering, and the `Default` impl, and a setting that reaches only some of those layers is a silent gap.
+A configuration setting runs through five layers: the spec, the validation, the runtime type, the lowering, and the `Default` impl.
+A setting that reaches only some of them parses and lowers with no complaint.
 
-Your job is that none of the five is missed.
+Update all five layers for the setting you add.
 
 The compiler catches some of the five for you.
 The spec and the runtime type must agree.
@@ -29,7 +29,8 @@ Add the field to the spec struct as a `Located<T>`.
 Use `#[confval(nested)]` on a new block and give the block its own spec struct.
 Use `Vec<Located<T>>` for a block that may repeat.
 Hold a closed set of strings as a `Located<String>` with a `keyword_enum!` for its enum, rather than an enum in the spec.
-Mark the child field that names a repeated block's instances with `#[confval(label)]`, and mark a string field that points at one of those names with `#[confval(references = <block>)]`.
+Mark the child field that names a repeated block's instances with `#[confval(label)]`.
+Mark a string field that points at one of those names with `#[confval(references = <block>)]`.
 
 ### 2. The validation
 
