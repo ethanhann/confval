@@ -729,8 +729,12 @@ fn the_remaining_constraint_shapes_answer_per_the_table() {
     );
 
     // Assert
-    assert_eq!(labels_of(&unconstrained), vec!["false"]);
-    assert_eq!(unconstrained[0].preselect, Some(true));
+    assert_eq!(
+        labels_of(&unconstrained),
+        vec!["true", "false"],
+        "an empty boolean offers the closed set"
+    );
+    assert_eq!(unconstrained[1].preselect, Some(true));
     assert_eq!(
         labels_of(&reference),
         vec!["web"],
@@ -891,4 +895,149 @@ fn a_long_default_elides_in_the_title_and_stays_whole_in_the_edit() {
         edits[0].new_text.len() > 50,
         "the edit keeps the whole default"
     );
+}
+
+/// A spec with one undefaulted boolean, for the closed-set completion.
+#[derive(confval::Spec)]
+struct PlainBoolSpec {
+    /// A boolean with no default.
+    strict: Located<bool>,
+}
+
+impl Validate for PlainBoolSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_set_bool_value_offers_the_other_literal() {
+    // Arrange
+    // A written boolean completes to the value it could change to, so `true`
+    // offers `false` alone and `false` offers `true` alone.
+    let on_true = "hostname: h\nport: 1\ntls: true\n";
+    let on_false = "hostname: h\nport: 1\ntls: false\n";
+    let schema = ServerSpec::schema();
+
+    // Act
+    let from_true = complete(
+        &Yaml,
+        &schema,
+        on_true,
+        on_true.find("true").unwrap() + 1,
+        false,
+        true,
+    );
+    let from_false = complete(
+        &Yaml,
+        &schema,
+        on_false,
+        on_false.find("false").unwrap() + 1,
+        false,
+        true,
+    );
+
+    // Assert
+    assert_eq!(labels_of(&from_true), vec!["false"]);
+    assert_eq!(labels_of(&from_false), vec!["true"]);
+}
+
+#[test]
+fn an_empty_bool_value_offers_both_with_the_default_preselected() {
+    // Arrange
+    let text = "hostname: h\nport: 1\ntls: \n";
+    let offset = text.find("tls: ").unwrap() + "tls: ".len();
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = complete(&Yaml, &schema, text, offset, false, true);
+
+    // Assert
+    assert_eq!(labels_of(&items), vec!["true", "false"]);
+    let selected: Vec<&str> = items
+        .iter()
+        .filter(|item| item.preselect == Some(true))
+        .map(|item| item.label.as_str())
+        .collect();
+    assert_eq!(selected, vec!["false"], "the default preselects");
+}
+
+#[test]
+fn an_undefaulted_bool_offers_both_literals_with_no_preselect() {
+    // Arrange
+    let text = "strict: \n";
+    let schema = PlainBoolSpec::schema();
+
+    // Act
+    let items = complete(&Yaml, &schema, text, "strict: ".len(), false, true);
+
+    // Assert
+    assert_eq!(labels_of(&items), vec!["true", "false"]);
+    assert!(items.iter().all(|item| item.preselect.is_none()));
+}
+
+#[test]
+fn json_bool_completion_replaces_the_whole_literal() {
+    // Arrange
+    // The cursor sits mid-literal, on the `r` of `true`. The replace range
+    // covers the whole literal, so accepting `false` cannot splice the two.
+    let text = "{ \"hostname\": \"h\", \"port\": 1, \"tls\": true }";
+    let offset = text.find("true").unwrap() + 2;
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = complete(&Json, &schema, text, offset, false, false);
+
+    // Assert
+    assert_eq!(labels_of(&items), vec!["false"]);
+    let edit = match &items[0].text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit,
+        other => panic!("a replace edit, got {other:?}"),
+    };
+    let start = text.find("true").unwrap();
+    assert_eq!(
+        (
+            edit.range.start.character as usize,
+            edit.range.end.character as usize
+        ),
+        (start, start + "true".len()),
+        "the whole literal is replaced"
+    );
+    assert_eq!(edit.new_text, "false");
+}
+
+#[test]
+fn kdl_bool_literals_complete_in_their_hash_form() {
+    // Arrange
+    let text = "hostname \"h\"\nport 1\ntls #true\n";
+    let offset = text.find("#true").unwrap() + 2;
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = complete(&Kdl, &schema, text, offset, false, false);
+
+    // Assert
+    assert_eq!(labels_of(&items), vec!["false"], "only the other literal");
+    assert_eq!(inserted(&items[0]), "#false");
+}
+
+#[test]
+fn json_body_completion_offers_only_the_schema_fields() {
+    // Arrange
+    // The server never offers bare `true`, `false`, or `null` at a body
+    // position. An editor's own JSON assistance may add them beside the
+    // server's items, which is outside the protocol.
+    let text = "{ \"hostname\": \"h\", ";
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = complete(&Json, &schema, text, text.len(), false, false);
+
+    // Assert
+    let labels = labels_of(&items);
+    assert!(labels.contains(&"port".to_string()));
+    for keyword in ["true", "false", "null"] {
+        assert!(
+            !labels.contains(&keyword.to_string()),
+            "no bare literal at a body position: {labels:?}"
+        );
+    }
 }
