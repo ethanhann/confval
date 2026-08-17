@@ -42,6 +42,17 @@ pub enum EmitError {
         /// The dotted path of the enclosing level, empty at the root.
         path: String,
     },
+    /// A native block label on a level the target format cannot write. JSON,
+    /// TOML, and YAML have no label syntax, and a parsed `Fields` does not
+    /// name the schema field that holds the label, so emitting would drop the
+    /// label silently. Convert through the spec instead: its walks write the
+    /// label as the designated child field, which every format represents.
+    UnrepresentableLabel {
+        /// The label value that cannot be written.
+        label: String,
+        /// The dotted path of the labeled level, empty at the root.
+        path: String,
+    },
     /// A `ValueKind::Other`, a value the neutral model could not represent such
     /// as an HCL template or a TOML datetime, so there is no literal to emit.
     /// The label is the model's noun for it.
@@ -74,6 +85,17 @@ fn location(path: &str) -> String {
 }
 
 /// The dotted path of a field under `path`, which is empty at the root.
+/// The refusal for a native label on a level a format cannot write, or `None`
+/// when the level carries no label. The JSON, TOML, and YAML writers call this
+/// where they refuse a conflicting name.
+#[cfg(any(feature = "toml", feature = "json", feature = "yaml"))]
+pub(crate) fn refuse_label(fields: &Fields, path: &str) -> Option<EmitError> {
+    fields.label().map(|label| EmitError::UnrepresentableLabel {
+        label: label.value.clone(),
+        path: path.to_string(),
+    })
+}
+
 #[cfg(any(
     feature = "toml",
     feature = "hcl",
@@ -217,6 +239,13 @@ impl Display for EmitError {
                 write!(
                     f,
                     "cannot emit `{name}`: not a valid name in the target format{}",
+                    location(path)
+                )
+            }
+            EmitError::UnrepresentableLabel { label, path } => {
+                write!(
+                    f,
+                    "cannot emit the label {label:?}: the target format has no block label syntax{}",
                     location(path)
                 )
             }

@@ -366,8 +366,7 @@ mod tests {
             source: A,
             doc: None,
             kind: FieldKind::Block(
-                Fields::new(A, sp(A, 0, 0), items)
-                    .with_label(Located::detached(label.to_string())),
+                Fields::new(A, sp(A, 0, 0), items).with_label(Located::detached(label.to_string())),
             ),
         }
     }

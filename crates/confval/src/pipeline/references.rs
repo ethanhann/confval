@@ -35,8 +35,10 @@ use crate::source::{Located, Span};
 /// label story runs `from_fields` and then this pass.
 pub fn check_references(fields: &Fields, schema: &Schema, report: &mut Report) {
     walk_scope(fields, schema, &mut Vec::new(), &mut |event| match event {
-        ScopeEvent::Scope(body, schema) => report_scope_label_issues(body, schema, report),
-        ScopeEvent::Reference(site) => check_reference(&site, report),
+        ScopeEvent::Scope(body, scope_schema) => {
+            report_scope_label_issues(body, scope_schema, report);
+        }
+        ScopeEvent::Reference(site) => check_reference(&site, schema, report),
     });
 }
 
@@ -63,14 +65,22 @@ pub struct Scope<'a> {
     pub body: &'a Fields,
 }
 
+impl Scope<'_> {
+    /// Whether `body` is this scope's own instance body. Identity is by
+    /// instance rather than by value, so two equal bodies from different
+    /// instances do not match.
+    pub fn same_instance(&self, body: &Fields) -> bool {
+        std::ptr::eq(self.body, body)
+    }
+}
+
 /// Visits every reference field below `fields`, with the declaring scope its
 /// outward search resolves. The reference pass and the language server both
 /// run this walk, so both resolve a reference by the same rule. Start it at
 /// the root to cover a document, or at one scope instance to cover that scope.
 /// In the scoped form, a site whose search stays inside the walk resolves
-/// against the walk's own chain, and the root scope it reports is the exact
-/// `fields` reference the caller passed, so a caller may compare scope
-/// identity by pointer.
+/// against the walk's own chain, and the root scope it reports is the same
+/// instance the caller passed, which [`Scope::same_instance`] checks.
 pub fn visit_references<'a>(
     fields: &'a Fields,
     schema: &'a Schema,
@@ -136,15 +146,30 @@ fn walk_scope<'a>(
     chain.pop();
 }
 
-/// Checks one visited reference against its declaring scope's labels.
-fn check_reference(site: &ReferenceSite, report: &mut Report) {
+/// Checks one visited reference against its declaring scope's labels. `root`
+/// is the whole schema, read only to tell a scoping failure from a schema
+/// error when no enclosing scope declares the target.
+fn check_reference(site: &ReferenceSite, root: &Schema, report: &mut Report) {
     let block = site.block;
     let Some(Scope {
         schema: scope_schema,
         body: scope_body,
     }) = site.scope
     else {
-        // No enclosing scope declares the target. That is a schema error, so
+        if declared_in_tree(root, block) {
+            // The target exists, but not on this reference's chain of
+            // enclosing scopes, so the cause is scoping rather than the
+            // schema.
+            report
+                .error(format!("no {block} is in scope at this reference"))
+                .at(site.span)
+                .help(format!(
+                    "{block} is declared in a nested scope, and a reference resolves outward through its enclosing blocks"
+                ))
+                .emit();
+            return;
+        }
+        // No scope anywhere declares the target. That is a schema error, so
         // the message names the target rather than the config value.
         report
             .error(format!("reference target {block} is not a labeled block"))
@@ -167,6 +192,15 @@ fn check_reference(site: &ReferenceSite, report: &mut Report) {
             .help(help)
             .emit();
     }
+}
+
+/// Whether any scope in the schema tree declares `block` as a labeled block.
+fn declared_in_tree(schema: &Schema, block: &str) -> bool {
+    declares_labeled_block(schema, block)
+        || schema.fields.iter().any(|field| match &field.ty {
+            SchemaType::Block { schema: inner, .. } => declared_in_tree(inner, block),
+            _ => false,
+        })
 }
 
 /// Whether `schema` declares `block` as a labeled block field of its scope.

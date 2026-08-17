@@ -42,7 +42,7 @@
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};
 use crate::format::syntax::syntax_error;
-use crate::source::{SourceId, SourceMap, Span};
+use crate::source::{Source, SourceId, SourceMap, Span};
 use jsonc_parser::CollectOptions;
 use jsonc_parser::ParseOptions;
 use jsonc_parser::ast::{Object, ObjectProp, ObjectPropName, Value as JsonValue};
@@ -76,7 +76,7 @@ pub fn parse_json_fields(sources: &SourceMap, id: SourceId, report: &mut Report)
         Err(error) => {
             report
                 .error(syntax_error(&error.kind().to_string()))
-                .at(error_span(error.range(), id))
+                .at(error_span(error.range(), source, id))
                 .emit();
             return None;
         }
@@ -134,17 +134,24 @@ fn span_of(range: Range, source: SourceId) -> Span {
     Span::new(source, range.start as u32, range.end as u32)
 }
 
-/// The span of a parse error. jsonc-parser reports an empty range for a token
-/// it expected and did not find, such as the comma between two members, so an
-/// empty range widens to one byte and stays visible when rendered.
-fn error_span(range: Range, source: SourceId) -> Span {
-    let start = range.start as u32;
-    let end = if range.end > range.start {
-        range.end as u32
+/// The span of a parse error, clamped inside the source. jsonc-parser reports
+/// an empty range for a token it expected and did not find, such as the comma
+/// between two members, so an empty range widens to one byte and stays visible
+/// when rendered. An error at the end of input widens backward over the last
+/// character rather than past the source.
+fn error_span(range: Range, source: &Source, id: SourceId) -> Span {
+    let len = source.text.len();
+    let mut start = range.start.min(len);
+    let mut end = if range.end > range.start {
+        range.end.min(len)
     } else {
-        start.saturating_add(1)
+        start + 1
     };
-    Span::new(source, start, end)
+    if end > len {
+        end = len;
+        start = source.floor_char_boundary(len.saturating_sub(1));
+    }
+    Span::new(id, start as u32, end as u32)
 }
 
 /// Normalizes an object's properties into neutral fields. `enclosing` is the
@@ -257,6 +264,29 @@ mod tests {
             report.issues()
         );
         fields
+    }
+
+    #[test]
+    fn an_error_at_the_end_of_input_stays_inside_the_source() {
+        // Arrange
+        // jsonc-parser reports an empty range past the last byte for a token
+        // it expected at the end, and the widened span must not run past the
+        // source or split a character.
+        for input in ["{\"a\":", "{\"a\": \u{20ac}"] {
+            // Act
+            let report = reject(input);
+
+            // Assert
+            let span = report.issues()[0].span.unwrap();
+            assert!(
+                input.get(span.start as usize..span.end as usize).is_some(),
+                "span {}..{} is not a char-aligned range of the {}-byte input {input:?}",
+                span.start,
+                span.end,
+                input.len()
+            );
+            assert!(span.end > span.start, "the span stays visible: {input:?}");
+        }
     }
 
     fn reject(input: &str) -> Report {

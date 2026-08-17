@@ -107,6 +107,10 @@ pub(super) fn lone(field: &Field) -> Member<'_> {
 
 /// How a member renders. A lone scalar, an empty collection, and a sequence of
 /// scalars all fit on the key's line.
+///
+/// A block with no active field renders inline as `{}` even when it holds
+/// commented entries, because comment lines below `key:` alone read back as
+/// null rather than as an empty mapping.
 pub(super) fn shape_of(member: &Member) -> Shape {
     match member {
         Member::Values(group) => match group.as_slice() {
@@ -114,7 +118,7 @@ pub(super) fn shape_of(member: &Member) -> Shape {
             _ => shape_of_elements(&grouped_elements(group)),
         },
         Member::Blocks(group) => match group.as_slice() {
-            [only] if only.entries().len() == 0 => Shape::Inline,
+            [only] if only.iter().next().is_none() => Shape::Inline,
             _ => Shape::Block,
         },
     }

@@ -26,8 +26,11 @@
 //!
 //! - A syntax error is reported as one issue at its position, and parsing
 //!   returns `None`.
-//! - A root that is not a mapping, and a document with no root node, each
-//!   report `expected a mapping at the document root` and return `None`.
+//! - A root that is not a mapping reports
+//!   `expected a mapping at the document root` and returns `None`.
+//! - A document with no root node, which covers an empty file, a
+//!   whitespace-only file, and a comments-only file, parses as a
+//!   configuration that sets nothing, the way an empty TOML or HCL file does.
 //! - A second document reports `expected a single document` and returns `None`,
 //!   so a configuration cannot lose its tail to a silent discard.
 //! - A plain scalar resolves through the YAML 1.2 core schema. A quoted,
@@ -80,8 +83,12 @@ pub fn parse_yaml_fields(sources: &SourceMap, id: SourceId, report: &mut Report)
         return None;
     };
     let document = Span::new(id, 0, source.text.len() as u32);
+    // saphyr does not strip a UTF-8 BOM, so the reader skips it here. The
+    // offset table is built over the whole text and shifts every character
+    // index past the BOM, so spans stay aligned with the original source.
+    let text = source.text.strip_prefix('\u{feff}').unwrap_or(&source.text);
     Reader {
-        parser: Parser::new_from_str(&source.text),
+        parser: Parser::new_from_str(text),
         offsets: Offsets::new(&source.text),
         source: id,
         report,
@@ -109,15 +116,20 @@ pub fn parse_yaml<T: FromFields>(
 struct Offsets {
     positions: Option<Vec<u32>>,
     len: u32,
+    /// Characters the parser never saw, one for a skipped UTF-8 BOM, added to
+    /// every incoming character index so spans align with the original text.
+    skip: usize,
 }
 
 impl Offsets {
     fn new(text: &str) -> Self {
         let len = text.len() as u32;
+        let skip = usize::from(text.starts_with('\u{feff}'));
         if text.is_ascii() {
             return Self {
                 positions: None,
                 len,
+                skip,
             };
         }
         let mut positions: Vec<u32> = text.char_indices().map(|(at, _)| at as u32).collect();
@@ -125,11 +137,13 @@ impl Offsets {
         Self {
             positions: Some(positions),
             len,
+            skip,
         }
     }
 
     /// The byte offset of one character index, clamped to the source's end.
     fn at(&self, characters: usize) -> u32 {
+        let characters = characters + self.skip;
         match &self.positions {
             None => (characters as u32).min(self.len),
             Some(positions) => positions.get(characters).copied().unwrap_or(self.len),
@@ -181,13 +195,12 @@ impl<'input> Reader<'input, '_> {
             match event {
                 Event::DocumentStart(_) => break,
                 // An empty file, a whitespace-only file, and a file holding
-                // only comments all reach the end with no document.
+                // only comments all reach the end with no document. Each reads
+                // as a configuration that sets nothing, the way an empty TOML
+                // or HCL file does, so an all-commented template parses back
+                // to the defaults.
                 Event::StreamEnd => {
-                    self.report
-                        .error(ROOT_MUST_BE_A_MAPPING)
-                        .at(document)
-                        .emit();
-                    return None;
+                    return Some(Fields::new(self.source, document, Vec::new()));
                 }
                 _ => continue,
             }
@@ -793,6 +806,24 @@ mod tests {
     }
 
     #[test]
+    fn a_utf8_bom_does_not_join_the_first_key() {
+        // Arrange
+        // saphyr does not strip a BOM, so the reader skips it before parsing
+        // and keeps every span aligned with the original text.
+        let input = "\u{feff}port: 1\n";
+
+        // Act
+        let fields = parse(input);
+
+        // Assert
+        let field = fields.get("port").unwrap();
+        assert_eq!(
+            &input[field.name_span.start as usize..field.name_span.end as usize],
+            "port"
+        );
+    }
+
+    #[test]
     fn nesting_past_the_depth_limit_is_reported_rather_than_fatal() {
         // Arrange
         // The reader recurses one frame per level, so without a bound this
@@ -885,23 +916,23 @@ mod tests {
     }
 
     #[test]
-    fn a_document_with_no_root_node_reports_at_the_whole_document() {
+    fn a_document_with_no_root_node_parses_as_an_empty_config() {
         // Arrange
-        // An empty file, whitespace alone, and comments alone all reach the end
-        // of the stream without a document.
+        // An empty file, whitespace alone, and comments alone all reach the
+        // end of the stream without a document. Each reads as a configuration
+        // that sets nothing, the way an empty TOML or HCL file does, so an
+        // all-commented template parses back to the defaults.
         for input in ["", "  \n  ", "# just a comment\n"] {
             // Act
-            let report = reject(input);
+            let fields = parse(input);
 
             // Assert
+            assert_eq!(fields.iter().count(), 0, "input: {input:?}");
             assert_eq!(
-                report.issues()[0].message,
-                ROOT_MUST_BE_A_MAPPING,
+                fields.enclosing().end as usize,
+                input.len(),
                 "input: {input:?}"
             );
-            let span = report.issues()[0].span.unwrap();
-            assert_eq!(span.start, 0);
-            assert_eq!(span.end as usize, input.len(), "input: {input:?}");
         }
     }
 
