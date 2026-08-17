@@ -33,21 +33,29 @@ impl Frontend for Yaml {
     }
 
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {
-        Insert::plain(match &field.ty {
+        match &field.ty {
             // A repeated block and a string list are both sequences, so the
             // insert opens the first element with a `-` marker.
             SchemaType::Block { repeated: true, .. } | SchemaType::StringList => {
-                format!("{}:\n  - $0", field.name)
+                Insert::snippet(format!("{}:\n  - $0", field.name))
             }
             // A single nested mapping and a map both open a body on the next
             // indented line.
-            SchemaType::Block { .. } | SchemaType::StringMap => format!("{}:\n  $0", field.name),
-            _ => format!("{}: {}", field.name, super::value_placeholder(self, field)),
-        })
+            SchemaType::Block { .. } | SchemaType::StringMap => {
+                Insert::snippet(format!("{}:\n  $0", field.name))
+            }
+            _ => {
+                let placeholder = super::value_placeholder(self, field);
+                super::scalar_insert(format!("{}: {placeholder}", field.name), &placeholder)
+            }
+        }
     }
 
-    fn wrap_element(&self, insert: String) -> String {
-        format!("- {insert}")
+    fn wrap_element(&self, insert: Insert) -> Insert {
+        Insert {
+            text: format!("- {}", insert.text),
+            ..insert
+        }
     }
 }
 
@@ -58,7 +66,7 @@ mod tests {
     use confval::schema::{ScalarType, Schema, SchemaType};
 
     fn field(name: &str, ty: SchemaType) -> SchemaField {
-        SchemaField::new(name.to_string(), None, true, false, ty)
+        SchemaField::new(name.to_string(), None, ty).required()
     }
 
     fn block(repeated: bool) -> SchemaType {

@@ -21,6 +21,26 @@ use std::path::PathBuf;
 
 use fixture::{LimitsSpec, ServerSpec};
 
+/// Runs the full parse-then-diagnose path the server runs, for the tests that
+/// start from text.
+fn full_diagnostics<S, F>(
+    frontend: &F,
+    schema: &confval::schema::Schema,
+    text: &str,
+    uri: &lsp_types::Uri,
+    encoding: PositionEncoding,
+) -> Vec<lsp_types::Diagnostic>
+where
+    S: confval::format::FromFields
+        + confval::pipeline::Validate
+        + confval::pipeline::ValidateNested
+        + confval::schema::ToSchema,
+    F: Frontend,
+{
+    let (tree, report) = frontend.parse_buffer(text);
+    diagnostics::<S>(schema, tree.as_ref(), &report, text, uri, encoding)
+}
+
 const ENCODING: PositionEncoding = PositionEncoding::Utf8;
 
 /// The test document URI.
@@ -90,7 +110,16 @@ fn hover_markdown<F: Frontend>(
     let tree = frontend.parse_tree(text);
     let context = frontend.resolve(tree.as_ref(), text, offset);
     let index = LineIndex::new(text);
-    let Some(found) = hover(schema, tree.as_ref(), &context, text, &index, ENCODING) else {
+    let Some(found) = hover(
+        &Cx {
+            schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    ) else {
         panic!("a hover is produced");
     };
     match found.contents {
@@ -130,7 +159,7 @@ fn actions_at<F: Frontend>(
 
 /// The real pipeline diagnostics for a YAML ServerSpec document.
 fn server_diagnostics(text: &str) -> Vec<lsp_types::Diagnostic> {
-    diagnostics::<ServerSpec, Yaml>(&Yaml, &ServerSpec::schema(), text, &doc_uri(), ENCODING)
+    full_diagnostics::<ServerSpec, _>(&Yaml, &ServerSpec::schema(), text, &doc_uri(), ENCODING)
 }
 
 #[test]
@@ -462,85 +491,140 @@ fn a_keyword_violation_and_a_type_mismatch_get_the_fix() {
 }
 
 #[test]
-fn the_negative_cases_offer_no_fix() {
+fn a_field_without_a_default_offers_no_fix() {
     // Arrange
-    let schema = ServerSpec::schema();
     // `port` carries no default, so its range violation offers nothing.
-    let no_default = "hostname: h\nport: 99999\n";
-    // The missing-required diagnostic anchors at the enclosing span, so it
-    // does not qualify a defaulted value elsewhere.
-    let enclosing = "port: 1\nworkers: 2\n";
-    let no_parse = "workers: 9999\nbad: [\n";
+    let schema = ServerSpec::schema();
+    let text = "hostname: h\nport: 99999\n";
 
     // Act
-    let no_default_actions = actions_at(
+    let actions = actions_at(
         &Yaml,
         &schema,
-        no_default,
-        no_default.find("99999").unwrap(),
-        &server_diagnostics(no_default),
+        text,
+        text.find("99999").unwrap(),
+        &server_diagnostics(text),
         None,
     );
-    let enclosing_actions = actions_at(
+
+    // Assert
+    assert!(actions.is_empty(), "no default, no fix");
+}
+
+#[test]
+fn an_enclosing_span_diagnostic_offers_no_fix() {
+    // Arrange
+    // The missing-required diagnostic anchors at the enclosing span, so it
+    // does not qualify a defaulted value elsewhere.
+    let schema = ServerSpec::schema();
+    let text = "port: 1\nworkers: 2\n";
+
+    // Act
+    let actions = actions_at(
         &Yaml,
         &schema,
-        enclosing,
-        enclosing.find('2').unwrap(),
-        &server_diagnostics(enclosing),
+        text,
+        text.find('2').unwrap(),
+        &server_diagnostics(text),
         None,
     );
-    let body_actions = actions_at(
+
+    // Assert
+    assert!(
+        actions.is_empty(),
+        "an enclosing-span diagnostic does not qualify"
+    );
+}
+
+#[test]
+fn a_body_position_offers_no_fix() {
+    // Arrange
+    let schema = ServerSpec::schema();
+    let text = "hostname: h\nport: 1\nworkers: 9999\n";
+
+    // Act
+    let actions = actions_at(&Yaml, &schema, text, 1, &server_diagnostics(text), None);
+
+    // Assert
+    assert!(actions.is_empty(), "a body position does not qualify");
+}
+
+#[test]
+fn an_empty_diagnostic_context_offers_no_fix() {
+    // Arrange
+    let schema = ServerSpec::schema();
+    let text = "hostname: h\nport: 1\nworkers: 9999\n";
+    let offset = "hostname: h\nport: 1\nworkers: 99".len();
+
+    // Act
+    let actions = actions_at(&Yaml, &schema, text, offset, &[], None);
+
+    // Assert
+    assert!(actions.is_empty(), "an empty context yields nothing");
+}
+
+#[test]
+fn an_unparsed_buffer_offers_no_fix() {
+    // Arrange
+    // The edit needs a parsed span to replace, so a buffer with no parse
+    // offers nothing.
+    let schema = ServerSpec::schema();
+    let text = "workers: 9999\nbad: [\n";
+
+    // Act
+    let actions = actions_at(
         &Yaml,
         &schema,
-        "hostname: h\nport: 1\nworkers: 9999\n",
-        1,
-        &server_diagnostics("hostname: h\nport: 1\nworkers: 9999\n"),
+        text,
+        text.find("9999").unwrap(),
+        &server_diagnostics(text),
         None,
     );
-    let empty_context = actions_at(
+
+    // Assert
+    assert!(actions.is_empty(), "the edit needs a parsed span");
+}
+
+#[test]
+fn a_non_quickfix_kind_filter_suppresses_the_fix() {
+    // Arrange
+    let schema = ServerSpec::schema();
+    let text = "hostname: h\nport: 1\nworkers: 9999\n";
+    let offset = "hostname: h\nport: 1\nworkers: 99".len();
+
+    // Act
+    let actions = actions_at(
         &Yaml,
         &schema,
-        "hostname: h\nport: 1\nworkers: 9999\n",
-        "hostname: h\nport: 1\nworkers: 99".len(),
-        &[],
-        None,
-    );
-    let no_parse_actions = actions_at(
-        &Yaml,
-        &schema,
-        no_parse,
-        no_parse.find("9999").unwrap(),
-        &server_diagnostics(no_parse),
-        None,
-    );
-    let filtered = actions_at(
-        &Yaml,
-        &schema,
-        "hostname: h\nport: 1\nworkers: 9999\n",
-        "hostname: h\nport: 1\nworkers: 99".len(),
-        &server_diagnostics("hostname: h\nport: 1\nworkers: 9999\n"),
+        text,
+        offset,
+        &server_diagnostics(text),
         Some(&[CodeActionKind::REFACTOR]),
     );
-    let requested = actions_at(
+
+    // Assert
+    assert!(actions.is_empty(), "the kind filter is honored");
+}
+
+#[test]
+fn a_quickfix_kind_filter_passes_the_fix() {
+    // Arrange
+    let schema = ServerSpec::schema();
+    let text = "hostname: h\nport: 1\nworkers: 9999\n";
+    let offset = "hostname: h\nport: 1\nworkers: 99".len();
+
+    // Act
+    let actions = actions_at(
         &Yaml,
         &schema,
-        "hostname: h\nport: 1\nworkers: 9999\n",
-        "hostname: h\nport: 1\nworkers: 99".len(),
-        &server_diagnostics("hostname: h\nport: 1\nworkers: 9999\n"),
+        text,
+        offset,
+        &server_diagnostics(text),
         Some(&[CodeActionKind::QUICKFIX]),
     );
 
     // Assert
-    assert!(no_default_actions.is_empty(), "no default, no fix");
-    assert!(
-        enclosing_actions.is_empty(),
-        "an enclosing-span diagnostic does not qualify"
-    );
-    assert!(body_actions.is_empty(), "a body position does not qualify");
-    assert!(empty_context.is_empty(), "an empty context yields nothing");
-    assert!(no_parse_actions.is_empty(), "the edit needs a parsed span");
-    assert!(filtered.is_empty(), "the kind filter is honored");
-    assert_eq!(requested.len(), 1, "the requested quickfix kind passes");
+    assert_eq!(actions.len(), 1, "the requested quickfix kind passes");
 }
 
 /// A spec whose defaults violate their own constraints, which the derive
@@ -594,10 +678,11 @@ fn a_default_violating_its_own_constraint_offers_no_fix() {
     let range_text = "mode: \"enforce\"\nworkers: 70000\n";
     let schema = BadDefaultsSpec::schema();
     let keyword_diagnostics = {
-        diagnostics::<BadDefaultsSpec, Yaml>(&Yaml, &schema, keyword_text, &doc_uri(), ENCODING)
+        full_diagnostics::<BadDefaultsSpec, _>(&Yaml, &schema, keyword_text, &doc_uri(), ENCODING)
     };
-    let range_diagnostics =
-        { diagnostics::<BadDefaultsSpec, Yaml>(&Yaml, &schema, range_text, &doc_uri(), ENCODING) };
+    let range_diagnostics = {
+        full_diagnostics::<BadDefaultsSpec, _>(&Yaml, &schema, range_text, &doc_uri(), ENCODING)
+    };
 
     // Act
     let keyword_actions = actions_at(
@@ -758,7 +843,7 @@ fn a_defaulted_reference_offers_no_fix_and_an_empty_kind_admits_one() {
     // Arrange
     let reference_text = "upstream:\n  - name: web\ntarget: \"nope\"\n";
     let reference_schema = RefDefaultSpec::schema();
-    let reference_diagnostics = diagnostics::<RefDefaultSpec, Yaml>(
+    let reference_diagnostics = full_diagnostics::<RefDefaultSpec, _>(
         &Yaml,
         &reference_schema,
         reference_text,
@@ -864,7 +949,7 @@ fn a_long_default_elides_in_the_title_and_stays_whole_in_the_edit() {
     // Arrange
     let text = "banner: 123\n";
     let schema = LongDefaultSpec::schema();
-    let found = diagnostics::<LongDefaultSpec, Yaml>(&Yaml, &schema, text, &doc_uri(), ENCODING);
+    let found = full_diagnostics::<LongDefaultSpec, _>(&Yaml, &schema, text, &doc_uri(), ENCODING);
 
     // Act
     let actions = actions_at(

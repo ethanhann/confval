@@ -22,6 +22,7 @@ mod frontends;
 mod resolve;
 mod scan;
 mod server;
+mod snippet;
 mod walk;
 
 pub mod handlers;
@@ -30,5 +31,14 @@ pub use encoding::{LineIndex, PositionEncoding};
 pub use frontend::{
     Absorb, CursorContext, Frontend, Insert, PositionKind, Recovery, ValueSeparator,
 };
-pub use frontends::{Hcl, Json, Kdl, Toml, Yaml};
+#[cfg(feature = "hcl")]
+pub use frontends::Hcl;
+#[cfg(feature = "json")]
+pub use frontends::Json;
+#[cfg(feature = "kdl")]
+pub use frontends::Kdl;
+#[cfg(feature = "toml")]
+pub use frontends::Toml;
+#[cfg(feature = "yaml")]
+pub use frontends::Yaml;
 pub use server::{Server, serve};

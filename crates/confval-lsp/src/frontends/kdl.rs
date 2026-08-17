@@ -39,11 +39,12 @@ impl Frontend for Kdl {
         // A KDL map is written as a children block, like a nested block, so
         // both open the braces and land the cursor inside.
         let block_form = is_block(field) || matches!(field.ty, SchemaType::StringMap);
-        Insert::plain(if block_form {
-            format!("{} {{\n  $0\n}}", field.name)
+        if block_form {
+            Insert::snippet(format!("{} {{\n  $0\n}}", field.name))
         } else {
-            format!("{} {}", field.name, super::value_placeholder(self, field))
-        })
+            let placeholder = super::value_placeholder(self, field);
+            super::scalar_insert(format!("{} {placeholder}", field.name), &placeholder)
+        }
     }
 }
 
@@ -57,13 +58,8 @@ mod tests {
         // Arrange
         // A KDL map is written as a children block, so the insert opens the
         // braces and lands the cursor inside.
-        let field = SchemaField::new(
-            "headers".to_string(),
-            None,
-            false,
-            true,
-            SchemaType::StringMap,
-        );
+        let field =
+            SchemaField::new("headers".to_string(), None, SchemaType::StringMap).with_default();
 
         // Act
         let insert = Kdl.insert_text(&field, &[]);
@@ -78,8 +74,6 @@ mod tests {
         let field = SchemaField::new(
             "limits".to_string(),
             None,
-            false,
-            false,
             SchemaType::Block {
                 schema: Box::new(Schema::new(None, Vec::new())),
                 repeated: false,

@@ -78,7 +78,7 @@ pub fn references(
             return;
         };
         if candidate.block == site.block
-            && std::ptr::eq(candidate_scope.body, scope_body)
+            && candidate_scope.same_instance(scope_body)
             && candidate.value == site.value
         {
             spans.push(candidate.span);

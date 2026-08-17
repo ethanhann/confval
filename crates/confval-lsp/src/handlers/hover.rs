@@ -9,23 +9,17 @@
 
 use lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind};
 
-use confval::format::Fields;
 use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, PositionKind};
+use crate::handlers::Cx;
 use crate::walk::{field_text, label_matches, reference_labels, resolved_level, schema_at};
 
 /// Produces the hover for a resolved cursor, or `None` when the cursor sits on
 /// no field.
-pub fn hover(
-    schema: &Schema,
-    fields: Option<&Fields>,
-    ctx: &CursorContext,
-    text: &str,
-    index: &LineIndex,
-    encoding: PositionEncoding,
-) -> Option<Hover> {
+pub fn hover(cx: &Cx, index: &LineIndex, encoding: PositionEncoding) -> Option<Hover> {
+    let (schema, fields, ctx, text) = (cx.schema, cx.fields, cx.ctx, cx.text);
     let enclosing = schema_at(schema, &ctx.path)?;
     // A cursor in a block's label names the block rather than a field.
     if let PositionKind::BlockLabel { block } = &ctx.kind {

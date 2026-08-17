@@ -16,11 +16,14 @@ impl Frontend for Hcl {
     }
 
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {
-        Insert::plain(match &field.ty {
-            SchemaType::Block { .. } => format!("{} {{\n  $0\n}}", field.name),
-            SchemaType::StringList => format!("{} = [$0]", field.name),
-            SchemaType::StringMap => format!("{} = {{ $0 }}", field.name),
-            _ => format!("{} = {}", field.name, super::value_placeholder(self, field)),
-        })
+        match &field.ty {
+            SchemaType::Block { .. } => Insert::snippet(format!("{} {{\n  $0\n}}", field.name)),
+            SchemaType::StringList => Insert::snippet(format!("{} = [$0]", field.name)),
+            SchemaType::StringMap => Insert::snippet(format!("{} = {{ $0 }}", field.name)),
+            _ => {
+                let placeholder = super::value_placeholder(self, field);
+                super::scalar_insert(format!("{} = {placeholder}", field.name), &placeholder)
+            }
+        }
     }
 }

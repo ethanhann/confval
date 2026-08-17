@@ -16,6 +16,26 @@ use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Y
 
 use fixture::{GatewaySpec, ServerSpec};
 
+/// Runs the full parse-then-diagnose path the server runs, for the tests that
+/// start from text.
+fn full_diagnostics<S, F>(
+    frontend: &F,
+    schema: &confval::schema::Schema,
+    text: &str,
+    uri: &lsp_types::Uri,
+    encoding: PositionEncoding,
+) -> Vec<lsp_types::Diagnostic>
+where
+    S: confval::format::FromFields
+        + confval::pipeline::Validate
+        + confval::pipeline::ValidateNested
+        + confval::schema::ToSchema,
+    F: Frontend,
+{
+    let (tree, report) = frontend.parse_buffer(text);
+    diagnostics::<S>(schema, tree.as_ref(), &report, text, uri, encoding)
+}
+
 const ENCODING: PositionEncoding = PositionEncoding::Utf8;
 
 /// Resolves a cursor and returns the pieces the completion and hover handlers
@@ -46,7 +66,8 @@ fn diagnostics_report_the_pipeline_issues_at_their_ranges() {
     let uri = Uri::from_str("file:///fixture.hcl").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Hcl>(&Hcl, &ServerSpec::schema(), text, &uri, ENCODING);
+    let found =
+        full_diagnostics::<ServerSpec, _>(&Hcl, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let messages: Vec<&str> = found.iter().map(|d| d.message.as_str()).collect();
@@ -301,7 +322,16 @@ fn hover_renders_a_set_field_with_its_type_and_constraint() {
     let schema = ServerSpec::schema();
 
     // Act
-    let hover = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
 
     // Assert
     let value = markdown(hover.expect("a hover for port"));
@@ -327,7 +357,16 @@ fn hover_omits_the_state_when_the_buffer_does_not_parse() {
     let schema = ServerSpec::schema();
 
     // Act
-    let hover = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
 
     // Assert
     let value = markdown(hover.expect("a hover for workers"));
@@ -349,7 +388,16 @@ fn hover_states_a_declared_but_unset_field_is_defaulted() {
     let schema = ServerSpec::schema();
 
     // Act
-    let hover = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
 
     // Assert
     let value = markdown(hover.expect("a hover for workers"));
@@ -798,7 +846,16 @@ fn hover_on_a_value_renders_its_field() {
     let schema = ServerSpec::schema();
 
     // Act
-    let hover = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
 
     // Assert
     let value = markdown(hover.expect("a hover on the value"));
@@ -828,7 +885,7 @@ fn a_spanless_warning_maps_to_the_first_line_with_related_information() {
     let uri = Uri::from_str("file:///plain.hcl").unwrap();
 
     // Act
-    let found = diagnostics::<PlainSpec, Hcl>(&Hcl, &PlainSpec::schema(), text, &uri, ENCODING);
+    let found = full_diagnostics::<PlainSpec, _>(&Hcl, &PlainSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let warning = found
@@ -876,7 +933,8 @@ fn json_diagnostics_report_the_pipeline_issues() {
     let uri = Uri::from_str("file:///fixture.json").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Json>(&Json, &ServerSpec::schema(), text, &uri, ENCODING);
+    let found =
+        full_diagnostics::<ServerSpec, _>(&Json, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let messages: Vec<&str> = found.iter().map(|d| d.message.as_str()).collect();
@@ -902,7 +960,8 @@ fn json_root_not_an_object_reports_a_parse_error() {
     let uri = Uri::from_str("file:///fixture.json").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Json>(&Json, &ServerSpec::schema(), text, &uri, ENCODING);
+    let found =
+        full_diagnostics::<ServerSpec, _>(&Json, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     assert!(
@@ -920,7 +979,8 @@ fn yaml_diagnostics_report_the_pipeline_issues() {
     let uri = Uri::from_str("file:///fixture.yaml").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, &ServerSpec::schema(), text, &uri, ENCODING);
+    let found =
+        full_diagnostics::<ServerSpec, _>(&Yaml, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let messages: Vec<&str> = found.iter().map(|d| d.message.as_str()).collect();
@@ -1022,6 +1082,48 @@ fn json_member_insert_is_non_destructive() {
 }
 
 #[test]
+fn a_nested_yaml_block_insert_indents_its_body_to_the_cursor_column() {
+    // Arrange
+    // The completion inserts at column 4, so the sequence line below the key
+    // must indent past that column. A client that applies the edit verbatim
+    // would otherwise write the body outside the block.
+    let text = "services:\n  - name: \"a\"\n    \n";
+    let offset = text.len() - 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = fixture::MeshSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+
+    // Assert
+    let item = items
+        .iter()
+        .find(|item| item.label == "upstreams")
+        .unwrap_or_else(|| {
+            panic!(
+                "expected an upstreams item, got: {:?}",
+                items.iter().map(|item| &item.label).collect::<Vec<_>>()
+            )
+        });
+    let Some(CompletionTextEdit::Edit(edit)) = &item.text_edit else {
+        panic!("expected a text edit");
+    };
+    assert_eq!(edit.new_text, "upstreams:\n      - ");
+}
+
+#[test]
 fn yaml_completion_under_an_empty_key_offers_the_block_fields() {
     // Arrange
     // The `limits:` key awaits its body. A cursor on the indented line offers
@@ -1064,7 +1166,16 @@ fn yaml_hover_renders_the_field_under_the_cursor() {
     let schema = ServerSpec::schema();
 
     // Act
-    let rendered = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+    let rendered = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
 
     // Assert
     let value = markdown(rendered.expect("a hover for port"));
@@ -1081,7 +1192,8 @@ fn yaml_second_document_reports_a_parse_error() {
     let uri = Uri::from_str("file:///fixture.yaml").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, &ServerSpec::schema(), text, &uri, ENCODING);
+    let found =
+        full_diagnostics::<ServerSpec, _>(&Yaml, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     assert!(
@@ -1099,7 +1211,8 @@ fn json_diagnostic_range_survives_a_non_ascii_earlier_value() {
     let uri = Uri::from_str("file:///fixture.json").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Json>(&Json, &ServerSpec::schema(), text, &uri, ENCODING);
+    let found =
+        full_diagnostics::<ServerSpec, _>(&Json, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let port = found
@@ -1122,7 +1235,8 @@ fn yaml_diagnostic_range_survives_a_non_ascii_earlier_value() {
     let uri = Uri::from_str("file:///fixture.yaml").unwrap();
 
     // Act
-    let found = diagnostics::<ServerSpec, Yaml>(&Yaml, &ServerSpec::schema(), text, &uri, ENCODING);
+    let found =
+        full_diagnostics::<ServerSpec, _>(&Yaml, &ServerSpec::schema(), text, &uri, ENCODING);
 
     // Assert
     let port = found
@@ -1148,7 +1262,16 @@ fn json_hover_renders_the_field_under_the_cursor() {
     let schema = ServerSpec::schema();
 
     // Act
-    let rendered = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING);
+    let rendered = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
 
     // Assert
     let value = markdown(rendered.expect("a hover for port"));
@@ -1543,10 +1666,12 @@ fn gateway_hover<F: Frontend>(frontend: &F, text: &str, offset: usize) -> String
     let (tree, context) = at_with(frontend, text, offset);
     let index = LineIndex::new(text);
     let Some(hover) = hover(
-        &GatewaySpec::schema(),
-        tree.as_ref(),
-        &context,
-        text,
+        &Cx {
+            schema: &GatewaySpec::schema(),
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
         &index,
         ENCODING,
     ) else {
@@ -1829,7 +1954,7 @@ fn a_type_error_in_one_element_does_not_diagnose_a_sibling_element() {
 
     // Act
     let found =
-        diagnostics::<GatewaySpec, Yaml>(&Yaml, &GatewaySpec::schema(), text, &uri, ENCODING);
+        full_diagnostics::<GatewaySpec, _>(&Yaml, &GatewaySpec::schema(), text, &uri, ENCODING);
 
     // Assert
     assert_eq!(found.len(), 1, "one diagnostic: {found:?}");
@@ -1972,8 +2097,17 @@ fn scoped_reference_hover_resolves_within_its_own_scope() {
     let schema = fixture::MeshSpec::schema();
 
     // Act
-    let found = hover(&schema, tree.as_ref(), &context, text, &index, ENCODING)
-        .expect("a hover is produced");
+    let found = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    )
+    .expect("a hover is produced");
 
     // Assert
     let markdown = match found.contents {

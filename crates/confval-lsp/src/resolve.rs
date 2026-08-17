@@ -102,22 +102,48 @@ fn enter_segment<'a>(
         }
         let next = fields.get(index + 1).map(|sibling| start_of(sibling.span));
         match &field.kind {
-            FieldKind::Block(inner) => {
-                if in_block_body(field, inner, covers_body, next, enclosing_end, offset) {
-                    return Some(inner);
-                }
-                first_block.get_or_insert(inner);
-            }
+            // The path is the indentation truth, so a map is entered without
+            // an offset check.
             FieldKind::Value(value) => match &value.kind {
                 ValueKind::Map(inner) => return Some(inner),
-                ValueKind::Seq(elements) => {
-                    return seq_element_body(elements, next, enclosing_end, offset);
+                ValueKind::Seq(_) => {
+                    return instance_body(field, next, enclosing_end, offset, covers_body);
                 }
                 _ => return None,
             },
+            FieldKind::Block(inner) => {
+                if let Some(body) = instance_body(field, next, enclosing_end, offset, covers_body) {
+                    return Some(body);
+                }
+                first_block.get_or_insert(inner);
+            }
         }
     }
     first_block
+}
+
+/// The body of one field's instance that `offset` enters, or `None`. This is
+/// the instance-selection rule: a block body by its span, a map by its value
+/// span, and a sequence by the element the offset sits in. Both descents call
+/// it, so choosing an instance cannot diverge between the offset-driven walk
+/// and the name-driven one.
+fn instance_body(
+    field: &Field,
+    next: Option<u32>,
+    enclosing_end: u32,
+    offset: usize,
+    covers_body: bool,
+) -> Option<&Fields> {
+    match &field.kind {
+        FieldKind::Block(inner) => {
+            in_block_body(field, inner, covers_body, next, enclosing_end, offset).then_some(inner)
+        }
+        FieldKind::Value(value) => match &value.kind {
+            ValueKind::Map(inner) => contains(value.span, offset).then_some(inner),
+            ValueKind::Seq(elements) => seq_element_body(elements, next, enclosing_end, offset),
+            _ => None,
+        },
+    }
 }
 
 /// One decision at a level: descend into a block, or resolve here.
@@ -135,42 +161,26 @@ fn descend<'a>(level: &'a Fields, text: &str, offset: usize, covers_body: bool) 
     let enclosing_end = end_of(level.enclosing());
     for (index, &field) in fields.iter().enumerate() {
         let next = fields.get(index + 1).map(|sibling| start_of(sibling.span));
+        // A cursor in the native label sits between the block type and the
+        // body, so it is checked before the body, which would otherwise claim
+        // any offset past the type name.
+        if let FieldKind::Block(inner) = &field.kind
+            && let Some(label) = inner.label()
+            && contains(label.span, offset)
+        {
+            return Step::Here(CursorContext::block_label(
+                Vec::new(),
+                field.name.clone(),
+                span_token(label.span, text),
+            ));
+        }
+        if let Some(inner) = instance_body(field, next, enclosing_end, offset, covers_body) {
+            return Step::Enter(field.name.clone(), inner);
+        }
         match &field.kind {
-            FieldKind::Block(inner) => {
-                // A cursor in the native label sits between the block type and the
-                // body, so it is checked before the body, which would otherwise
-                // claim any offset past the type name.
-                if let Some(label) = inner.label()
-                    && contains(label.span, offset)
-                {
-                    return Step::Here(CursorContext::block_label(
-                        Vec::new(),
-                        field.name.clone(),
-                        span_token(label.span, text),
-                    ));
-                }
-                if in_block_body(field, inner, covers_body, next, enclosing_end, offset) {
-                    return Step::Enter(field.name.clone(), inner);
-                }
-            }
+            FieldKind::Block(_) => {}
             FieldKind::Value(value) => match &value.kind {
-                ValueKind::Map(inner) => {
-                    if contains(value.span, offset) {
-                        return Step::Enter(field.name.clone(), inner);
-                    }
-                }
-                ValueKind::Seq(elements) => {
-                    if let Some(inner) = seq_element_body(elements, next, enclosing_end, offset) {
-                        return Step::Enter(field.name.clone(), inner);
-                    }
-                    if contains(value.span, offset) {
-                        return Step::Here(CursorContext::attribute_value(
-                            Vec::new(),
-                            field.name.clone(),
-                            value_replace_token(field, value, text, offset),
-                        ));
-                    }
-                }
+                ValueKind::Map(_) => {}
                 _ => {
                     if contains(value.span, offset) {
                         return Step::Here(CursorContext::attribute_value(

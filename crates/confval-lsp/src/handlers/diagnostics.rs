@@ -1,55 +1,56 @@
 //! The diagnostics handler.
 //!
-//! It parses the whole buffer, builds the typed spec, runs `validate_all`, checks
-//! references against the document's labels, and maps each `Report` issue to an
-//! LSP diagnostic. It runs the real pipeline rather than an approximation, so a
-//! diagnostic the editor shows is a diagnostic the program would produce.
+//! It builds the typed spec from the document's stored parse, runs
+//! `validate_all`, checks references against the document's labels, and maps
+//! each `Report` issue to an LSP diagnostic. It runs the real pipeline rather
+//! than an approximation, so a diagnostic the editor shows is a diagnostic the
+//! program would produce.
 
 use lsp_types::{Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location, Uri};
 
 use confval::diagnostic::{Issue, Report, Severity};
-use confval::format::FromFields;
+use confval::format::{Fields, FromFields};
 use confval::pipeline::{Validate, ValidateNested, check_references};
 use confval::schema::{Schema, ToSchema};
-use confval::source::SourceMap;
 
 use crate::encoding::{LineIndex, PositionEncoding};
-use crate::frontend::Frontend;
 
 /// Produces the diagnostics for a document.
 ///
-/// `S` is the root spec, `frontend` its format, and `schema` the caller's
-/// already-built schema, so a default expression evaluates once per server
-/// rather than on every publish. The `uri` is the document's own URI, used for
-/// the related locations of a cross-field issue.
-pub fn diagnostics<S, F>(
-    frontend: &F,
+/// `S` is the root spec and `schema` the caller's already-built schema, so a
+/// default expression evaluates once per server rather than on every publish.
+/// `fields` and `parse_report` are the document's stored parse, produced by
+/// [`Frontend::parse_buffer`](crate::frontend::Frontend::parse_buffer) when
+/// the text changed, so a publish does not parse the buffer a second time.
+/// The `uri` is the document's own URI, used for the related locations of a
+/// cross-field issue.
+pub fn diagnostics<S>(
     schema: &Schema,
+    fields: Option<&Fields>,
+    parse_report: &Report,
     text: &str,
     uri: &Uri,
     encoding: PositionEncoding,
 ) -> Vec<Diagnostic>
 where
     S: FromFields + Validate + ValidateNested + ToSchema,
-    F: Frontend,
 {
-    let mut sources = SourceMap::new();
-    let id = sources.add("<document>", text);
     let mut report = Report::new();
-    // The reference pass runs whenever a tree parses, even when `from_fields`
+    // The reference pass runs whenever a tree parsed, even when `from_fields`
     // fails on an unrelated structural error, because a reference still checks
     // against the labels the text carries.
-    if let Some(fields) = frontend.parse(&sources, id, &mut report) {
-        if let Some(spec) = S::from_fields(&fields, &mut report) {
+    if let Some(fields) = fields {
+        if let Some(spec) = S::from_fields(fields, &mut report) {
             spec.validate_all(&mut report);
         }
-        check_references(&fields, schema, &mut report);
+        check_references(fields, schema, &mut report);
     }
 
     let index = LineIndex::new(text);
-    report
+    parse_report
         .issues()
         .iter()
+        .chain(report.issues().iter())
         .map(|issue| to_diagnostic(issue, &index, text, uri, encoding))
         .collect()
 }
@@ -104,13 +105,14 @@ fn to_diagnostic(
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "hcl"))]
 mod tests {
     use super::*;
     use std::str::FromStr;
 
     use confval::prelude::*;
 
+    use crate::frontend::Frontend;
     use crate::frontends::Hcl;
 
     #[derive(confval::Spec)]
@@ -153,9 +155,11 @@ mod tests {
         let uri = Uri::from_str("file:///gateway.hcl").unwrap();
 
         // Act
-        let produced = diagnostics::<Gateway, Hcl>(
-            &Hcl,
+        let (tree, report) = Hcl.parse_buffer(text);
+        let produced = diagnostics::<Gateway>(
             &Gateway::schema(),
+            tree.as_ref(),
+            &report,
             text,
             &uri,
             PositionEncoding::Utf16,

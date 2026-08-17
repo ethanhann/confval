@@ -9,8 +9,21 @@
 
 use super::json::object_path;
 use crate::encoding::floor_char_boundary;
-use crate::frontend::{CursorContext, Recovery, ValueSeparator};
+use crate::frontend::{CursorContext, ValueSeparator};
 use crate::resolve::{identifier_token, value_token};
+
+/// The reconstruction the raw-text scan runs, one variant per reader it has.
+/// An indentation format has no variant here, so the scan cannot be asked to
+/// recover a format its readers do not cover.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TextRecovery {
+    /// A brace-delimited block language: HCL, KDL.
+    Braces,
+    /// A header-addressed table language: TOML.
+    Header,
+    /// A brace-delimited object language with quoted keys: JSON.
+    Object,
+}
 
 /// Resolves an offset from raw text.
 ///
@@ -18,22 +31,18 @@ use crate::resolve::{identifier_token, value_token};
 /// selects how a value position is detected. `comments` is the format's
 /// line-comment vocabulary, read to skip a comment while scanning blocks and
 /// to refuse a value position inside one.
-/// `Recovery::Indentation` is handled by the YAML reader, not here.
 pub(crate) fn resolve_in_text(
     text: &str,
     offset: usize,
-    recovery: Recovery,
+    recovery: TextRecovery,
     separator: ValueSeparator,
     comments: &[&str],
 ) -> CursorContext {
     let offset = floor_char_boundary(text, offset);
     let path = match recovery {
-        Recovery::Braces => brace_path(text, offset, comments),
-        Recovery::Header => header_path(text, offset),
-        Recovery::Object => object_path(text, offset),
-        // `Frontend::resolve` routes indentation recovery to the YAML reader
-        // before this function is called, so it never reaches here.
-        Recovery::Indentation => unreachable!("indentation recovery is routed to the YAML reader"),
+        TextRecovery::Braces => brace_path(text, offset, comments),
+        TextRecovery::Header => header_path(text, offset),
+        TextRecovery::Object => object_path(text, offset),
     };
     match attribute_name(text, offset, separator, comments) {
         Some((field, value_start)) => {
@@ -351,7 +360,7 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Braces,
+            TextRecovery::Braces,
             ValueSeparator::Equals,
             &["#", "//"],
         );
@@ -371,7 +380,7 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Header,
+            TextRecovery::Header,
             ValueSeparator::Equals,
             &["#"],
         );
@@ -391,7 +400,7 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Braces,
+            TextRecovery::Braces,
             ValueSeparator::Whitespace,
             &["//"],
         );
@@ -411,7 +420,7 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Braces,
+            TextRecovery::Braces,
             ValueSeparator::Equals,
             &["#", "//"],
         );
@@ -433,7 +442,7 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Braces,
+            TextRecovery::Braces,
             ValueSeparator::Equals,
             &["#", "//"],
         );
@@ -456,7 +465,7 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Braces,
+            TextRecovery::Braces,
             ValueSeparator::Equals,
             &["#", "//"],
         );
@@ -476,7 +485,13 @@ mod tests {
         let offset = text.find(":en").unwrap() + ":en".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Object, ValueSeparator::Colon, &[]);
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Object,
+            ValueSeparator::Colon,
+            &[],
+        );
 
         // Assert
         assert_eq!(context.kind, value("mode"));
@@ -496,7 +511,7 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Braces,
+            TextRecovery::Braces,
             ValueSeparator::Equals,
             &["#", "//"],
         );
@@ -516,7 +531,7 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Header,
+            TextRecovery::Header,
             ValueSeparator::Equals,
             &["#"],
         );
@@ -536,7 +551,7 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Braces,
+            TextRecovery::Braces,
             ValueSeparator::Whitespace,
             &["//"],
         );
@@ -555,7 +570,13 @@ mod tests {
         let offset = text.len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Object, ValueSeparator::Colon, &[]);
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Object,
+            ValueSeparator::Colon,
+            &[],
+        );
 
         // Assert
         assert_eq!(context.kind, value("path"));
@@ -573,7 +594,7 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Braces,
+            TextRecovery::Braces,
             ValueSeparator::Whitespace,
             &["//"],
         );

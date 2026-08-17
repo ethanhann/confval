@@ -13,8 +13,19 @@ categories = ["config", "development-tools"]
 [lints]
 workspace = true
 
+[features]
+# Each format is an independent opt-in, mirroring the confval features, so an
+# embedder that serves one format compiles one parser. The default keeps all
+# five on.
+default = ["hcl", "toml", "kdl", "json", "yaml"]
+hcl = ["confval/hcl"]
+toml = ["confval/toml"]
+kdl = ["confval/kdl"]
+json = ["confval/json"]
+yaml = ["confval/yaml"]
+
 [dependencies]
-confval = { version = "=0.8.0", path = "../confval", features = ["hcl", "toml", "kdl", "json", "yaml"] }
+confval = { version = "=0.8.0", path = "../confval", features = ["internal-navigation"] }
 lsp-types = { workspace = true }
 lsp-server = { workspace = true }
 serde = { workspace = true }
@@ -23,3 +34,7 @@ line-index = { workspace = true }
 
 [dev-dependencies]
 confval = { path = "../confval", features = ["hcl", "toml", "kdl", "json", "yaml", "derive"] }
+
+[[example]]
+name = "serve"
+required-features = ["hcl", "toml", "kdl", "json", "yaml"]

@@ -135,15 +135,14 @@ fn field_item<F: Frontend>(
     let insert = frontend.insert_text(field, &cx.ctx.path);
     // Inside a repeated block, a field opens a new sequence or array element
     // rather than a bare key.
-    let new_text = if repeated && cx.ctx.new_element {
-        frontend.wrap_element(insert.text)
+    let insert = if repeated && cx.ctx.new_element {
+        frontend.wrap_element(insert)
     } else {
-        insert.text
+        insert
     };
+    let snippet = insert.snippet;
     let start = absorb_left(cx.text, cx.ctx.token.0, insert.absorb, &cx.ctx.kind);
-    // The frontends author this text, and any user text in it is already
-    // snippet-escaped, so marker detection here is reliable.
-    let snippet = new_text.contains("$0") || new_text.contains("${");
+    let new_text = insert.text;
     RawItem {
         label: field.name.clone(),
         kind,
@@ -385,8 +384,9 @@ fn encode_item(
     let new_text = if is_snippet || !raw.snippet {
         raw.new_text
     } else {
-        strip_snippet_markers(&raw.new_text)
+        crate::snippet::strip(&raw.new_text)
     };
+    let new_text = reindent(new_text, text, raw.edit.0);
     let mut item = CompletionItem {
         label: raw.label,
         kind: Some(raw.kind),
@@ -406,52 +406,27 @@ fn encode_item(
     item
 }
 
-/// Removes the snippet markers for a client without snippet support. The
-/// supported grammar is a closed list: a `$n` tab stop, which is dropped, and
-/// a `${n:value}` placeholder, which unwraps to its value with the backslash
-/// escaping removed, so the bare text reaches the buffer. A producer adding a
-/// new snippet form extends this list first.
-fn strip_snippet_markers(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut chars = text.chars().peekable();
-    while let Some(character) = chars.next() {
-        if character != '$' {
-            out.push(character);
-            continue;
-        }
-        match chars.peek() {
-            Some(digit) if digit.is_ascii_digit() => {
-                while chars.peek().is_some_and(char::is_ascii_digit) {
-                    chars.next();
-                }
-            }
-            Some('{') => {
-                chars.next();
-                while chars.peek().is_some_and(char::is_ascii_digit) {
-                    chars.next();
-                }
-                if chars.peek() == Some(&':') {
-                    chars.next();
-                }
-                while let Some(inner) = chars.next() {
-                    match inner {
-                        '\\' => {
-                            if let Some(escaped) = chars.next() {
-                                out.push(escaped);
-                            }
-                        }
-                        '}' => break,
-                        other => out.push(other),
-                    }
-                }
-            }
-            _ => out.push('$'),
-        }
+/// Aligns the continuation lines of a multi-line insert with the column the
+/// insert starts at. A frontend writes an insert relative to its own key, so
+/// without the shift a nested completion's body lands at the buffer's left
+/// margin, which puts a YAML body outside its block.
+fn reindent(new_text: String, text: &str, start: usize) -> String {
+    if !new_text.contains('\n') {
+        return new_text;
     }
-    out
+    let line_start = text[..start]
+        .rfind('\n')
+        .map(|index| index + 1)
+        .unwrap_or(0);
+    let column = text[line_start..start].chars().count();
+    if column == 0 {
+        return new_text;
+    }
+    let pad: String = format!("\n{}", " ".repeat(column));
+    new_text.replace('\n', &pad)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "json", feature = "toml", feature = "yaml"))]
 mod tests {
     use super::*;
     use crate::frontends::{Json, Toml, Yaml};
@@ -461,39 +436,36 @@ mod tests {
         SchemaField::new(
             name.to_string(),
             None,
-            true,
-            false,
             SchemaType::Scalar {
                 leaf: ScalarType::Int,
                 constraint: None,
             },
         )
+        .required()
     }
 
     fn keyword_field(name: &str) -> SchemaField {
         SchemaField::new(
             name.to_string(),
             None,
-            true,
-            false,
             SchemaType::Scalar {
                 leaf: ScalarType::String,
                 constraint: Some(Constraint::Keywords(&["enforce", "log"])),
             },
         )
+        .required()
     }
 
     fn repeated(name: &str, fields: Vec<SchemaField>) -> SchemaField {
         SchemaField::new(
             name.to_string(),
             None,
-            true,
-            false,
             SchemaType::Block {
                 schema: Box::new(Schema::new(None, fields)),
                 repeated: true,
             },
         )
+        .required()
     }
 
     fn context(

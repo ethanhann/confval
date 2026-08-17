@@ -151,19 +151,16 @@ mod tests {
         let label = SchemaField::new(
             "id".to_string(),
             None,
-            true,
-            false,
             SchemaType::Scalar {
                 leaf: ScalarType::String,
                 constraint: None,
             },
         )
+        .required()
         .as_label();
         SchemaField::new(
             name.to_string(),
             None,
-            false,
-            false,
             SchemaType::Block {
                 schema: Box::new(Schema::new(None, vec![label])),
                 repeated: true,
@@ -172,7 +169,7 @@ mod tests {
     }
 
     fn map_field(name: &str) -> SchemaField {
-        SchemaField::new(name.to_string(), None, true, false, SchemaType::StringMap)
+        SchemaField::new(name.to_string(), None, SchemaType::StringMap).required()
     }
 
     fn context(path: Vec<String>) -> CursorContext {

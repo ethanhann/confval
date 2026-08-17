@@ -35,30 +35,37 @@ impl Frontend for Json {
         // and a misplaced comma would be a destructive edit, so v0 leaves the
         // comma to the operator. Every member re-renders its opening quote, so
         // the edit absorbs one the operator has already typed.
-        let text = match &field.ty {
+        let (text, snippet) = match &field.ty {
             // A repeated block is an array of objects, so the insert opens the
             // array with its first element object.
             SchemaType::Block { repeated: true, .. } => {
-                format!("\"{}\": [{{ $0 }}]", field.name)
+                (format!("\"{}\": [{{ $0 }}]", field.name), true)
             }
-            SchemaType::Block { .. } => format!("\"{}\": {{\n  $0\n}}", field.name),
-            SchemaType::StringList => format!("\"{}\": [$0]", field.name),
-            SchemaType::StringMap => format!("\"{}\": {{ $0 }}", field.name),
-            _ => format!(
-                "\"{}\": {}",
-                field.name,
-                super::value_placeholder(self, field)
-            ),
+            SchemaType::Block { .. } => (format!("\"{}\": {{\n  $0\n}}", field.name), true),
+            SchemaType::StringList => (format!("\"{}\": [$0]", field.name), true),
+            SchemaType::StringMap => (format!("\"{}\": {{ $0 }}", field.name), true),
+            _ => {
+                let placeholder = super::value_placeholder(self, field);
+                (
+                    format!("\"{}\": {placeholder}", field.name),
+                    !placeholder.is_empty(),
+                )
+            }
         };
         Insert {
             text,
             absorb: Absorb::One(b'"'),
+            snippet,
         }
     }
 
-    fn wrap_element(&self, insert: String) -> String {
+    fn wrap_element(&self, insert: Insert) -> Insert {
         // The `$0` lands the cursor at the value, inside the braces, rather
         // than after the closing brace.
-        format!("{{ {insert}$0 }}")
+        Insert {
+            text: format!("{{ {}$0 }}", insert.text),
+            snippet: true,
+            ..insert
+        }
     }
 }
