@@ -252,14 +252,9 @@ where
     fn completion(&self, params: CompletionParams) -> CompletionResponse {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        let Some(document) = self.documents.get(&key(uri)) else {
+        let Some((document, index, context)) = self.resolve_at(uri, position) else {
             return CompletionResponse::Array(Vec::new());
         };
-        let index = LineIndex::new(&document.text);
-        let offset = index.offset_of(&document.text, position, self.encoding);
-        let context = self
-            .frontend
-            .resolve(document.tree.as_ref(), &document.text, offset);
         let items = handlers::completion(
             &self.frontend,
             &handlers::Cx {
