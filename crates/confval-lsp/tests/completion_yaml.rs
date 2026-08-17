@@ -1,0 +1,348 @@
+//! The completion handler for the YAML frontend: mapping and scalar inserts,
+//! sequence elements with their dash markers, indentation-aware bodies under
+//! empty and pending keys, and edits after a bare colon.
+
+mod fixture;
+mod support;
+
+use lsp_types::{CompletionTextEdit, Position};
+
+use confval::schema::ToSchema;
+use confval_lsp::handlers::{ClientSupport, Cx, completion};
+use confval_lsp::{LineIndex, Yaml};
+
+use fixture::{GatewaySpec, ServerSpec};
+use support::{ENCODING, at_with, inserted, labels};
+
+#[test]
+fn a_nested_yaml_block_insert_indents_its_body_to_the_cursor_column() {
+    // Arrange
+    // The completion inserts at column 4, so the sequence line below the key
+    // must indent past that column. A client that applies the edit verbatim
+    // would otherwise write the body outside the block.
+    let text = "services:\n  - name: \"a\"\n    \n";
+    let offset = text.len() - 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = fixture::MeshSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+
+    // Assert
+    let item = items
+        .iter()
+        .find(|item| item.label == "upstreams")
+        .unwrap_or_else(|| {
+            panic!(
+                "expected an upstreams item, got: {:?}",
+                items.iter().map(|item| &item.label).collect::<Vec<_>>()
+            )
+        });
+    let Some(CompletionTextEdit::Edit(edit)) = &item.text_edit else {
+        panic!("expected a text edit");
+    };
+    assert_eq!(edit.new_text, "upstreams:\n      - ");
+}
+
+#[test]
+fn yaml_completion_under_an_empty_key_offers_the_block_fields() {
+    // Arrange
+    // The `limits:` key awaits its body. A cursor on the indented line offers
+    // the block's fields, proving the indentation resolution end to end.
+    let text = "limits:\n  \n";
+    let offset = text.len() - 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+
+    // Assert
+    let labels = labels(&items);
+    assert!(
+        labels.contains(&"mode".to_string()),
+        "expected the limits block fields, got: {labels:?}"
+    );
+}
+
+#[test]
+fn yaml_completion_inserts_the_mapping_and_scalar_forms() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Yaml, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+
+    // Assert
+    let limits = items
+        .iter()
+        .find(|item| item.label == "limits")
+        .expect("the limits block is offered");
+    assert_eq!(inserted(limits), "limits:\n  ");
+    let workers = items
+        .iter()
+        .find(|item| item.label == "workers")
+        .expect("the workers field is offered");
+    assert_eq!(inserted(workers), "workers: 4", "the default pre-fills");
+}
+
+#[test]
+fn yaml_repeated_block_completion_opens_a_sequence() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Yaml, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+
+    // Assert
+    let rules = items
+        .iter()
+        .find(|item| item.label == "rules")
+        .expect("the rules block is offered");
+    assert_eq!(inserted(rules), "rules:\n  - ");
+}
+
+#[test]
+fn yaml_field_in_a_repeated_block_opens_a_new_element() {
+    // Arrange
+    // A cursor on a fresh line inside the rules sequence completes a field as a
+    // new element with a `-` marker, not a bare key.
+    let text = "rules:\n  - prefix: \"/api\"\n  \n";
+    let offset = text.len() - 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+
+    // Assert
+    let prefix = items
+        .iter()
+        .find(|item| item.label == "prefix")
+        .expect("the prefix field is offered");
+    assert_eq!(inserted(prefix), "- prefix: ");
+}
+
+#[test]
+fn yaml_list_and_map_completion_open_the_container() {
+    // Arrange
+    let text = "";
+    let (tree, context) = at_with(&Yaml, text, 0);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+
+    // Assert
+    let allow = items
+        .iter()
+        .find(|i| i.label == "allow")
+        .expect("allow offered");
+    assert_eq!(inserted(allow), "allow:\n  - ");
+    let headers = items
+        .iter()
+        .find(|i| i.label == "headers")
+        .expect("headers offered");
+    assert_eq!(inserted(headers), "headers:\n  ");
+}
+
+#[test]
+fn yaml_field_inside_an_existing_element_adds_a_field_not_an_element() {
+    // Arrange
+    // The cursor is on a blank line at field indentation inside the first upstream
+    // element. Completing a field adds it to that element without a dash marker,
+    // and the fields already set in that element are dropped.
+    let text = "upstream:\n  - name: a\n    host: a.internal\n    \n  - name: b\n    host: b.internal\n    port: 8081\n";
+    let offset = text.find("host: a.internal\n    ").unwrap() + "host: a.internal\n    ".len();
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &GatewaySpec::schema(),
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+
+    // Assert
+    // Exactly one item, the unset `port`, because `name` and `host` are set in
+    // the element and the server offers each field at most once.
+    assert_eq!(labels(&items), vec!["port".to_string()]);
+    assert_eq!(
+        inserted(&items[0]),
+        "port: ",
+        "the field is added without a dash"
+    );
+}
+
+#[test]
+fn yaml_completion_under_a_pending_block_offers_every_block_field() {
+    // Arrange
+    // The root sets `port` and `admin:` awaits its body. The pending body sets
+    // nothing, so the admin block's own `port` stays offered.
+    let text = "port: 8080\nadmin:\n  \n";
+    let offset = text.len() - 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = fixture::RelaySpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+
+    // Assert
+    let labels = labels(&items);
+    assert!(
+        labels.contains(&"port".to_string()),
+        "expected the pending admin body to offer port, got: {labels:?}"
+    );
+}
+
+#[test]
+fn yaml_keyword_completion_after_a_bare_colon_keeps_the_key_and_adds_a_space() {
+    // Arrange
+    // The buffer does not parse, so the scanned token is the replace range. The
+    // edit must start past the colon and the insert must supply the separating
+    // space, so accepting a keyword yields `mode: "enforce"`.
+    let text = "limits:\n  mode:\nbad: [\n";
+    let offset = text.find("mode:").unwrap() + "mode:".len();
+    let (tree, context) = at_with(&Yaml, text, offset);
+    assert!(tree.is_none(), "the buffer does not parse");
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+
+    // Assert
+    let enforce = items
+        .iter()
+        .find(|item| item.label == "enforce")
+        .expect("the enforce keyword");
+    let edit = match &enforce.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit,
+        other => panic!("a replace edit, got {other:?}"),
+    };
+    assert_eq!(
+        edit.new_text, " \"enforce\"",
+        "the insert supplies the space"
+    );
+    assert_eq!(
+        edit.range.start,
+        Position {
+            line: 1,
+            character: 7
+        }
+    );
+    assert_eq!(
+        edit.range.end,
+        Position {
+            line: 1,
+            character: 7
+        }
+    );
+}
