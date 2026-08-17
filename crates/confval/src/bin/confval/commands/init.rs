@@ -26,7 +26,7 @@ pub(crate) fn run(init: &InitArgs) -> Result<i32, CliError> {
 
     let mut any_skip = false;
     for skill in SKILLS {
-        for file in skill.files {
+        for file in skill.files() {
             let dest = skills_dir.join(file.relative_path);
             let rendered = skills::render(file);
             let outcome = install::plan(&dest, &rendered, init.force)?;
@@ -60,7 +60,7 @@ pub(crate) fn run(init: &InitArgs) -> Result<i32, CliError> {
 /// Prints each skill name and its description, and writes nothing.
 fn list() -> Result<i32, CliError> {
     for skill in SKILLS {
-        let description = skills::description(skill.skill_md().template).unwrap_or("");
+        let description = skills::description(skill.skill_md.template).unwrap_or("");
         output::line(format_args!("{}", skill.name));
         output::line(format_args!("  {description}"));
     }
@@ -96,7 +96,7 @@ fn launch(init: &InitArgs, base: &Path, cwd: &Path) -> Result<i32, CliError> {
 fn column_width() -> usize {
     SKILLS
         .iter()
-        .flat_map(|skill| skill.files.iter())
+        .flat_map(|skill| skill.files())
         .map(|file| file.relative_path.len())
         .max()
         .unwrap_or(0)
