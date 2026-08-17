@@ -16,7 +16,7 @@
 //! two from drifting on which attribute means what.
 
 use super::options::FieldOptions;
-use super::shape::FieldShape;
+use super::shape::{FieldShape, Leaf};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::Ident;
@@ -29,6 +29,11 @@ use syn::ext::IdentExt;
 /// when present, through `if let Some`. The field name is the config-key string,
 /// derived through the same `unraw` form the schema walk uses, so a raw
 /// identifier matches the name the manual call passed.
+///
+/// A field with a default gets one more branch. When the value is the default
+/// itself, recognized by its detached span and its equality with the declared
+/// default, a failed check names the spec's default rather than reporting a
+/// config error the operator cannot locate.
 pub(crate) fn field_recorded_check(
     ident: &Ident,
     shape: &FieldShape,
@@ -36,28 +41,72 @@ pub(crate) fn field_recorded_check(
 ) -> Option<TokenStream2> {
     let name = ident.unraw().to_string();
 
-    // The `check_located` call, given the `&Located<T>` value expression. A
-    // `range` names a `RangeConstraint` value, a `keywords` names a
-    // `keyword_enum!` type whose `keyword_set()` yields the check.
-    let call = |value: &TokenStream2| -> Option<TokenStream2> {
+    // The `check_located` call, given the `&Located<T>` value expression and
+    // the report expression it writes into. A `range` names a
+    // `RangeConstraint` value, a `keywords` names a `keyword_enum!` type whose
+    // `keyword_set()` yields the check.
+    let call = |value: &TokenStream2, report: &TokenStream2| -> Option<TokenStream2> {
         if let Some(path) = &options.range {
-            return Some(quote! { #path.check_located(#value, #name, report); });
+            return Some(quote! { #path.check_located(#value, #name, #report); });
         }
         options
             .keywords
             .as_ref()
-            .map(|path| quote! { #path::keyword_set().check_located(#value, #name, report); })
+            .map(|path| quote! { #path::keyword_set().check_located(#value, #name, #report); })
     };
 
     if matches!(shape, FieldShape::Leaf { optional: true, .. }) {
-        let call = call(&quote! { __value })?;
-        Some(quote! {
+        let call = call(&quote! { __value }, &quote! { report })?;
+        return Some(quote! {
             if let ::core::option::Option::Some(__value) = &self.#ident {
                 #call
             }
-        })
-    } else {
-        let call = call(&quote! { &self.#ident })?;
-        Some(call)
+        });
     }
+    let direct = call(&quote! { &self.#ident }, &quote! { report })?;
+    let Some(default) = default_expr_typed(shape, options) else {
+        return Some(direct);
+    };
+    let buffered = call(&quote! { &self.#ident }, &quote! { &mut __check })?;
+    let prefix = format!("the default for `{name}` fails its recorded constraint: ");
+    Some(quote! {
+        if self.#ident.span.is_detached() && self.#ident.value == #default {
+            let mut __check = ::confval::diagnostic::Report::new();
+            #buffered
+            for __issue in __check.issues() {
+                report
+                    .error(::std::format!("{}{}", #prefix, __issue.message))
+                    .help(
+                        "fix the #[confval(default = ...)] or the recorded constraint"
+                            .to_string(),
+                    )
+                    .emit();
+            }
+        } else {
+            #direct
+        }
+    })
+}
+
+/// The declared default as a typed value expression, or `None` when the field
+/// has no default or is not a required leaf. The typed binding pins the
+/// expression to the leaf's Rust type, the way the schema walk's default text
+/// does.
+fn default_expr_typed(shape: &FieldShape, options: &FieldOptions) -> Option<TokenStream2> {
+    let FieldShape::Leaf {
+        leaf,
+        optional: false,
+        ..
+    } = shape
+    else {
+        return None;
+    };
+    let expr = options.default_value()?;
+    Some(match leaf {
+        Leaf::String => quote! { { let __default: ::std::string::String = #expr; __default } },
+        Leaf::Int => quote! { { let __default: i64 = #expr; __default } },
+        Leaf::Float => quote! { { let __default: f64 = #expr; __default } },
+        Leaf::Bool => quote! { { let __default: bool = #expr; __default } },
+        Leaf::PathBuf => quote! { { let __default: ::std::path::PathBuf = #expr; __default } },
+    })
 }
