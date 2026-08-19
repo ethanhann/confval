@@ -1,0 +1,14 @@
+docs/docs/pipeline.md
+  h_4fc023ad4863a8 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "bb576fad38330755a8ff7315b2ffb76192bf748d",
+  "prompts": {},
+  "humans": {
+    "h_4fc023ad4863a8": {
+      "author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
