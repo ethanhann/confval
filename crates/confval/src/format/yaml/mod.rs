@@ -823,6 +823,13 @@ mod tests {
             span.end,
             input.len()
         );
+        // With no byte ahead, the span widens backward across the last
+        // character rather than staying zero-width or reaching the document
+        // start, so it slices back to the whole trailing character.
+        assert_eq!(
+            input.get(span.start as usize..span.end as usize),
+            Some("\u{20ac}")
+        );
     }
 
     #[test]
@@ -1137,6 +1144,74 @@ mod tests {
         }
         // The refused collection was consumed, so the fields after it survive.
         assert_eq!(fields.iter().count(), 4);
+    }
+
+    #[test]
+    fn a_refused_tagged_collection_with_a_nested_collection_is_fully_consumed() {
+        // Arrange
+        // A custom tag on a mapping is refused, so the reader drains the whole
+        // node's events. The nested sequence drives drain's depth counter above
+        // one, and a field after the refused node only survives when that
+        // counter climbs on a nested opening rather than falling.
+        let input = "custom: !custom\n  a:\n    - 1\n    - 2\nport: 8080\n";
+
+        // Act
+        let fields = parse(input);
+
+        // Assert
+        let mut report = Report::new();
+        assert!(parse_string_field(fields.get("custom").unwrap(), &mut report).is_none());
+        assert_eq!(
+            report.issues()[0].message,
+            "expected string, found tagged value"
+        );
+        let mut report = Report::new();
+        assert_eq!(
+            parse_int_field(fields.get("port").unwrap(), &mut report)
+                .unwrap()
+                .value,
+            8080
+        );
+        assert_eq!(fields.iter().count(), 2);
+    }
+
+    #[test]
+    fn a_scan_error_at_a_multibyte_char_widens_across_the_whole_char() {
+        // Arrange
+        // The tab in block indentation is a syntax error the parser marks at
+        // the character after it. That character is multi-byte, so the widened
+        // zero-width error span must reach across all of its bytes to land on a
+        // char boundary and slice back to the whole character.
+        let input = "a:\n\t\u{20ac}: 1\n";
+
+        // Act
+        let report = reject(input);
+
+        // Assert
+        let span = report.issues()[0].span.unwrap();
+        assert_eq!(
+            input.get(span.start as usize..span.end as usize),
+            Some("\u{20ac}")
+        );
+    }
+
+    #[test]
+    fn a_non_specific_tag_on_a_collection_reads_the_collection_through() {
+        // Arrange
+        // The non-specific `!` on a sequence resolves to the node itself, so
+        // the sequence reads as ordinary data rather than a refused tagged
+        // value.
+        let input = "items: ! [\"a\", \"b\"]\n";
+
+        // Act
+        let fields = parse(input);
+
+        // Assert
+        let mut report = Report::new();
+        let items = parse_string_list_field(fields.get("items").unwrap(), &mut report).unwrap();
+        assert_eq!(items.value.len(), 2);
+        assert_eq!(items.value[0].value, "a");
+        assert!(!report.has_issues());
     }
 
     #[test]
