@@ -772,4 +772,176 @@ mod tests {
         assert_eq!(context.path, Vec::<String>::new());
         assert_eq!(context.kind, PositionKind::Body);
     }
+
+    #[test]
+    fn flow_delta_counts_each_open_bracket_as_one() {
+        // Arrange
+        let line = "a: {[";
+
+        // Act
+        let delta = flow_delta(line);
+
+        // Assert
+        assert_eq!(delta, 2, "two open brackets raise the balance by two");
+    }
+
+    #[test]
+    fn flow_delta_counts_each_close_bracket_as_minus_one() {
+        // Arrange
+        let line = "]}";
+
+        // Act
+        let delta = flow_delta(line);
+
+        // Assert
+        assert_eq!(delta, -2, "two close brackets lower the balance by two");
+    }
+
+    #[test]
+    fn flow_delta_ignores_brackets_inside_quotes_and_after_a_comment() {
+        // Arrange
+        let line = "\"[\" '{' # ]";
+
+        // Act
+        let delta = flow_delta(line);
+
+        // Assert
+        assert_eq!(delta, 0, "quoted and commented brackets do not count");
+    }
+
+    #[test]
+    fn dash_opens_scalar_is_true_only_for_a_block_scalar_item() {
+        // Arrange
+        let item = "- |";
+
+        // Act
+        let opens = dash_opens_scalar(item);
+
+        // Assert
+        assert!(opens, "a `- |` item opens a block scalar");
+    }
+
+    #[test]
+    fn dash_opens_scalar_is_false_for_a_plain_sequence_item() {
+        // Arrange
+        let item = "- name: a";
+
+        // Act
+        let opens = dash_opens_scalar(item);
+
+        // Assert
+        assert!(!opens, "a plain sequence item opens no block scalar");
+    }
+
+    #[test]
+    fn contains_comment_reads_a_bare_hash_at_the_start() {
+        // Arrange
+        let segment = "#x";
+
+        // Act
+        let found = contains_comment(segment);
+
+        // Assert
+        assert!(found, "a leading hash starts a comment");
+    }
+
+    #[test]
+    fn contains_comment_ignores_a_hash_joined_to_a_token() {
+        // Arrange
+        let segment = "x# y";
+
+        // Act
+        let found = contains_comment(segment);
+
+        // Assert
+        assert!(!found, "a hash with no space before it is not a comment");
+    }
+
+    #[test]
+    fn contains_comment_ignores_a_spaced_hash_inside_a_double_quote() {
+        // Arrange
+        let segment = "\" #\"";
+
+        // Act
+        let found = contains_comment(segment);
+
+        // Assert
+        assert!(!found, "a hash inside double quotes is not a comment");
+    }
+
+    #[test]
+    fn contains_comment_ignores_a_spaced_hash_inside_a_single_quote() {
+        // Arrange
+        let segment = "' #'";
+
+        // Act
+        let found = contains_comment(segment);
+
+        // Assert
+        assert!(!found, "a hash inside single quotes is not a comment");
+    }
+
+    #[test]
+    fn line_indent_counts_a_dash_marker_as_two_columns() {
+        // Arrange
+        let line = "- a";
+
+        // Act
+        let indent = line_indent(line);
+
+        // Assert
+        assert_eq!(indent, 2, "a dash at column zero indents its keys to two");
+    }
+
+    #[test]
+    fn line_indent_adds_the_dash_width_to_the_leading_spaces() {
+        // Arrange
+        let line = "    - a";
+
+        // Act
+        let indent = line_indent(line);
+
+        // Assert
+        assert_eq!(indent, 6, "four spaces plus the two-column dash marker");
+    }
+
+    #[test]
+    fn parse_key_places_the_column_past_a_padded_dash_marker() {
+        // Arrange
+        let line = "-   key: v";
+
+        // Act
+        let parsed = parse_key(line, 0);
+
+        // Assert
+        assert_eq!(
+            parsed,
+            Some((4, "key".to_string(), false)),
+            "the column counts the dash and the padding before the key"
+        );
+    }
+
+    #[test]
+    fn parse_key_reports_a_block_scalar_from_a_pipe_value() {
+        // Arrange
+        let line = "note: |";
+
+        // Act
+        let opens = parse_key(line, 0).expect("a mapping key").2;
+
+        // Assert
+        assert!(opens, "a `|` value opens a block scalar");
+    }
+
+    #[test]
+    fn parse_key_reports_a_block_scalar_from_a_folded_value() {
+        // Arrange
+        let line = "note: >";
+
+        // Act
+        let opens = parse_key(line, 0).expect("a mapping key").2;
+
+        // Assert
+        assert!(opens, "a `>` value opens a folded block scalar");
+    }
 }
