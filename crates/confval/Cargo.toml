@@ -10,6 +10,11 @@ readme.workspace = true
 keywords = ["configuration", "validation", "config"]
 categories = ["config", "development-tools"]
 
+[package.metadata.docs.rs]
+# docs.rs builds with no features by default, which hides every frontend
+# module. The list is every public feature except the internal one.
+features = ["serde", "color", "hcl", "toml", "kdl", "json", "yaml", "derive", "layering"]
+
 [lints]
 workspace = true
 
@@ -29,6 +34,9 @@ derive = ["dep:confval-derive"]
 # Assemble one configuration from several layered sources. Combines file
 # providers with env and CLI by precedence. Pulls in no external crate.
 layering = []
+# The reference scope walk, for editor tooling such as confval-lsp. The
+# surface is internal and may change in any release.
+internal-navigation = []
 
 [dependencies]
 serde = { workspace = true, features = ["derive"], optional = true }
@@ -39,7 +47,7 @@ toml_edit = { workspace = true, optional = true }
 kdl = { workspace = true, optional = true }
 jsonc-parser = { workspace = true, optional = true }
 saphyr-parser = { workspace = true, optional = true }
-confval-derive = { version = "=0.7.3", path = "../confval-derive", optional = true }
+confval-derive = { version = "=0.8.0", path = "../confval-derive", optional = true }
 
 [dev-dependencies]
 hcl-edit = "0.9"
@@ -122,6 +130,10 @@ name = "kdl_end_to_end"
 required-features = ["derive", "kdl"]
 
 [[test]]
+name = "toml_end_to_end"
+required-features = ["derive", "toml"]
+
+[[test]]
 name = "repeated_values"
 required-features = ["derive"]
 
@@ -156,6 +168,34 @@ required-features = ["derive", "toml", "layering"]
 [[test]]
 name = "toml_span_fidelity"
 required-features = ["derive", "toml"]
+
+[[test]]
+name = "hcl_span_fidelity"
+required-features = ["hcl"]
+
+[[test]]
+name = "kdl_span_fidelity"
+required-features = ["kdl"]
+
+[[test]]
+name = "json_span_fidelity"
+required-features = ["json"]
+
+[[test]]
+name = "yaml_span_fidelity"
+required-features = ["yaml"]
+
+[[test]]
+name = "schema"
+required-features = ["derive"]
+
+[[test]]
+name = "recorded_validation"
+required-features = ["derive"]
+
+[[test]]
+name = "references"
+required-features = ["derive", "hcl", "toml", "kdl", "json", "yaml", "internal-navigation"]
 
 [[test]]
 name = "handwritten_parity"

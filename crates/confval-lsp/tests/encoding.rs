@@ -117,3 +117,26 @@ fn a_second_line_offset_resolves_its_line_and_column() {
         offset
     );
 }
+
+#[test]
+fn an_offset_inside_a_character_floors_to_its_boundary() {
+    // Arrange
+    // A UTF-16 character in the middle of the emoji's surrogate pair has no
+    // exact byte offset, so the conversion must land on a char boundary
+    // rather than inside the emoji.
+    let text = "a = \"😀\"\n";
+    let index = LineIndex::new(text);
+    let position = Position {
+        line: 0,
+        character: 6,
+    };
+
+    // Act
+    let offset = index.offset_of(text, position, PositionEncoding::Utf16);
+
+    // Assert
+    assert!(
+        text.is_char_boundary(offset),
+        "offset {offset} sits inside a character of {text:?}"
+    );
+}

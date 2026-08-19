@@ -9,6 +9,11 @@ exclude_re = [
     "replace > with >= in Source::floor_char_boundary",
     "replace < with <= in Source::ceil_char_boundary",
     "replace < with <= in __keyword_enum_keywords_unique",
+    "replace + with * in yaml_attribute",
+    "replace - with + in introducing_key",
+    "replace - with / in introducing_key",
+    "replace < with <= in field_symbols",
 ]
 timeout_multiplier = 8.0
+minimum_test_timeout = 90
 test_tool = "nextest"

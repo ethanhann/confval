@@ -67,13 +67,11 @@ where
             return;
         };
         let help = self.help.map(String::from).unwrap_or_else(|| {
-            format!(
-                "Set {} to {} {} {}",
-                field,
-                kind,
-                limit,
-                self.units.unwrap_or("")
-            )
+            let units = self
+                .units
+                .map(|units| format!(" {units}"))
+                .unwrap_or_default();
+            format!("Set {field} to {kind} {limit}{units}")
         });
         report
             .error(format!("{} must be {} {}", field, kind, limit))
@@ -180,6 +178,19 @@ mod tests {
         let help = report.issues()[0].help.as_ref().expect("No help specified");
         assert!(help.contains(expected));
         assert_eq!(help, "Set interval to at least 1 seconds");
+    }
+
+    #[test]
+    fn help_without_units_ends_without_a_trailing_space() {
+        // Arrange
+        let expected = "Set threads to at least 1";
+
+        // Act
+        let report = check(&THREADS, 0, "threads");
+
+        // Assert
+        let help = report.issues()[0].help.as_ref().expect("No help specified");
+        assert_eq!(help, expected);
     }
 
     #[test]

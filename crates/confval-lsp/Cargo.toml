@@ -1,17 +1,31 @@
 [package]
 name = "confval-lsp"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 description = "Schema-generic language server core for confval configuration files"
+readme = "README.md"
+keywords = ["configuration", "lsp", "language-server", "validation"]
+categories = ["config", "development-tools"]
 
 [lints]
 workspace = true
 
+[features]
+# Each format is an independent opt-in, mirroring the confval features, so an
+# embedder that serves one format compiles one parser. The default keeps all
+# five on.
+default = ["hcl", "toml", "kdl", "json", "yaml"]
+hcl = ["confval/hcl"]
+toml = ["confval/toml"]
+kdl = ["confval/kdl"]
+json = ["confval/json"]
+yaml = ["confval/yaml"]
+
 [dependencies]
-confval = { path = "../confval", features = ["hcl", "toml", "kdl", "json", "yaml"] }
+confval = { version = "=0.8.0", path = "../confval", features = ["internal-navigation"] }
 lsp-types = { workspace = true }
 lsp-server = { workspace = true }
 serde = { workspace = true }
@@ -19,4 +33,8 @@ serde_json = { workspace = true }
 line-index = { workspace = true }
 
 [dev-dependencies]
-confval = { path = "../confval", features = ["hcl", "toml", "kdl", "derive"] }
+confval = { path = "../confval", features = ["hcl", "toml", "kdl", "json", "yaml", "derive"] }
+
+[[example]]
+name = "serve"
+required-features = ["hcl", "toml", "kdl", "json", "yaml"]

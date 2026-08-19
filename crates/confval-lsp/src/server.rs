@@ -43,12 +43,16 @@ type LspError = Box<dyn std::error::Error + Send + Sync>;
 const METHOD_NOT_FOUND: i32 = -32601;
 /// JSON-RPC error code for invalid request parameters.
 const INVALID_PARAMS: i32 = -32602;
+/// JSON-RPC error code for a server-side failure.
+const INTERNAL_ERROR: i32 = -32603;
 
-/// One open document: its current text and its current parse, `None` when the
-/// text does not parse.
+/// One open document: its current text, its current parse, `None` when the
+/// text does not parse, and the report that parse produced, so a publish maps
+/// it rather than parsing again.
 struct Document {
     text: String,
     tree: Option<Fields>,
+    report: confval::diagnostic::Report,
 }
 
 /// The language server, generic over the root spec and the frontend.
@@ -107,7 +111,16 @@ where
                     self.on_request(connection, request)?;
                 }
                 Message::Notification(notification) => {
-                    self.on_notification(connection, notification)?;
+                    // The same guard as `respond`: a panic while updating a
+                    // document or publishing diagnostics drops that
+                    // notification instead of taking down the server.
+                    if let Ok(result) =
+                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            self.on_notification(connection, notification)
+                        }))
+                    {
+                        result?;
+                    }
                 }
                 Message::Response(_) => {}
             }
@@ -178,17 +191,19 @@ where
         Ok(())
     }
 
-    /// Stores a document's text and its current parse, which is `None` when the
-    /// text does not parse. Resolution recovers from the raw text in that case,
-    /// so a stale tree is never kept.
+    /// Stores a document's text, its current parse, which is `None` when the
+    /// text does not parse, and the parse report. Resolution recovers from the
+    /// raw text in that case, so a stale tree is never kept.
     fn set_document(&mut self, uri: &Uri, text: String) {
-        let tree = self.frontend.parse_tree(&text);
+        let (tree, report) = self.frontend.parse_buffer(&text);
         let entry = self.documents.entry(key(uri)).or_insert_with(|| Document {
             text: String::new(),
             tree: None,
+            report: confval::diagnostic::Report::new(),
         });
         entry.text = text;
         entry.tree = tree;
+        entry.report = report;
     }
 
     /// Publishes the diagnostics for a document.
@@ -196,11 +211,13 @@ where
         let Some(document) = self.documents.get(&key(uri)) else {
             return Ok(());
         };
-        let diagnostics = handlers::diagnostics::<S, F>(
-            &self.frontend,
+        let diagnostics = handlers::diagnostics::<S>(
             &self.schema,
-            &document.text,
+            document.tree.as_ref(),
+            &document.report,
             uri,
+            &document.text,
+            &LineIndex::new(&document.text),
             self.encoding,
         );
         let params = PublishDiagnosticsParams {
@@ -236,14 +253,9 @@ where
     fn completion(&self, params: CompletionParams) -> CompletionResponse {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        let Some(document) = self.documents.get(&key(uri)) else {
+        let Some((document, index, context)) = self.resolve_at(uri, position) else {
             return CompletionResponse::Array(Vec::new());
         };
-        let index = LineIndex::new(&document.text);
-        let offset = index.offset_of(&document.text, position, self.encoding);
-        let context = self
-            .frontend
-            .resolve(document.tree.as_ref(), &document.text, offset);
         let items = handlers::completion(
             &self.frontend,
             &handlers::Cx {
@@ -355,17 +367,14 @@ where
     fn hover(&self, params: HoverParams) -> Option<Hover> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let document = self.documents.get(&key(uri))?;
-        let index = LineIndex::new(&document.text);
-        let offset = index.offset_of(&document.text, position, self.encoding);
-        let context = self
-            .frontend
-            .resolve(document.tree.as_ref(), &document.text, offset);
+        let (document, index, context) = self.resolve_at(uri, position)?;
         handlers::hover(
-            &self.schema,
-            document.tree.as_ref(),
-            &context,
-            &document.text,
+            &handlers::Cx {
+                schema: &self.schema,
+                fields: document.tree.as_ref(),
+                ctx: &context,
+                text: &document.text,
+            },
             &index,
             self.encoding,
         )
@@ -373,7 +382,10 @@ where
 }
 
 /// Extracts a request's parameters and answers through one handler, or answers
-/// the invalid-params error when the parameters do not deserialize.
+/// the invalid-params error when the parameters do not deserialize. A panic in
+/// the handler answers the internal error, so one bad request does not take
+/// down the server. This guard needs an unwinding panic runtime. A build with
+/// `panic = "abort"` still aborts.
 fn respond<P, T>(request: Request, method: String, handle: impl FnOnce(P) -> T) -> Response
 where
     P: serde::de::DeserializeOwned,
@@ -381,7 +393,14 @@ where
 {
     let id = request.id.clone();
     match request.extract::<P>(&method) {
-        Ok((id, params)) => Response::new_ok(id, handle(params)),
+        Ok((id, params)) => {
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| handle(params))) {
+                Ok(value) => Response::new_ok(id, value),
+                Err(_) => {
+                    Response::new_err(id, INTERNAL_ERROR, format!("the {method} handler failed"))
+                }
+            }
+        }
         Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
     }
 }
@@ -403,9 +422,10 @@ fn key(uri: &Uri) -> String {
     uri.as_str().to_string()
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "hcl"))]
 mod tests {
     #![allow(dead_code)]
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
 
     use super::*;
     use std::str::FromStr;
@@ -542,6 +562,39 @@ mod tests {
         };
         assert_eq!(response.id, RequestId::from(9));
         assert_eq!(response.response_result.unwrap_err().code, INVALID_PARAMS);
+    }
+
+    #[test]
+    fn a_panicking_handler_answers_an_internal_error_instead_of_dying() {
+        // Arrange
+        let request = Request::new(
+            RequestId::from(10),
+            HoverRequest::METHOD.to_string(),
+            serde_json::to_value(HoverParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier {
+                        uri: Uri::from_str("file:///panic.hcl").unwrap(),
+                    },
+                    position: Position {
+                        line: 0,
+                        character: 0,
+                    },
+                },
+                work_done_progress_params: Default::default(),
+            })
+            .unwrap(),
+        );
+
+        // Act
+        let response = respond(
+            request,
+            HoverRequest::METHOD.to_string(),
+            |_: HoverParams| -> Option<Hover> { panic!("handler defect") },
+        );
+
+        // Assert
+        assert_eq!(response.id, RequestId::from(10));
+        assert_eq!(response.response_result.unwrap_err().code, INTERNAL_ERROR);
     }
 
     #[test]

@@ -6,7 +6,7 @@
 //! optional block, a nested list that groups into an array of tables, and a
 //! string list. Later tests add deep nesting and an emit-alone round trip that
 //! carries a parsed `Map`, a shape populate never produces. The per-shape and
-//! error-path assertions live in the frontend modules' unit tests.
+//! error-path assertions are in the frontend modules' unit tests.
 
 use confval::format::hcl::{emit_hcl, parse_hcl};
 use confval::format::toml::{emit_toml, parse_toml, parse_toml_fields};

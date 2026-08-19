@@ -205,11 +205,12 @@ impl ToFields for ServiceSpec {
 }
 
 /// The type-level schema, written by hand the way `#[derive(Spec)]` would emit
-/// it. `SchemaField::new` folds each field's structural requiredness and its
-/// default into the `required` a consumer reads, so a defaulted field passes
-/// `true, true` and is not required. `route` is the `routes` field's key. Every
-/// node is built through the `Schema::new` and `SchemaField::new` constructors,
-/// because the node structs are `#[non_exhaustive]`.
+/// it. The builders make each field's requiredness explicit: `required()`
+/// marks a field whose absence is a parse error, `with_default()` marks a
+/// defaulted one, and a field carrying both stays unrequired. `route` is the
+/// `routes` field's key. Every node is built through the `Schema::new` and
+/// `SchemaField::new` constructors, because the node structs are
+/// `#[non_exhaustive]`.
 impl ToSchema for ServiceSpec {
     fn schema() -> Schema {
         let block = |schema: Schema, repeated: bool| SchemaType::Block {
@@ -221,13 +222,14 @@ impl ToSchema for ServiceSpec {
             constraint: None,
         };
         let sf = |name: &str, structurally_required: bool, has_default: bool, ty: SchemaType| {
-            SchemaField::new(
-                name.to_string(),
-                None,
-                structurally_required,
-                has_default,
-                ty,
-            )
+            let mut field = SchemaField::new(name.to_string(), None, ty);
+            if structurally_required {
+                field = field.required();
+            }
+            if has_default {
+                field = field.with_default();
+            }
+            field
         };
         let workers = SchemaType::Scalar {
             leaf: ScalarType::Int,

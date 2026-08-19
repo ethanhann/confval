@@ -196,9 +196,11 @@ pub fn parse_struct_field<S: FromFields>(field: &Field, report: &mut Report) -> 
     }
 }
 
-/// Parses a repeated nested structure into `slot`, appending. Accepts both
-/// forms and combinations of them: each repeated block appends one
-/// element, and an array-of-maps attribute appends one element per map.
+/// Parses a repeated nested structure into `slot`, appending. Accepts every
+/// form and combinations of them: each repeated block appends one element, an
+/// array-of-maps attribute appends one element per map, and a lone map
+/// appends one element, because JSON and YAML write a single instance as a
+/// bare object rather than a one-element array.
 /// Invalid array elements are reported individually and skipped.
 pub fn parse_struct_list_field<S: FromFields>(
     slot: &mut Vec<Located<S>>,
@@ -212,6 +214,11 @@ pub fn parse_struct_list_field<S: FromFields>(
             }
         }
         FieldKind::Value(value) => match &value.kind {
+            ValueKind::Map(fields) => {
+                if let Some(parsed) = S::from_fields(fields, report) {
+                    slot.push(Located::new(parsed, value.span));
+                }
+            }
             ValueKind::Seq(elements) => {
                 for element in elements {
                     match &element.kind {

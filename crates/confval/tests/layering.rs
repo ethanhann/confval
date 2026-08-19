@@ -307,10 +307,11 @@ mod json_duplicate_groups {
 
         // Assert
         assert!(
-            report.issues().iter().any(|issue| {
-                issue.message.starts_with("`limits` is a")
-                    && issue.message.contains("in one source and a")
-            }),
+            report
+                .issues()
+                .iter()
+                .any(|issue| issue.message
+                    == "`limits` is a block in one source and a value in another"),
             "issues: {:?}",
             report.issues()
         );
@@ -402,10 +403,11 @@ limits: {mode: "log"}
 
         // Assert
         assert!(
-            report.issues().iter().any(|issue| {
-                issue.message.starts_with("`limits` is a")
-                    && issue.message.contains("in one source and a")
-            }),
+            report
+                .issues()
+                .iter()
+                .any(|issue| issue.message
+                    == "`limits` is a block in one source and a value in another"),
             "issues: {:?}",
             report.issues()
         );

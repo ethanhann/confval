@@ -157,6 +157,26 @@ mod tests {
     }
 
     #[test]
+    fn the_advertised_capabilities_populate_every_provider_field() {
+        // Arrange, Act
+        let capabilities = server_capabilities(PositionEncoding::Utf16);
+
+        // Assert
+        assert_eq!(
+            capabilities.text_document_sync,
+            Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL))
+        );
+        assert_eq!(
+            capabilities.completion_provider,
+            Some(CompletionOptions::default())
+        );
+        assert_eq!(
+            capabilities.hover_provider,
+            Some(HoverProviderCapability::Simple(true))
+        );
+    }
+
+    #[test]
     fn the_hierarchical_symbol_gate_reads_the_client_capability() {
         // Arrange
         let mut with_hierarchy = InitializeParams::default();

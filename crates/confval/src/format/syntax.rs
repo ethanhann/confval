@@ -15,7 +15,7 @@
 /// only the call, and one that changes case in an upgrade cannot regress the
 /// prefix.
 ///
-/// A parser that reports no text at all still names the failure class, so the
+/// A parser that reports no text still names the failure class, so the
 /// prefix stands alone.
 pub(crate) fn syntax_error(message: &str) -> String {
     let mut characters = message.chars();

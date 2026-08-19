@@ -27,6 +27,11 @@ impl Frontend for Toml {
         Recovery::Header
     }
 
+    fn line_comments(&self) -> &'static [&'static str] {
+        // TOML comments with the hash alone.
+        &["#"]
+    }
+
     fn insert_text(&self, field: &SchemaField, path: &[String]) -> Insert {
         let qualified = if path.is_empty() {
             field.name.clone()
@@ -40,18 +45,19 @@ impl Frontend for Toml {
             SchemaType::Block { repeated: true, .. } => Insert {
                 text: format!("[[{qualified}]]"),
                 absorb: Absorb::Run(b'['),
+                snippet: false,
             },
             SchemaType::Block { .. } => Insert {
                 text: format!("[{qualified}]"),
                 absorb: Absorb::Run(b'['),
+                snippet: false,
             },
-            SchemaType::StringList => Insert::plain(format!("{} = [$0]", field.name)),
-            SchemaType::StringMap => Insert::plain(format!("{} = {{ $0 }}", field.name)),
-            _ => Insert::plain(format!(
-                "{} = {}",
-                field.name,
-                super::value_placeholder(self, field)
-            )),
+            SchemaType::StringList => Insert::snippet(format!("{} = [$0]", field.name)),
+            SchemaType::StringMap => Insert::snippet(format!("{} = {{ $0 }}", field.name)),
+            _ => {
+                let placeholder = super::value_placeholder(self, field);
+                super::scalar_insert(format!("{} = {placeholder}", field.name), &placeholder)
+            }
         }
     }
 }
@@ -65,26 +71,24 @@ mod tests {
         SchemaField::new(
             name.to_string(),
             None,
-            true,
-            false,
             SchemaType::Block {
                 schema: Box::new(Schema::new(None, Vec::new())),
                 repeated: false,
             },
         )
+        .required()
     }
 
     fn repeated_block(name: &str) -> SchemaField {
         SchemaField::new(
             name.to_string(),
             None,
-            true,
-            false,
             SchemaType::Block {
                 schema: Box::new(Schema::new(None, Vec::new())),
                 repeated: true,
             },
         )
+        .required()
     }
 
     #[test]

@@ -26,22 +26,36 @@ impl Frontend for Yaml {
         ValueSeparator::Colon
     }
 
+    fn line_comments(&self) -> &'static [&'static str] {
+        // The YAML reader handles its own comments, whitespace-preceded, so
+        // this vocabulary serves only the trait's contract.
+        &["#"]
+    }
+
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {
-        Insert::plain(match &field.ty {
+        match &field.ty {
             // A repeated block and a string list are both sequences, so the
             // insert opens the first element with a `-` marker.
             SchemaType::Block { repeated: true, .. } | SchemaType::StringList => {
-                format!("{}:\n  - $0", field.name)
+                Insert::snippet(format!("{}:\n  - $0", field.name))
             }
             // A single nested mapping and a map both open a body on the next
             // indented line.
-            SchemaType::Block { .. } | SchemaType::StringMap => format!("{}:\n  $0", field.name),
-            _ => format!("{}: {}", field.name, super::value_placeholder(self, field)),
-        })
+            SchemaType::Block { .. } | SchemaType::StringMap => {
+                Insert::snippet(format!("{}:\n  $0", field.name))
+            }
+            _ => {
+                let placeholder = super::value_placeholder(self, field);
+                super::scalar_insert(format!("{}: {placeholder}", field.name), &placeholder)
+            }
+        }
     }
 
-    fn wrap_element(&self, insert: String) -> String {
-        format!("- {insert}")
+    fn wrap_element(&self, insert: Insert) -> Insert {
+        Insert {
+            text: format!("- {}", insert.text),
+            ..insert
+        }
     }
 }
 
@@ -52,14 +66,23 @@ mod tests {
     use confval::schema::{ScalarType, Schema, SchemaType};
 
     fn field(name: &str, ty: SchemaType) -> SchemaField {
-        SchemaField::new(name.to_string(), None, true, false, ty)
+        SchemaField::new(name.to_string(), None, ty).required()
     }
 
-    fn block(repeated: bool) -> SchemaType {
+    fn block_type(repeated: bool) -> SchemaType {
         SchemaType::Block {
             schema: Box::new(Schema::new(None, Vec::new())),
             repeated,
         }
+    }
+
+    #[test]
+    fn the_line_comment_vocabulary_is_the_hash() {
+        // Arrange, Act
+        let comments = Yaml.line_comments();
+
+        // Assert
+        assert_eq!(comments, ["#"]);
     }
 
     #[test]
@@ -74,7 +97,7 @@ mod tests {
     #[test]
     fn a_repeated_block_opens_a_sequence_element() {
         // Arrange, Act
-        let insert = Yaml.insert_text(&field("rules", block(true)), &[]);
+        let insert = Yaml.insert_text(&field("rules", block_type(true)), &[]);
 
         // Assert
         assert_eq!(insert.text, "rules:\n  - $0");
@@ -92,7 +115,7 @@ mod tests {
     #[test]
     fn a_single_block_opens_an_indented_body() {
         // Arrange, Act
-        let insert = Yaml.insert_text(&field("limits", block(false)), &[]);
+        let insert = Yaml.insert_text(&field("limits", block_type(false)), &[]);
 
         // Assert
         assert_eq!(insert.text, "limits:\n  $0");

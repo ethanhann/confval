@@ -28,6 +28,10 @@ pub(crate) enum Verb {
 pub(crate) fn combine(base: Fields, incoming: Fields, verb: Verb, report: &mut Report) -> Fields {
     let source = base.source();
     let enclosing = base.enclosing();
+    // The base names the instance, so its native label survives the merge the
+    // way its source and enclosing span do. An overlay's label fills in only
+    // when the base level carries none.
+    let label = base.label().cloned().or_else(|| incoming.label().cloned());
     let mut incoming_groups = grouped(incoming);
     let mut items: Vec<Field> = Vec::new();
     for (name, mut base_group) in grouped(base) {
@@ -61,7 +65,11 @@ pub(crate) fn combine(base: Fields, incoming: Fields, verb: Verb, report: &mut R
     for (_, mut group) in incoming_groups {
         items.append(&mut group);
     }
-    Fields::new(source, enclosing, items)
+    let merged = Fields::new(source, enclosing, items);
+    match label {
+        Some(label) => merged.with_label(label),
+        None => merged,
+    }
 }
 
 /// Partitions a level into same-named groups, keeping first-appearance order
@@ -96,12 +104,17 @@ fn without_commented(mut field: Field) -> Field {
     fn strip_fields(fields: Fields) -> Fields {
         let source = fields.source();
         let enclosing = fields.enclosing();
+        let label = fields.label().cloned();
         let items = fields
             .into_items()
             .into_iter()
             .map(without_commented)
             .collect();
-        Fields::new(source, enclosing, items)
+        let stripped = Fields::new(source, enclosing, items);
+        match label {
+            Some(label) => stripped.with_label(label),
+            None => stripped,
+        }
     }
     fn strip_value(value: &mut Value) {
         match &mut value.kind {
@@ -290,7 +303,7 @@ fn kind_label(field: &Field) -> &'static str {
 mod tests {
     use super::*;
     use crate::format::{Entry, Scalar};
-    use crate::source::{SourceId, Span};
+    use crate::source::{Located, SourceId, Span};
 
     const A: SourceId = SourceId(0);
     const B: SourceId = SourceId(1);
@@ -343,6 +356,26 @@ mod tests {
             doc: None,
             kind: FieldKind::Block(Fields::new(A, sp(A, 0, 0), items)),
         }
+    }
+
+    fn labeled_block(name: &str, label: &str, items: Vec<Field>) -> Field {
+        Field {
+            name: name.to_string(),
+            name_span: sp(A, 0, 0),
+            span: sp(A, 0, 0),
+            source: A,
+            doc: None,
+            kind: FieldKind::Block(
+                Fields::new(A, sp(A, 0, 0), items).with_label(Located::detached(label.to_string())),
+            ),
+        }
+    }
+
+    fn label_of(field: &Field) -> Option<&str> {
+        let FieldKind::Block(inner) = &field.kind else {
+            panic!("expected a block field");
+        };
+        inner.label().map(|label| label.value.as_str())
     }
 
     fn object(name: &str, items: Vec<Field>) -> Field {
@@ -722,6 +755,64 @@ mod tests {
         // Assert
         assert_eq!(merged.iter().count(), 3);
         assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn merge_keeps_a_native_label_on_a_deep_merged_block() {
+        // Arrange
+        // An HCL or KDL frontend attaches the label to the block's inner
+        // level. A deep merge with an overlay must not strip it, or the
+        // label field reads as missing after assembly.
+        let base = level(
+            A,
+            sp(A, 0, 0),
+            vec![labeled_block(
+                "upstream",
+                "api",
+                vec![scalar("host", Scalar::String("a".to_string()))],
+            )],
+        );
+        let over = level(
+            A,
+            sp(A, 0, 0),
+            vec![block(
+                "upstream",
+                vec![scalar("host", Scalar::String("b".to_string()))],
+            )],
+        );
+        let mut report = Report::new();
+
+        // Act
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
+        // Assert
+        assert_eq!(label_of(merged.get("upstream").unwrap()), Some("api"));
+        assert!(!report.has_issues(), "issues: {:?}", report.issues());
+    }
+
+    #[test]
+    fn merge_keeps_native_labels_on_an_appended_repeated_group() {
+        // Arrange
+        // A repeated-block group appends whole through the commented-entry
+        // strip, so the labels must survive that rebuild as well.
+        let base = level(
+            A,
+            sp(A, 0, 0),
+            vec![
+                labeled_block("upstream", "api", vec![]),
+                labeled_block("upstream", "db", vec![]),
+            ],
+        );
+        let over = level(A, sp(A, 0, 0), vec![]);
+        let mut report = Report::new();
+
+        // Act
+        let merged = combine(base, over, Verb::Merge, &mut report);
+
+        // Assert
+        let labels: Vec<Option<&str>> = merged.iter().map(label_of).collect();
+        assert_eq!(labels, vec![Some("api"), Some("db")]);
+        assert!(!report.has_issues(), "issues: {:?}", report.issues());
     }
 
     #[test]

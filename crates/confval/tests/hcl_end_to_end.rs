@@ -63,7 +63,7 @@ impl Default for RetrySpec {
 
 // `Lower` is bound on `Validate`, so every spec lowered here needs an impl.
 // The `ValidateNested` half of that bound comes from `#[derive(Spec)]`.
-// These fixtures exercise parsing and lowering. Their semantic checks live in
+// These fixtures exercise parsing and lowering. Their semantic checks are in
 // `validate_server_spec` below, which keeps this file's coverage of the
 // free-function validation path intact.
 impl Validate for ServerSpec {

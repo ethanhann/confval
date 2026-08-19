@@ -9,7 +9,7 @@
 //! the `#[derive(Spec)]`-generated walks, and the handwritten [`FromFields`]
 //! impls.
 //!
-//! The model is deliberately owned (no borrow of the format's AST). Config
+//! The model is owned and borrows nothing from the format's AST. Config
 //! files are small, so the one copy out of the parse tree is cheap and removes
 //! every dependence on one format's node types.
 
@@ -403,6 +403,12 @@ pub trait FromFields: Sized {
 /// produce, because a filled default has no source location. The source walk,
 /// [`to_source_fields`](ToFields::to_source_fields), keeps the spans the spec
 /// holds, because it emits only fields a source wrote.
+///
+/// A labeled block's label is written as its designated child field, the form
+/// every format represents, rather than through the native label slot. The
+/// native label form belongs to a parsed [`Fields`] tree, which the HCL and
+/// KDL emitters write back as label syntax and the other emitters refuse with
+/// [`EmitError::UnrepresentableLabel`](super::EmitError::UnrepresentableLabel).
 pub trait ToFields {
     /// The populated field model with no comments.
     fn to_fields(&self) -> Fields;

@@ -7,8 +7,8 @@
 
 use crate::format::EmitError;
 use crate::format::emit::{
-    blocks_named, child_path, grouped_elements, indent, value_beside_block, values_named,
-    values_then_blocks,
+    blocks_named, child_path, grouped_elements, indent, refuse_label, value_beside_block,
+    values_named, values_then_blocks,
 };
 use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 
@@ -71,13 +71,16 @@ fn members_of(fields: &Fields) -> Vec<(&str, Member<'_>)> {
 }
 
 /// Writes one level as an object. `level` is the nesting depth of the line the
-/// opening brace sits on, so the closing brace lines up with it.
+/// opening brace is on, so the closing brace lines up with it.
 fn write_object(
     out: &mut String,
     fields: &Fields,
     level: usize,
     path: &str,
 ) -> Result<(), EmitError> {
+    if let Some(error) = refuse_label(fields, path) {
+        return Err(error);
+    }
     if let Some(name) = value_beside_block(fields) {
         return Err(EmitError::ConflictingName {
             name: name.to_string(),
@@ -514,6 +517,28 @@ mod tests {
             "{\n  \"tls\": {\n    \"allow\": [\"a\", \"b\"]\n  }\n}\n"
         );
         reparse(&text);
+    }
+
+    #[test]
+    fn emit_json_rejects_a_native_label_it_cannot_write() {
+        // Arrange
+        // A parsed HCL or KDL block carries its label on the inner level, and
+        // JSON has no label syntax and no field name to write it with.
+        let inner = Fields::detached(vec![scalar("host", Scalar::String("h".to_string()))])
+            .with_label(crate::source::Located::detached("api".to_string()));
+        let fields = Fields::detached(vec![Field::detached_block("upstream", inner)]);
+
+        // Act
+        let result = emit_json(&fields);
+
+        // Assert
+        assert_eq!(
+            result,
+            Err(EmitError::UnrepresentableLabel {
+                label: "api".to_string(),
+                path: "upstream".to_string(),
+            })
+        );
     }
 
     #[test]

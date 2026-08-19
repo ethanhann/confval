@@ -1,5 +1,5 @@
 error: `headers` has no derivable default; add a bare #[confval(default)] (or #[confval(default = expr)] for a leaf) or write impl Default by hand
- --> tests/ui/fail/spec_map_derive_default_no_default.rs:8:5
+ --> tests/ui/fail/schema_map_derive_default_no_default.rs:8:5
   |
 8 |     headers: BTreeMap<String, Located<String>>,
   |     ^^^^^^^

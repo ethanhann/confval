@@ -11,5 +11,5 @@ mod text;
 mod yaml;
 
 pub(crate) use json::innermost_is_array;
-pub(crate) use text::{is_identifier, resolve_in_text};
+pub(crate) use text::{TextRecovery, is_identifier, resolve_in_text};
 pub(crate) use yaml::{resolve_in_yaml, starts_new_sequence_element};

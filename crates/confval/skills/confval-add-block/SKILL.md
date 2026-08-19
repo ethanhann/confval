@@ -6,10 +6,10 @@ description: Keep a confval pipeline in sync when a field or block is added, so 
 # Add a field or block to a confval pipeline
 
 You are adding a setting to a project that already has a confval pipeline.
-A configuration setting is not one edit.
-It runs through the spec, the validation, the runtime type, the lowering, and the `Default` impl, and a setting that reaches only some of those layers is a silent gap.
+A configuration setting runs through five layers: the spec, the validation, the runtime type, the lowering, and the `Default` impl.
+A setting that reaches only some of them parses and lowers with no complaint.
 
-Your job is that none of the five is missed.
+Update all five layers for the setting you add.
 
 The compiler catches some of the five for you.
 The spec and the runtime type must agree.
@@ -29,10 +29,14 @@ Add the field to the spec struct as a `Located<T>`.
 Use `#[confval(nested)]` on a new block and give the block its own spec struct.
 Use `Vec<Located<T>>` for a block that may repeat.
 Hold a closed set of strings as a `Located<String>` with a `keyword_enum!` for its enum, rather than an enum in the spec.
+Mark the child field that names a repeated block's instances with `#[confval(label)]`.
+Mark a string field that points at one of those names with `#[confval(references = <block>)]`.
 
 ### 2. The validation
 
-Add the field's rule to the spec type's `Validate` impl.
+Declare a numeric range with `#[confval(range = ...)]` and a closed set with `#[confval(keywords = ...)]` on the field.
+The derive runs a recorded constraint during validation, so the `Validate` impl carries no line for it.
+Add a rule an attribute cannot express to the spec type's `Validate` impl.
 A new block needs its own `Validate` impl, which `validate_all` reaches on its own through the generated traversal, so you do not call it by hand.
 Report at the field's span and accumulate into the `Report` with no early return.
 

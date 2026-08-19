@@ -16,11 +16,78 @@ impl Frontend for Hcl {
     }
 
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {
-        Insert::plain(match &field.ty {
-            SchemaType::Block { .. } => format!("{} {{\n  $0\n}}", field.name),
-            SchemaType::StringList => format!("{} = [$0]", field.name),
-            SchemaType::StringMap => format!("{} = {{ $0 }}", field.name),
-            _ => format!("{} = {}", field.name, super::value_placeholder(self, field)),
-        })
+        match &field.ty {
+            SchemaType::Block { .. } => Insert::snippet(format!("{} {{\n  $0\n}}", field.name)),
+            SchemaType::StringList => Insert::snippet(format!("{} = [$0]", field.name)),
+            SchemaType::StringMap => Insert::snippet(format!("{} = {{ $0 }}", field.name)),
+            _ => {
+                let placeholder = super::value_placeholder(self, field);
+                super::scalar_insert(format!("{} = {placeholder}", field.name), &placeholder)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use confval::schema::{ScalarType, Schema, SchemaType};
+
+    fn field(name: &str, ty: SchemaType) -> SchemaField {
+        SchemaField::new(name.to_string(), None, ty).required()
+    }
+
+    fn block_type() -> SchemaType {
+        SchemaType::Block {
+            schema: Box::new(Schema::new(None, Vec::new())),
+            repeated: false,
+        }
+    }
+
+    #[test]
+    fn a_block_opens_a_brace_body() {
+        // Arrange, Act
+        let insert = Hcl.insert_text(&field("limits", block_type()), &[]);
+
+        // Assert
+        assert_eq!(insert.text, "limits {\n  $0\n}");
+        assert!(insert.snippet);
+    }
+
+    #[test]
+    fn a_string_list_opens_an_array() {
+        // Arrange, Act
+        let insert = Hcl.insert_text(&field("allow", SchemaType::StringList), &[]);
+
+        // Assert
+        assert_eq!(insert.text, "allow = [$0]");
+    }
+
+    #[test]
+    fn a_string_map_opens_an_inline_object() {
+        // Arrange, Act
+        let insert = Hcl.insert_text(&field("headers", SchemaType::StringMap), &[]);
+
+        // Assert
+        assert_eq!(insert.text, "headers = { $0 }");
+    }
+
+    #[test]
+    fn a_scalar_writes_a_key_and_equals() {
+        // Arrange, Act
+        let insert = Hcl.insert_text(
+            &field(
+                "port",
+                SchemaType::Scalar {
+                    leaf: ScalarType::Int,
+                    constraint: None,
+                },
+            ),
+            &[],
+        );
+
+        // Assert
+        assert_eq!(insert.text, "port = ");
+        assert!(!insert.snippet);
     }
 }

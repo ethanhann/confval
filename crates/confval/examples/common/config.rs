@@ -43,7 +43,6 @@ fn allow_to_vec(value: &[Located<String>], _report: &mut Report) -> Option<Vec<S
     Some(value.iter().map(|entry| entry.value.clone()).collect())
 }
 
-/// This is for demo purposes, to see what the values are in the examples' output.
 impl Display for ServerConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         writeln!(

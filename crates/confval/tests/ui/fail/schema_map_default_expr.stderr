@@ -1,5 +1,5 @@
 error: #[confval(default)] is not supported here; a leaf field takes #[confval(default)] or #[confval(default = expr)], while a string list, a map, or a nested block accepts only a bare #[confval(default)]
- --> tests/ui/fail/spec_map_default_expr.rs:6:30
+ --> tests/ui/fail/schema_map_default_expr.rs:6:30
   |
 6 |     #[confval(map, default = 5)]
   |                              ^

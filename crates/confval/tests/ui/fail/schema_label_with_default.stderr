@@ -1,5 +1,5 @@
 error: #[confval(label)] cannot take a default
- --> tests/ui/fail/schema_label_with_default.rs:6:5
+ --> tests/ui/fail/schema_label_with_default.rs:5:15
   |
-6 |     name: Located<String>,
-  |     ^^^^
+5 |     #[confval(label, default = "fallback".to_string())]
+  |               ^^^^^

@@ -15,7 +15,9 @@ use super::member::{Member, Rendered, Shape, members_of, shape_of, shape_of_valu
 use super::text::{comment_out, splice_dash, write_key, write_scalar};
 use crate::format::EmitError;
 use crate::format::emit::indent;
-use crate::format::emit::{child_path, comment_lines, grouped_elements, value_beside_block};
+use crate::format::emit::{
+    child_path, comment_lines, grouped_elements, refuse_label, value_beside_block,
+};
 use crate::format::field::{Fields, Value, ValueKind};
 
 /// Serializes a [`Fields`] tree to canonical YAML text.
@@ -28,7 +30,9 @@ use crate::format::field::{Fields, Value, ValueKind};
 /// to something else, `no` or `123` or `null`, reads back as the string it was.
 /// A key emits bare when it is an ASCII identifier and double-quoted otherwise,
 /// and a key is a name rather than a typed value, so both read back as the same
-/// field name. [`EmitError::UnrepresentableName`] therefore never arises.
+/// field name. [`EmitError::UnrepresentableName`] arises only for a name whose
+/// written form runs past YAML's 1024-character simple-key limit, which the
+/// parser would refuse to read back.
 ///
 /// Doc comments render as `# ` lines above their entry, and a commented entry
 /// renders behind a spaceless `#` with its indentation outside the marker, so
@@ -59,6 +63,9 @@ fn write_level(
     level: usize,
     path: &str,
 ) -> Result<(), EmitError> {
+    if let Some(error) = refuse_label(fields, path) {
+        return Err(error);
+    }
     if let Some(name) = value_beside_block(fields) {
         return Err(EmitError::ConflictingName {
             name: name.to_string(),
@@ -82,6 +89,16 @@ fn write_entry(
     path: &str,
     follows: bool,
 ) -> Result<(), EmitError> {
+    let mut key = String::new();
+    write_key(&mut key, rendered.name);
+    // YAML caps a simple key at 1024 characters, so a longer written form
+    // would emit text the parser refuses to read back.
+    if key.chars().count() > 1024 {
+        return Err(EmitError::UnrepresentableName {
+            name: rendered.name.to_string(),
+            path: path.to_string(),
+        });
+    }
     let shape = shape_of(&rendered.member);
     if follows && shape == Shape::Block {
         out.push('\n');
@@ -90,7 +107,7 @@ fn write_entry(
     let path = child_path(path, rendered.name);
     let mut body = String::new();
     indent(&mut body, level);
-    write_key(&mut body, rendered.name);
+    body.push_str(&key);
     body.push(':');
     match shape {
         Shape::Inline => {
@@ -142,14 +159,17 @@ fn write_inline(out: &mut String, member: &Member, path: &str) -> Result<(), Emi
     }
 }
 
-/// Writes an empty collection as `{}`, and refuses a non-empty one.
+/// Writes a collection with no active field as `{}`, and refuses one that
+/// holds an active field.
 ///
 /// Every caller reaches this only for a level the shape classification called
-/// inline, which it does only when the level is empty. Refusing rather than
-/// writing `{}` means a classifier that stops agreeing with its writer reports
-/// instead of silently emitting an empty mapping over real entries.
+/// inline, which it does only when the level has no active field. Its
+/// commented entries are dropped, the same way a commented block renders.
+/// Refusing rather than writing `{}` means a classifier that stops agreeing
+/// with its writer reports instead of silently emitting an empty mapping over
+/// real entries.
 fn empty_or_refuse(out: &mut String, inner: Option<&Fields>, path: &str) -> Result<(), EmitError> {
-    if inner.is_some_and(|fields| members_of(fields).is_empty()) {
+    if inner.is_some_and(|fields| fields.iter().next().is_none()) {
         out.push_str("{}");
         return Ok(());
     }
@@ -629,6 +649,86 @@ mod tests {
     }
 
     #[test]
+    fn emit_yaml_writes_an_active_empty_block_inline() {
+        // Arrange
+        // A block whose entries are all commented has nothing active to write
+        // below `key:`, and comment lines alone read back as null. It renders
+        // `{}` the way a commented block does, so the level reads as an empty
+        // mapping.
+        let inner =
+            Fields::detached_entries(vec![scalar("max_body_mb", Scalar::Int(16)).as_commented()]);
+        let fields = Fields::detached(vec![Field::detached_block("limits", inner)]);
+
+        // Act
+        let out = emit_yaml(&fields).expect("emit yaml");
+
+        // Assert
+        assert_eq!(out, "limits: {}\n");
+        let reparsed = reparse(&out);
+        let FieldKind::Value(value) = &reparsed.get("limits").unwrap().kind else {
+            panic!("limits should read back as a mapping value");
+        };
+        assert!(matches!(&value.kind, ValueKind::Map(level) if level.iter().count() == 0));
+    }
+
+    #[test]
+    fn emit_yaml_rejects_a_key_longer_than_the_simple_key_limit() {
+        // Arrange
+        // YAML caps a simple key at 1024 characters, so a longer name has no
+        // written form the parser reads back.
+        let long = "k".repeat(1100);
+        let fields = Fields::detached(vec![scalar(&long, Scalar::Int(1))]);
+
+        // Act
+        let result = emit_yaml(&fields);
+
+        // Assert
+        assert_eq!(
+            result,
+            Err(EmitError::UnrepresentableName {
+                name: long,
+                path: String::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn emit_yaml_writes_a_key_at_the_simple_key_limit() {
+        // Arrange
+        let long = "k".repeat(900);
+        let fields = Fields::detached(vec![scalar(&long, Scalar::Int(1))]);
+
+        // Act
+        let out = emit_yaml(&fields).expect("emit yaml");
+
+        // Assert
+        let reparsed = reparse(&out);
+        assert!(reparsed.get(&long).is_some());
+    }
+
+    #[test]
+    fn emit_yaml_rejects_a_native_label_it_cannot_write() {
+        // Arrange
+        // A parsed HCL or KDL block carries its label on the inner level, and
+        // YAML has no label syntax and no field name to write it with.
+        let inner = Fields::detached(vec![scalar("host", Scalar::String("h".to_string()))])
+            .with_label(crate::source::Located::detached("api".to_string()));
+        let fields = Fields::detached(vec![Field::detached_block("upstream", inner)]);
+
+        // Act
+        let result = emit_yaml(&fields);
+
+        // Assert
+        assert_eq!(
+            result,
+            Err(EmitError::UnrepresentableLabel {
+                label: "api".to_string(),
+                path: "upstream".to_string(),
+            })
+        );
+    }
+
+    #[test]
     fn emit_yaml_rejects_a_value_beside_a_same_named_block() {
         // Arrange
         let inner = Fields::detached(vec![
@@ -934,6 +1034,9 @@ mod tests {
         let out = emit_yaml(&fields).unwrap();
 
         // Assert
+        // The template as emitted, before any uncommenting, parses as a
+        // configuration that sets nothing.
+        assert_eq!(reparse(&out).iter().count(), 0);
         let uncommented = out.replace('#', "");
         let round = reparse(&uncommented);
         let mut report = Report::new();

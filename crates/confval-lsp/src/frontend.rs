@@ -14,7 +14,7 @@ use confval::source::{SourceId, SourceMap};
 
 use crate::resolve::{bodies_along_path, resolve_in_tree, value_span_in};
 use crate::scan::{
-    innermost_is_array, resolve_in_text, resolve_in_yaml, starts_new_sequence_element,
+    TextRecovery, innermost_is_array, resolve_in_text, resolve_in_yaml, starts_new_sequence_element,
 };
 
 /// The raw-text recovery a frontend's syntax needs.
@@ -24,6 +24,7 @@ use crate::scan::{
 /// in both parse states, because block YAML's parsed spans do not cover a pending
 /// body position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Recovery {
     /// A brace-delimited block language: HCL, KDL.
     Braces,
@@ -35,8 +36,24 @@ pub enum Recovery {
     Indentation,
 }
 
+impl Recovery {
+    /// The raw-text scan's own dispatch, or `None` for an indentation format,
+    /// whose reader covers both parse states before the text scan is reached.
+    /// The scan's enum has no indentation variant, so it cannot be asked to
+    /// recover a format its readers do not cover.
+    pub(crate) fn text(self) -> Option<TextRecovery> {
+        match self {
+            Recovery::Braces => Some(TextRecovery::Braces),
+            Recovery::Header => Some(TextRecovery::Header),
+            Recovery::Object => Some(TextRecovery::Object),
+            Recovery::Indentation => None,
+        }
+    }
+}
+
 /// The character a frontend writes between a name and its value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ValueSeparator {
     /// `name = value`: HCL, TOML.
     Equals,
@@ -52,20 +69,34 @@ pub enum ValueSeparator {
 /// decides what a typed prefix character means rather than the handler
 /// inferring it from the insert string.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Insert {
     /// The text the completion inserts. A block insert places a `$0` where the
     /// cursor belongs.
     pub text: String,
     /// What the edit absorbs to the left of the replace range.
     pub absorb: Absorb,
+    /// Whether `text` carries snippet markers. The producer declares it, so
+    /// the handler never infers snippet-ness from the string.
+    pub snippet: bool,
 }
 
 impl Insert {
-    /// An insert with no left absorption.
+    /// A literal insert with no left absorption.
     pub fn plain(text: String) -> Self {
+        Self::marked(text, false)
+    }
+
+    /// A snippet insert with no left absorption.
+    pub fn snippet(text: String) -> Self {
+        Self::marked(text, true)
+    }
+
+    fn marked(text: String, snippet: bool) -> Self {
         Self {
             text,
             absorb: Absorb::None,
+            snippet,
         }
     }
 }
@@ -75,6 +106,7 @@ impl Insert {
 /// A format whose insert re-renders a delimiter the operator has already typed
 /// absorbs that delimiter, so accepting the item does not double it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Absorb {
     /// Nothing is absorbed.
     None,
@@ -88,14 +120,15 @@ pub enum Absorb {
     One(u8),
 }
 
-/// The kind of position a cursor sits in.
+/// The kind of position a cursor is in.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PositionKind {
     /// A body position, where an attribute name or a block type is legal.
     Body,
     /// An attribute-value position for the named field.
     AttributeValue {
-        /// The name of the field whose value the cursor sits in.
+        /// The name of the field whose value the cursor is in.
         field: String,
     },
     /// A block-label position, the region between a block's type and its body in
@@ -111,30 +144,31 @@ pub enum PositionKind {
 /// The resolved query result the handlers read.
 ///
 /// It names the schema path from the root to the block that encloses the cursor,
-/// the kind of position the cursor sits in, and the byte range of the identifier
+/// the kind of position the cursor is in, and the byte range of the identifier
 /// or value under the cursor.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CursorContext {
     /// The schema path from the root to the block that encloses the cursor, each
-    /// element the field name of a block the cursor sits inside.
+    /// element the field name of a block the cursor is inside.
     pub path: Vec<String>,
-    /// The kind of position the cursor sits in.
+    /// The kind of position the cursor is in.
     pub kind: PositionKind,
     /// The byte range in the current text that a completion replaces: the
     /// identifier or value under the cursor, or a zero-width range at the cursor
-    /// when it sits on no token. It is scanned from the current text, so it stays
+    /// when it is on no token. It is scanned from the current text, so it stays
     /// valid and on the cursor's line even when the buffer does not parse.
     pub token: (usize, usize),
     /// The text of `token`, carried so the handlers read the typed prefix
     /// without holding the buffer.
     pub token_text: String,
     /// Whether a body completion here opens a new element of a repeated block
-    /// rather than adding a field to the element the cursor sits in. The
+    /// rather than adding a field to the element the cursor is in. The
     /// answer is syntactic, and the frontend resolves it. The handlers consult
     /// it only behind the schema's repeated-block check, so the default at an
     /// unrepeated position is never read.
     pub new_element: bool,
-    /// The fields of the block instance the cursor sits in, when the buffer
+    /// The fields of the block instance the cursor is in, when the buffer
     /// parsed. The handlers read the already-set state and the hover state from
     /// it, so a repeated block addresses the instance the cursor is in rather
     /// than the first. A pending body, a key whose body the tree does not hold
@@ -204,15 +238,23 @@ pub trait Frontend {
     /// diagnostics reuse the real pipeline rather than an approximation.
     fn parse(&self, sources: &SourceMap, id: SourceId, report: &mut Report) -> Option<Fields>;
 
-    /// Parses `text` into the neutral [`Fields`]. The document store holds the
-    /// current parse, or `None` when the text does not parse. A throwaway
-    /// [`SourceMap`] holds the text, because resolution reads only byte offsets,
-    /// which are the same in any map.
-    fn parse_tree(&self, text: &str) -> Option<Fields> {
+    /// Parses `text` into the neutral [`Fields`] and the report the parse
+    /// produced. The document store holds both, so diagnostics reuse the parse
+    /// instead of running it again. A throwaway [`SourceMap`] holds the text,
+    /// because resolution reads only byte offsets, which are the same in any
+    /// map.
+    fn parse_buffer(&self, text: &str) -> (Option<Fields>, Report) {
         let mut sources = SourceMap::new();
         let id = sources.add("<buffer>", text);
         let mut report = Report::new();
-        self.parse(&sources, id, &mut report)
+        let fields = self.parse(&sources, id, &mut report);
+        (fields, report)
+    }
+
+    /// Parses `text` into the neutral [`Fields`], or `None` when the text does
+    /// not parse, dropping the report.
+    fn parse_tree(&self, text: &str) -> Option<Fields> {
+        self.parse_buffer(text).0
     }
 
     /// Resolves a byte offset to the cursor context.
@@ -226,7 +268,18 @@ pub trait Frontend {
         // parse states, because a block mapping's parsed span stops at its last
         // child and an empty key parses as null, so the tree does not cover a
         // pending body position.
-        let mut context = if matches!(self.recovery(), Recovery::Indentation) {
+        let mut context = if let Some(recovery) = self.recovery().text() {
+            match tree {
+                Some(tree) => resolve_in_tree(tree, text, offset, self.block_span_covers_body()),
+                None => resolve_in_text(
+                    text,
+                    offset,
+                    recovery,
+                    self.value_separator(),
+                    self.line_comments(),
+                ),
+            }
+        } else {
             let mut context = resolve_in_yaml(text, offset);
             // YAML resolves its path from indentation, so the instance body is
             // read from the tree here, the second site the tree walk does not
@@ -248,17 +301,6 @@ pub trait Frontend {
                 context.ancestors = bodies;
             }
             context
-        } else {
-            match tree {
-                Some(tree) => resolve_in_tree(tree, text, offset, self.block_span_covers_body()),
-                None => resolve_in_text(
-                    text,
-                    offset,
-                    self.recovery(),
-                    self.value_separator(),
-                    self.hash_is_comment(),
-                ),
-            }
         };
         // Every context field is resolved here, once, so the handlers stop
         // scanning the buffer. The syntactic new-element predicates live with
@@ -301,11 +343,12 @@ pub trait Frontend {
         ValueSeparator::Equals
     }
 
-    /// Whether `#` starts a line comment (HCL) rather than a value token (KDL
-    /// writes booleans `#true`). The text-based recovery reads this when it scans
-    /// blocks. The default is `true`.
-    fn hash_is_comment(&self) -> bool {
-        true
+    /// The line-comment starts the format reads outside a string. The
+    /// text-based recovery skips a comment when it scans blocks and refuses a
+    /// value position inside one. The default is HCL's pair. KDL drops the
+    /// hash, because it writes booleans `#true`.
+    fn line_comments(&self) -> &'static [&'static str] {
+        &["#", "//"]
     }
 
     /// Renders a field's insert in the format, reading the field's
@@ -322,9 +365,11 @@ pub trait Frontend {
 
     /// Wraps a field insert as a new element of a repeated block. A YAML
     /// sequence element takes a `- ` marker, and a JSON array element is an
-    /// object. The default leaves the insert unchanged, because a brace or
-    /// header format never opens an element from a body position.
-    fn wrap_element(&self, insert: String) -> String {
+    /// object. A wrap that adds a snippet marker also sets the insert's
+    /// `snippet` flag, so the grammar stays declared by its producer. The
+    /// default leaves the insert unchanged, because a brace or header format
+    /// never opens an element from a body position.
+    fn wrap_element(&self, insert: Insert) -> Insert {
         insert
     }
 
@@ -366,6 +411,23 @@ mod tests {
     use crate::{Hcl, Yaml};
 
     #[test]
+    fn cursor_context_equality_compares_path_kind_and_token() {
+        // Arrange
+        let base = CursorContext::body(vec!["a".to_string()], (0, 1));
+        let same = CursorContext::body(vec!["a".to_string()], (0, 1));
+        let other_path = CursorContext::body(vec!["b".to_string()], (0, 1));
+        let other_kind =
+            CursorContext::attribute_value(vec!["a".to_string()], "f".to_string(), (0, 1));
+        let other_token = CursorContext::body(vec!["a".to_string()], (0, 2));
+
+        // Act, Assert
+        assert_eq!(base, same);
+        assert_ne!(base, other_path);
+        assert_ne!(base, other_kind);
+        assert_ne!(base, other_token);
+    }
+
+    #[test]
     fn a_brace_frontend_uses_the_default_trait_settings() {
         // Arrange
         let frontend = Hcl;
@@ -376,7 +438,7 @@ mod tests {
         // Assert
         assert_eq!(recovery, Recovery::Braces);
         assert_eq!(frontend.value_separator(), ValueSeparator::Equals);
-        assert!(frontend.hash_is_comment());
+        assert_eq!(frontend.line_comments(), &["#", "//"]);
         assert!(frontend.block_span_covers_body());
     }
 

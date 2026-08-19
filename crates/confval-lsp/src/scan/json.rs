@@ -2,7 +2,7 @@
 //!
 //! It reconstructs the enclosing object path from the open braces and brackets
 //! and the property key before the cursor, so completion still resolves inside
-//! the object or the array element the cursor sits in while the buffer is broken.
+//! the object or the array element the cursor is in while the buffer is broken.
 
 use super::text::skip_string;
 
@@ -47,7 +47,7 @@ fn introducing_key(text: &str, open: usize) -> String {
 }
 
 /// Whether the innermost open bracket at the offset is a JSON array, so the
-/// cursor sits directly in an array rather than inside an element object. This
+/// cursor is directly in an array rather than inside an element object. This
 /// is the JSON half of the new-element answer the frontend resolves onto the
 /// cursor context.
 ///
@@ -106,9 +106,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn json_key_ignores_an_unterminated_trailing_quote() {
+        // Arrange
+        // The segment holds a complete key `a`, then an unterminated quote as its
+        // last byte. `skip_string` returns `bytes.len()`, so the trailing quote's
+        // `end` equals its index plus one. The guard must reject that run rather
+        // than slice a reversed range, so the last real key stays `a`.
+        let segment = "\"a\" \"";
+
+        // Act
+        let last = json_key(segment);
+
+        // Assert
+        assert_eq!(last, Some("a".to_string()));
+    }
+
+    #[test]
     fn an_unpaired_closing_brace_does_not_pop_the_open_array() {
         // Arrange
-        // The `}` never closed the `[`, so the cursor still sits directly in
+        // The `}` never closed the `[`, so the cursor is still directly in
         // the array and a completion wraps a new element.
         let text = "[ }";
 
@@ -129,5 +145,75 @@ mod tests {
 
         // Assert
         assert!(!in_array, "the element object is the innermost bracket");
+    }
+
+    #[test]
+    fn object_path_skips_a_closing_brace_inside_a_quoted_key() {
+        // Arrange
+        // The `}` sits inside the quoted key `"k}"`, so it must not close the
+        // outer object and the enclosing key stays `outer`.
+        let text = "{\"outer\": {\"k}\": 1";
+
+        // Act
+        let path = object_path(text, text.len());
+
+        // Assert
+        assert_eq!(path, vec!["outer".to_string()]);
+    }
+
+    #[test]
+    fn object_path_pops_a_real_closing_brace() {
+        // Arrange
+        // The inner object closes before the cursor, so its key `a` is not an
+        // ancestor of the position after it.
+        let text = "{\"a\": {\"b\": 1}, \"c\": ";
+
+        // Act
+        let path = object_path(text, text.len());
+
+        // Assert
+        assert_eq!(path, Vec::<String>::new());
+    }
+
+    #[test]
+    fn innermost_is_array_skips_brackets_inside_a_string() {
+        // Arrange
+        // The two `]` sit inside the quoted value, so neither closes the array
+        // and the cursor is still directly in it.
+        let text = "[ \"]]\" ";
+
+        // Act
+        let in_array = innermost_is_array(text, text.len());
+
+        // Assert
+        assert!(in_array, "quoted brackets leave the array open");
+    }
+
+    #[test]
+    fn innermost_is_array_pops_a_matching_array_close() {
+        // Arrange
+        // The array closes inside the object, so the innermost open bracket is
+        // the object brace, not the array.
+        let text = "{ [ ] ";
+
+        // Act
+        let in_array = innermost_is_array(text, text.len());
+
+        // Assert
+        assert!(!in_array, "the closed array leaves the object innermost");
+    }
+
+    #[test]
+    fn innermost_is_array_does_not_pop_an_array_across_an_object() {
+        // Arrange
+        // The `]` does not match the innermost `{`, so it pops nothing and the
+        // object stays the innermost open bracket.
+        let text = "[ { ] ";
+
+        // Act
+        let in_array = innermost_is_array(text, text.len());
+
+        // Assert
+        assert!(!in_array, "a mismatched close pops nothing");
     }
 }

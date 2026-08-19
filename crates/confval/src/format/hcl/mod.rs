@@ -6,7 +6,7 @@
 //! `hcl_edit` type escapes. The leaf parsers, the derive-generated walks, and
 //! the handwritten [`FromFields`] impls all work against the neutral model.
 //!
-//! The write path, [`emit_hcl`], lives in the sibling `emit` module.
+//! The write path, [`emit_hcl`], is in the sibling `emit` module.
 //!
 //! HCL offers two ways to write a nested structure: blocks (`server { ... }`)
 //! and object-valued attributes (`server = { ... }`). A block becomes a
@@ -96,7 +96,7 @@ pub fn parse_hcl<T: FromFields>(
 
 /// Converts an hcl-edit node's span to a confval [`Span`]. Nodes not emitted by
 /// the parser have no span and map to a detached one.
-pub fn span_of(node: &impl hcl_edit::Span, source: SourceId) -> Span {
+fn span_of(node: &impl hcl_edit::Span, source: SourceId) -> Span {
     match node.span() {
         Some(range) => Span::new(source, range.start as u32, range.end as u32),
         None => Span::detached(),

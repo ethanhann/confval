@@ -176,31 +176,41 @@ impl Schema {
 }
 
 impl SchemaField {
-    /// Builds a field. The generated walk and a handwritten impl call this.
-    ///
-    /// `structurally_required` is whether the field's shape makes an absent
-    /// field a parse error before the default is folded in, true for a required
-    /// leaf, a bare string list, a required block, or a map, and false for an
-    /// `Option` field or a zero-or-more block list. The [`required`](SchemaField::required)
-    /// field is computed as `structurally_required && !has_default`, so a
-    /// defaulted field is never required and the contradictory "required and
-    /// defaulted" state cannot be built.
-    pub fn new(
-        name: String,
-        doc: Option<String>,
-        structurally_required: bool,
-        has_default: bool,
-        ty: SchemaType,
-    ) -> Self {
+    /// Builds an optional field with no default. The generated walk and a
+    /// handwritten impl call this, then mark the field through the builders:
+    /// [`required`](SchemaField::required) when the field's shape makes an
+    /// absent field a parse error, and
+    /// [`with_default`](SchemaField::with_default) when a default fills it.
+    /// A defaulted field stays unrequired whichever order the two are applied
+    /// in, so the contradictory "required and defaulted" state cannot be
+    /// built.
+    pub fn new(name: String, doc: Option<String>, ty: SchemaType) -> Self {
         Self {
             name,
             doc,
-            required: structurally_required && !has_default,
-            has_default,
+            required: false,
+            has_default: false,
             default_text: None,
             ty,
             label: false,
         }
+    }
+
+    /// Marks the field structurally required: its shape makes an absent field
+    /// a parse error before a default is folded in, true for a required leaf,
+    /// a bare string list, a required block, or a map. A field that also
+    /// declares a default stays unrequired.
+    pub fn required(mut self) -> Self {
+        self.required = !self.has_default;
+        self
+    }
+
+    /// Marks the field defaulted. A defaulted field can be absent, so this
+    /// also clears the required flag.
+    pub fn with_default(mut self) -> Self {
+        self.has_default = true;
+        self.required = false;
+        self
     }
 
     /// Marks this field as its block's label field. The derive calls it for a

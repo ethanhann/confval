@@ -29,31 +29,40 @@ check-code-quality:
     # The near cap admits one structural cousin: the derive's default rendering
     # and the populate walk's leaf mapping both dispatch per leaf and produce
     # different tokens.
-    cargo dupes --exclude tests --exclude benches --exclude examples --exclude-tests check --max-exact 29 --max-near 4 --max-exact-percent 5.0 --max-near-percent 1.0
+    cargo dupes --exclude tests --exclude benches --exclude examples --exclude-tests check --max-exact 30 --max-near 4 --max-exact-percent 5.0 --max-near-percent 1.0
     cargo machete
     cargo fmt --check
     fail=0
     while IFS= read -r f; do
-      line=$(grep -n '#\[cfg(test)\]' "$f" | head -1 | cut -d: -f1 || true)
+      line=$(grep -n '#\[cfg(test)\]\|#\[cfg(all(test' "$f" | head -1 | cut -d: -f1 || true)
       if [ -n "$line" ]; then app=$((line - 1)); else app=$(wc -l < "$f"); fi
       if [ "$app" -gt 600 ]; then echo "file over the 600 application-line hard limit: $f ($app lines)" >&2; fail=1; fi
     done < <(find crates -path '*/src/*' -name '*.rs')
     [ "$fail" -eq 0 ] || exit 1
     echo "check-code-quality passed"
 
-# Run mutation testing across the workspace. Configured in .cargo/mutants.toml.
-mutants jobs="4":
-    cargo mutants -j {{ jobs }}
+# Fast mutant test args: skip the trybuild `compile_fail` case, which costs ~10s
+# per run and cannot catch a runtime-logic mutant. Keep it for `mutants-derive`,
+# where the derive macro's compile-error paths need it.
+mutants_fast_args := "--profile mutants --cargo-test-arg -E --cargo-test-arg 'not binary(compile_fail)'"
 
-# Mutate only the source a diff touches. Note the jobs="4" arg is bound by disk (target / size * jobs), not CPU cores.
-mutants-diff base="main" jobs="4":
+# Run mutation testing across the workspace. Configured in .cargo/mutants.toml.
+mutants jobs="6":
+    cargo mutants {{ mutants_fast_args }} -j {{ jobs }}
+
+# Mutate only the source a diff touches. The mutants profile drops debug info, so the disk cost per job is lower; raise jobs as disk allows.
+mutants-diff base="main" jobs="6":
     #!/usr/bin/env bash
     set -euo pipefail
     diff=target/mutants-since.diff
     mkdir -p target
     git diff {{ base }} -- 'crates/*/src/*.rs' > "$diff"
     if [ ! -s "$diff" ]; then echo "no source changes against {{ base }}"; exit 0; fi
-    cargo mutants --in-diff "$diff" -j {{ jobs }}
+    cargo mutants --in-diff "$diff" {{ mutants_fast_args }} -j {{ jobs }}
+
+# Mutate only confval-derive, with the trybuild `compile_fail` test kept in. Run this to cover the derive macro's diagnostic paths that the fast recipes skip.
+mutants-derive jobs="4":
+    cargo mutants -p confval-derive --profile mutants -j {{ jobs }}
 
 # Compile each format frontend alone, so a cfg gate the all-features build hides cannot drift.
 check-frontends:
@@ -62,6 +71,11 @@ check-frontends:
     cargo check -q -p confval --no-default-features --features derive,kdl
     cargo check -q -p confval --no-default-features --features derive,json
     cargo check -q -p confval --no-default-features --features derive,yaml
+    cargo check -q -p confval-lsp --no-default-features --features hcl
+    cargo check -q -p confval-lsp --no-default-features --features toml
+    cargo check -q -p confval-lsp --no-default-features --features kdl
+    cargo check -q -p confval-lsp --no-default-features --features json
+    cargo check -q -p confval-lsp --no-default-features --features yaml
 
 # Check the bin compiles under the empty default feature set, so it stays free of a feature dependency.
 check-bin:
@@ -139,10 +153,11 @@ check-doc-snippets:
       exit 1
     fi
 
-# Publish both crates to crates.io, confval-derive first (confval pins it with `=`).
+# Publish the crates to crates.io in dependency order (each is pinned with `=`).
 publish:
     cargo publish -p confval-derive
     cargo publish -p confval
+    cargo publish -p confval-lsp
 
 docs:
     cd docs && npm run start

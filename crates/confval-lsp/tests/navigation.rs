@@ -146,7 +146,7 @@ fn definition_on_a_no_parse_buffer_answers_empty() {
 #[test]
 fn references_from_a_native_label_list_the_reference_values() {
     // Arrange
-    // The cursor sits in the HCL block label. Both routes name it.
+    // The cursor is in the HCL block label. Both routes name it.
     let text = GATEWAY_HCL;
     let offset = text.find("\"api\"").unwrap() + 1;
     let schema = GatewaySpec::schema();
@@ -242,7 +242,7 @@ fn references_drop_a_site_resolving_to_a_nearer_scope() {
 #[test]
 fn references_on_a_label_field_name_answer_empty() {
     // Arrange
-    // The cursor sits on the `name` key itself, a body position. Navigation
+    // The cursor is on the `name` key itself, a body position. Navigation
     // answers on the value, not the name.
     let text = GATEWAY_YAML;
     let offset = text.find("name: api").unwrap() + 1;
@@ -293,6 +293,103 @@ fn hierarchical_symbols_nest_the_blocks_with_their_labels() {
             .iter()
             .any(|c| c.name == "port" && c.kind == SymbolKind::FIELD),
         "the scalar children are leaf symbols"
+    );
+}
+
+#[test]
+fn each_repeated_instance_range_contains_its_own_children() {
+    // Arrange
+    // The `upstream` field has two instances followed by the `routes` field.
+    // Each instance's range must bound its own children: the first ends at the
+    // second instance's start, and the last ends at the following field.
+    let text = GATEWAY_YAML;
+    let schema = GatewaySpec::schema();
+    let tree = Yaml.parse_tree(text).expect("the buffer parses");
+    let uri = Uri::from_str("file:///doc").unwrap();
+    let index = LineIndex::new(text);
+
+    // Act
+    let response = document_symbols(
+        &schema,
+        &tree,
+        SymbolShape {
+            covers_body: true,
+            hierarchical: true,
+        },
+        &uri,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let DocumentSymbolResponse::Nested(symbols) = response else {
+        panic!("the hierarchical form");
+    };
+    let upstreams: Vec<_> = symbols.iter().filter(|s| s.name == "upstream").collect();
+    assert_eq!(upstreams.len(), 2, "one container per instance");
+    for upstream in &upstreams {
+        let children = upstream.children.as_ref().expect("children");
+        assert!(!children.is_empty(), "each instance has scalar children");
+        for child in children {
+            assert!(
+                upstream.range.start <= child.range.start && child.range.end <= upstream.range.end,
+                "child {:?} sits inside instance range {:?}",
+                child.range,
+                upstream.range
+            );
+        }
+    }
+    assert!(
+        upstreams[0].range.end <= upstreams[1].range.start,
+        "the first instance ends before the second begins"
+    );
+}
+
+#[test]
+fn a_leaf_selection_covers_the_field_name() {
+    // Arrange
+    // The `port` leaf name starts at the leaf range start, so the selection
+    // must clamp to the name rather than collapse to a zero-width point.
+    let text = GATEWAY_YAML;
+    let schema = GatewaySpec::schema();
+    let tree = Yaml.parse_tree(text).expect("the buffer parses");
+    let uri = Uri::from_str("file:///doc").unwrap();
+    let index = LineIndex::new(text);
+
+    // Act
+    let response = document_symbols(
+        &schema,
+        &tree,
+        SymbolShape {
+            covers_body: true,
+            hierarchical: true,
+        },
+        &uri,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let DocumentSymbolResponse::Nested(symbols) = response else {
+        panic!("the hierarchical form");
+    };
+    let upstream = symbols
+        .iter()
+        .find(|s| s.name == "upstream")
+        .expect("upstream");
+    let children = upstream.children.as_ref().expect("children");
+    let port = children
+        .iter()
+        .find(|c| c.name == "port")
+        .expect("port leaf");
+    let start = index.offset_of(text, port.selection_range.start, ENCODING);
+    let end = index.offset_of(text, port.selection_range.end, ENCODING);
+    assert_eq!(
+        &text[start..end],
+        "port",
+        "the selection covers the field name"
     );
 }
 
@@ -482,6 +579,30 @@ const GATEWAY_TOML: &str = "[[upstream]]\nname = \"api\"\nhost = \"h\"\nport = 1
 const GATEWAY_KDL: &str = "upstream \"api\" {\n  host \"h\"\n  port 1\n}\nroutes {\n  prefix \"/a\"\n  upstream \"api\"\n}\nroutes {\n  prefix \"/b\"\n  upstream \"api\"\n}\n";
 
 const GATEWAY_JSON: &str = "{\n  \"upstream\": [{ \"name\": \"api\", \"host\": \"h\", \"port\": 1 }],\n  \"routes\": [\n    { \"prefix\": \"/a\", \"upstream\": \"api\" },\n    { \"prefix\": \"/b\", \"upstream\": \"api\" }\n  ]\n}\n";
+
+const GATEWAY_HCL_TWO_UPSTREAMS: &str = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\nupstream \"web\" {\n  host = \"h2\"\n  port = 2\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"api\"\n}\nroutes {\n  prefix = \"/b\"\n  upstream = \"api\"\n}\nroutes {\n  prefix = \"/c\"\n  upstream = \"web\"\n}\n";
+
+#[test]
+fn references_from_a_later_native_label_pick_that_label_not_the_first() {
+    // Arrange
+    // Two upstreams declare `api` and `web`. The cursor sits in the second
+    // label, `web`, named by one route. The span-contains check must land on
+    // `web`, not fall back to the first label `api`, which two routes name.
+    let text = GATEWAY_HCL_TWO_UPSTREAMS;
+    let offset = text.find("\"web\"").unwrap() + 1;
+    let schema = GatewaySpec::schema();
+    let index = LineIndex::new(text);
+
+    // Act
+    let found = references_at(&Hcl, &schema, text, offset, false);
+
+    // Assert
+    assert_eq!(found.len(), 1, "only the route naming web: {found:?}");
+    assert!(
+        covered(&found[0], text, &index).contains("web"),
+        "the single hit is the web reference"
+    );
+}
 
 #[test]
 fn kdl_native_label_answers_references_and_no_definition() {

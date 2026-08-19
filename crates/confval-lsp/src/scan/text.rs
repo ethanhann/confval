@@ -3,38 +3,48 @@
 //! When the current buffer parses, resolution walks the neutral field tree,
 //! whose spans align with the text exactly. When it does not, this module
 //! reconstructs the enclosing block path and the position kind from the raw
-//! text, so completion still resolves inside the block the cursor sits in and at
-//! the value the cursor sits on. It reads only the current text, so its offsets
+//! text, so completion still resolves inside the block the cursor is in and at
+//! the value the cursor is on. It reads only the current text, so its offsets
 //! are always current.
 
 use super::json::object_path;
 use crate::encoding::floor_char_boundary;
-use crate::frontend::{CursorContext, Recovery, ValueSeparator};
+use crate::frontend::{CursorContext, ValueSeparator};
 use crate::resolve::{identifier_token, value_token};
+
+/// The reconstruction the raw-text scan runs, one variant per reader it has.
+/// An indentation format has no variant here, so the scan cannot be asked to
+/// recover a format its readers do not cover.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TextRecovery {
+    /// A brace-delimited block language: HCL, KDL.
+    Braces,
+    /// A header-addressed table language: TOML.
+    Header,
+    /// A brace-delimited object language with quoted keys: JSON.
+    Object,
+}
 
 /// Resolves an offset from raw text.
 ///
 /// `recovery` selects how the enclosing path is reconstructed, and `separator`
-/// selects how a value position is detected. `hash_comment` is true when `#`
-/// starts a line comment (HCL) and false when it does not (KDL, JSON).
-/// `Recovery::Indentation` is handled by the YAML reader, not here.
+/// selects how a value position is detected. `comments` is the format's
+/// line-comment vocabulary, read to skip a comment while scanning blocks and
+/// to refuse a value position inside one.
 pub(crate) fn resolve_in_text(
     text: &str,
     offset: usize,
-    recovery: Recovery,
+    recovery: TextRecovery,
     separator: ValueSeparator,
-    hash_comment: bool,
+    comments: &[&str],
 ) -> CursorContext {
     let offset = floor_char_boundary(text, offset);
     let path = match recovery {
-        Recovery::Braces => brace_path(text, offset, hash_comment),
-        Recovery::Header => header_path(text, offset),
-        Recovery::Object => object_path(text, offset),
-        // `Frontend::resolve` routes indentation recovery to the YAML reader
-        // before this function is called, so it never reaches here.
-        Recovery::Indentation => unreachable!("indentation recovery is routed to the YAML reader"),
+        TextRecovery::Braces => brace_path(text, offset, comments),
+        TextRecovery::Header => header_path(text, offset),
+        TextRecovery::Object => object_path(text, offset),
     };
-    match attribute_name(text, offset, separator) {
+    match attribute_name(text, offset, separator, comments) {
         Some((field, value_start)) => {
             // In a colon format the scanned value token walks back through the
             // colon and the quoted key, because both are value bytes. The clamp
@@ -53,15 +63,14 @@ pub(crate) fn resolve_in_text(
 
 /// The enclosing block path in a brace-delimited format: the identifiers of the
 /// blocks whose braces are open at the offset.
-fn brace_path(text: &str, offset: usize, hash_comment: bool) -> Vec<String> {
+fn brace_path(text: &str, offset: usize, comments: &[&str]) -> Vec<String> {
     let bytes = text.as_bytes();
     let mut stack: Vec<String> = Vec::new();
     let mut index = 0;
     while index < offset {
         match bytes[index] {
             b'"' => index = skip_string(bytes, index),
-            b'#' if hash_comment => index = skip_line(bytes, index),
-            b'/' if bytes.get(index + 1) == Some(&b'/') => index = skip_line(bytes, index),
+            _ if starts_comment(&bytes[index..], comments) => index = skip_line(bytes, index),
             b'/' if bytes.get(index + 1) == Some(&b'*') => index = skip_block_comment(bytes, index),
             b'{' => {
                 stack.push(statement_identifier(text, index));
@@ -120,19 +129,24 @@ fn parse_header(line: &str) -> Option<Vec<String>> {
     )
 }
 
-/// The name of the attribute whose value the cursor sits in, with the byte
+/// The name of the attribute whose value the cursor is in, with the byte
 /// offset just past its separator when the separator is a value byte, or `None`
-/// for a body position.
+/// for a body position. A cursor past a comment marker is in the comment,
+/// which is no value position.
 fn attribute_name(
     text: &str,
     offset: usize,
     separator: ValueSeparator,
+    comments: &[&str],
 ) -> Option<(String, Option<usize>)> {
     let line_start = text[..offset]
         .rfind('\n')
         .map(|index| index + 1)
         .unwrap_or(0);
     let line = &text[line_start..offset];
+    if past_comment(line, comments) {
+        return None;
+    }
     match separator {
         ValueSeparator::Equals => attribute_name_equals(line).map(|name| (name, None)),
         ValueSeparator::Colon => {
@@ -143,9 +157,9 @@ fn attribute_name(
 }
 
 /// A value position in a `:` format (JSON): the member key whose value the cursor
-/// sits in and the key's colon offset within the line, or `None` for a body
+/// is in and the key's colon offset within the line, or `None` for a body
 /// position. It resets at each object or array bracket and comma, so a `"key":`
-/// in an enclosing or a sibling member does not classify a cursor that sits in a
+/// in an enclosing or a sibling member does not classify a cursor that is in a
 /// fresh element as a value.
 fn attribute_name_colon(line: &str) -> Option<(String, usize)> {
     let bytes = line.as_bytes();
@@ -187,7 +201,7 @@ fn attribute_name_equals(line: &str) -> Option<String> {
 }
 
 /// A value position in a whitespace format: the line names a node and the cursor
-/// sits past the node name in its argument region, with no block brace.
+/// is past the node name in its argument region, with no block brace.
 fn attribute_name_space(line: &str) -> Option<String> {
     if line.contains('{') {
         return None;
@@ -251,7 +265,36 @@ fn last_identifier(segment: &str) -> Option<String> {
     Some(segment[start..end].to_string())
 }
 
+/// Whether the segment starts with one of the format's comment markers. The
+/// segment is bytes rather than text because the scanners index byte by byte,
+/// and a byte index may be inside a multi-byte character.
+fn starts_comment(segment: &[u8], comments: &[&str]) -> bool {
+    comments
+        .iter()
+        .any(|marker| segment.starts_with(marker.as_bytes()))
+}
+
+/// Whether the cursor's line prefix holds a comment start outside a string, so
+/// the cursor is inside the comment.
+fn past_comment(line: &str, comments: &[&str]) -> bool {
+    let bytes = line.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'"' {
+            index = skip_string(bytes, index);
+            continue;
+        }
+        if starts_comment(&bytes[index..], comments) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
 /// The index just past a string literal that starts at `open`, honoring `\"`.
+/// An unterminated string ends at the buffer, even when its last byte is a
+/// backslash whose escape would step past the end.
 pub(crate) fn skip_string(bytes: &[u8], open: usize) -> usize {
     let mut index = open + 1;
     while index < bytes.len() {
@@ -261,7 +304,7 @@ pub(crate) fn skip_string(bytes: &[u8], open: usize) -> usize {
             _ => index += 1,
         }
     }
-    index
+    bytes.len()
 }
 
 /// The index just past a `/* */` block comment that starts at `start`.
@@ -314,7 +357,13 @@ mod tests {
         let offset = text.find("mode = ").unwrap() + "mode = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
 
         // Assert
         assert_eq!(context.path, vec!["limits".to_string()]);
@@ -328,7 +377,13 @@ mod tests {
         let offset = text.find("mode = ").unwrap() + "mode = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Header, ValueSeparator::Equals, true);
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Header,
+            ValueSeparator::Equals,
+            &["#"],
+        );
 
         // Assert
         assert_eq!(context.path, vec!["limits".to_string()]);
@@ -345,9 +400,9 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Braces,
+            TextRecovery::Braces,
             ValueSeparator::Whitespace,
-            false,
+            &["//"],
         );
 
         // Assert
@@ -362,7 +417,13 @@ mod tests {
         let offset = text.find("  mo\n").unwrap() + "  mo".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
 
         // Assert
         assert_eq!(context.path, vec!["limits".to_string()]);
@@ -378,7 +439,13 @@ mod tests {
         let offset = text.find("port = ").unwrap() + "port = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
 
         // Assert
         // The `{` in the string must not leave a block open.
@@ -387,15 +454,67 @@ mod tests {
     }
 
     #[test]
+    fn a_brace_inside_a_line_comment_does_not_change_the_block_path() {
+        // Arrange
+        // The `}` sits inside a `//` line comment, so the brace scan must skip the
+        // comment and leave the `server` block open at `port`. If the comment is
+        // not skipped, the `}` pops `server` and the path becomes empty.
+        let text = "server {\n  // close } here\n  port = \n}\n";
+        let offset = text.find("port = ").unwrap() + "port = ".len();
+
+        // Act
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
+
+        // Assert
+        assert_eq!(context.path, vec!["server".to_string()]);
+        assert_eq!(context.kind, value("port"));
+    }
+
+    #[test]
+    fn a_lone_slash_is_not_a_block_comment_start() {
+        // Arrange
+        // The `/` in `main /x {` has no following `*`, so it is not a block
+        // comment start. If it were treated as one, `skip_block_comment` would run
+        // to the buffer end, swallow the `{`, and leave the path empty.
+        let text = "main /x {\n  port = \n}\n";
+        let offset = text.find("port = ").unwrap() + "port = ".len();
+
+        // Act
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
+
+        // Assert
+        assert_eq!(context.path, vec!["main".to_string()]);
+        assert_eq!(context.kind, value("port"));
+    }
+
+    #[test]
     fn a_brace_inside_a_block_comment_does_not_close_a_block() {
         // Arrange
-        // The `}` sits inside an HCL `/* */` comment, so it must not close the
+        // The `}` is inside an HCL `/* */` comment, so it must not close the
         // `server` block.
         let text = "server {\n  /* } */\n  port = \n}\n";
         let offset = text.find("port = ").unwrap() + "port = ".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Braces, ValueSeparator::Equals, true);
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
 
         // Assert
         assert_eq!(context.path, vec!["server".to_string()]);
@@ -412,12 +531,101 @@ mod tests {
         let offset = text.find(":en").unwrap() + ":en".len();
 
         // Act
-        let context = resolve_in_text(text, offset, Recovery::Object, ValueSeparator::Colon, false);
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Object,
+            ValueSeparator::Colon,
+            &[],
+        );
 
         // Assert
         assert_eq!(context.kind, value("mode"));
         let (start, end) = context.token;
         assert_eq!(&text[start..end], "en", "the value alone, not the key");
+    }
+
+    #[test]
+    fn a_multibyte_character_in_an_hcl_value_does_not_panic_the_brace_scan() {
+        // Arrange
+        // The brace scan crosses `é`, whose continuation byte is not a char
+        // boundary. Slicing the text at that byte would panic.
+        let text = "region = eu-wést-1\n";
+        let offset = text.len() - 1;
+
+        // Act
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(context.kind, value("region"));
+    }
+
+    #[test]
+    fn a_multibyte_character_in_a_toml_value_does_not_panic_the_comment_scan() {
+        // Arrange
+        let text = "[a]\nname = héllo";
+        let offset = text.len();
+
+        // Act
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Header,
+            ValueSeparator::Equals,
+            &["#"],
+        );
+
+        // Assert
+        assert_eq!(context.path, vec!["a".to_string()]);
+        assert_eq!(context.kind, value("name"));
+    }
+
+    #[test]
+    fn a_multibyte_character_in_a_kdl_node_name_does_not_panic_the_scan() {
+        // Arrange
+        let text = "café 1\n";
+        let offset = text.len() - 1;
+
+        // Act
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Braces,
+            ValueSeparator::Whitespace,
+            &["//"],
+        );
+
+        // Assert
+        assert_eq!(context.path, Vec::<String>::new());
+        assert_eq!(context.kind, PositionKind::Body);
+    }
+
+    #[test]
+    fn a_line_ending_in_a_backslash_does_not_panic_the_colon_scan() {
+        // Arrange
+        // The trailing backslash makes `skip_string` step past the end of the
+        // line, and slicing the key past the line end would panic.
+        let text = "{\n  \"path\": \"C:\\";
+        let offset = text.len();
+
+        // Act
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Object,
+            ValueSeparator::Colon,
+            &[],
+        );
+
+        // Assert
+        assert_eq!(context.kind, value("path"));
     }
 
     #[test]
@@ -432,13 +640,61 @@ mod tests {
         let context = resolve_in_text(
             text,
             offset,
-            Recovery::Braces,
+            TextRecovery::Braces,
             ValueSeparator::Whitespace,
-            false,
+            &["//"],
         );
 
         // Assert
         assert_eq!(context.path, vec!["server".to_string()]);
         assert_eq!(context.kind, value("port"));
+    }
+
+    #[test]
+    fn a_trailing_unterminated_quote_does_not_break_the_colon_key_scan() {
+        // Arrange
+        // The line holds a real member `"mode":`, then a fresh unterminated quote
+        // as its last byte. `skip_string` returns the line length, so that quote's
+        // scanned end lands exactly one past its opening quote, and its previous
+        // byte is the opening quote itself. The content-end guard must keep the
+        // content run empty rather than step back before the quote, which would
+        // slice a reversed range. The pending member stays `mode` at colon 6.
+        let line = "\"mode\": x \"";
+
+        // Act
+        let pending = attribute_name_colon(line);
+
+        // Assert
+        assert_eq!(pending, Some(("mode".to_string(), 6)));
+    }
+
+    #[test]
+    fn a_node_name_with_no_argument_is_not_a_value_position() {
+        // Arrange
+        // The whole line is the node name with nothing after it, so the identifier
+        // run fills the line and there is no argument region. That is a body
+        // position, so the value scan must refuse it rather than read past the
+        // name.
+        let line = "mode";
+
+        // Act
+        let name = attribute_name_space(line);
+
+        // Assert
+        assert_eq!(name, None);
+    }
+
+    #[test]
+    fn skip_line_advances_past_the_newline() {
+        // Arrange
+        // A comment line `# c` is followed by `x` on the next line. The scan must
+        // step to the first byte after the newline, index 4, where `x` begins.
+        let bytes = b"# c\nx";
+
+        // Act
+        let next = skip_line(bytes, 0);
+
+        // Assert
+        assert_eq!(next, 4);
     }
 }

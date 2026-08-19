@@ -6,7 +6,7 @@
 //! on `has_errors`. The warning renders and lowering still runs.
 //!
 //! Swapping the gate to block on `has_issues` is what makes a warning fatal.
-//! That policy belongs to the caller. The gate therefore lives in `common`
+//! That policy belongs to the caller. The gate therefore is in `common`
 //! rather than in confval.
 //!
 //! Run with: cargo run -p confval --example issue_severity --features derive,color,toml

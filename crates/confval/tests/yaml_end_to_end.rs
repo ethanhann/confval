@@ -316,13 +316,7 @@ fn a_syntax_error_reports_one_issue_at_its_location() {
 #[test]
 fn a_root_that_is_not_a_mapping_reports_and_yields_no_tree() {
     // Arrange
-    for input in [
-        "- 1\n- 2\n",
-        "just text\n",
-        "42\n",
-        "",
-        "# only a comment\n",
-    ] {
+    for input in ["- 1\n- 2\n", "just text\n", "42\n"] {
         let mut sources = SourceMap::new();
         let mut report = Report::new();
         let id = sources.add("root.yaml", input);
@@ -336,6 +330,33 @@ fn a_root_that_is_not_a_mapping_reports_and_yields_no_tree() {
             report.issues()[0].message,
             "expected a mapping at the document root",
             "input: {input:?}"
+        );
+    }
+}
+
+#[test]
+fn an_empty_document_reads_as_an_empty_config() {
+    // Arrange
+    // An empty file and a comments-only file parse as a config that sets
+    // nothing, so the report holds the missing required fields rather than a
+    // root-shape error.
+    for input in ["", "# only a comment\n"] {
+        let mut sources = SourceMap::new();
+        let mut report = Report::new();
+        let id = sources.add("root.yaml", input);
+
+        // Act
+        let parsed = parse_yaml::<ServerSpec>(&sources, id, &mut report);
+
+        // Assert
+        assert!(parsed.is_none(), "input: {input:?}");
+        assert!(
+            report
+                .issues()
+                .iter()
+                .any(|issue| issue.message == "missing required field: hostname"),
+            "input: {input:?}, issues: {:?}",
+            report.issues()
         );
     }
 }
@@ -641,4 +662,85 @@ fn a_template_renders_absent_optional_fields_as_commented_entries() {
     assert!(round.allow.is_none());
     assert!(round.tls.is_none());
     assert_eq!(round, spec_of(input));
+}
+
+#[derive(Debug, PartialEq, confval::Spec)]
+struct FleetSpec {
+    #[confval(nested)]
+    service: Vec<Located<ServiceSpec>>,
+}
+
+#[derive(Debug, PartialEq, confval::Spec)]
+struct ServiceSpec {
+    name: Located<String>,
+}
+
+impl Validate for FleetSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for ServiceSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_repeated_block_with_one_instance_round_trips() {
+    // Arrange
+    // With one instance the emitter writes a bare mapping rather than a
+    // one-element sequence, so the parser must read that form back as a
+    // one-element list.
+    let fleet = FleetSpec {
+        service: vec![Located::detached(ServiceSpec {
+            name: Located::detached("api".to_string()),
+        })],
+    };
+    let text = emit_yaml(&fleet.to_fields()).expect("emit yaml");
+    let mut sources = SourceMap::new();
+    let id = sources.add("one.yaml", text.clone());
+    let mut report = Report::new();
+
+    // Act
+    let round: Option<FleetSpec> = parse_yaml(&sources, id, &mut report);
+
+    // Assert
+    assert!(
+        !report.has_issues(),
+        "the emitted text should reparse cleanly, got: {text}\nissues: {:?}",
+        report.issues()
+    );
+    let round = round.unwrap();
+    assert_eq!(round.service.len(), 1);
+    assert_eq!(round.service[0].value.name.value, "api");
+}
+
+#[derive(Debug, PartialEq, confval::Spec)]
+struct QuietSpec {
+    pid_file: Option<Located<String>>,
+}
+
+impl Validate for QuietSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn an_all_optional_template_reparses_to_the_empty_spec() {
+    // Arrange
+    // Every entry of this template is commented, so the emitted document
+    // holds comment lines alone and must still read as an empty config.
+    let quiet = QuietSpec { pid_file: None };
+    let template = emit_yaml(&quiet.to_template()).expect("emit yaml");
+    let mut sources = SourceMap::new();
+    let id = sources.add("template.yaml", template.clone());
+    let mut report = Report::new();
+
+    // Act
+    let round: Option<QuietSpec> = parse_yaml(&sources, id, &mut report);
+
+    // Assert
+    assert!(
+        !report.has_issues(),
+        "the template should reparse cleanly:\n{template}\nissues: {:?}",
+        report.issues()
+    );
+    assert_eq!(round.unwrap(), QuietSpec { pid_file: None });
 }

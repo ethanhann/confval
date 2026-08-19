@@ -5,8 +5,6 @@
 //! attribution breaks with it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-#![cfg(feature = "kdl")]
-
 use kdl::KdlDocument;
 
 const INPUT: &str = r#"server {

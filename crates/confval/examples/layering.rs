@@ -2,7 +2,7 @@
 //! file, environment variables, and command line flags, then validate and
 //! lower it.
 //!
-//! The spec types, validators, config types, and lowering functions live in
+//! The spec types, validators, config types, and lowering functions are in
 //! `common`, shared with the `hcl` and `toml` examples. The same `ServerSpec`
 //! is populated from four sources instead of one.
 //!

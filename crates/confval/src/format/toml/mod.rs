@@ -8,7 +8,7 @@
 //! frontend does, so the leaf parsers, the derive-generated walks, and the
 //! handwritten [`FromFields`] impls work against it unchanged.
 //!
-//! The write path, [`emit_toml`], lives in the sibling `emit` module.
+//! The write path, [`emit_toml`], is in the sibling `emit` module.
 //!
 //! TOML's structural shapes map onto the neutral model as follows:
 //!
@@ -19,8 +19,18 @@
 //! - An array of tables (`[[x]]`) becomes one field whose value is a
 //!   [`ValueKind::Seq`] of maps, so a `Vec<Located<S>>` nested-list field
 //!   lowers from it exactly as it would from an HCL array of objects.
+//!
+//! Behavior contract:
+//!
+//! - A syntax error is reported as one issue at the parser's location, and
+//!   parsing returns `None`. It is the only failure that yields no tree: the
+//!   root of a TOML document is always a table, so an empty file parses as a
+//!   configuration that sets nothing.
+//! - A duplicate key and a duplicate table are errors in TOML's own grammar,
+//!   so each surfaces as a syntax error rather than as duplicate fields.
 //! - A native datetime, which the neutral model has no scalar for, becomes
-//!   [`ValueKind::Other`] and surfaces as an ordinary type mismatch.
+//!   [`ValueKind::Other`] carrying a diagnostic label, so it surfaces as an
+//!   ordinary type mismatch at the field that used it.
 
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};

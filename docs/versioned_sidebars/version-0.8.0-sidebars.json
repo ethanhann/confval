@@ -1,0 +1,52 @@
+{
+  "tutorialSidebar": [
+    "getting-started",
+    {
+      "type": "category",
+      "label": "Guide",
+      "link": {
+        "type": "generated-index",
+        "slug": "/guide",
+        "description": "confval in depth, grouped by task. Load a file into a typed config, generate and convert configuration files, or connect a schema to an editor."
+      },
+      "items": [
+        {
+          "type": "category",
+          "label": "Load a configuration",
+          "collapsed": false,
+          "items": [
+            "pipeline",
+            "guide/parsing",
+            "guide/validation",
+            "guide/lowering",
+            "guide/diagnostics",
+            "guide/layering"
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Generate and convert",
+          "collapsed": false,
+          "items": [
+            "guide/templates",
+            "guide/representations",
+            "guide/format-limitations"
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Schema and editors",
+          "collapsed": false,
+          "items": [
+            "guide/schema-ir",
+            "guide/editor-support",
+            "guide/language-server"
+          ]
+        }
+      ]
+    },
+    "examples",
+    "agent-skills",
+    "contributing"
+  ]
+}

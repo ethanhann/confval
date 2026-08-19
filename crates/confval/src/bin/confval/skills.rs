@@ -17,22 +17,21 @@ pub(crate) struct SkillFile {
     pub(crate) template: &'static str,
 }
 
-/// One skill: a directory of files named for the skill.
+/// One skill: a directory of files named for the skill. `SKILL.md` is its own
+/// field, so a catalog entry without one cannot be built.
 pub(crate) struct Skill {
     /// The skill name, which matches its directory and decides its invocation.
     pub(crate) name: &'static str,
-    /// The files shipped inside the skill directory.
-    pub(crate) files: &'static [SkillFile],
+    /// The skill's `SKILL.md` file.
+    pub(crate) skill_md: SkillFile,
+    /// The reference files shipped beside `SKILL.md`.
+    pub(crate) references: &'static [SkillFile],
 }
 
 impl Skill {
-    /// The skill's `SKILL.md` file.
-    pub(crate) fn skill_md(&self) -> &SkillFile {
-        let path = format!("{}/SKILL.md", self.name);
-        self.files
-            .iter()
-            .find(|file| file.relative_path == path)
-            .unwrap_or_else(|| panic!("skill {} has no SKILL.md in the catalog", self.name))
+    /// Every file the skill installs, `SKILL.md` first.
+    pub(crate) fn files(&self) -> impl Iterator<Item = &SkillFile> {
+        std::iter::once(&self.skill_md).chain(self.references.iter())
     }
 }
 
@@ -40,11 +39,11 @@ impl Skill {
 pub(crate) const SKILLS: &[Skill] = &[
     Skill {
         name: "confval-init",
-        files: &[
-            SkillFile {
-                relative_path: "confval-init/SKILL.md",
-                template: include_str!("../../../skills/confval-init/SKILL.md"),
-            },
+        skill_md: SkillFile {
+            relative_path: "confval-init/SKILL.md",
+            template: include_str!("../../../skills/confval-init/SKILL.md"),
+        },
+        references: &[
             SkillFile {
                 relative_path: "confval-init/references/pipeline.md",
                 template: include_str!("../../../skills/confval-init/references/pipeline.md"),
@@ -61,10 +60,11 @@ pub(crate) const SKILLS: &[Skill] = &[
     },
     Skill {
         name: "confval-add-block",
-        files: &[SkillFile {
+        skill_md: SkillFile {
             relative_path: "confval-add-block/SKILL.md",
             template: include_str!("../../../skills/confval-add-block/SKILL.md"),
-        }],
+        },
+        references: &[],
     },
 ];
 
@@ -186,7 +186,7 @@ mod tests {
     fn all_fence_text() -> String {
         let mut fences = String::new();
         for skill in SKILLS {
-            for file in skill.files {
+            for file in skill.files() {
                 let mut in_fence = false;
                 for line in file.template.lines() {
                     if line.starts_with("```") {
@@ -298,7 +298,7 @@ mod tests {
 
         let embedded: BTreeSet<String> = SKILLS
             .iter()
-            .flat_map(|skill| skill.files.iter())
+            .flat_map(|skill| skill.files())
             .map(|file| file.relative_path.to_string())
             .collect();
 
@@ -310,8 +310,8 @@ mod tests {
     #[test]
     fn body_reference_links_resolve_in_the_catalog() {
         for skill in SKILLS {
-            let body = skill.skill_md().template;
-            let carried: BTreeSet<&str> = skill.files.iter().map(|f| f.relative_path).collect();
+            let body = skill.skill_md.template;
+            let carried: BTreeSet<&str> = skill.files().map(|f| f.relative_path).collect();
             for link in reference_links(body) {
                 let target = format!("{}/{link}", skill.name);
                 assert!(
@@ -341,7 +341,7 @@ mod tests {
     #[test]
     fn frontmatter_obeys_the_specification() {
         for skill in SKILLS {
-            let body = skill.skill_md().template;
+            let body = skill.skill_md.template;
             let block = frontmatter_block(body).expect("SKILL.md has a frontmatter block");
 
             let name = frontmatter_field(body, "name").expect("frontmatter has a name");
@@ -386,7 +386,7 @@ mod tests {
     #[test]
     fn each_body_is_within_the_line_limit() {
         for skill in SKILLS {
-            let lines = skill.skill_md().template.lines().count();
+            let lines = skill.skill_md.template.lines().count();
             assert!(lines <= 500, "{} body is {lines} lines", skill.name);
         }
     }
@@ -395,7 +395,7 @@ mod tests {
     #[test]
     fn a_rendered_file_carries_no_placeholder() {
         for skill in SKILLS {
-            for file in skill.files {
+            for file in skill.files() {
                 assert!(
                     !render(file).contains("{{"),
                     "{} left a placeholder after rendering",
@@ -407,7 +407,7 @@ mod tests {
 
     #[test]
     fn version_is_substituted_into_the_rendered_output() {
-        let init = &SKILLS[0].files[0];
+        let init = &SKILLS[0].skill_md;
         assert!(init.template.contains("{{confval_version}}"));
         assert!(render(init).contains(env!("CARGO_PKG_VERSION")));
     }

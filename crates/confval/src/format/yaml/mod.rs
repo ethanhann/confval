@@ -7,8 +7,8 @@
 //! and the handwritten [`FromFields`] impls all work against the neutral model.
 //!
 //! The core schema resolution, which decides what a scalar's text, style, and
-//! tag mean, lives in the sibling `resolve` module. The write path,
-//! [`emit_yaml`], lives in `emit`, its member model in `member`, and its text
+//! tag mean, is in the sibling `resolve` module. The write path,
+//! [`emit_yaml`], is in `emit`, its member model in `member`, and its text
 //! mechanics in `text`.
 //!
 //! The frontend drives the parser's pull API rather than loading a document
@@ -26,8 +26,11 @@
 //!
 //! - A syntax error is reported as one issue at its position, and parsing
 //!   returns `None`.
-//! - A root that is not a mapping, and a document with no root node, each
-//!   report `expected a mapping at the document root` and return `None`.
+//! - A root that is not a mapping reports
+//!   `expected a mapping at the document root` and returns `None`.
+//! - A document with no root node, which covers an empty file, a
+//!   whitespace-only file, and a comments-only file, parses as a
+//!   configuration that sets nothing, the way an empty TOML or HCL file does.
 //! - A second document reports `expected a single document` and returns `None`,
 //!   so a configuration cannot lose its tail to a silent discard.
 //! - A plain scalar resolves through the YAML 1.2 core schema. A quoted,
@@ -60,6 +63,9 @@ const ROOT_MUST_BE_A_MAPPING: &str = "expected a mapping at the document root";
 const ONE_DOCUMENT: &str = "expected a single document";
 /// The message a key the model has no name for reports.
 const SCALAR_KEY: &str = "expected a scalar key";
+/// The deepest nesting the reader accepts. The reader recurses one frame per
+/// level, so the bound keeps a hostile document from exhausting the stack.
+const MAX_DEPTH: u32 = 128;
 
 /// Parses one registered source into the neutral [`Fields`] tree.
 ///
@@ -77,9 +83,14 @@ pub fn parse_yaml_fields(sources: &SourceMap, id: SourceId, report: &mut Report)
         return None;
     };
     let document = Span::new(id, 0, source.text.len() as u32);
+    // saphyr does not strip a UTF-8 BOM, so the reader skips it here. The
+    // offset table is built over the whole text and shifts every character
+    // index past the BOM, so spans stay aligned with the original source.
+    let text = source.text.strip_prefix('\u{feff}').unwrap_or(&source.text);
     Reader {
-        parser: Parser::new_from_str(&source.text),
+        parser: Parser::new_from_str(text),
         offsets: Offsets::new(&source.text),
+        original: &source.text,
         source: id,
         report,
     }
@@ -106,15 +117,20 @@ pub fn parse_yaml<T: FromFields>(
 struct Offsets {
     positions: Option<Vec<u32>>,
     len: u32,
+    /// Characters the parser never saw, one for a skipped UTF-8 BOM, added to
+    /// every incoming character index so spans align with the original text.
+    skip: usize,
 }
 
 impl Offsets {
     fn new(text: &str) -> Self {
         let len = text.len() as u32;
+        let skip = usize::from(text.starts_with('\u{feff}'));
         if text.is_ascii() {
             return Self {
                 positions: None,
                 len,
+                skip,
             };
         }
         let mut positions: Vec<u32> = text.char_indices().map(|(at, _)| at as u32).collect();
@@ -122,11 +138,13 @@ impl Offsets {
         Self {
             positions: Some(positions),
             len,
+            skip,
         }
     }
 
     /// The byte offset of one character index, clamped to the source's end.
     fn at(&self, characters: usize) -> u32 {
+        let characters = characters + self.skip;
         match &self.positions {
             None => (characters as u32).min(self.len),
             Some(positions) => positions.get(characters).copied().unwrap_or(self.len),
@@ -138,6 +156,9 @@ impl Offsets {
 struct Reader<'input, 'report> {
     parser: Parser<'input, StrInput<'input>>,
     offsets: Offsets,
+    /// The original source text, read for char-boundary math when a span
+    /// widens, so a widened edge never splits a character.
+    original: &'input str,
     source: SourceId,
     report: &'report mut Report,
 }
@@ -178,13 +199,12 @@ impl<'input> Reader<'input, '_> {
             match event {
                 Event::DocumentStart(_) => break,
                 // An empty file, a whitespace-only file, and a file holding
-                // only comments all reach the end with no document.
+                // only comments all reach the end with no document. Each reads
+                // as a configuration that sets nothing, the way an empty TOML
+                // or HCL file does, so an all-commented template parses back
+                // to the defaults.
                 Event::StreamEnd => {
-                    self.report
-                        .error(ROOT_MUST_BE_A_MAPPING)
-                        .at(document)
-                        .emit();
-                    return None;
+                    return Some(Fields::new(self.source, document, Vec::new()));
                 }
                 _ => continue,
             }
@@ -197,7 +217,7 @@ impl<'input> Reader<'input, '_> {
             self.report.error(ROOT_MUST_BE_A_MAPPING).at(at).emit();
             return None;
         };
-        let (items, _) = self.entries(span)?;
+        let (items, _) = self.entries(span, 0)?;
         let fields = Fields::new(self.source, document, items);
         loop {
             let (event, span) = self.next()?;
@@ -216,7 +236,7 @@ impl<'input> Reader<'input, '_> {
     /// Reads one mapping's entries, and the span running from its opening event
     /// through its closing one. The span is what a nested level reports a
     /// missing field at.
-    fn entries(&mut self, start: YamlSpan) -> Option<(Vec<Field>, Span)> {
+    fn entries(&mut self, start: YamlSpan, depth: u32) -> Option<(Vec<Field>, Span)> {
         let mut items: Vec<Field> = Vec::new();
         loop {
             let (event, key_span) = self.next()?;
@@ -236,7 +256,7 @@ impl<'input> Reader<'input, '_> {
             };
             let name_span = self.span(key_span);
             let (event, value_span) = self.next()?;
-            let value = self.node(event, value_span)?;
+            let value = self.node(event, value_span, depth)?;
             let field_span = Span::new(self.source, name_span.start, value.span.end);
             items.push(Field::parsed(
                 name,
@@ -249,19 +269,21 @@ impl<'input> Reader<'input, '_> {
     }
 
     /// Reads one sequence's elements and its whole span.
-    fn elements(&mut self, start: YamlSpan) -> Option<(Vec<Value>, Span)> {
+    fn elements(&mut self, start: YamlSpan, depth: u32) -> Option<(Vec<Value>, Span)> {
         let mut elements: Vec<Value> = Vec::new();
         loop {
             let (event, span) = self.next()?;
             if matches!(event, Event::SequenceEnd) {
                 return Some((elements, self.range(start, span)));
             }
-            elements.push(self.node(event, span)?);
+            elements.push(self.node(event, span, depth)?);
         }
     }
 
-    /// Reads one node, whose opening event has already been taken.
-    fn node(&mut self, event: Event<'input>, span: YamlSpan) -> Option<Value> {
+    /// Reads one node, whose opening event has already been taken. `depth` is
+    /// the nesting level the node is at, checked against [`MAX_DEPTH`]
+    /// before the collection arms recurse.
+    fn node(&mut self, event: Event<'input>, span: YamlSpan, depth: u32) -> Option<Value> {
         match event {
             Event::Scalar(text, style, _, tag) => Some(Value {
                 span: self.span(span),
@@ -274,8 +296,11 @@ impl<'input> Reader<'input, '_> {
                 kind: ValueKind::Other("alias"),
             }),
             Event::SequenceStart(_, tag) => {
+                if depth >= MAX_DEPTH {
+                    return self.refuse_depth(span);
+                }
                 if reads_through(tag.as_deref(), "seq") {
-                    let (elements, whole) = self.elements(span)?;
+                    let (elements, whole) = self.elements(span, depth + 1)?;
                     return Some(Value {
                         span: whole,
                         kind: ValueKind::Seq(elements),
@@ -284,8 +309,11 @@ impl<'input> Reader<'input, '_> {
                 self.refuse(span)
             }
             Event::MappingStart(_, tag) => {
+                if depth >= MAX_DEPTH {
+                    return self.refuse_depth(span);
+                }
                 if reads_through(tag.as_deref(), "map") {
-                    let (items, whole) = self.entries(span)?;
+                    let (items, whole) = self.entries(span, depth + 1)?;
                     return Some(Value {
                         span: whole,
                         kind: ValueKind::Map(Fields::new(self.source, whole, items)),
@@ -305,6 +333,16 @@ impl<'input> Reader<'input, '_> {
                 None
             }
         }
+    }
+
+    /// Reports a collection nested past [`MAX_DEPTH`] and fails the parse.
+    fn refuse_depth(&mut self, span: YamlSpan) -> Option<Value> {
+        let at = self.span(span);
+        self.report
+            .error(format!("nesting exceeds {MAX_DEPTH} levels"))
+            .at(at)
+            .emit();
+        None
     }
 
     /// Consumes a collection carrying a tag the frontend refuses, so parsing
@@ -363,14 +401,29 @@ impl<'input> Reader<'input, '_> {
             return span;
         }
         if span.start < self.offsets.len {
-            return Span::new(span.source, span.start, span.start + 1);
+            let end = ceil_boundary(self.original, span.start as usize + 1);
+            return Span::new(span.source, span.start, end as u32);
         }
-        Span::new(
-            span.source,
-            self.offsets.len.saturating_sub(1),
-            self.offsets.len,
-        )
+        let start = floor_boundary(self.original, self.offsets.len.saturating_sub(1) as usize);
+        Span::new(span.source, start as u32, self.offsets.len)
     }
+}
+
+/// The nearest char boundary at or below `at`.
+fn floor_boundary(text: &str, mut at: usize) -> usize {
+    while at > 0 && !text.is_char_boundary(at) {
+        at -= 1;
+    }
+    at
+}
+
+/// The nearest char boundary at or above `at`, capped at the text's end.
+fn ceil_boundary(text: &str, mut at: usize) -> usize {
+    at = at.min(text.len());
+    while at < text.len() && !text.is_char_boundary(at) {
+        at += 1;
+    }
+    at
 }
 
 /// The depth one event opens: one for a collection, zero for anything that
@@ -607,7 +660,7 @@ mod tests {
     fn a_valueless_key_widens_its_zero_width_span() {
         // Arrange
         // `key:` reads as a null whose scalar has no extent, and a zero-width
-        // span renders as no highlight at all.
+        // span renders as no highlight.
         let input = "key:\nport: 1\n";
 
         // Act
@@ -753,9 +806,10 @@ mod tests {
     #[test]
     fn a_span_at_the_end_of_input_stays_inside_the_source() {
         // Arrange
-        // An unterminated collection reports at the end, where there is no byte
-        // ahead to widen into.
-        let input = "a: [1, 2";
+        // An unterminated collection reports at the end, where there is no
+        // byte ahead to widen into. The last character is multi-byte, so a
+        // byte-wise step back would split it.
+        let input = "a: [1, €";
 
         // Act
         let report = reject(input);
@@ -768,6 +822,80 @@ mod tests {
             span.start,
             span.end,
             input.len()
+        );
+        // With no byte ahead, the span widens backward across the last
+        // character rather than staying zero-width or reaching the document
+        // start, so it slices back to the whole trailing character.
+        assert_eq!(
+            input.get(span.start as usize..span.end as usize),
+            Some("\u{20ac}")
+        );
+    }
+
+    #[test]
+    fn a_utf8_bom_does_not_join_the_first_key() {
+        // Arrange
+        // saphyr does not strip a BOM, so the reader skips it before parsing
+        // and keeps every span aligned with the original text.
+        let input = "\u{feff}port: 1\n";
+
+        // Act
+        let fields = parse(input);
+
+        // Assert
+        let field = fields.get("port").unwrap();
+        assert_eq!(
+            &input[field.name_span.start as usize..field.name_span.end as usize],
+            "port"
+        );
+    }
+
+    #[test]
+    fn nesting_past_the_depth_limit_is_reported_rather_than_fatal() {
+        // Arrange
+        // The reader recurses one frame per level, so without a bound this
+        // roughly 5 KB input overflows the stack and aborts the process.
+        let input = format!("a:\n{}1\n", "- ".repeat(2500));
+
+        // Act
+        let report = reject(&input);
+
+        // Assert
+        assert!(
+            report.issues()[0].message.contains("nesting"),
+            "got: {:?}",
+            report.issues()
+        );
+    }
+
+    #[test]
+    fn nesting_inside_the_depth_limit_parses() {
+        // Arrange
+        let input = format!("a:\n{}1\n", "- ".repeat(100));
+
+        // Act
+        let fields = parse(&input);
+
+        // Assert
+        assert!(fields.get("a").is_some());
+    }
+
+    #[test]
+    fn nesting_past_the_depth_limit_in_mappings_is_reported() {
+        // Arrange
+        // The reader recurses one frame per nested mapping, so the mapping
+        // arm's depth must climb with each level. Nested flow mappings drive
+        // that arm, where the sequence test drives the sequence arm.
+        let depth = MAX_DEPTH as usize + 20;
+        let input = format!("a: {}1{}\n", "{b: ".repeat(depth), "}".repeat(depth));
+
+        // Act
+        let report = reject(&input);
+
+        // Assert
+        assert_eq!(
+            report.issues()[0].message,
+            format!("nesting exceeds {MAX_DEPTH} levels")
         );
     }
 
@@ -834,23 +962,23 @@ mod tests {
     }
 
     #[test]
-    fn a_document_with_no_root_node_reports_at_the_whole_document() {
+    fn a_document_with_no_root_node_parses_as_an_empty_config() {
         // Arrange
-        // An empty file, whitespace alone, and comments alone all reach the end
-        // of the stream without a document.
+        // An empty file, whitespace alone, and comments alone all reach the
+        // end of the stream without a document. Each reads as a configuration
+        // that sets nothing, the way an empty TOML or HCL file does, so an
+        // all-commented template parses back to the defaults.
         for input in ["", "  \n  ", "# just a comment\n"] {
             // Act
-            let report = reject(input);
+            let fields = parse(input);
 
             // Assert
+            assert_eq!(fields.iter().count(), 0, "input: {input:?}");
             assert_eq!(
-                report.issues()[0].message,
-                ROOT_MUST_BE_A_MAPPING,
+                fields.enclosing().end as usize,
+                input.len(),
                 "input: {input:?}"
             );
-            let span = report.issues()[0].span.unwrap();
-            assert_eq!(span.start, 0);
-            assert_eq!(span.end as usize, input.len(), "input: {input:?}");
         }
     }
 
@@ -1016,6 +1144,74 @@ mod tests {
         }
         // The refused collection was consumed, so the fields after it survive.
         assert_eq!(fields.iter().count(), 4);
+    }
+
+    #[test]
+    fn a_refused_tagged_collection_with_a_nested_collection_is_fully_consumed() {
+        // Arrange
+        // A custom tag on a mapping is refused, so the reader drains the whole
+        // node's events. The nested sequence drives drain's depth counter above
+        // one, and a field after the refused node only survives when that
+        // counter climbs on a nested opening rather than falling.
+        let input = "custom: !custom\n  a:\n    - 1\n    - 2\nport: 8080\n";
+
+        // Act
+        let fields = parse(input);
+
+        // Assert
+        let mut report = Report::new();
+        assert!(parse_string_field(fields.get("custom").unwrap(), &mut report).is_none());
+        assert_eq!(
+            report.issues()[0].message,
+            "expected string, found tagged value"
+        );
+        let mut report = Report::new();
+        assert_eq!(
+            parse_int_field(fields.get("port").unwrap(), &mut report)
+                .unwrap()
+                .value,
+            8080
+        );
+        assert_eq!(fields.iter().count(), 2);
+    }
+
+    #[test]
+    fn a_scan_error_at_a_multibyte_char_widens_across_the_whole_char() {
+        // Arrange
+        // The tab in block indentation is a syntax error the parser marks at
+        // the character after it. That character is multi-byte, so the widened
+        // zero-width error span must reach across all of its bytes to land on a
+        // char boundary and slice back to the whole character.
+        let input = "a:\n\t\u{20ac}: 1\n";
+
+        // Act
+        let report = reject(input);
+
+        // Assert
+        let span = report.issues()[0].span.unwrap();
+        assert_eq!(
+            input.get(span.start as usize..span.end as usize),
+            Some("\u{20ac}")
+        );
+    }
+
+    #[test]
+    fn a_non_specific_tag_on_a_collection_reads_the_collection_through() {
+        // Arrange
+        // The non-specific `!` on a sequence resolves to the node itself, so
+        // the sequence reads as ordinary data rather than a refused tagged
+        // value.
+        let input = "items: ! [\"a\", \"b\"]\n";
+
+        // Act
+        let fields = parse(input);
+
+        // Assert
+        let mut report = Report::new();
+        let items = parse_string_list_field(fields.get("items").unwrap(), &mut report).unwrap();
+        assert_eq!(items.value.len(), 2);
+        assert_eq!(items.value[0].value, "a");
+        assert!(!report.has_issues());
     }
 
     #[test]

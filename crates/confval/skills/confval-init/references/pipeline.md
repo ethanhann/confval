@@ -89,7 +89,7 @@ Lowering does not accumulate.
 It reports one error and stops, because a lowering error means an earlier phase let something through rather than that the operator made a mistake.
 Say so in that error's message.
 
-The trait names the two halves depend on are worth importing together when you write a spec by hand.
+When you write a spec by hand, import the traits that validation and lowering require.
 
 ```rust
 use confval::prelude::{Lower, Span, Validate, ValidateNested};
@@ -108,7 +108,7 @@ pub struct Located<T> {
 
 The frontend sets the span on every leaf as it parses.
 A value filled from a `#[confval(default)]` carries a detached span, because no source text stands behind it.
-Validation consumes the span by passing it to `report.at(...)`, so a diagnostic points at the exact line and column.
+Validation consumes the span by passing it to `report.at(...)`, so a diagnostic points at the line and column.
 A `narrow` helper does the same on the lowering side, so an out-of-range value that slipped past validation still reports at its source location.
 Equality on `Located` ignores the span, so two configs with the same values compare equal whatever their formatting.
 
@@ -137,12 +137,12 @@ range_constraint!(PORT, i64, min: 1, max: 65535);
 #[derive(confval::Spec)]
 struct ServerSpec {
     hostname: Located<String>,
+    #[confval(range = PORT)]
     port: Located<i64>,
 }
 
 impl Validate for ServerSpec {
     fn validate(&self, report: &mut Report) {
-        PORT.check_located(&self.port, "port", report);
         if self.hostname.value.is_empty() {
             report
                 .error("hostname must not be empty")

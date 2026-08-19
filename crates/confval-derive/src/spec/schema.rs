@@ -56,24 +56,22 @@ pub(crate) fn field_schema(
 ) -> syn::Result<TokenStream2> {
     let name = ident.unraw().to_string();
     let doc = option_string(&options.doc);
-    let has_default = options.default.is_some();
-    let structurally_required = structurally_required(shape);
     let ty = schema_type(shape, options)?;
-    reject_label_misuse(ident, shape, options)?;
+    reject_label_misuse(shape, options)?;
     let mut field = quote! {
-        ::confval::schema::SchemaField::new(
-            #name.to_string(),
-            #doc,
-            #structurally_required,
-            #has_default,
-            #ty,
-        )
+        ::confval::schema::SchemaField::new(#name.to_string(), #doc, #ty)
     };
+    if structurally_required(shape) {
+        field = quote! { #field.required() };
+    }
+    if options.default.is_some() {
+        field = quote! { #field.with_default() };
+    }
     if let (FieldShape::Leaf { leaf, .. }, Some(expr)) = (shape, options.default_value()) {
         let rendered = default_text(leaf, &expr);
         field = quote! { #field.with_default_text(#rendered) };
     }
-    if options.label {
+    if options.label.is_some() {
         Ok(quote! { #field.as_label() })
     } else {
         Ok(field)
@@ -116,14 +114,10 @@ fn default_text(leaf: &Leaf, expr: &TokenStream2) -> TokenStream2 {
 /// non-string scalar cannot be a label. An optional leaf names nothing when the
 /// block carries no label. A default would build a value the reference pass then
 /// reports as undefined.
-fn reject_label_misuse(
-    ident: &Ident,
-    shape: &FieldShape,
-    options: &FieldOptions,
-) -> syn::Result<()> {
-    if !options.label {
+fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Result<()> {
+    let Some(label) = &options.label else {
         return Ok(());
-    }
+    };
     match shape {
         FieldShape::Leaf {
             leaf: Leaf::String,
@@ -132,7 +126,7 @@ fn reject_label_misuse(
         } => {
             if *optional {
                 return Err(syn::Error::new_spanned(
-                    ident,
+                    label,
                     "#[confval(label)] cannot be optional",
                 ));
             }
@@ -140,14 +134,14 @@ fn reject_label_misuse(
         // A non-string scalar leaf, such as an integer.
         FieldShape::Leaf { .. } => {
             return Err(syn::Error::new_spanned(
-                ident,
+                label,
                 "#[confval(label)] requires a String leaf",
             ));
         }
         // A list, a map, or a nested block, matching the constraint rejects.
         _ => {
             return Err(syn::Error::new_spanned(
-                ident,
+                label,
                 "#[confval(label)] requires a String leaf; \
                  it cannot apply to a list, a map, or a nested block",
             ));
@@ -155,8 +149,30 @@ fn reject_label_misuse(
     }
     if options.default.is_some() {
         return Err(syn::Error::new_spanned(
-            ident,
+            label,
             "#[confval(label)] cannot take a default",
+        ));
+    }
+    Ok(())
+}
+
+/// Rejects a nested field whose type is the spec being derived. The generated
+/// `schema()` builds the whole tree eagerly, so a spec that nests itself
+/// would recurse without end at the first `schema()` call.
+pub(crate) fn reject_self_nesting(spec: &Ident, shape: &FieldShape) -> syn::Result<()> {
+    let spec_ty = match shape {
+        FieldShape::Nested { spec_ty, .. } | FieldShape::NestedList { spec_ty } => &**spec_ty,
+        _ => return Ok(()),
+    };
+    if let syn::Type::Path(path) = spec_ty
+        && path.qself.is_none()
+        && path.path.segments.len() == 1
+        && path.path.segments[0].ident == *spec
+    {
+        return Err(syn::Error::new_spanned(
+            spec_ty,
+            "#[confval(nested)] cannot nest a spec inside itself; \
+             a configuration schema is a finite tree",
         ));
     }
     Ok(())
@@ -266,11 +282,24 @@ fn constraint_tokens(leaf: &Leaf, options: &FieldOptions) -> syn::Result<TokenSt
                     "#[confval(range = ...)] requires an Int or Float leaf",
                 ));
             }
+            // A float bound renders through `{:?}`, the form the default text
+            // uses, so a whole-number bound keeps its `.0` and hover on a
+            // float field reads float text.
+            let (min, max) = match leaf {
+                Leaf::Float => (
+                    quote! { ::std::format!("{:?}", #path.min) },
+                    quote! { ::std::format!("{:?}", #path.max) },
+                ),
+                _ => (
+                    quote! { ::std::string::ToString::to_string(&#path.min) },
+                    quote! { ::std::string::ToString::to_string(&#path.max) },
+                ),
+            };
             Ok(quote! {
                 ::core::option::Option::Some(
                     ::confval::schema::Constraint::Range {
-                        min: ::std::string::ToString::to_string(&#path.min),
-                        max: ::std::string::ToString::to_string(&#path.max),
+                        min: #min,
+                        max: #max,
                         units: #path.units,
                         help: #path.help,
                     },

@@ -8,7 +8,7 @@ resolver = "2"
 
 
 [workspace.package]
-version = "0.7.3"
+version = "0.8.0"
 edition = "2024"
 rust-version = "1.86"
 license = "Apache-2.0"
@@ -17,6 +17,13 @@ readme = "README.md"
 
 [profile.dev]
 opt-level = 0
+
+# A build profile for `cargo mutants`. It drops debug info, so the linker and
+# macOS dsymutil do much less work per mutant, and the target directory stays
+# small enough to run more parallel jobs.
+[profile.mutants]
+inherits = "dev"
+debug = false
 
 [profile.release]
 opt-level = 3               # Maximize performance

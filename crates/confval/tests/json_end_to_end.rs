@@ -573,3 +573,52 @@ fn a_template_emits_the_same_text_as_the_populated_model() {
     assert!(round.allow.is_none());
     assert!(round.tls.is_none());
 }
+
+#[derive(Debug, PartialEq, confval::Spec)]
+struct FleetSpec {
+    #[confval(nested)]
+    service: Vec<Located<ServiceSpec>>,
+}
+
+#[derive(Debug, PartialEq, confval::Spec)]
+struct ServiceSpec {
+    name: Located<String>,
+}
+
+impl Validate for FleetSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for ServiceSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_repeated_block_with_one_instance_round_trips() {
+    // Arrange
+    // With one instance the emitter writes a bare object rather than a
+    // one-element array, so the parser must read that form back as a
+    // one-element list.
+    let fleet = FleetSpec {
+        service: vec![Located::detached(ServiceSpec {
+            name: Located::detached("api".to_string()),
+        })],
+    };
+    let text = emit_json(&fleet.to_fields()).expect("emit json");
+    let mut sources = SourceMap::new();
+    let id = sources.add("one.json", text.clone());
+    let mut report = Report::new();
+
+    // Act
+    let round: Option<FleetSpec> = parse_json(&sources, id, &mut report);
+
+    // Assert
+    assert!(
+        !report.has_issues(),
+        "the emitted text should reparse cleanly, got: {text}\nissues: {:?}",
+        report.issues()
+    );
+    let round = round.unwrap();
+    assert_eq!(round.service.len(), 1);
+    assert_eq!(round.service[0].value.name.value, "api");
+}

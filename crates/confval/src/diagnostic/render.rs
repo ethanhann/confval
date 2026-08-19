@@ -1,6 +1,6 @@
 //! Rendering of a [`Report`] into human- and machine-readable output.
 //!
-//! The report data model lives in [`report`](super::report). This module reads a
+//! The report data model is in [`report`](super::report). This module reads a
 //! finished report and formats it against a [`SourceMap`]. The plain and JSON
 //! formats resolve each span's byte offset into a line and column, and the pretty
 //! format passes byte ranges to `annotate-snippets`, which resolves them. Three
@@ -642,6 +642,32 @@ mod tests {
             only_b < unlocated,
             "location-less issues come last: {rendered}"
         );
+    }
+
+    #[cfg(feature = "color")]
+    #[test]
+    fn render_pretty_separates_consecutive_issues_with_one_blank_line() {
+        // Arrange
+        // Two issues render as two blocks. A blank line falls between them and
+        // none before the first, which pins the position guard rather than only
+        // its single-issue endpoint.
+        let (sources, id) = one_source();
+        let mut report = Report::new();
+        report
+            .error("port out of range")
+            .at(Span::new(id, 7, 12))
+            .emit();
+        report
+            .error("port out of range")
+            .at(Span::new(id, 7, 12))
+            .emit();
+
+        // Act
+        let rendered = pretty(&sources, &report);
+
+        // Assert
+        let block = "error: port out of range\n  ╭▸ test.hcl:1:8\n  │\n1 │ port = 99999\n  ╰╴       ━━━━━\n";
+        assert_eq!(rendered, format!("{block}\n{block}"));
     }
 
     #[cfg(feature = "serde")]

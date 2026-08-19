@@ -133,7 +133,7 @@ fn default_satisfies(constraint: &Option<Constraint>, text: &str) -> bool {
     }
 }
 
-/// Whether a diagnostic's range sits inside or equal to the value span. A
+/// Whether a diagnostic's range is inside or equal to the value span. A
 /// position beyond the current text is no containment, so a stale client
 /// position cannot clamp onto a line end or the final offset and qualify.
 fn contained_in(
@@ -163,4 +163,67 @@ fn offset_within(
     let offset = index.offset_of(text, position, encoding);
     let round_trip = index.range_of_bytes(text, (offset, offset), encoding).start;
     (round_trip == position).then_some(offset)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ENCODING: PositionEncoding = PositionEncoding::Utf8;
+
+    /// A diagnostic whose range covers the given byte span.
+    fn diagnostic_over(text: &str, span: (usize, usize), index: &LineIndex) -> Diagnostic {
+        Diagnostic {
+            range: index.range_of_bytes(text, span, ENCODING),
+            ..Diagnostic::default()
+        }
+    }
+
+    #[test]
+    fn contained_in_is_false_when_the_diagnostic_starts_before_the_value_span() {
+        // Arrange
+        let text = "0123456789\n";
+        let index = LineIndex::new(text);
+        let diagnostic = diagnostic_over(text, (1, 3), &index);
+
+        // Act
+        let contained = contained_in(&diagnostic, (4, 8), text, &index, ENCODING);
+
+        // Assert
+        assert!(
+            !contained,
+            "a diagnostic reaching left of the value span is not contained"
+        );
+    }
+
+    #[test]
+    fn contained_in_is_false_when_the_diagnostic_ends_after_the_value_span() {
+        // Arrange
+        let text = "0123456789\n";
+        let index = LineIndex::new(text);
+        let diagnostic = diagnostic_over(text, (5, 9), &index);
+
+        // Act
+        let contained = contained_in(&diagnostic, (4, 8), text, &index, ENCODING);
+
+        // Assert
+        assert!(
+            !contained,
+            "a diagnostic reaching right of the value span is not contained"
+        );
+    }
+
+    #[test]
+    fn contained_in_is_true_when_the_diagnostic_sits_inside_the_value_span() {
+        // Arrange
+        let text = "0123456789\n";
+        let index = LineIndex::new(text);
+        let diagnostic = diagnostic_over(text, (5, 7), &index);
+
+        // Act
+        let contained = contained_in(&diagnostic, (4, 8), text, &index, ENCODING);
+
+        // Assert
+        assert!(contained, "a diagnostic inside the value span is contained");
+    }
 }

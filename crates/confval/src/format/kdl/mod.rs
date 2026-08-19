@@ -6,7 +6,7 @@
 //! kdl-rs type escapes. The leaf parsers, the derive-generated walks, and the
 //! handwritten [`FromFields`] impls all work against the neutral model.
 //!
-//! The write path, [`emit_kdl`], lives in the sibling `emit` module.
+//! The write path, [`emit_kdl`], is in the sibling `emit` module.
 //!
 //! A KDL node maps to one field by its shape. A node with only arguments is a
 //! value. One scalar argument is a scalar, more are a sequence, and a bare node
@@ -640,7 +640,7 @@ mod tests {
         let FieldKind::Block(tls) = &server.get("tls").unwrap().kind else {
             panic!("tls should be a block");
         };
-        // The enclosing span sits inside the children block, so a
+        // The enclosing span is inside the children block, so a
         // missing-field error points into the braces.
         let enclosing = tls.enclosing();
         assert!(enclosing.start as usize > input.find("tls").unwrap());

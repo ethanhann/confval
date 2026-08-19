@@ -11,22 +11,28 @@
 //! The core is a function of the schema, the fields, and the resolved cursor
 //! context. It returns items with byte-range edits, and the public handler is
 //! the thin adapter that converts them through the line index and the position
-//! encoding.
+//! encoding. The module splits by concern: this file produces the
+//! body-position items, `values` produces the attribute-value items, and
+//! `encode` converts a raw item to the LSP shape.
+
+mod encode;
+mod values;
 
 use std::collections::HashSet;
 
-use lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionTextEdit, InsertTextFormat, TextEdit,
-};
+use lsp_types::{CompletionItem, CompletionItemKind};
 
-use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
+use confval::schema::{Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 #[cfg(test)]
 use crate::frontend::CursorContext;
-use crate::frontend::{Absorb, Frontend, PositionKind, quoted_literal};
+use crate::frontend::{Absorb, Frontend, PositionKind};
 use crate::handlers::Cx;
-use crate::walk::{reference_labels, repeated_block_at, resolved_level, schema_at};
+use crate::walk::{repeated_block_at, resolved_level, schema_at};
+
+use encode::encode_item;
+use values::value_items;
 
 /// The client's completion switches, read once at initialization: whether the
 /// client expands snippets, and whether it honors a preselected item.
@@ -97,7 +103,7 @@ fn body_items<F: Frontend>(frontend: &F, enclosing: &Schema, cx: &Cx) -> Vec<Raw
     // nothing, because the element has no fields yet. The new-element answer is
     // consulted only behind the schema's repeated-block check, so its default
     // at an unrepeated position is never read. Otherwise the resolved instance
-    // body addresses the exact instance the cursor sits in, falling back to the
+    // body addresses the exact instance the cursor is in, falling back to the
     // first instance only on the text recovery path.
     let set: HashSet<&str> = if repeated && cx.ctx.new_element {
         HashSet::new()
@@ -135,15 +141,14 @@ fn field_item<F: Frontend>(
     let insert = frontend.insert_text(field, &cx.ctx.path);
     // Inside a repeated block, a field opens a new sequence or array element
     // rather than a bare key.
-    let new_text = if repeated && cx.ctx.new_element {
-        frontend.wrap_element(insert.text)
+    let insert = if repeated && cx.ctx.new_element {
+        frontend.wrap_element(insert)
     } else {
-        insert.text
+        insert
     };
+    let snippet = insert.snippet;
     let start = absorb_left(cx.text, cx.ctx.token.0, insert.absorb, &cx.ctx.kind);
-    // The frontends author this text, and any user text in it is already
-    // snippet-escaped, so marker detection here is reliable.
-    let snippet = new_text.contains("$0") || new_text.contains("${");
+    let new_text = insert.text;
     RawItem {
         label: field.name.clone(),
         kind,
@@ -187,313 +192,46 @@ fn absorb_left(text: &str, start: usize, absorb: Absorb, kind: &PositionKind) ->
     }
 }
 
-/// Enum-value and reference-value completions at an attribute-value position.
-///
-/// A keyword field offers its allowed strings, read from the enclosing block
-/// schema. A reference field offers the labels of the block it names, collected
-/// from the root schema and the parsed fields, because the target block sits
-/// elsewhere in the document.
-fn value_items<F: Frontend>(
-    frontend: &F,
-    enclosing: &Schema,
-    field: &str,
-    cx: &Cx,
-) -> Vec<RawItem> {
-    let Some(target) = enclosing
-        .fields
-        .iter()
-        .find(|candidate| candidate.name == field)
-    else {
-        return Vec::new();
-    };
-    match &target.ty {
-        SchemaType::Scalar {
-            constraint: Some(Constraint::Keywords(words)),
-            ..
-        } => words
-            .iter()
-            .enumerate()
-            .map(|(order, word)| {
-                let mut item = keyword_item(word, cx, order);
-                // The default among the keywords is preselected rather than
-                // duplicated. A default absent from the set, which the derive
-                // permits, preselects nothing, because the set is
-                // authoritative.
-                item.preselect = target.default_text.as_deref() == Some(*word);
-                item
-            })
-            .collect(),
-        SchemaType::Scalar {
-            constraint: Some(Constraint::References { block }),
-            ..
-        } => reference_items(block, cx),
-        // A boolean is its own closed set. A written value offers the literal
-        // it could change to, and an empty value offers both, with the
-        // default preselected when the field carries one.
-        SchemaType::Scalar {
-            leaf: ScalarType::Bool,
-            constraint: None,
-        } => bool_items(frontend, target, field, cx),
-        // A number bounded by a `Range` and an unconstrained scalar are typed
-        // rather than chosen from a closed set, so they offer only the
-        // rendered default, when the field carries one.
-        SchemaType::Scalar { leaf, .. } => default_item(frontend, leaf, target, cx)
-            .into_iter()
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-/// The boolean literals a boolean value position offers, in the format's own
-/// form. A parsed current value narrows the offer to the other literal, and
-/// an unwritten value offers both, with the field's default preselected.
-fn bool_items<F: Frontend>(
-    frontend: &F,
-    target: &SchemaField,
-    field: &str,
-    cx: &Cx,
-) -> Vec<RawItem> {
-    let current = cx
-        .ctx
-        .resolved_body
-        .as_ref()
-        .and_then(|body| body.get(field))
-        .and_then(bool_value);
-    let literals: &[&str] = match current {
-        Some(true) => &["false"],
-        Some(false) => &["true"],
-        None => &["true", "false"],
-    };
-    literals
-        .iter()
-        .enumerate()
-        .map(|(order, literal)| RawItem {
-            label: literal.to_string(),
-            kind: CompletionItemKind::ENUM_MEMBER,
-            detail: None,
-            filter_text: Some(cx.ctx.token_text.clone()).filter(|text| !text.is_empty()),
-            sort_text: sort_key(order),
-            preselect: current.is_none() && target.default_text.as_deref() == Some(*literal),
-            snippet: false,
-            edit: cx.ctx.token,
-            new_text: separated(cx, frontend.default_literal(&ScalarType::Bool, literal)),
-        })
-        .collect()
-}
-
-/// A parsed field's boolean value, or `None` when it holds none.
-fn bool_value(field: &confval::format::Field) -> Option<bool> {
-    match &field.kind {
-        confval::format::FieldKind::Value(value) => match &value.kind {
-            confval::format::ValueKind::Scalar(confval::format::Scalar::Bool(flag)) => Some(*flag),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-/// The one preselected item a defaulted scalar offers at a value position: the
-/// rendered default in the format's literal form.
-fn default_item<F: Frontend>(
-    frontend: &F,
-    leaf: &ScalarType,
-    target: &SchemaField,
-    cx: &Cx,
-) -> Option<RawItem> {
-    let text = target.default_text.as_deref()?;
-    let literal = frontend.default_literal(leaf, text);
-    let new_text = separated(cx, literal);
-    Some(RawItem {
-        label: text.to_string(),
-        kind: CompletionItemKind::VALUE,
-        detail: None,
-        filter_text: Some(cx.ctx.token_text.clone()).filter(|current| !current.is_empty()),
-        sort_text: sort_key(0),
-        preselect: true,
-        snippet: false,
-        edit: cx.ctx.token,
-        new_text,
-    })
-}
-
-/// Prefixes the separating space when the replace range starts directly after
-/// the colon, so the completed line parses as a mapping entry rather than a
-/// plain scalar that includes the colon.
-fn separated(cx: &Cx, value: String) -> String {
-    if cx.ctx.token.0 > 0 && cx.text.as_bytes()[cx.ctx.token.0 - 1] == b':' {
-        format!(" {value}")
-    } else {
-        value
-    }
-}
-
-/// Reference-value completions: the distinct, non-empty labels the declaring
-/// scope defines, offered as quoted strings. The scope is found by the same
-/// outward search the reference pass runs, so the editor offers the labels the
-/// pipeline accepts. Returns nothing when the buffer does not parse or no
-/// enclosing scope declares the target.
-fn reference_items(block: &str, cx: &Cx) -> Vec<RawItem> {
-    let Some(labels) = reference_labels(cx.schema, cx.ctx, block) else {
-        return Vec::new();
-    };
-    let mut seen = HashSet::new();
-    labels
-        .iter()
-        .filter(|label| !label.value.is_empty())
-        .filter(|label| seen.insert(label.value.as_str()))
-        .enumerate()
-        .map(|(order, label)| keyword_item(&label.value, cx, order))
-        .collect()
-}
-
-/// One completion item for an allowed keyword, inserted as a quoted string.
-fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
-    let new_text = separated(cx, quoted_literal(word));
-    RawItem {
-        label: word.to_string(),
-        kind: CompletionItemKind::ENUM_MEMBER,
-        detail: None,
-        // Keep the item visible when the cursor sits on a value the enum
-        // members do not prefix-match, such as `loud`, by filtering against
-        // that value rather than the label. Without this a client discards
-        // every keyword.
-        filter_text: Some(cx.ctx.token_text.clone()).filter(|current| !current.is_empty()),
-        sort_text: sort_key(order),
-        preselect: false,
-        snippet: false,
-        edit: cx.ctx.token,
-        new_text,
-    }
-}
-
-/// Converts one raw item into the LSP shape: the byte edit becomes a ranged
-/// text edit under the negotiated encoding.
-///
-/// A block insert carries a `$0` tab stop. When the client supports snippets,
-/// the edit is a snippet and the client places the cursor at the tab stop. When
-/// it does not, the tab stop is removed so no literal `$0` reaches the buffer.
-fn encode_item(
-    raw: RawItem,
-    text: &str,
-    index: &LineIndex,
-    encoding: PositionEncoding,
-    client: ClientSupport,
-) -> CompletionItem {
-    // Only a producer-marked snippet is emitted or stripped as one, so a
-    // literal value item passes through untouched in both directions.
-    let is_snippet = client.snippets && raw.snippet;
-    let new_text = if is_snippet || !raw.snippet {
-        raw.new_text
-    } else {
-        strip_snippet_markers(&raw.new_text)
-    };
-    let mut item = CompletionItem {
-        label: raw.label,
-        kind: Some(raw.kind),
-        detail: raw.detail,
-        filter_text: raw.filter_text,
-        sort_text: Some(raw.sort_text),
-        preselect: (raw.preselect && client.preselect).then_some(true),
-        ..CompletionItem::default()
-    };
-    if is_snippet {
-        item.insert_text_format = Some(InsertTextFormat::SNIPPET);
-    }
-    item.text_edit = Some(CompletionTextEdit::Edit(TextEdit {
-        range: index.range_of_bytes(text, raw.edit, encoding),
-        new_text,
-    }));
-    item
-}
-
-/// Removes the snippet markers for a client without snippet support. The
-/// supported grammar is a closed list: a `$n` tab stop, which is dropped, and
-/// a `${n:value}` placeholder, which unwraps to its value with the backslash
-/// escaping removed, so the bare text reaches the buffer. A producer adding a
-/// new snippet form extends this list first.
-fn strip_snippet_markers(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut chars = text.chars().peekable();
-    while let Some(character) = chars.next() {
-        if character != '$' {
-            out.push(character);
-            continue;
-        }
-        match chars.peek() {
-            Some(digit) if digit.is_ascii_digit() => {
-                while chars.peek().is_some_and(char::is_ascii_digit) {
-                    chars.next();
-                }
-            }
-            Some('{') => {
-                chars.next();
-                while chars.peek().is_some_and(char::is_ascii_digit) {
-                    chars.next();
-                }
-                if chars.peek() == Some(&':') {
-                    chars.next();
-                }
-                while let Some(inner) = chars.next() {
-                    match inner {
-                        '\\' => {
-                            if let Some(escaped) = chars.next() {
-                                out.push(escaped);
-                            }
-                        }
-                        '}' => break,
-                        other => out.push(other),
-                    }
-                }
-            }
-            _ => out.push('$'),
-        }
-    }
-    out
-}
-
-#[cfg(test)]
+#[cfg(all(test, feature = "json", feature = "toml", feature = "yaml"))]
 mod tests {
     use super::*;
     use crate::frontends::{Json, Toml, Yaml};
-    use confval::schema::ScalarType;
+    use confval::schema::{Constraint, ScalarType};
 
     fn scalar(name: &str) -> SchemaField {
         SchemaField::new(
             name.to_string(),
             None,
-            true,
-            false,
             SchemaType::Scalar {
                 leaf: ScalarType::Int,
                 constraint: None,
             },
         )
+        .required()
     }
 
     fn keyword_field(name: &str) -> SchemaField {
         SchemaField::new(
             name.to_string(),
             None,
-            true,
-            false,
             SchemaType::Scalar {
                 leaf: ScalarType::String,
                 constraint: Some(Constraint::Keywords(&["enforce", "log"])),
             },
         )
+        .required()
     }
 
     fn repeated(name: &str, fields: Vec<SchemaField>) -> SchemaField {
         SchemaField::new(
             name.to_string(),
             None,
-            true,
-            false,
             SchemaType::Block {
                 schema: Box::new(Schema::new(None, fields)),
                 repeated: true,
             },
         )
+        .required()
     }
 
     fn context(
@@ -545,11 +283,23 @@ mod tests {
     }
 
     #[test]
+    fn the_sort_key_zero_pads_the_declaration_order() {
+        // Arrange, Act
+        let first = sort_key(0);
+        let eighth = sort_key(7);
+
+        // Assert
+        assert_eq!(first, "0000");
+        assert_eq!(eighth, "0007");
+        assert_ne!(first, eighth);
+    }
+
+    #[test]
     fn body_items_map_each_context_to_its_edits() {
         // Arrange
         // One table per body case: the same schema, with the context varying in
         // new-element state and typed prefix. The schema declares a scalar and
-        // a repeated block, and the cursor path sits inside the repeated block.
+        // a repeated block, and the cursor path is inside the repeated block.
         let schema = Schema::new(None, vec![repeated("rules", vec![scalar("prefix")])]);
         let cases: Vec<BodyCase> = vec![
             (

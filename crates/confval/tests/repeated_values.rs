@@ -1,7 +1,7 @@
 //! Guards the shape-decided resolution of repeated value fields: a list-shaped
 //! field accumulates same-named occurrences, and a single-value field reports
 //! the second occurrence as a duplicate pointing back at the first. The
-//! resolution lives in the generated walk, so a hand-built `Fields` exercises
+//! resolution is in the generated walk, so a hand-built `Fields` exercises
 //! it with no frontend in the loop, pinning the behavior for every format.
 
 use confval::format::{Entry, Field, FieldKind, Fields, FromFields, Scalar, Value, ValueKind};

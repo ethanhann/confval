@@ -188,18 +188,15 @@ impl ToSchema for TlsSpec {
                 SchemaField::new(
                     "mode".to_string(),
                     None,
-                    true,
-                    false,
                     SchemaType::Scalar {
                         leaf: ScalarType::String,
                         constraint: Some(Constraint::Keywords(&TLS_MODES)),
                     },
-                ),
+                )
+                .required(),
                 SchemaField::new(
                     "cert".to_string(),
                     None,
-                    false,
-                    false,
                     SchemaType::Scalar {
                         leaf: ScalarType::Path,
                         constraint: None,
@@ -208,25 +205,15 @@ impl ToSchema for TlsSpec {
                 SchemaField::new(
                     "key".to_string(),
                     None,
-                    false,
-                    false,
                     SchemaType::Scalar {
                         leaf: ScalarType::Path,
                         constraint: None,
                     },
                 ),
-                SchemaField::new(
-                    "domains".to_string(),
-                    None,
-                    false,
-                    false,
-                    SchemaType::StringList,
-                ),
+                SchemaField::new("domains".to_string(), None, SchemaType::StringList),
                 SchemaField::new(
                     "challenge".to_string(),
                     None,
-                    false,
-                    false,
                     SchemaType::Scalar {
                         leaf: ScalarType::String,
                         constraint: Some(Constraint::Keywords(&TlsChallenge::KEYWORDS)),

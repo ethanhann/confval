@@ -63,6 +63,15 @@ jobs:
       - name: Run examples
         run: just examples
 
+      - name: Feature isolation checks
+        run: just check-frontends check-bin check-lsp-example
+
+      - name: Install code quality tools
+        run: cargo install cargo-dupes cargo-machete --locked
+
+      - name: Code quality checks
+        run: just check-code-quality
+
       - name: cargo doc
         env:
           RUSTDOCFLAGS: "-D warnings"
@@ -168,6 +177,12 @@ jobs:
             flags: "--no-default-features --features hcl,derive,color"
           - name: toml
             flags: "--no-default-features --features toml,derive,color"
+          - name: kdl
+            flags: "--no-default-features --features kdl,derive,color"
+          - name: json
+            flags: "--no-default-features --features json,derive,color"
+          - name: yaml
+            flags: "--no-default-features --features yaml,derive,color"
           - name: serde
             flags: "--no-default-features --features serde"
           - name: layering

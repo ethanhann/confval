@@ -77,7 +77,7 @@ pub(crate) fn field_parser(
             // KDL syntax, over the inline child field. When both are present the
             // inline child is reported as a duplicate. This runs after the field
             // walk, so a child field seen there is already recorded.
-            if options.label {
+            if options.label.is_some() {
                 out.missing_checks.push(quote! {
                     if let ::core::option::Option::Some(__label) = fields.label() {
                         if let ::core::option::Option::Some(__child_span) = #seen {

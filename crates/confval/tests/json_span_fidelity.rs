@@ -5,8 +5,6 @@
 //! attribution breaks with it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-#![cfg(feature = "json")]
-
 use jsonc_parser::ParseOptions;
 use jsonc_parser::ast::{Object, ObjectProp, ObjectPropName, Value};
 use jsonc_parser::common::Ranged;

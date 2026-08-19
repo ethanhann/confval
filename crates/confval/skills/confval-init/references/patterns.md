@@ -17,9 +17,11 @@ keyword_enum!(pub LimitMode, {
 });
 ```
 
-The macro generates the enum, a `KEYWORDS` array, `as_str`, a `TryFrom<&str>`, a `Display`, and a `keyword_set()` you call from a `Validate` impl.
-It does not generate the check itself.
-You write `LimitMode::keyword_set().check_located(&self.mode, "mode", report)` in your validator.
+The macro generates the enum, a `KEYWORDS` array, `as_str`, a `TryFrom<&str>`, a `Display`, and a `keyword_set()`.
+Declare the check on the field with `#[confval(keywords = LimitMode)]`.
+The derive runs it during validation and records it in the schema.
+An editor's hover and completion read that same rule.
+Your `Validate` body carries no line for the field.
 Lowering names `narrow::keyword::<LimitMode>` to read the `TryFrom`.
 Once the check is in place, a value that fails it never reaches the `TryFrom`, so the set and the enum cannot drift.
 
@@ -97,9 +99,41 @@ Use template mode when you build a command that writes a starter config or shows
 An optional block is filled in a template only when you mark it `#[confval(nested, default)]`, which fills it from its type's `Default`.
 JSON has no comment syntax, so a JSON template equals the plain dump.
 
+## A labeled block another block references
+
+Sometimes a repeated block names its instances, and another field points at one by name.
+`#[confval(label)]` marks the child field that holds the name, and the HCL and KDL frontends read the native label syntax, so `upstream "api" { ... }` fills the marked field.
+`#[confval(references = upstream)]` marks a string field whose value must name one of those labels, where `upstream` is the parent's field name for the labeled block.
+After parsing, call `check_references` with the parsed fields, the schema, and the report.
+The pass reports a reference that no label in scope matches.
+
+```rust
+#[derive(confval::Spec)]
+struct GatewaySpec {
+    #[confval(nested)]
+    upstream: Vec<Located<UpstreamSpec>>,
+    #[confval(nested)]
+    rules: Vec<Located<RuleSpec>>,
+}
+
+#[derive(confval::Spec)]
+struct UpstreamSpec {
+    #[confval(label)]
+    name: Located<String>,
+    host: Located<String>,
+}
+
+#[derive(confval::Spec)]
+struct RuleSpec {
+    prefix: Located<String>,
+    #[confval(references = upstream)]
+    upstream: Located<String>,
+}
+```
+
 ## The patterns together
 
-This program declares an enum with `keyword_enum!`, derives `Default` from the attribute defaults, validates the fields, and lowers with the `narrow` helpers.
+This program declares an enum with `keyword_enum!`, records both constraints on their fields, derives `Default` from the attribute defaults, and lowers with the `narrow` helpers.
 
 ```rust
 use confval::prelude::*;
@@ -115,17 +149,14 @@ keyword_enum!(pub LimitMode, {
 #[derive(confval::Spec)]
 #[confval(derive_default)]
 struct LimitsSpec {
-    #[confval(default = 16)]
+    #[confval(default = 16, range = MAX_BODY_MB)]
     max_body_mb: Located<i64>,
-    #[confval(default = "enforce".to_string())]
+    #[confval(default = "enforce".to_string(), keywords = LimitMode)]
     mode: Located<String>,
 }
 
 impl Validate for LimitsSpec {
-    fn validate(&self, report: &mut Report) {
-        MAX_BODY_MB.check_located(&self.max_body_mb, "max_body_mb", report);
-        LimitMode::keyword_set().check_located(&self.mode, "mode", report);
-    }
+    fn validate(&self, _report: &mut Report) {}
 }
 
 #[derive(confval::Config)]

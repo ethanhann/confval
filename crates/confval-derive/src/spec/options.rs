@@ -106,11 +106,11 @@ pub(crate) struct FieldOptions {
     /// whose bounds the schema walk renders. The leaf-type pairing is checked in
     /// `spec/schema.rs`.
     pub(crate) range: Option<Path>,
-    /// `true` if the field was marked `#[confval(label)]`, i.e. its value is the
+    /// `Some` if the field was marked `#[confval(label)]`, i.e. its value is the
     /// enclosing block's label. HCL and KDL carry the label in the block syntax,
     /// and the other formats carry it as this field. The `String` leaf pairing is
     /// checked in `spec/schema.rs`.
-    pub(crate) label: bool,
+    pub(crate) label: Option<syn::Path>,
     /// The block field name a `#[confval(references = <block>)]` names, or `None`.
     /// The value references the labels of that block, resolved outward to the
     /// nearest enclosing scope that declares it. Unlike `keywords` and `range`,
@@ -135,7 +135,7 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
         default: None,
         keywords: None,
         range: None,
-        label: false,
+        label: None,
         references: None,
         doc: None,
     };
@@ -181,10 +181,10 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 options.range = Some(meta.value()?.parse()?);
                 Ok(())
             } else if meta.path.is_ident("label") {
-                if options.label {
+                if options.label.is_some() {
                     return Err(meta.error("duplicate confval attribute `label`"));
                 }
-                options.label = true;
+                options.label = Some(meta.path.clone());
                 Ok(())
             } else if meta.path.is_ident("references") {
                 if options.references.is_some() {
