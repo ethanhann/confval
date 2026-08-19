@@ -413,3 +413,38 @@ fn token_around(text: &str, offset: usize, is_member: fn(u8) -> bool) -> (usize,
 fn is_value_byte(byte: u8) -> bool {
     !byte.is_ascii_whitespace() && !matches!(byte, b'=' | b'{' | b'}' | b'[' | b']' | b',')
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use confval::format::Scalar;
+    use confval::source::SourceMap;
+
+    #[test]
+    fn deepest_end_value_reaches_past_a_maps_own_span_to_its_deepest_child() {
+        // Arrange
+        // The map value's own span ends at 10, but a child inside it ends at 50.
+        // The furthest end must follow the map into its fields, not stop at the
+        // map's own end.
+        let mut sources = SourceMap::new();
+        let id = sources.add("map", "x");
+        let child = Field::parsed(
+            "deep",
+            Span::new(id, 40, 44),
+            Span::new(id, 40, 50),
+            id,
+            FieldKind::Value(Value::spanned(
+                Span::new(id, 45, 50),
+                ValueKind::Scalar(Scalar::Int(1)),
+            )),
+        );
+        let inner = Fields::new(id, Span::new(id, 30, 55), vec![child]);
+        let map_value = Value::spanned(Span::new(id, 5, 10), ValueKind::Map(inner));
+
+        // Act
+        let furthest = deepest_end_value(&map_value);
+
+        // Assert
+        assert_eq!(furthest, 50);
+    }
+}

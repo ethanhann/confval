@@ -649,4 +649,52 @@ mod tests {
         assert_eq!(context.path, vec!["server".to_string()]);
         assert_eq!(context.kind, value("port"));
     }
+
+    #[test]
+    fn a_trailing_unterminated_quote_does_not_break_the_colon_key_scan() {
+        // Arrange
+        // The line holds a real member `"mode":`, then a fresh unterminated quote
+        // as its last byte. `skip_string` returns the line length, so that quote's
+        // scanned end lands exactly one past its opening quote, and its previous
+        // byte is the opening quote itself. The content-end guard must keep the
+        // content run empty rather than step back before the quote, which would
+        // slice a reversed range. The pending member stays `mode` at colon 6.
+        let line = "\"mode\": x \"";
+
+        // Act
+        let pending = attribute_name_colon(line);
+
+        // Assert
+        assert_eq!(pending, Some(("mode".to_string(), 6)));
+    }
+
+    #[test]
+    fn a_node_name_with_no_argument_is_not_a_value_position() {
+        // Arrange
+        // The whole line is the node name with nothing after it, so the identifier
+        // run fills the line and there is no argument region. That is a body
+        // position, so the value scan must refuse it rather than read past the
+        // name.
+        let line = "mode";
+
+        // Act
+        let name = attribute_name_space(line);
+
+        // Assert
+        assert_eq!(name, None);
+    }
+
+    #[test]
+    fn skip_line_advances_past_the_newline() {
+        // Arrange
+        // A comment line `# c` is followed by `x` on the next line. The scan must
+        // step to the first byte after the newline, index 4, where `x` begins.
+        let bytes = b"# c\nx";
+
+        // Act
+        let next = skip_line(bytes, 0);
+
+        // Assert
+        assert_eq!(next, 4);
+    }
 }

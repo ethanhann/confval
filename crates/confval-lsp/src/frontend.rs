@@ -411,6 +411,23 @@ mod tests {
     use crate::{Hcl, Yaml};
 
     #[test]
+    fn cursor_context_equality_compares_path_kind_and_token() {
+        // Arrange
+        let base = CursorContext::body(vec!["a".to_string()], (0, 1));
+        let same = CursorContext::body(vec!["a".to_string()], (0, 1));
+        let other_path = CursorContext::body(vec!["b".to_string()], (0, 1));
+        let other_kind =
+            CursorContext::attribute_value(vec!["a".to_string()], "f".to_string(), (0, 1));
+        let other_token = CursorContext::body(vec!["a".to_string()], (0, 2));
+
+        // Act, Assert
+        assert_eq!(base, same);
+        assert_ne!(base, other_path);
+        assert_ne!(base, other_kind);
+        assert_ne!(base, other_token);
+    }
+
+    #[test]
     fn a_brace_frontend_uses_the_default_trait_settings() {
         // Arrange
         let frontend = Hcl;

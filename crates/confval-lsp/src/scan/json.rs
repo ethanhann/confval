@@ -106,6 +106,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn json_key_ignores_an_unterminated_trailing_quote() {
+        // Arrange
+        // The segment holds a complete key `a`, then an unterminated quote as its
+        // last byte. `skip_string` returns `bytes.len()`, so the trailing quote's
+        // `end` equals its index plus one. The guard must reject that run rather
+        // than slice a reversed range, so the last real key stays `a`.
+        let segment = "\"a\" \"";
+
+        // Act
+        let last = json_key(segment);
+
+        // Assert
+        assert_eq!(last, Some("a".to_string()));
+    }
+
+    #[test]
     fn an_unpaired_closing_brace_does_not_pop_the_open_array() {
         // Arrange
         // The `}` never closed the `[`, so the cursor is still directly in
