@@ -1,0 +1,38 @@
+crates/confval-lsp/src/scan/json.rs
+  s_d5b235ec3c32f9::t_d9877720c6ca52 109-123
+  s_99a0b5e236223b::t_50625f04e85af0 108
+crates/confval-lsp/src/capabilities.rs
+  s_d5b235ec3c32f9::t_6e4c50c01df507 160-178
+  s_99a0b5e236223b::t_e1d23436a6b4b1 159
+crates/confval-lsp/src/resolve.rs
+  s_d5b235ec3c32f9::t_3da059de4fdb3b 416-450
+crates/confval-lsp/src/frontend.rs
+  s_d5b235ec3c32f9::t_5bb095eec1d803 414-429
+  s_99a0b5e236223b::t_34eb63d544e83c 413
+crates/confval-lsp/src/scan/text.rs
+  s_d5b235ec3c32f9::t_ec0425bd004316 652-699
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "e2111a1c0eb2656bc4d72e1df49e80118ec48475",
+  "prompts": {},
+  "sessions": {
+    "s_99a0b5e236223b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f17c726-37bb-42eb-b975-a631bf76a9ff",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    },
+    "s_d5b235ec3c32f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4a350d2-914a-41ce-a025-0fb5b040d9f2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
