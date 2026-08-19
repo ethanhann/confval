@@ -58,6 +58,26 @@ Use it rather than `#[derive(Default)]` on a spec.
 The standard derive fills an undeclared field with `T::default()` without reporting it, so the value for an absent block and the value for an omitted field can drift apart.
 `#[confval(derive_default)]` refuses a field that declares no default rather than inventing a value, which keeps the two the same.
 
+## The configuration with no file
+
+A program that runs without a configuration file still needs a config.
+Lower the spec's own `Default` to get it.
+The defaults then have one declaration site, the attributes, and this path reads the same ones the parser fills.
+
+```rust
+let spec = ServerSpec::default();
+let mut report = Report::new();
+spec.validate_all(&mut report);
+if report.has_errors() {
+    return None;
+}
+ServerConfig::lower(&spec, &mut report)
+```
+
+Do not declare the defaults a second time as constants, and do not write a runtime `Default` by hand.
+Either one gives a value two declaration sites that nothing keeps in agreement.
+A cast in a handwritten runtime `Default` is a sign of this, because it repeats the narrowing that lowering already does.
+
 ## Narrowing at the lowering boundary
 
 A config field whose type already matches the spec field needs no attribute.

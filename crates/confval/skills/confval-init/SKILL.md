@@ -106,6 +106,12 @@ struct ServerSpec {
 }
 ```
 
+A recorded constraint expands where the spec struct is declared, so its declaration must be in scope there.
+`range_constraint!` generates a private const, and `#[confval(keywords = ...)]` names an enum.
+Put both in the module that declares the spec struct.
+The `Validate` impl itself may live in another module, because a trait impl can be anywhere in the crate.
+Keep that in mind when the project holds validation apart from the types.
+
 Write a `Validate` impl for the rules an attribute cannot express: a cross-field rule or a value with its own logic.
 Its `validate` reports the rules for that type's own fields.
 `validate_all` reaches the children, so a validator never calls a child's validator by hand.
@@ -133,6 +139,16 @@ A `validate` impl sees only `&self`.
 A rule that needs a sibling field's span, an enclosing span, or another file does not belong there.
 Write it as a function that takes the surrounding values.
 Call it yourself.
+
+Look for a relationship between two fields before you finish.
+A pair of bounds that must be ordered, a field that is required only when another is set, and a total that must not exceed a limit are the common ones.
+Report the rule at one field's span, and point at the other with `.related(span, label)`.
+When the domain has no such relationship, write the empty `Validate` impl and say why.
+An attribute records every field-local constraint, so a `Validate` impl that holds nothing else is empty by design rather than by omission.
+
+Report a value as a warning when it is legal but likely wrong.
+A value that is inside its range and still risky is the usual case.
+A warning does not trip the gate, so the program starts and the operator reads the note.
 
 ### 5. Write the runtime type
 
@@ -188,10 +204,32 @@ if let Some(config) = ServerConfig::lower(&spec, &mut report) {
 }
 ```
 
+Load once, at the outermost entry point that can report a failure and stop.
+Do not move the load into a function that has no way to report one.
+Give that function a resolved value instead.
+A load pushed down into a function that returns nothing forces an error branch which cannot act.
+
+Pass a consumer the narrowest part of the config it reads.
+A function that needs one block takes that block, not the root.
+The root belongs to the entry point that loaded it.
+A wide parameter couples a module to settings it never touches, and it hides which settings that module depends on.
+
+Return the diagnostics rather than print them.
+The caller then owns the output stream, and a test asserts on the result rather than on captured standard error.
+
 ### 7. Write a round-trip test
 
-Add a test that parses a fixture file, validates it, lowers it, and asserts the runtime values.
-Add one more case that feeds a fixture with several bad values and asserts the report names every problem in a single pass, which is the property that makes accumulation worth having.
+Cover each of these cases:
+
+- A complete file lowers to the values it names.
+- An omitted field takes its declared default.
+- A file with several bad values reports every problem in one pass.
+- A warning does not stop the load.
+- No file at all yields the declared defaults.
+- A syntax error reports rather than panics.
+
+The third one is the property that makes accumulation worth having, so write it first.
+A `[dependencies]` entry is available to test targets, so an integration test can import confval and assert on the `Report` directly.
 
 ```rust
 #[test]
