@@ -346,3 +346,50 @@ fn yaml_keyword_completion_after_a_bare_colon_keeps_the_key_and_adds_a_space() {
         }
     );
 }
+
+#[test]
+fn a_yaml_value_without_a_closed_set_offers_nothing() {
+    // Arrange
+    // The cursor sits inside a written scalar value in a nested sequence: once
+    // in a label field and once in a plain string field. Neither field has a
+    // closed value set, so the server must answer with an empty list rather
+    // than field names, and the resolved context must still name the exact
+    // field and path.
+    let text = "services:\n  - name: checkout\n    upstreams:\n      - name: primary\n        port: 9000\n      - name: secondary\n        port: 9002\n";
+    let schema = fixture::MeshSpec::schema();
+    let index = LineIndex::new(text);
+    let cases: Vec<(&str, &str, Vec<&str>)> = vec![
+        ("a label value", "secondary", vec!["services", "upstreams"]),
+        ("a plain string value", "checkout", vec!["services"]),
+    ];
+
+    for (name, needle, path) in cases {
+        let offset = text.find(needle).expect("the needle") + 2;
+        let (tree, context) = at_with(&Yaml, text, offset);
+
+        // Act
+        let items = completion(
+            &Yaml,
+            &Cx {
+                schema: &schema,
+                fields: tree.as_ref(),
+                ctx: &context,
+                text,
+            },
+            &index,
+            ENCODING,
+            ClientSupport::default(),
+        );
+
+        // Assert
+        assert!(items.is_empty(), "case: {name}, got {:?}", labels(&items));
+        assert_eq!(context.path, path, "case: {name}");
+        assert_eq!(
+            context.kind,
+            confval_lsp::PositionKind::AttributeValue {
+                field: "name".to_string()
+            },
+            "case: {name}"
+        );
+    }
+}
