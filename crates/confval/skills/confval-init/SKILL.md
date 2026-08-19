@@ -209,15 +209,27 @@ Do not move the load into a function that has no way to report one.
 Give that function a resolved value instead.
 A load pushed down into a function that returns nothing forces an error branch which cannot act.
 
+Do not change the signature of a function the project already exports.
+Add an entry point beside it that takes the configuration, and let the original delegate with a resolved default.
+A changed signature moves the cost onto every existing caller, including the project's own tests.
+
 Pass a consumer the narrowest part of the config it reads.
 A function that needs one block takes that block, not the root.
 The root belongs to the entry point that loaded it.
 A wide parameter couples a module to settings it never touches, and it hides which settings that module depends on.
+The new entry point is where this is easiest to get right, because nothing constrains its parameter list yet.
 
 Return the diagnostics rather than print them.
 The caller then owns the output stream, and a test asserts on the result rather than on captured standard error.
 
-### 7. Write a round-trip test
+### 7. Write a starter configuration file
+
+Write a file that names every setting at its default, and check it into the project.
+An operator copies that file rather than reads the source to learn what the settings are.
+Write it by hand, or generate it from the spec with `to_template`, which renders each field's doc comment above its field.
+Say in the file which values are the defaults, and how a command line flag interacts with them.
+
+### 8. Write a round-trip test
 
 Cover each of these cases:
 
@@ -254,7 +266,7 @@ fn a_bad_fixture_reports_every_problem_at_once() {
 }
 ```
 
-### 8. Verify
+### 9. Verify
 
 Run `cargo check`, then `cargo test`.
 Read the spec, validation, and lowering back against the current confval crate.
