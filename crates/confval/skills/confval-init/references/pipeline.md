@@ -112,6 +112,20 @@ Validation consumes the span by passing it to `report.at(...)`, so a diagnostic 
 A `narrow` helper does the same on the lowering side, so an out-of-range value that slipped past validation still reports at its source location.
 Equality on `Located` ignores the span, so two configs with the same values compare equal whatever their formatting.
 
+## More than one file
+
+A configuration may span several files, and the four phases do not change.
+One `SourceMap` holds every file, and one `Report` collects every issue.
+A `Span` carries the id of the source it came from, so issues from different files merge into one report and render together, each at its own file and line.
+
+Parse every file before you stop.
+Record that a file failed to parse, and stop after the loop rather than at the first failure, so one run reports every syntax error rather than the first.
+A file that produced a tree keeps flowing into validation even when some of its fields failed.
+Only a file that produced no tree at all is absent from the later phases.
+
+`Located::detached` supplies a value with no source position, for a configuration built in code rather than read from a file.
+A validator must not assume a source entry exists, because a detached span has none.
+
 ## The two parallel structs
 
 Each setting exists twice.
