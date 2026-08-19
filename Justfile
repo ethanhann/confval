@@ -41,19 +41,28 @@ check-code-quality:
     [ "$fail" -eq 0 ] || exit 1
     echo "check-code-quality passed"
 
-# Run mutation testing across the workspace. Configured in .cargo/mutants.toml.
-mutants jobs="4":
-    cargo mutants -j {{ jobs }}
+# Fast mutant test args: skip the trybuild `compile_fail` case, which costs ~10s
+# per run and cannot catch a runtime-logic mutant. Keep it for `mutants-derive`,
+# where the derive macro's compile-error paths need it.
+mutants_fast_args := "--profile mutants --cargo-test-arg -E --cargo-test-arg 'not binary(compile_fail)'"
 
-# Mutate only the source a diff touches. Note the jobs="4" arg is bound by disk (target / size * jobs), not CPU cores.
-mutants-diff base="main" jobs="4":
+# Run mutation testing across the workspace. Configured in .cargo/mutants.toml.
+mutants jobs="6":
+    cargo mutants {{ mutants_fast_args }} -j {{ jobs }}
+
+# Mutate only the source a diff touches. The mutants profile drops debug info, so the disk cost per job is lower; raise jobs as disk allows.
+mutants-diff base="main" jobs="6":
     #!/usr/bin/env bash
     set -euo pipefail
     diff=target/mutants-since.diff
     mkdir -p target
     git diff {{ base }} -- 'crates/*/src/*.rs' > "$diff"
     if [ ! -s "$diff" ]; then echo "no source changes against {{ base }}"; exit 0; fi
-    cargo mutants --in-diff "$diff" -j {{ jobs }}
+    cargo mutants --in-diff "$diff" {{ mutants_fast_args }} -j {{ jobs }}
+
+# Mutate only confval-derive, with the trybuild `compile_fail` test kept in. Run this to cover the derive macro's diagnostic paths that the fast recipes skip.
+mutants-derive jobs="4":
+    cargo mutants -p confval-derive --profile mutants -j {{ jobs }}
 
 # Compile each format frontend alone, so a cfg gate the all-features build hides cannot drift.
 check-frontends:

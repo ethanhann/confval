@@ -18,6 +18,13 @@ readme = "README.md"
 [profile.dev]
 opt-level = 0
 
+# A build profile for `cargo mutants`. It drops debug info, so the linker and
+# macOS dsymutil do much less work per mutant, and the target directory stays
+# small enough to run more parallel jobs.
+[profile.mutants]
+inherits = "dev"
+debug = false
+
 [profile.release]
 opt-level = 3               # Maximize performance
 debug = true                # Keep debug symbols for profiling
