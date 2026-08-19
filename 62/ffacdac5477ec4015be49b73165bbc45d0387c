@@ -1,0 +1,21 @@
+.cargo/mutants.toml
+  s_d5b235ec3c32f9::t_b174089b657c67 15
+crates/confval-lsp/tests/navigation.rs
+  s_d5b235ec3c32f9::t_65779b1e016b7a 299-396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "62ffacdac5477ec4015be49b73165bbc45d0387c",
+  "prompts": {},
+  "sessions": {
+    "s_d5b235ec3c32f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4a350d2-914a-41ce-a025-0fb5b040d9f2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
