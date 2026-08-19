@@ -1,0 +1,16 @@
+crates/confval-lsp/src/handlers/completion/values.rs
+  h_4fc023ad4863a8 248
+crates/confval-lsp/tests/navigation.rs
+  h_4fc023ad4863a8 336
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "06b048a2c66561910229eca4dd3e077e2348a4d8",
+  "prompts": {},
+  "humans": {
+    "h_4fc023ad4863a8": {
+      "author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
