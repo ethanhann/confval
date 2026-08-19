@@ -1,0 +1,22 @@
+crates/confval/src/pipeline/references.rs
+  s_99a0b5e236223b::t_64a52170feac6d 85
+  s_99a0b5e236223b::t_28e2372d69ffa7 72
+crates/confval-lsp/src/frontends/mod.rs
+  s_99a0b5e236223b::t_ded006a652dbdb 36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "c3115714edaf243d9e8adab256fc4388eb5319f3",
+  "prompts": {},
+  "sessions": {
+    "s_99a0b5e236223b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f17c726-37bb-42eb-b975-a631bf76a9ff",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
