@@ -1,0 +1,19 @@
+crates/confval/skills/confval-init/SKILL.md
+  s_8fdbb0ce27b053::t_21caa5297247cd 212-215,220,225-232,269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "0e398140da9934756c65403489229ac2e16d8419",
+  "prompts": {},
+  "sessions": {
+    "s_8fdbb0ce27b053": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d1db920-f009-4078-9ae8-8138b14c4fde",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
