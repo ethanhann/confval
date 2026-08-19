@@ -1,0 +1,23 @@
+.cargo/config.toml
+  s_c2c8b2f817ed23::t_00272ab8eff607 1-5
+Justfile
+  s_c2c8b2f817ed23::t_4ffdad7f3b7b77 44-48,50-51,53-54,61-65
+Cargo.toml
+  s_c2c8b2f817ed23::t_eaa0190d2e3157 21-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8ffbcf62d7c645e34df3b69af289fbd371b398c4",
+  "prompts": {},
+  "sessions": {
+    "s_c2c8b2f817ed23": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cec69167-131f-415b-80e4-84fdcf1f9069",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
