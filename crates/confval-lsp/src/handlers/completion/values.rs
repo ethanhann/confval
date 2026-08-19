@@ -245,10 +245,7 @@ mod tests {
             .collect();
         assert_eq!(
             flags,
-            vec![
-                ("true".to_string(), true),
-                ("false".to_string(), false),
-            ]
+            vec![("true".to_string(), true), ("false".to_string(), false),]
         );
     }
 

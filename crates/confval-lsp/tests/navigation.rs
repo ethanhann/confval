@@ -333,8 +333,7 @@ fn each_repeated_instance_range_contains_its_own_children() {
         assert!(!children.is_empty(), "each instance has scalar children");
         for child in children {
             assert!(
-                upstream.range.start <= child.range.start
-                    && child.range.end <= upstream.range.end,
+                upstream.range.start <= child.range.start && child.range.end <= upstream.range.end,
                 "child {:?} sits inside instance range {:?}",
                 child.range,
                 upstream.range
