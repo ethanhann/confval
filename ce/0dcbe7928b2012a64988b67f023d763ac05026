@@ -1,0 +1,32 @@
+docs/docs/getting-started.md
+  s_99a0b5e236223b::t_c763e14d0e5b46 32-37
+docs/sidebars.ts
+  s_99a0b5e236223b::t_78fff2a3fc981b 6-8
+  s_99a0b5e236223b::t_26c10c3836b272 20-25,28,33,38,43,48
+  s_d5b235ec3c32f9::t_7e69be96b8823b 12-19,26-27,29-31,34-37,39-42,44-47,49-60
+  s_99a0b5e236223b::t_e04ccb9ddd50a2 11,32,61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ce0dcbe7928b2012a64988b67f023d763ac05026",
+  "prompts": {},
+  "sessions": {
+    "s_99a0b5e236223b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f17c726-37bb-42eb-b975-a631bf76a9ff",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    },
+    "s_d5b235ec3c32f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4a350d2-914a-41ce-a025-0fb5b040d9f2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
