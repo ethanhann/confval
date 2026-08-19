@@ -119,6 +119,69 @@ Use template mode when you build a command that writes a starter config or shows
 An optional block is filled in a template only when you mark it `#[confval(nested, default)]`, which fills it from its type's `Default`.
 JSON has no comment syntax, so a JSON template equals the plain dump.
 
+## A repeated block whose instances must be unique
+
+A `Vec<Located<T>>` accepts a repeated block, and nothing in the field shape says the instances differ.
+Uniqueness on a name, an address, or a path is a rule you write.
+Report the second occurrence at its own span, and point at the first with `.related`.
+
+```rust
+fn report_duplicate<K: Eq + Hash>(
+    seen: &mut HashMap<K, Span>,
+    key: K,
+    span: Span,
+    report: &mut Report,
+    message: impl FnOnce() -> String,
+) {
+    match seen.get(&key) {
+        Some(first) => report
+            .error(message())
+            .at(span)
+            .related(*first, "first declared here")
+            .emit(),
+        None => {
+            seen.insert(key, span);
+        }
+    }
+}
+```
+
+Build the message through a closure, so a load with no duplicate never formats it.
+One helper covers every key a spec keeps unique, whatever the key type.
+
+## A block that no longer applies
+
+`Validate::descend` decides whether the children of a block are checked.
+The default continues, so a whole subtree is checked without anyone asking for it.
+Break the descent when the block has declared itself inapplicable, because the children's diagnostics would be noise rather than help.
+
+```rust
+impl Validate for ServerSpec {
+    fn validate(&self, report: &mut Report) {
+        if self.version.value != SCHEMA_VERSION {
+            report
+                .error(format!("unknown config version: {}", self.version.value))
+                .at(self.version.span)
+                .help("This build reads a different schema. Upgrade the program.")
+                .emit();
+            return;
+        }
+        // the rules for this version
+    }
+
+    fn descend(&self) -> ControlFlow<()> {
+        if self.version.value == SCHEMA_VERSION {
+            ControlFlow::Continue(())
+        } else {
+            ControlFlow::Break(())
+        }
+    }
+}
+```
+
+`descend` runs after `validate`, so whatever the block reported about itself survives the pruning of its subtree.
+A disabled feature whose sub-blocks no longer mean anything is the other common case.
+
 ## A labeled block another block references
 
 Sometimes a repeated block names its instances, and another field points at one by name.
