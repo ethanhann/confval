@@ -77,6 +77,15 @@ mod tests {
     }
 
     #[test]
+    fn the_line_comment_vocabulary_is_the_hash() {
+        // Arrange, Act
+        let comments = Yaml.line_comments();
+
+        // Assert
+        assert_eq!(comments, ["#"]);
+    }
+
+    #[test]
     fn the_value_separator_is_a_colon() {
         // Arrange, Act
         let separator = Yaml.value_separator();

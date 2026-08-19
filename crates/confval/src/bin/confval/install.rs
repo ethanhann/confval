@@ -286,6 +286,19 @@ mod tests {
     }
 
     #[test]
+    fn plan_surfaces_a_non_not_found_read_error_as_io() {
+        // Arrange
+        let dir = TempDir::new("plan-read-error");
+        let path = dir.path().to_path_buf();
+
+        // Act
+        let result = plan(&path, "body", false);
+
+        // Assert
+        assert!(matches!(result, Err(CliError::Io { .. })));
+    }
+
+    #[test]
     fn apply_writes_a_created_file_and_its_parents() {
         // Arrange
         let dir = TempDir::new("apply-created");

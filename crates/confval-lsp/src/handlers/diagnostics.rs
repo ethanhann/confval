@@ -167,12 +167,21 @@ mod tests {
         );
 
         // Assert
+        let diagnostic = produced
+            .iter()
+            .find(|d| d.message == "no upstream named \"nope\"")
+            .unwrap_or_else(|| {
+                panic!(
+                    "got: {:?}",
+                    produced.iter().map(|d| &d.message).collect::<Vec<_>>()
+                )
+            });
+        assert_eq!(diagnostic.message, "no upstream named \"nope\"");
+        assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::ERROR));
+        assert_eq!(diagnostic.source.as_deref(), Some("confval"));
         assert!(
-            produced
-                .iter()
-                .any(|d| d.message == "no upstream named \"nope\""),
-            "got: {:?}",
-            produced.iter().map(|d| &d.message).collect::<Vec<_>>()
+            diagnostic.related_information.is_some(),
+            "the reference help becomes a related note"
         );
     }
 }

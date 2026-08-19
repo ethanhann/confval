@@ -193,3 +193,112 @@ fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
         new_text,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::CursorContext;
+    use crate::frontends::Json;
+
+    fn ctx_at(field: &str, token: (usize, usize), text: &str) -> CursorContext {
+        let mut ctx = CursorContext::attribute_value(Vec::new(), field.to_string(), token);
+        ctx.token_text = text.get(token.0..token.1).unwrap_or_default().to_string();
+        ctx
+    }
+
+    fn bool_field(default: Option<&str>) -> SchemaField {
+        let field = SchemaField::new(
+            "enabled".to_string(),
+            None,
+            SchemaType::Scalar {
+                leaf: ScalarType::Bool,
+                constraint: None,
+            },
+        );
+        match default {
+            Some(text) => field.with_default_text(text.to_string()),
+            None => field,
+        }
+    }
+
+    #[test]
+    fn bool_items_preselects_only_the_default_literal() {
+        // Arrange
+        let text = "enabled: ";
+        let target = bool_field(Some("true"));
+        let schema = Schema::new(None, Vec::new());
+        let ctx = ctx_at("enabled", (9, 9), text);
+        let cx = Cx {
+            schema: &schema,
+            fields: None,
+            ctx: &ctx,
+            text,
+        };
+
+        // Act
+        let items = bool_items(&Json, &target, "enabled", &cx);
+
+        // Assert
+        let flags: Vec<(String, bool)> = items
+            .iter()
+            .map(|item| (item.label.clone(), item.preselect))
+            .collect();
+        assert_eq!(
+            flags,
+            vec![
+                ("true".to_string(), true),
+                ("false".to_string(), false),
+            ]
+        );
+    }
+
+    #[test]
+    fn default_item_keeps_the_typed_prefix_as_filter_text() {
+        // Arrange
+        let text = "port: 80";
+        let target = SchemaField::new(
+            "port".to_string(),
+            None,
+            SchemaType::Scalar {
+                leaf: ScalarType::Int,
+                constraint: None,
+            },
+        )
+        .with_default_text("8080".to_string());
+        let schema = Schema::new(None, Vec::new());
+        let ctx = ctx_at("port", (6, 8), text);
+        let cx = Cx {
+            schema: &schema,
+            fields: None,
+            ctx: &ctx,
+            text,
+        };
+
+        // Act
+        let item = default_item(&Json, &ScalarType::Int, &target, &cx);
+
+        // Assert
+        let item = item.expect("a defaulted scalar offers its rendered default");
+        assert_eq!(item.filter_text, Some("80".to_string()));
+    }
+
+    #[test]
+    fn separated_returns_no_leading_space_at_the_buffer_start() {
+        // Arrange
+        let text = "true";
+        let schema = Schema::new(None, Vec::new());
+        let ctx = ctx_at("enabled", (0, 4), text);
+        let cx = Cx {
+            schema: &schema,
+            fields: None,
+            ctx: &ctx,
+            text,
+        };
+
+        // Act
+        let result = separated(&cx, "true".to_string());
+
+        // Assert
+        assert_eq!(result, "true");
+    }
+}

@@ -109,3 +109,28 @@ fn current_dir() -> Result<PathBuf, CliError> {
         source,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn column_width_is_the_longest_relative_path_plus_two() {
+        // Arrange
+        let longest = SKILLS
+            .iter()
+            .flat_map(|skill| skill.files())
+            .map(|file| file.relative_path.len())
+            .max()
+            .unwrap();
+
+        // Act
+        let width = column_width();
+
+        // Assert
+        assert_eq!(width, longest + 2);
+        assert_ne!(longest + 2, 0);
+        assert_ne!(longest + 2, 1);
+        assert_ne!(longest * 2, longest + 2);
+    }
+}

@@ -283,6 +283,18 @@ mod tests {
     }
 
     #[test]
+    fn the_sort_key_zero_pads_the_declaration_order() {
+        // Arrange, Act
+        let first = sort_key(0);
+        let eighth = sort_key(7);
+
+        // Assert
+        assert_eq!(first, "0000");
+        assert_eq!(eighth, "0007");
+        assert_ne!(first, eighth);
+    }
+
+    #[test]
     fn body_items_map_each_context_to_its_edits() {
         // Arrange
         // One table per body case: the same schema, with the context varying in

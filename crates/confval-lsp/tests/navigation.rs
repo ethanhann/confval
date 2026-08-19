@@ -581,6 +581,30 @@ const GATEWAY_KDL: &str = "upstream \"api\" {\n  host \"h\"\n  port 1\n}\nroutes
 
 const GATEWAY_JSON: &str = "{\n  \"upstream\": [{ \"name\": \"api\", \"host\": \"h\", \"port\": 1 }],\n  \"routes\": [\n    { \"prefix\": \"/a\", \"upstream\": \"api\" },\n    { \"prefix\": \"/b\", \"upstream\": \"api\" }\n  ]\n}\n";
 
+const GATEWAY_HCL_TWO_UPSTREAMS: &str = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\nupstream \"web\" {\n  host = \"h2\"\n  port = 2\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"api\"\n}\nroutes {\n  prefix = \"/b\"\n  upstream = \"api\"\n}\nroutes {\n  prefix = \"/c\"\n  upstream = \"web\"\n}\n";
+
+#[test]
+fn references_from_a_later_native_label_pick_that_label_not_the_first() {
+    // Arrange
+    // Two upstreams declare `api` and `web`. The cursor sits in the second
+    // label, `web`, named by one route. The span-contains check must land on
+    // `web`, not fall back to the first label `api`, which two routes name.
+    let text = GATEWAY_HCL_TWO_UPSTREAMS;
+    let offset = text.find("\"web\"").unwrap() + 1;
+    let schema = GatewaySpec::schema();
+    let index = LineIndex::new(text);
+
+    // Act
+    let found = references_at(&Hcl, &schema, text, offset, false);
+
+    // Assert
+    assert_eq!(found.len(), 1, "only the route naming web: {found:?}");
+    assert!(
+        covered(&found[0], text, &index).contains("web"),
+        "the single hit is the web reference"
+    );
+}
+
 #[test]
 fn kdl_native_label_answers_references_and_no_definition() {
     // Arrange

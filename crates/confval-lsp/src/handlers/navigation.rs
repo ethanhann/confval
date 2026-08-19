@@ -225,3 +225,46 @@ fn location(
         range: index.range_of_bytes(text, (span.start as usize, span.end as usize), encoding),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use confval::format::{Field, Scalar, Value, ValueKind};
+
+    #[test]
+    fn value_span_is_none_for_a_detached_value() {
+        // Arrange
+        let value = Value::detached(ValueKind::Scalar(Scalar::String("h".to_string())));
+        let field = Field::detached_value("host", value);
+
+        // Act
+        let span = value_span(&field);
+
+        // Assert
+        assert!(
+            span.is_none(),
+            "a detached value has no location to navigate to"
+        );
+    }
+
+    #[cfg(feature = "hcl")]
+    #[test]
+    fn value_span_answers_the_value_span_for_a_located_value() {
+        // Arrange
+        use crate::frontend::Frontend;
+        let text = "host = \"h\"\n";
+        let (fields, _report) = crate::frontends::Hcl.parse_buffer(text);
+        let fields = fields.expect("the buffer parses");
+        let field = fields.get("host").expect("the host field");
+        let confval::format::FieldKind::Value(value) = &field.kind else {
+            panic!("an attribute value");
+        };
+        let expected = value.span;
+
+        // Act
+        let span = value_span(field);
+
+        // Assert
+        assert_eq!(span, Some(expected), "a located value returns its own span");
+    }
+}

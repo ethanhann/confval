@@ -429,6 +429,18 @@ mod tests {
     }
 
     #[test]
+    fn split_flag_keeps_a_non_flag_token_with_an_equals_whole() {
+        // Arrange
+        let arg = "name=value";
+
+        // Act
+        let split = split_flag(arg);
+
+        // Assert
+        assert_eq!(split, ("name=value", None));
+    }
+
+    #[test]
     fn an_argument_after_the_terminator_is_a_usage_error() {
         // Arrange, Act
         let message = usage_message(parse_of(&["init", "--", "extra"]));

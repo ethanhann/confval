@@ -68,3 +68,45 @@ fn reindent(new_text: String, text: &str, start: usize) -> String {
     let pad: String = format!("\n{}", " ".repeat(column));
     new_text.replace('\n', &pad)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lsp_types::CompletionItemKind;
+
+    fn raw_item() -> RawItem {
+        RawItem {
+            label: "port".to_string(),
+            kind: CompletionItemKind::FIELD,
+            detail: Some("The listen port.".to_string()),
+            filter_text: Some("port-filter".to_string()),
+            sort_text: "0007".to_string(),
+            preselect: true,
+            snippet: false,
+            edit: (0, 4),
+            new_text: "port".to_string(),
+        }
+    }
+
+    #[test]
+    fn the_encoded_item_carries_every_populated_field() {
+        // Arrange
+        let text = "port: 8080";
+        let index = LineIndex::new(text);
+        let client = ClientSupport {
+            snippets: true,
+            preselect: true,
+        };
+
+        // Act
+        let item = encode_item(raw_item(), text, &index, PositionEncoding::Utf8, client);
+
+        // Assert
+        assert_eq!(item.label, "port");
+        assert_eq!(item.kind, Some(CompletionItemKind::FIELD));
+        assert_eq!(item.detail, Some("The listen port.".to_string()));
+        assert_eq!(item.filter_text, Some("port-filter".to_string()));
+        assert_eq!(item.sort_text, Some("0007".to_string()));
+        assert_eq!(item.preselect, Some(true));
+    }
+}

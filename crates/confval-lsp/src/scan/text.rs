@@ -454,6 +454,52 @@ mod tests {
     }
 
     #[test]
+    fn a_brace_inside_a_line_comment_does_not_change_the_block_path() {
+        // Arrange
+        // The `}` sits inside a `//` line comment, so the brace scan must skip the
+        // comment and leave the `server` block open at `port`. If the comment is
+        // not skipped, the `}` pops `server` and the path becomes empty.
+        let text = "server {\n  // close } here\n  port = \n}\n";
+        let offset = text.find("port = ").unwrap() + "port = ".len();
+
+        // Act
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
+
+        // Assert
+        assert_eq!(context.path, vec!["server".to_string()]);
+        assert_eq!(context.kind, value("port"));
+    }
+
+    #[test]
+    fn a_lone_slash_is_not_a_block_comment_start() {
+        // Arrange
+        // The `/` in `main /x {` has no following `*`, so it is not a block
+        // comment start. If it were treated as one, `skip_block_comment` would run
+        // to the buffer end, swallow the `{`, and leave the path empty.
+        let text = "main /x {\n  port = \n}\n";
+        let offset = text.find("port = ").unwrap() + "port = ".len();
+
+        // Act
+        let context = resolve_in_text(
+            text,
+            offset,
+            TextRecovery::Braces,
+            ValueSeparator::Equals,
+            &["#", "//"],
+        );
+
+        // Assert
+        assert_eq!(context.path, vec!["main".to_string()]);
+        assert_eq!(context.kind, value("port"));
+    }
+
+    #[test]
     fn a_brace_inside_a_block_comment_does_not_close_a_block() {
         // Arrange
         // The `}` is inside an HCL `/* */` comment, so it must not close the
