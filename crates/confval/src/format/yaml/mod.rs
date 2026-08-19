@@ -874,6 +874,25 @@ mod tests {
     }
 
     #[test]
+    fn nesting_past_the_depth_limit_in_mappings_is_reported() {
+        // Arrange
+        // The reader recurses one frame per nested mapping, so the mapping
+        // arm's depth must climb with each level. Nested flow mappings drive
+        // that arm, where the sequence test drives the sequence arm.
+        let depth = MAX_DEPTH as usize + 20;
+        let input = format!("a: {}1{}\n", "{b: ".repeat(depth), "}".repeat(depth));
+
+        // Act
+        let report = reject(&input);
+
+        // Assert
+        assert_eq!(
+            report.issues()[0].message,
+            format!("nesting exceeds {MAX_DEPTH} levels")
+        );
+    }
+
+    #[test]
     fn a_root_alias_is_a_syntax_error() {
         // Arrange
         // The root is the first node, so an anchor it could name cannot have
