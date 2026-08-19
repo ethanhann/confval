@@ -1,0 +1,20 @@
+.cargo/mutants.toml
+  s_d5b235ec3c32f9::t_570179fccf1496 12
+  s_d5b235ec3c32f9::t_c2ea48f26c430d 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "c18cb77fb6bdf6ff83beb1d88bbf5947aa071409",
+  "prompts": {},
+  "sessions": {
+    "s_d5b235ec3c32f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4a350d2-914a-41ce-a025-0fb5b040d9f2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
