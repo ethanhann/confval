@@ -29,9 +29,12 @@ Or, the HCL format, derive macros, and plain output:
 cargo add confval --features "hcl,derive"
 ```
 
-confval also ships a binary that installs agent skills for setting up and maintaining a pipeline.
-Install it with `cargo install confval`.
-See [Agent Skills](./agent-skills.md) for what each skill does.
+:::info
+confval also ships two agent skills.
+One scaffolds a pipeline in a project that has none, and the other keeps the layers in sync when you add a setting.
+Install the binary with `cargo install confval`, then run `confval init` to write the skills into your project.
+See [Agent Skills](./agent-skills.md) for the full workflow.
+:::
 
 ### Feature flags
 
