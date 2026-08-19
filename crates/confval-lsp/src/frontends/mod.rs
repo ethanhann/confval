@@ -33,6 +33,7 @@ use crate::Frontend;
 
 /// The insert for a scalar attribute: a snippet when a default placeholder is
 /// present, a literal otherwise.
+#[cfg(any(feature = "hcl", feature = "toml", feature = "kdl", feature = "yaml"))]
 fn scalar_insert(text: String, placeholder: &str) -> crate::frontend::Insert {
     if placeholder.is_empty() {
         crate::frontend::Insert::plain(text)
