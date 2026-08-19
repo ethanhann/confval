@@ -1,0 +1,46 @@
+crates/confval-lsp/src/handlers/code_action.rs
+  s_d5b235ec3c32f9::t_53473452e82cc3 167-229
+crates/confval-lsp/src/handlers/completion/encode.rs
+  s_d5b235ec3c32f9::t_f964c2742cca94 71-112
+crates/confval-lsp/src/handlers/completion/mod.rs
+  s_d5b235ec3c32f9::t_2b4bb1a5f24679 286-296
+  s_d5b235ec3c32f9::t_ca20f29de8dc85 285
+crates/confval/src/bin/confval/install.rs
+  s_d5b235ec3c32f9::t_d18fa2b36e60db 289-300
+  s_d5b235ec3c32f9::t_20a691cc595320 288
+crates/confval-lsp/src/handlers/diagnostics.rs
+  s_d5b235ec3c32f9::t_cc76b91f1137bf 170-181,183-184
+crates/confval-lsp/src/handlers/navigation.rs
+  s_d5b235ec3c32f9::t_be171fd23419fe 228-270
+crates/confval-lsp/src/scan/text.rs
+  s_d5b235ec3c32f9::t_81f5b4d429e79a 456-501
+crates/confval-lsp/src/frontends/yaml.rs
+  s_d5b235ec3c32f9::t_821508a6fc3cdd 80-87
+  s_d5b235ec3c32f9::t_958f0f1bea2a65 79
+crates/confval/src/bin/confval/commands/init.rs
+  s_d5b235ec3c32f9::t_3bd07babd50e76 112-136
+crates/confval/src/bin/confval/args.rs
+  s_d5b235ec3c32f9::t_ff3cd78622fa36 432-442
+  s_d5b235ec3c32f9::t_2e97ddec910c29 431
+crates/confval-lsp/src/handlers/completion/values.rs
+  s_d5b235ec3c32f9::t_ec9f77235bd6f4 196-304
+crates/confval-lsp/tests/navigation.rs
+  s_d5b235ec3c32f9::t_72c95b45d95896 584-601,604-607
+  s_d5b235ec3c32f9::t_713e107f6af107 602-603
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "6baef1b8096245c9e4882520bb178086b5d889e8",
+  "prompts": {},
+  "sessions": {
+    "s_d5b235ec3c32f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4a350d2-914a-41ce-a025-0fb5b040d9f2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
