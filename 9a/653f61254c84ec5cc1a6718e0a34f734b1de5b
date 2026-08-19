@@ -1,0 +1,19 @@
+crates/confval-lsp/tests/completion_yaml.rs
+  s_99a0b5e236223b::t_52ca580acce0c3 349-395
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "9a653f61254c84ec5cc1a6718e0a34f734b1de5b",
+  "prompts": {},
+  "sessions": {
+    "s_99a0b5e236223b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f17c726-37bb-42eb-b975-a631bf76a9ff",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
