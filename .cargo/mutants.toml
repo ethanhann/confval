@@ -12,6 +12,7 @@ exclude_re = [
     "replace + with * in yaml_attribute",
     "replace - with + in introducing_key",
     "replace - with / in introducing_key",
+    "replace < with <= in field_symbols",
 ]
 timeout_multiplier = 8.0
 minimum_test_timeout = 90

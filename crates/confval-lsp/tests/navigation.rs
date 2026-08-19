@@ -297,6 +297,104 @@ fn hierarchical_symbols_nest_the_blocks_with_their_labels() {
 }
 
 #[test]
+fn each_repeated_instance_range_contains_its_own_children() {
+    // Arrange
+    // The `upstream` field has two instances followed by the `routes` field.
+    // Each instance's range must bound its own children: the first ends at the
+    // second instance's start, and the last ends at the following field.
+    let text = GATEWAY_YAML;
+    let schema = GatewaySpec::schema();
+    let tree = Yaml.parse_tree(text).expect("the buffer parses");
+    let uri = Uri::from_str("file:///doc").unwrap();
+    let index = LineIndex::new(text);
+
+    // Act
+    let response = document_symbols(
+        &schema,
+        &tree,
+        SymbolShape {
+            covers_body: true,
+            hierarchical: true,
+        },
+        &uri,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let DocumentSymbolResponse::Nested(symbols) = response else {
+        panic!("the hierarchical form");
+    };
+    let upstreams: Vec<_> = symbols.iter().filter(|s| s.name == "upstream").collect();
+    assert_eq!(upstreams.len(), 2, "one container per instance");
+    for upstream in &upstreams {
+        let children = upstream.children.as_ref().expect("children");
+        assert!(!children.is_empty(), "each instance has scalar children");
+        for child in children {
+            assert!(
+                upstream.range.start <= child.range.start
+                    && child.range.end <= upstream.range.end,
+                "child {:?} sits inside instance range {:?}",
+                child.range,
+                upstream.range
+            );
+        }
+    }
+    assert!(
+        upstreams[0].range.end <= upstreams[1].range.start,
+        "the first instance ends before the second begins"
+    );
+}
+
+#[test]
+fn a_leaf_selection_covers_the_field_name() {
+    // Arrange
+    // The `port` leaf name starts at the leaf range start, so the selection
+    // must clamp to the name rather than collapse to a zero-width point.
+    let text = GATEWAY_YAML;
+    let schema = GatewaySpec::schema();
+    let tree = Yaml.parse_tree(text).expect("the buffer parses");
+    let uri = Uri::from_str("file:///doc").unwrap();
+    let index = LineIndex::new(text);
+
+    // Act
+    let response = document_symbols(
+        &schema,
+        &tree,
+        SymbolShape {
+            covers_body: true,
+            hierarchical: true,
+        },
+        &uri,
+        text,
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let DocumentSymbolResponse::Nested(symbols) = response else {
+        panic!("the hierarchical form");
+    };
+    let upstream = symbols
+        .iter()
+        .find(|s| s.name == "upstream")
+        .expect("upstream");
+    let children = upstream.children.as_ref().expect("children");
+    let port = children
+        .iter()
+        .find(|c| c.name == "port")
+        .expect("port leaf");
+    let start = index.offset_of(text, port.selection_range.start, ENCODING);
+    let end = index.offset_of(text, port.selection_range.end, ENCODING);
+    assert_eq!(
+        &text[start..end],
+        "port",
+        "the selection covers the field name"
+    );
+}
+
+#[test]
 fn toml_container_ranges_contain_their_children() {
     // Arrange
     // A TOML table's parsed span covers only its header, so the container's
