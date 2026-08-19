@@ -10,6 +10,7 @@ It defines what each stage does, in what order, and what each stage may assume a
 The derives are designed around this ordering.
 
 The approach is inspired by ["Parse, don't validate"](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) by Alexis King, though it does not use newtypes to couple construction with validation.
+The pipeline, as a whole, is like a multi-pass parser acting on a set of in-memory intermediate representations of the configuration.
 
 ## The four stages
 
