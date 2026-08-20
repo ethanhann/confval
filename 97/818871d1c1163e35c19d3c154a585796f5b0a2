@@ -1,0 +1,65 @@
+crates/confval-derive/src/spec/schema.rs
+  s_8fdbb0ce27b053::t_a3e65df0ed1025 209-218,335-370,375-376,383,390
+crates/confval-derive/src/spec/validate_recorded.rs
+  s_8fdbb0ce27b053::t_bdf53a454f91d2 66-87
+crates/confval-lsp/src/frontends/hcl.rs
+  s_8fdbb0ce27b053::t_3c0e637e13ca04 21,60-63
+crates/confval-lsp/src/frontends/json.rs
+  s_8fdbb0ce27b053::t_7a8ad1bd35e81a 45,111-114
+crates/confval-lsp/src/frontends/toml.rs
+  s_8fdbb0ce27b053::t_bee590fe8bcaf1 55
+crates/confval-lsp/src/frontends/yaml.rs
+  s_8fdbb0ce27b053::t_687d189d3b45ac 39,109-112
+crates/confval-lsp/src/handlers/completion/mod.rs
+  s_8fdbb0ce27b053::t_3dae785e4bd797 225-238,359-366,398-407
+crates/confval-lsp/src/handlers/completion/values.rs
+  s_8fdbb0ce27b053::t_76ada6e442f2c1 38-39,43-45
+crates/confval-lsp/src/handlers/hover.rs
+  s_8fdbb0ce27b053::t_a9a42fbedb3f89 206,226-230,233-235,285-288
+crates/confval-lsp/src/handlers/symbols.rs
+  s_8fdbb0ce27b053::t_668320e2ab2a28 145
+crates/confval/examples/handwritten/spec.rs
+  s_8fdbb0ce27b053::t_6f29975a544af6 253-264
+crates/confval/examples/handwritten/tls.rs
+  s_8fdbb0ce27b053::t_846ec1d60e8e08 213-217
+crates/confval/skills/confval-init/SKILL.md
+  s_8fdbb0ce27b053::t_4bc0fd9ca86758 121-133
+crates/confval/skills/confval-init/references/patterns.md
+  s_8fdbb0ce27b053::t_e3cda6410c98e8 57-60,63-64,190-193
+crates/confval/src/schema.rs
+  s_8fdbb0ce27b053::t_1dbd03372fed28 104-112
+crates/confval/tests/recorded_validation.rs
+  s_8fdbb0ce27b053::t_2c4ad5c3c18f2c 43-75,505-585
+crates/confval/tests/schema.rs
+  s_8fdbb0ce27b053::t_48c82720e659d5 43-44,177,250-281,420
+crates/confval/tests/ui/fail/schema_keywords_on_map.stderr
+  s_8fdbb0ce27b053::t_64ad347f21cc20 1
+crates/confval/tests/ui/fail/schema_range_on_list.rs
+  s_8fdbb0ce27b053::t_be1c9290a9323b 1-9
+crates/confval/tests/ui/fail/schema_range_on_list.stderr
+  s_8fdbb0ce27b053::t_76e2f05ef8b87e 1-5
+crates/confval/tests/ui/fail/schema_range_on_nested.stderr
+  s_8fdbb0ce27b053::t_7455cfcb4e8fab 1
+crates/confval/tests/ui/fail/schema_references_on_list.stderr
+  s_8fdbb0ce27b053::t_54d1d67756e6fc 1
+docs/docs/guide/schema-ir.md
+  s_8fdbb0ce27b053::t_04411dcc3ee503 37-38
+docs/docs/guide/validation.md
+  s_8fdbb0ce27b053::t_6cccf75080372b 147,157-158,166-170,174-180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "97818871d1c1163e35c19d3c154a585796f5b0a2",
+  "prompts": {},
+  "sessions": {
+    "s_8fdbb0ce27b053": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d1db920-f009-4078-9ae8-8138b14c4fde",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
