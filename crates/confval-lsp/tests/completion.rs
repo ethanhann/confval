@@ -573,8 +573,9 @@ fn completion_sorts_by_schema_declaration_order() {
 }
 
 /// The edit range of the first item offered at `offset`, resolved through the
-/// real parse and cursor resolution rather than a synthesized position.
-fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Range {
+/// real parse and cursor resolution rather than a synthesized position. `None`
+/// when nothing is offered or the item carries no replace edit.
+fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Option<Range> {
     let (tree, context) = at_with(frontend, text, offset);
     let index = LineIndex::new(text);
     let schema = ServerSpec::schema();
@@ -590,9 +591,9 @@ fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Range 
         ENCODING,
         ClientSupport::default(),
     );
-    match &items.first().expect("an item is offered").text_edit {
-        Some(CompletionTextEdit::Edit(edit)) => edit.range,
-        other => panic!("expected a replace edit, found {:?}", other),
+    match &items.first()?.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => Some(edit.range),
+        _ => None,
     }
 }
 
@@ -605,7 +606,7 @@ fn a_keyword_inside_a_list_replaces_only_that_element() {
     let offset = text.find("\"enf\"").expect("the element is present") + 2;
 
     // Act
-    let range = edit_range_at(&Hcl, text, offset);
+    let range = edit_range_at(&Hcl, text, offset).expect("a replace edit is offered");
 
     // Assert
     assert_eq!(
@@ -630,7 +631,7 @@ fn a_keyword_between_list_elements_inserts_rather_than_replaces() {
     let offset = text.find(", ").expect("the separator is present") + 2;
 
     // Act
-    let range = edit_range_at(&Hcl, text, offset);
+    let range = edit_range_at(&Hcl, text, offset).expect("a replace edit is offered");
 
     // Assert
     // A zero-width range at the cursor, so neither bracket nor sibling moves.
@@ -645,7 +646,7 @@ fn a_keyword_inside_empty_list_brackets_inserts_at_the_cursor() {
     let offset = text.find('[').expect("the bracket is present") + 1;
 
     // Act
-    let range = edit_range_at(&Hcl, text, offset);
+    let range = edit_range_at(&Hcl, text, offset).expect("a replace edit is offered");
 
     // Assert
     assert_eq!(range.start, range.end);

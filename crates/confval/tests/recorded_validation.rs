@@ -40,7 +40,8 @@ impl Validate for Server {
     fn validate(&self, _report: &mut Report) {}
 }
 
-/// A root whose keyword sets sit on string lists rather than on scalars. The
+/// A root that declares its keyword sets on string lists rather than on
+/// scalars. The
 /// bare form is a plain `Vec`, and the optional form keeps the outer `Located`.
 /// Its `Validate` body is empty, so only `validate_recorded` checks the
 /// elements.
@@ -53,6 +54,18 @@ struct Tags {
 }
 
 impl Validate for Tags {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A root holding the list-bearing block, so the list check is reached through
+/// the generated traversal rather than by validating the block directly.
+#[derive(confval::Spec)]
+struct TagsRoot {
+    #[confval(nested)]
+    tags: Option<Located<Tags>>,
+}
+
+impl Validate for TagsRoot {
     fn validate(&self, _report: &mut Report) {}
 }
 
@@ -512,11 +525,12 @@ fn every_element_of_a_bare_keyword_list_is_checked() {
     let report = validate(&spec);
 
     // Assert
-    // The check runs once per element rather than once per field, so both bad
-    // words are reported and the good ones are not.
     assert_eq!(
         messages(&report),
-        vec!["unknown modes: nope", "unknown modes: wat"]
+        vec![
+            "unknown value in modes: nope",
+            "unknown value in modes: wat"
+        ]
     );
 }
 
@@ -529,7 +543,7 @@ fn every_element_of_an_optional_keyword_list_is_checked() {
     let report = validate(&spec);
 
     // Assert
-    assert_eq!(messages(&report), vec!["unknown limits: shout"]);
+    assert_eq!(messages(&report), vec!["unknown value in limits: shout"]);
 }
 
 #[test]
@@ -582,4 +596,99 @@ fn a_keyword_list_reports_at_the_offending_element() {
         issue.span.map(|span| (span.start, span.end)),
         Some((15, 21))
     );
+}
+
+#[test]
+fn an_optional_keyword_list_present_but_empty_reports_nothing() {
+    // Arrange
+    let spec = tags(&[], Some(&[]));
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_issues());
+}
+
+#[test]
+fn every_bad_element_of_an_optional_keyword_list_is_reported() {
+    // Arrange
+    let spec = tags(&[], Some(&["enforce", "shout", "log", "holler"]));
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "unknown value in limits: shout",
+            "unknown value in limits: holler"
+        ]
+    );
+}
+
+#[test]
+fn an_all_valid_keyword_list_reports_nothing() {
+    // Arrange
+    let spec = tags(&["on", "off"], Some(&["enforce", "log"]));
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_issues());
+}
+
+#[test]
+fn an_optional_keyword_list_reports_at_the_offending_element() {
+    // Arrange
+    let mut sources = SourceMap::new();
+    let id = sources.add("tags.hcl", "limits = [\"enforce\", \"shout\"]");
+    let bad = Span {
+        source: id,
+        start: 21,
+        end: 28,
+    };
+    let spec = Tags {
+        modes: Vec::new(),
+        limits: Some(Located {
+            value: vec![
+                Located::detached("enforce".to_string()),
+                Located {
+                    value: "shout".to_string(),
+                    span: bad,
+                },
+            ],
+            span: Span {
+                source: id,
+                start: 9,
+                end: 29,
+            },
+        }),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    // The optional shape reaches its elements through the wrapper, so this pins
+    // that the span is the element's own rather than the list's.
+    assert_eq!(report.issues()[0].span, Some(bad));
+}
+
+#[test]
+fn a_keyword_list_in_a_nested_block_is_reached_through_the_traversal() {
+    // Arrange
+    let spec = TagsRoot {
+        tags: Some(Located::detached(tags(&["nope"], None))),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    // `TagsRoot` has no rules of its own, so this reports only if the generated
+    // descent reaches the child's recorded list check.
+    assert_eq!(messages(&report), vec!["unknown value in modes: nope"]);
 }

@@ -3,17 +3,17 @@
 //!
 //! Where the schema walk in [`schema`](super::schema) records a field's
 //! `#[confval(range = ...)]` or `#[confval(keywords = ...)]` constraint for the
-//! IR, this walk runs the same constraint during validation. It emits one
-//! `check_located` call per recorded field, so the attribute is the single
-//! source and the author's `Validate` body carries no line for it.
+//! IR, this walk runs the same constraint during validation, so the attribute is
+//! the single source and the author's `Validate` body carries no line for it. A
+//! scalar leaf emits a `check_located` call and a string list emits a
+//! `check_each_in` call, which reports each bad element at its own span.
 //!
 //! The walk decides what to emit from the presence of `options.range` or
-//! `options.keywords` alone. The leaf-type pairing, that `keywords` needs a
-//! `String` leaf and `range` needs an `Int` or `Float` leaf, already ran in
-//! `spec/schema.rs` when the always-emitted `ToSchema` was generated, so a
-//! mispaired attribute is a compile error before this walk runs. Keeping the
-//! pairing in one generator and reading only attribute presence here keeps the
-//! two from drifting on which attribute means what.
+//! `options.keywords` alone. Which shape may carry which attribute is settled in
+//! `spec/schema.rs` when the always-emitted `ToSchema` is generated, so a
+//! misplaced attribute is a compile error before this walk runs. Keeping that
+//! rule in one generator and reading only attribute presence here keeps the two
+//! from drifting on which attribute means what.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
@@ -65,13 +65,13 @@ pub(crate) fn field_recorded_check(
     }
 
     // A list records the constraint for one element, so the check runs through
-    // `check_each`, which reports each bad element at its own span. Only
+    // `check_each_in`, which reports each bad element at its own span. Only
     // `keywords` reaches here, because the schema walk refuses `range` and
-    // `references` on a list. The bare form is already a slice; the optional
+    // `references` on a list. The bare form is already a slice. The optional
     // form keeps the outer `Located`, so the list is reached through its value.
     let each = |values: &TokenStream2| -> Option<TokenStream2> {
         let path = options.keywords.as_ref()?;
-        Some(quote! { #path::keyword_set().check_each(#values, #name, report); })
+        Some(quote! { #path::keyword_set().check_each_in(#values, #name, report); })
     };
     if matches!(shape, FieldShape::BareStringList) {
         let call = each(&quote! { &self.#ident })?;

@@ -141,7 +141,7 @@ Both list shapes pass a slice, so a bare `Vec<Located<String>>` passes itself an
 ## Recording a constraint on the field
 
 The two checks above are written once in a `Validate` body.
-A scalar field on a derived spec can instead record its constraint on the field, and the derive runs the check for you.
+A field on a derived spec can instead record its constraint on the field, and the derive runs the check for you.
 
 `#[confval(range = PATH)]` on an `Int` or `Float` leaf, and `#[confval(keywords = PATH)]` on a `String` leaf, name the constraint the field must satisfy.
 `#[confval(keywords = PATH)]` also applies to a string list, where it records the set each element must come from.

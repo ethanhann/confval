@@ -1,4 +1,4 @@
-error: #[confval(references = ...)] is not supported on a list; the reference pass resolves a single value
+error: #[confval(references = ...)] requires a String leaf; it cannot apply to a list
  --> tests/ui/fail/schema_references_on_list.rs:5:28
   |
 5 |     #[confval(references = upstream)]

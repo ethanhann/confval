@@ -431,8 +431,9 @@ fn toml_list_and_map_completion_open_the_container() {
 }
 
 /// The edit range of the first item offered at `offset`, resolved through the
-/// real parse and cursor resolution rather than a synthesized position.
-fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Range {
+/// real parse and cursor resolution rather than a synthesized position. `None`
+/// when nothing is offered or the item carries no replace edit.
+fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Option<Range> {
     let (tree, context) = at_with(frontend, text, offset);
     let index = LineIndex::new(text);
     let schema = ServerSpec::schema();
@@ -448,9 +449,9 @@ fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Range 
         ENCODING,
         ClientSupport::default(),
     );
-    match &items.first().expect("an item is offered").text_edit {
-        Some(CompletionTextEdit::Edit(edit)) => edit.range,
-        other => panic!("expected a replace edit, found {:?}", other),
+    match &items.first()?.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => Some(edit.range),
+        _ => None,
     }
 }
 
@@ -461,7 +462,7 @@ fn toml_keyword_inside_a_list_replaces_only_that_element() {
     let offset = text.find("\"enf\"").expect("the element is present") + 2;
 
     // Act
-    let range = edit_range_at(&Toml, text, offset);
+    let range = edit_range_at(&Toml, text, offset).expect("a replace edit is offered");
 
     // Assert
     assert_eq!(range.start.character, 16);
@@ -475,7 +476,7 @@ fn json_keyword_inside_a_list_replaces_only_that_element() {
     let offset = text.find("\"enf\"").expect("the element is present") + 2;
 
     // Act
-    let range = edit_range_at(&Json, text, offset);
+    let range = edit_range_at(&Json, text, offset).expect("a replace edit is offered");
 
     // Assert
     // Line 1 is the member line. The range covers the element alone, so the

@@ -259,8 +259,6 @@ fn a_string_list_records_the_keyword_set_of_its_elements() {
     let schema = ServerSpec::schema();
 
     // Assert
-    // The constraint describes one element, so a reader offering completion
-    // inside the list reads the same set a scalar field would give.
     assert_eq!(
         field(&schema, "modes").ty,
         SchemaType::string_list(Some(Constraint::Keywords(&LimitMode::KEYWORDS)))

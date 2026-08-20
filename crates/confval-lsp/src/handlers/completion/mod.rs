@@ -222,9 +222,6 @@ mod tests {
         .required()
     }
 
-    /// A string list whose elements come from a closed set. The constraint
-    /// describes one element, so completion offers the same words a scalar
-    /// keyword field offers.
     fn keyword_list_field(name: &str) -> SchemaField {
         SchemaField::new(
             name.to_string(),

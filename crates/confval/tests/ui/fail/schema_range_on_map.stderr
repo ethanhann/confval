@@ -1,0 +1,5 @@
+error: #[confval(range = ...)] requires an Int or Float leaf; it cannot apply to a map or a nested block
+ --> tests/ui/fail/schema_range_on_map.rs:6:28
+  |
+6 |     #[confval(map, range = PORT)]
+  |                            ^^^^

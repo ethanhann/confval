@@ -1,5 +1,5 @@
 error: #[confval(range = ...)] requires an Int or Float leaf; it cannot apply to a list
- --> tests/ui/fail/schema_range_on_list.rs:5:23
+ --> tests/ui/fail/schema_range_on_optional_wrapped_list.rs:5:23
   |
 5 |     #[confval(range = PORT)]
   |                       ^^^^

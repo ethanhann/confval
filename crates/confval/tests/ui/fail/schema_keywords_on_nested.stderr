@@ -1,0 +1,5 @@
+error: #[confval(keywords = ...)] requires a String leaf or a string list; it cannot apply to a map or a nested block
+  --> tests/ui/fail/schema_keywords_on_nested.rs:10:34
+   |
+10 |     #[confval(nested, keywords = LimitMode)]
+   |                                  ^^^^^^^^^

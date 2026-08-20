@@ -247,8 +247,18 @@ impl ToSchema for ServiceSpec {
                 sf("verbose", true, true, leaf(ScalarType::Bool))
                     .with_default_text("false".to_string()),
                 sf("pid_file", false, false, leaf(ScalarType::Path)),
-                sf("events", true, true, SchemaType::string_list(None)),
-                sf("phases", false, false, SchemaType::string_list(None)),
+                sf(
+                    "events",
+                    true,
+                    true,
+                    SchemaType::string_list(Some(Constraint::Keywords(&LogEvent::KEYWORDS))),
+                ),
+                sf(
+                    "phases",
+                    false,
+                    false,
+                    SchemaType::string_list(Some(Constraint::Keywords(&Phase::KEYWORDS))),
+                ),
                 sf("headers", true, true, SchemaType::StringMap),
                 sf("limits", true, false, block(LimitsSpec::schema(), false)),
                 sf(
