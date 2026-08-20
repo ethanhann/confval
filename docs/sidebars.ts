@@ -57,6 +57,7 @@ const sidebars: SidebarsConfig = {
         },
         'examples',
         'agent-skills',
+        'architecture',
         'contributing',
     ],
 };
