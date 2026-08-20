@@ -199,10 +199,7 @@ fn schema_type(shape: &FieldShape, options: &FieldOptions) -> syn::Result<TokenS
             let scalar = scalar_type(leaf);
             let constraint = constraint_tokens(leaf, options)?;
             Ok(quote! {
-                ::confval::schema::SchemaType::Scalar {
-                    leaf: #scalar,
-                    constraint: #constraint,
-                }
+                ::confval::schema::SchemaType::scalar(#scalar, #constraint)
             })
         }
         FieldShape::BareStringList | FieldShape::OptionalWrappedStringList => {
@@ -212,9 +209,7 @@ fn schema_type(shape: &FieldShape, options: &FieldOptions) -> syn::Result<TokenS
             // `constraint_on_string_list` refuses both.
             let constraint = constraint_on_string_list(options)?;
             Ok(quote! {
-                ::confval::schema::SchemaType::StringList {
-                    constraint: #constraint,
-                }
+                ::confval::schema::SchemaType::string_list(#constraint)
             })
         }
         FieldShape::Nested { spec_ty, .. } => {
@@ -229,7 +224,7 @@ fn schema_type(shape: &FieldShape, options: &FieldOptions) -> syn::Result<TokenS
         }
         FieldShape::Map => {
             reject_constraint_on_non_scalar(options)?;
-            Ok(quote! { ::confval::schema::SchemaType::StringMap })
+            Ok(quote! { ::confval::schema::SchemaType::string_map() })
         }
     }
 }
@@ -240,12 +235,10 @@ fn schema_type(shape: &FieldShape, options: &FieldOptions) -> syn::Result<TokenS
 /// `ToFields`.
 fn block_type(spec_ty: &syn::Type, repeated: bool) -> TokenStream2 {
     quote! {
-        ::confval::schema::SchemaType::Block {
-            schema: ::std::boxed::Box::new(
-                <#spec_ty as ::confval::schema::ToSchema>::schema(),
-            ),
-            repeated: #repeated,
-        }
+        ::confval::schema::SchemaType::block(
+            <#spec_ty as ::confval::schema::ToSchema>::schema(),
+            #repeated,
+        )
     }
 }
 

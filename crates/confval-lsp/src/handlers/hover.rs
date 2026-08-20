@@ -223,18 +223,9 @@ fn scalar_label(leaf: &ScalarType) -> &'static str {
     }
 }
 
-/// The constraint of a scalar field or of a string list's elements, if any.
-///
-/// A list's constraint describes one element, and the label reads the same
-/// either way, because "One of: ..." is what an operator needs whether they
-/// write one value or several.
+/// The constraint a field records, if any.
 fn constraint_of(ty: &SchemaType) -> Option<&Constraint> {
-    match ty {
-        SchemaType::Scalar { constraint, .. } | SchemaType::StringList { constraint } => {
-            constraint.as_ref()
-        }
-        _ => None,
-    }
+    ty.constraint()
 }
 
 /// A human label for a constraint.
@@ -266,10 +257,7 @@ mod tests {
     use confval::schema::Schema;
 
     fn block(repeated: bool) -> SchemaType {
-        SchemaType::Block {
-            schema: Box::new(Schema::new(None, Vec::new())),
-            repeated,
-        }
+        SchemaType::block(Schema::new(None, Vec::new()), repeated)
     }
 
     #[test]
@@ -282,10 +270,7 @@ mod tests {
             }),
             "integer"
         );
-        assert_eq!(
-            type_label(&SchemaType::StringList { constraint: None }),
-            "string list"
-        );
+        assert_eq!(type_label(&SchemaType::string_list(None)), "string list");
         assert_eq!(type_label(&SchemaType::StringMap), "map");
         assert_eq!(type_label(&block(false)), "block");
         assert_eq!(type_label(&block(true)), "block (repeatable)");

@@ -229,9 +229,7 @@ mod tests {
         SchemaField::new(
             name.to_string(),
             None,
-            SchemaType::StringList {
-                constraint: Some(Constraint::Keywords(&["enforce", "log"])),
-            },
+            SchemaType::string_list(Some(Constraint::Keywords(&["enforce", "log"]))),
         )
         .required()
     }
@@ -240,10 +238,7 @@ mod tests {
         SchemaField::new(
             name.to_string(),
             None,
-            SchemaType::Block {
-                schema: Box::new(Schema::new(None, fields)),
-                repeated: true,
-            },
+            SchemaType::block(Schema::new(None, fields), true),
         )
         .required()
     }

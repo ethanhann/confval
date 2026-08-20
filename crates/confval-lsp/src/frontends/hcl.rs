@@ -38,10 +38,7 @@ mod tests {
     }
 
     fn block_type() -> SchemaType {
-        SchemaType::Block {
-            schema: Box::new(Schema::new(None, Vec::new())),
-            repeated: false,
-        }
+        SchemaType::block(Schema::new(None, Vec::new()), false)
     }
 
     #[test]
@@ -57,10 +54,7 @@ mod tests {
     #[test]
     fn a_string_list_opens_an_array() {
         // Arrange, Act
-        let insert = Hcl.insert_text(
-            &field("allow", SchemaType::StringList { constraint: None }),
-            &[],
-        );
+        let insert = Hcl.insert_text(&field("allow", SchemaType::string_list(None)), &[]);
 
         // Assert
         assert_eq!(insert.text, "allow = [$0]");

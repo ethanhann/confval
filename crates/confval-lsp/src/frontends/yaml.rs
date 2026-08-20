@@ -70,10 +70,7 @@ mod tests {
     }
 
     fn block_type(repeated: bool) -> SchemaType {
-        SchemaType::Block {
-            schema: Box::new(Schema::new(None, Vec::new())),
-            repeated,
-        }
+        SchemaType::block(Schema::new(None, Vec::new()), repeated)
     }
 
     #[test]
@@ -106,10 +103,7 @@ mod tests {
     #[test]
     fn a_string_list_opens_a_sequence_element() {
         // Arrange, Act
-        let insert = Yaml.insert_text(
-            &field("tags", SchemaType::StringList { constraint: None }),
-            &[],
-        );
+        let insert = Yaml.insert_text(&field("tags", SchemaType::string_list(None)), &[]);
 
         // Assert
         assert_eq!(insert.text, "tags:\n  - $0");

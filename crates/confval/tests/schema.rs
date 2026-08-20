@@ -263,9 +263,7 @@ fn a_string_list_records_the_keyword_set_of_its_elements() {
     // inside the list reads the same set a scalar field would give.
     assert_eq!(
         field(&schema, "modes").ty,
-        SchemaType::StringList {
-            constraint: Some(Constraint::Keywords(&LimitMode::KEYWORDS)),
-        }
+        SchemaType::string_list(Some(Constraint::Keywords(&LimitMode::KEYWORDS)))
     );
 }
 
@@ -275,10 +273,7 @@ fn a_string_list_with_no_attribute_records_no_constraint() {
     let schema = ServerSpec::schema();
 
     // Assert
-    assert_eq!(
-        field(&schema, "allow").ty,
-        SchemaType::StringList { constraint: None }
-    );
+    assert_eq!(field(&schema, "allow").ty, SchemaType::string_list(None));
 }
 
 #[test]

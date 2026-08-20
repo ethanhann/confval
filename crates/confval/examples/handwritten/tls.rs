@@ -210,11 +210,7 @@ impl ToSchema for TlsSpec {
                         constraint: None,
                     },
                 ),
-                SchemaField::new(
-                    "domains".to_string(),
-                    None,
-                    SchemaType::StringList { constraint: None },
-                ),
+                SchemaField::new("domains".to_string(), None, SchemaType::string_list(None)),
                 SchemaField::new(
                     "challenge".to_string(),
                     None,

@@ -71,10 +71,7 @@ mod tests {
         SchemaField::new(
             name.to_string(),
             None,
-            SchemaType::Block {
-                schema: Box::new(Schema::new(None, Vec::new())),
-                repeated: false,
-            },
+            SchemaType::block(Schema::new(None, Vec::new()), false),
         )
         .required()
     }
@@ -83,10 +80,7 @@ mod tests {
         SchemaField::new(
             name.to_string(),
             None,
-            SchemaType::Block {
-                schema: Box::new(Schema::new(None, Vec::new())),
-                repeated: true,
-            },
+            SchemaType::block(Schema::new(None, Vec::new()), true),
         )
         .required()
     }

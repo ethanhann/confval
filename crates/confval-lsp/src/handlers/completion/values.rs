@@ -43,6 +43,7 @@ pub(super) fn value_items<F: Frontend>(
         }
         | SchemaType::StringList {
             constraint: Some(Constraint::Keywords(words)),
+            ..
         } => words
             .iter()
             .enumerate()

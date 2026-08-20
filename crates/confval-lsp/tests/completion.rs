@@ -571,3 +571,83 @@ fn completion_sorts_by_schema_declaration_order() {
     );
     assert_eq!(items[0].label, "hostname", "the first declared field leads");
 }
+
+/// The edit range of the first item offered at `offset`, resolved through the
+/// real parse and cursor resolution rather than a synthesized position.
+fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Range {
+    let (tree, context) = at_with(frontend, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+    let items = completion(
+        frontend,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+    match &items.first().expect("an item is offered").text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit.range,
+        other => panic!("expected a replace edit, found {:?}", other),
+    }
+}
+
+#[test]
+fn a_keyword_inside_a_list_replaces_only_that_element() {
+    // Arrange
+    // The cursor sits in the second element. Replacing the whole literal here
+    // would delete the brackets and the first element with it.
+    let text = "modes = [\"log\", \"enf\"]\n";
+    let offset = text.find("\"enf\"").expect("the element is present") + 2;
+
+    // Act
+    let range = edit_range_at(&Hcl, text, offset);
+
+    // Assert
+    assert_eq!(
+        range,
+        Range {
+            start: Position {
+                line: 0,
+                character: 16
+            },
+            end: Position {
+                line: 0,
+                character: 21
+            },
+        }
+    );
+}
+
+#[test]
+fn a_keyword_between_list_elements_inserts_rather_than_replaces() {
+    // Arrange
+    let text = "modes = [\"log\", ]\n";
+    let offset = text.find(", ").expect("the separator is present") + 2;
+
+    // Act
+    let range = edit_range_at(&Hcl, text, offset);
+
+    // Assert
+    // A zero-width range at the cursor, so neither bracket nor sibling moves.
+    assert_eq!(range.start, range.end);
+    assert_eq!(range.start.character, 16);
+}
+
+#[test]
+fn a_keyword_inside_empty_list_brackets_inserts_at_the_cursor() {
+    // Arrange
+    let text = "modes = []\n";
+    let offset = text.find('[').expect("the bracket is present") + 1;
+
+    // Act
+    let range = edit_range_at(&Hcl, text, offset);
+
+    // Assert
+    assert_eq!(range.start, range.end);
+    assert_eq!(range.start.character, 9);
+}

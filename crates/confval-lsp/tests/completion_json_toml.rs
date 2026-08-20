@@ -5,7 +5,7 @@
 mod fixture;
 mod support;
 
-use lsp_types::{CompletionTextEdit, InsertTextFormat, Position};
+use lsp_types::{CompletionTextEdit, InsertTextFormat, Position, Range};
 
 use confval::schema::ToSchema;
 use confval_lsp::handlers::{ClientSupport, Cx, completion};
@@ -428,4 +428,59 @@ fn toml_list_and_map_completion_open_the_container() {
         .find(|i| i.label == "headers")
         .expect("headers offered");
     assert_eq!(inserted(headers), "headers = {  }");
+}
+
+/// The edit range of the first item offered at `offset`, resolved through the
+/// real parse and cursor resolution rather than a synthesized position.
+fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Range {
+    let (tree, context) = at_with(frontend, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+    let items = completion(
+        frontend,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+    match &items.first().expect("an item is offered").text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => edit.range,
+        other => panic!("expected a replace edit, found {:?}", other),
+    }
+}
+
+#[test]
+fn toml_keyword_inside_a_list_replaces_only_that_element() {
+    // Arrange
+    let text = "modes = [\"log\", \"enf\"]\n";
+    let offset = text.find("\"enf\"").expect("the element is present") + 2;
+
+    // Act
+    let range = edit_range_at(&Toml, text, offset);
+
+    // Assert
+    assert_eq!(range.start.character, 16);
+    assert_eq!(range.end.character, 21);
+}
+
+#[test]
+fn json_keyword_inside_a_list_replaces_only_that_element() {
+    // Arrange
+    let text = "{\n  \"modes\": [\"log\", \"enf\"]\n}\n";
+    let offset = text.find("\"enf\"").expect("the element is present") + 2;
+
+    // Act
+    let range = edit_range_at(&Json, text, offset);
+
+    // Assert
+    // Line 1 is the member line. The range covers the element alone, so the
+    // brackets and the sibling entry survive the edit.
+    assert_eq!(range.start.line, 1);
+    assert_eq!(range.start.character, 19);
+    assert_eq!(range.end.character, 24);
 }
