@@ -1,0 +1,87 @@
+crates/confval-derive/src/spec/options.rs
+  s_8fdbb0ce27b053::t_30631dd4a226d8 99-102
+crates/confval-derive/src/spec/schema.rs
+  s_8fdbb0ce27b053::t_b32c09d830037b 8-12,19,197,205-210,237-284,291-301,303,305,307,309,335,337,349-354,358-360
+crates/confval-derive/src/spec/validate_recorded.rs
+  s_8fdbb0ce27b053::t_c8e30c5f3261d1 6-9,12-16,68,70,74
+crates/confval-lsp/src/handlers/completion/values.rs
+  s_8fdbb0ce27b053::t_60214a7f80fd36 38-40
+crates/confval-lsp/tests/completion.rs
+  s_8fdbb0ce27b053::t_0d81c38113cb2b 576-578,594-596,609,634,649
+crates/confval-lsp/tests/completion_json_toml.rs
+  s_8fdbb0ce27b053::t_f3cd4f62dacdd9 434-436,452-454,465,479
+crates/confval/examples/common/config.rs
+  s_8fdbb0ce27b053::t_d0f7a5e245c972 20-24,61-64
+crates/confval/examples/common/spec.rs
+  s_8fdbb0ce27b053::t_cff4468326195f 14-19,31-32,35-40
+crates/confval/examples/handwritten/spec.rs
+  s_8fdbb0ce27b053::t_c51b983006c417 250-261
+crates/confval/examples/hcl.rs
+  s_8fdbb0ce27b053::t_466f5facd34bc9 13-15,37,67
+crates/confval/examples/json.rs
+  s_8fdbb0ce27b053::t_737d2d21b4a075 13-14,44,75
+crates/confval/examples/kdl.rs
+  s_8fdbb0ce27b053::t_3457fa25273b19 13-15,41,71
+crates/confval/examples/toml.rs
+  s_8fdbb0ce27b053::t_0934dd5e643a4c 13-15,37,66
+crates/confval/examples/yaml.rs
+  s_8fdbb0ce27b053::t_01dc5535c36946 13-14,43,72
+crates/confval/src/pipeline/keyword.rs
+  s_8fdbb0ce27b053::t_d44fb388a46457 70-94,348-409
+crates/confval/tests/recorded_validation.rs
+  s_8fdbb0ce27b053::t_a5c2506c4b6222 43-44,60-71,530-533,546,600-694
+crates/confval/tests/ui/fail/schema_keywords_and_range_on_list.rs
+  s_8fdbb0ce27b053::t_3cbc8134836a6e 1-9
+crates/confval/tests/ui/fail/schema_keywords_and_range_on_list.stderr
+  s_8fdbb0ce27b053::t_69ca467d663497 1-5
+crates/confval/tests/ui/fail/schema_keywords_on_float.stderr
+  s_8fdbb0ce27b053::t_217d6416ac32fa 1
+crates/confval/tests/ui/fail/schema_keywords_on_int.stderr
+  s_8fdbb0ce27b053::t_8059da128b8991 1
+crates/confval/tests/ui/fail/schema_keywords_on_nested.rs
+  s_8fdbb0ce27b053::t_ac32d229661e43 1-14
+crates/confval/tests/ui/fail/schema_keywords_on_nested.stderr
+  s_8fdbb0ce27b053::t_1729495ea9582a 1-5
+crates/confval/tests/ui/fail/schema_range_on_list.stderr
+  s_8fdbb0ce27b053::t_b68d6219e2de8c 1
+crates/confval/tests/ui/fail/schema_range_on_map.rs
+  s_8fdbb0ce27b053::t_de35b127a4ee5d 1-10
+crates/confval/tests/ui/fail/schema_range_on_map.stderr
+  s_8fdbb0ce27b053::t_dd2e44dad02ee4 1-5
+crates/confval/tests/ui/fail/schema_range_on_optional_wrapped_list.rs
+  s_8fdbb0ce27b053::t_51482e6dc81d29 1-9
+crates/confval/tests/ui/fail/schema_range_on_optional_wrapped_list.stderr
+  s_8fdbb0ce27b053::t_1e66d2e38405e1 1-5
+crates/confval/tests/ui/fail/schema_references_on_list.stderr
+  s_8fdbb0ce27b053::t_74af62c3838181 1
+crates/confval/tests/ui/fail/schema_references_on_map.rs
+  s_8fdbb0ce27b053::t_85a175343b42ed 1-10
+crates/confval/tests/ui/fail/schema_references_on_map.stderr
+  s_8fdbb0ce27b053::t_7f6b5dc117e959 1-5
+crates/confval/tests/ui/pass/schema_keywords_on_list.rs
+  s_8fdbb0ce27b053::t_58530ffe42e6aa 1-29
+docs/docs/guide/editor-support.md
+  s_8fdbb0ce27b053::t_4aa0c4ef5f2e67 30
+docs/docs/guide/lowering.md
+  s_8fdbb0ce27b053::t_205f0702b69429 75-76
+docs/docs/guide/schema-ir.md
+  s_8fdbb0ce27b053::t_199280022a18a1 65,67,69,73,76
+docs/docs/guide/validation.md
+  s_8fdbb0ce27b053::t_2119512f76f482 144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8f8a46fcd190ce45247fb8ed8ded5a50e3b17e8d",
+  "prompts": {},
+  "sessions": {
+    "s_8fdbb0ce27b053": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d1db920-f009-4078-9ae8-8138b14c4fde",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
