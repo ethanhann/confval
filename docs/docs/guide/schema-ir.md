@@ -34,7 +34,8 @@ Each `SchemaField` carries the field name as it appears in a config file, the fi
 
 The declared type is a `SchemaType`.
 A scalar leaf carries its `ScalarType` and any constraint it declares.
-A string list is `StringList`, and a string-keyed map is `StringMap`.
+A string list is `StringList`, which carries any constraint its elements declare, and a string-keyed map is `StringMap`.
+A list's constraint describes one element, so a reader offering completion inside the list reads the same set a scalar field would give.
 A nested block is `Block`, which holds the child level's own `Schema` and a `repeated` flag for a zero-or-more block list.
 
 A leaf reads its `ScalarType` from the Rust type, so `port: Located<i64>` is `Int` and `hostname: Located<String>` is `String`.

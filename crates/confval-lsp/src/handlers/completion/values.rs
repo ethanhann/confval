@@ -35,9 +35,14 @@ pub(super) fn value_items<F: Frontend>(
         return Vec::new();
     };
     match &target.ty {
+        // A list offers the same set as a scalar, once per element the operator
+        // writes. A list carries no `default_text`, so nothing preselects.
         SchemaType::Scalar {
             constraint: Some(Constraint::Keywords(words)),
             ..
+        }
+        | SchemaType::StringList {
+            constraint: Some(Constraint::Keywords(words)),
         } => words
             .iter()
             .enumerate()

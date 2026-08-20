@@ -1,0 +1,5 @@
+error: #[confval(range = ...)] requires an Int or Float leaf; a list of numbers is not a supported field shape
+ --> tests/ui/fail/schema_range_on_list.rs:5:23
+  |
+5 |     #[confval(range = PORT)]
+  |                       ^^^^

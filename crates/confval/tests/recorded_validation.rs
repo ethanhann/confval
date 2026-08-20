@@ -40,6 +40,39 @@ impl Validate for Server {
     fn validate(&self, _report: &mut Report) {}
 }
 
+/// A root whose keyword sets sit on string lists rather than on scalars. The
+/// bare form is a plain `Vec`, and the optional form keeps the outer `Located`.
+/// Its `Validate` body is empty, so only `validate_recorded` checks the
+/// elements.
+#[derive(confval::Spec)]
+struct Tags {
+    #[confval(keywords = Mode)]
+    modes: Vec<Located<String>>,
+    #[confval(keywords = LimitMode)]
+    limits: Option<Located<Vec<Located<String>>>>,
+}
+
+impl Validate for Tags {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+fn tags(modes: &[&str], limits: Option<&[&str]>) -> Tags {
+    Tags {
+        modes: modes
+            .iter()
+            .map(|word| Located::detached(word.to_string()))
+            .collect(),
+        limits: limits.map(|words| {
+            Located::detached(
+                words
+                    .iter()
+                    .map(|word| Located::detached(word.to_string()))
+                    .collect(),
+            )
+        }),
+    }
+}
+
 /// A nested block whose only rule is a recorded range, so it is checked only
 /// through its parent's descent once its `Validate` body is empty.
 #[derive(confval::Spec)]
@@ -468,4 +501,85 @@ fn an_operator_value_keeps_the_ordinary_constraint_message() {
 
     // Assert
     assert_eq!(messages(&report), vec!["port must be at most 65535"]);
+}
+
+#[test]
+fn every_element_of_a_bare_keyword_list_is_checked() {
+    // Arrange
+    let spec = tags(&["on", "nope", "off", "wat"], None);
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    // The check runs once per element rather than once per field, so both bad
+    // words are reported and the good ones are not.
+    assert_eq!(
+        messages(&report),
+        vec!["unknown modes: nope", "unknown modes: wat"]
+    );
+}
+
+#[test]
+fn every_element_of_an_optional_keyword_list_is_checked() {
+    // Arrange
+    let spec = tags(&[], Some(&["enforce", "shout"]));
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(messages(&report), vec!["unknown limits: shout"]);
+}
+
+#[test]
+fn an_absent_keyword_list_reports_nothing() {
+    // Arrange
+    let spec = tags(&[], None);
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_issues());
+}
+
+#[test]
+fn a_keyword_list_reports_at_the_offending_element() {
+    // Arrange
+    let mut sources = SourceMap::new();
+    let id = sources.add("tags.hcl", "modes = [\"on\", \"nope\"]");
+    let spec = Tags {
+        modes: vec![
+            Located {
+                value: "on".to_string(),
+                span: Span {
+                    source: id,
+                    start: 9,
+                    end: 13,
+                },
+            },
+            Located {
+                value: "nope".to_string(),
+                span: Span {
+                    source: id,
+                    start: 15,
+                    end: 21,
+                },
+            },
+        ],
+        limits: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    // The span is the element's own, not the list's, so a diagnostic underlines
+    // the one word the operator must change.
+    let issue = &report.issues()[0];
+    assert_eq!(
+        issue.span.map(|span| (span.start, span.end)),
+        Some((15, 21))
+    );
 }

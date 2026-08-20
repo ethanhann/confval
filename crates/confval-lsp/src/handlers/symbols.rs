@@ -142,7 +142,7 @@ fn field_symbols(
                 })
                 .collect()
         }
-        SchemaType::StringList => leaf(field, SymbolKind::ARRAY, build.text_len)
+        SchemaType::StringList { .. } => leaf(field, SymbolKind::ARRAY, build.text_len)
             .into_iter()
             .collect(),
         SchemaType::StringMap => leaf(field, SymbolKind::OBJECT, build.text_len)

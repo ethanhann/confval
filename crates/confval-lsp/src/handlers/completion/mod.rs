@@ -222,6 +222,20 @@ mod tests {
         .required()
     }
 
+    /// A string list whose elements come from a closed set. The constraint
+    /// describes one element, so completion offers the same words a scalar
+    /// keyword field offers.
+    fn keyword_list_field(name: &str) -> SchemaField {
+        SchemaField::new(
+            name.to_string(),
+            None,
+            SchemaType::StringList {
+                constraint: Some(Constraint::Keywords(&["enforce", "log"])),
+            },
+        )
+        .required()
+    }
+
     fn repeated(name: &str, fields: Vec<SchemaField>) -> SchemaField {
         SchemaField::new(
             name.to_string(),
@@ -342,7 +356,14 @@ mod tests {
         // One table per value case: a keyword completion over a typed value,
         // over a bare colon that needs the separating space, and at a field
         // with no closed set.
-        let schema = Schema::new(None, vec![keyword_field("mode"), scalar("port")]);
+        let schema = Schema::new(
+            None,
+            vec![
+                keyword_field("mode"),
+                scalar("port"),
+                keyword_list_field("modes"),
+            ],
+        );
         let value = |field: &str| PositionKind::AttributeValue {
             field: field.to_string(),
         };
@@ -373,6 +394,16 @@ mod tests {
                 value("port"),
                 (6, 6),
                 vec![],
+            ),
+            (
+                "a list element offers the element keywords",
+                "modes: enf",
+                value("modes"),
+                (7, 10),
+                vec![
+                    ("enforce".to_string(), (7, 10), "\"enforce\"".to_string()),
+                    ("log".to_string(), (7, 10), "\"log\"".to_string()),
+                ],
             ),
         ];
 

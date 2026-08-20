@@ -206,8 +206,16 @@ fn schema_type(shape: &FieldShape, options: &FieldOptions) -> syn::Result<TokenS
             })
         }
         FieldShape::BareStringList | FieldShape::OptionalWrappedStringList => {
-            reject_constraint_on_non_scalar(options)?;
-            Ok(quote! { ::confval::schema::SchemaType::StringList })
+            // A list holds string elements, so the element-level pairing is the
+            // same one a `String` leaf runs. `range` has no numeric list shape
+            // to apply to and `references` does not resolve per element yet, so
+            // `constraint_on_string_list` refuses both.
+            let constraint = constraint_on_string_list(options)?;
+            Ok(quote! {
+                ::confval::schema::SchemaType::StringList {
+                    constraint: #constraint,
+                }
+            })
         }
         FieldShape::Nested { spec_ty, .. } => {
             reject_constraint_on_non_scalar(options)?;
@@ -324,28 +332,62 @@ fn constraint_tokens(leaf: &Leaf, options: &FieldOptions) -> syn::Result<TokenSt
     }
 }
 
-/// Rejects a recording attribute on a shape that is not a scalar leaf. A list, a
-/// map, or a nested block has no closed set or numeric bound to record.
+/// The `Option<Constraint>` expression for a string list, and the site of the
+/// element-level pairing check.
+///
+/// A closed set applies to each element, so `keywords` records the same
+/// `Constraint::Keywords` a `String` leaf records, and the validation walk runs
+/// it once per element. `range` needs a numeric leaf and there is no numeric
+/// list shape, so it is refused. `references` resolves one value against the
+/// labels in scope and the reference pass does not walk list elements, so it is
+/// refused too, with a message that says so rather than that it cannot work.
+fn constraint_on_string_list(options: &FieldOptions) -> syn::Result<TokenStream2> {
+    if let Some(range) = &options.range {
+        return Err(syn::Error::new_spanned(
+            range,
+            "#[confval(range = ...)] requires an Int or Float leaf; \
+             a list of numbers is not a supported field shape",
+        ));
+    }
+    if let Some(block) = &options.references {
+        return Err(syn::Error::new_spanned(
+            block,
+            "#[confval(references = ...)] is not supported on a list; \
+             the reference pass resolves a single value",
+        ));
+    }
+    match &options.keywords {
+        Some(path) => Ok(quote! {
+            ::core::option::Option::Some(
+                ::confval::schema::Constraint::Keywords(&#path::KEYWORDS),
+            )
+        }),
+        None => Ok(quote! { ::core::option::Option::None }),
+    }
+}
+
+/// Rejects a recording attribute on a shape that records no constraint. A map or
+/// a nested block has no closed set or numeric bound to record.
 fn reject_constraint_on_non_scalar(options: &FieldOptions) -> syn::Result<()> {
     if let Some(path) = &options.keywords {
         return Err(syn::Error::new_spanned(
             path,
-            "#[confval(keywords = ...)] requires a String leaf; \
-             it cannot apply to a list, a map, or a nested block",
+            "#[confval(keywords = ...)] requires a String leaf or a string list; \
+             it cannot apply to a map or a nested block",
         ));
     }
     if let Some(path) = &options.range {
         return Err(syn::Error::new_spanned(
             path,
             "#[confval(range = ...)] requires an Int or Float leaf; \
-             it cannot apply to a list, a map, or a nested block",
+             it cannot apply to a map or a nested block",
         ));
     }
     if let Some(block) = &options.references {
         return Err(syn::Error::new_spanned(
             block,
             "#[confval(references = ...)] requires a String leaf; \
-             it cannot apply to a list, a map, or a nested block",
+             it cannot apply to a map or a nested block",
         ));
     }
     Ok(())

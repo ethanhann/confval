@@ -18,7 +18,7 @@ impl Frontend for Hcl {
     fn insert_text(&self, field: &SchemaField, _path: &[String]) -> Insert {
         match &field.ty {
             SchemaType::Block { .. } => Insert::snippet(format!("{} {{\n  $0\n}}", field.name)),
-            SchemaType::StringList => Insert::snippet(format!("{} = [$0]", field.name)),
+            SchemaType::StringList { .. } => Insert::snippet(format!("{} = [$0]", field.name)),
             SchemaType::StringMap => Insert::snippet(format!("{} = {{ $0 }}", field.name)),
             _ => {
                 let placeholder = super::value_placeholder(self, field);
@@ -57,7 +57,10 @@ mod tests {
     #[test]
     fn a_string_list_opens_an_array() {
         // Arrange, Act
-        let insert = Hcl.insert_text(&field("allow", SchemaType::StringList), &[]);
+        let insert = Hcl.insert_text(
+            &field("allow", SchemaType::StringList { constraint: None }),
+            &[],
+        );
 
         // Assert
         assert_eq!(insert.text, "allow = [$0]");

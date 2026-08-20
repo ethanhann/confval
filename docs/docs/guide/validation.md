@@ -144,6 +144,7 @@ The two checks above are written once in a `Validate` body.
 A scalar field on a derived spec can instead record its constraint on the field, and the derive runs the check for you.
 
 `#[confval(range = PATH)]` on an `Int` or `Float` leaf, and `#[confval(keywords = PATH)]` on a `String` leaf, name the constraint the field must satisfy.
+`#[confval(keywords = PATH)]` also applies to a string list, where it records the set each element must come from.
 `validate_all` runs the recorded check, so the field needs no line in `validate`.
 
 ```rust
@@ -153,6 +154,8 @@ struct LimitsSpec {
     max_body_mb: Located<i64>,
     #[confval(keywords = LimitMode)]
     mode: Located<String>,
+    #[confval(keywords = LogEvent)]
+    events: Vec<Located<String>>,
 }
 
 impl Validate for LimitsSpec {
@@ -160,12 +163,21 @@ impl Validate for LimitsSpec {
 }
 ```
 
+A recorded list runs `check_each`, so each bad element is reported at its own span.
+Both list shapes are covered, the bare `Vec<Located<String>>` and the wrapped `Option<Located<Vec<Located<String>>>>`.
+The message names the field rather than one element, because the derive reads the field name.
+Write the check by hand when you want the singular wording.
+
 The attribute is then the single source for that field.
 It records the constraint for the [schema IR](./schema-ir.md) and runs the check, so the two cannot disagree.
 
-Only a scalar `range` or `keywords` field is recorded this way.
-A cross-field rule, an emptiness check, and a keyword list checked with `check_each` have no attribute, so they stay in the `Validate` body.
-Removing a `check_each` line because you recorded other fields drops that check with no compile error, so leave a keyword-list check in place.
+A `range` is recorded on a scalar leaf alone.
+There is no numeric list shape, so a list of numbers is not a field a range can apply to.
+`references` resolves one value against the labels in scope, so it is recorded on a scalar leaf alone too.
+
+A cross-field rule and an emptiness check have no attribute, so they stay in the `Validate` body.
+A keyword list checked by hand with `check_each` also stays there, and removing that line because you recorded other fields drops the check with no compile error.
+Record the set on the field instead, and the derive keeps the two from parting.
 
 ## keyword_enum!
 

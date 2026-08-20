@@ -63,6 +63,28 @@ pub(crate) fn field_recorded_check(
             }
         });
     }
+
+    // A list records the constraint for one element, so the check runs through
+    // `check_each`, which reports each bad element at its own span. Only
+    // `keywords` reaches here, because the schema walk refuses `range` and
+    // `references` on a list. The bare form is already a slice; the optional
+    // form keeps the outer `Located`, so the list is reached through its value.
+    let each = |values: &TokenStream2| -> Option<TokenStream2> {
+        let path = options.keywords.as_ref()?;
+        Some(quote! { #path::keyword_set().check_each(#values, #name, report); })
+    };
+    if matches!(shape, FieldShape::BareStringList) {
+        let call = each(&quote! { &self.#ident })?;
+        return Some(call);
+    }
+    if matches!(shape, FieldShape::OptionalWrappedStringList) {
+        let call = each(&quote! { &__list.value })?;
+        return Some(quote! {
+            if let ::core::option::Option::Some(__list) = &self.#ident {
+                #call
+            }
+        });
+    }
     let direct = call(&quote! { &self.#ident }, &quote! { report })?;
     let Some(default) = default_expr_typed(shape, options) else {
         return Some(direct);

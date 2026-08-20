@@ -203,7 +203,7 @@ fn state_label(set: bool, has_default: bool) -> &'static str {
 fn type_label(ty: &SchemaType) -> &'static str {
     match ty {
         SchemaType::Scalar { leaf, .. } => scalar_label(leaf),
-        SchemaType::StringList => "string list",
+        SchemaType::StringList { .. } => "string list",
         SchemaType::Block { repeated: true, .. } => "block (repeatable)",
         SchemaType::Block { .. } => "block",
         SchemaType::StringMap => "map",
@@ -223,10 +223,16 @@ fn scalar_label(leaf: &ScalarType) -> &'static str {
     }
 }
 
-/// The constraint of a scalar field, if any.
+/// The constraint of a scalar field or of a string list's elements, if any.
+///
+/// A list's constraint describes one element, and the label reads the same
+/// either way, because "One of: ..." is what an operator needs whether they
+/// write one value or several.
 fn constraint_of(ty: &SchemaType) -> Option<&Constraint> {
     match ty {
-        SchemaType::Scalar { constraint, .. } => constraint.as_ref(),
+        SchemaType::Scalar { constraint, .. } | SchemaType::StringList { constraint } => {
+            constraint.as_ref()
+        }
         _ => None,
     }
 }
@@ -276,7 +282,10 @@ mod tests {
             }),
             "integer"
         );
-        assert_eq!(type_label(&SchemaType::StringList), "string list");
+        assert_eq!(
+            type_label(&SchemaType::StringList { constraint: None }),
+            "string list"
+        );
         assert_eq!(type_label(&SchemaType::StringMap), "map");
         assert_eq!(type_label(&block(false)), "block");
         assert_eq!(type_label(&block(true)), "block (repeatable)");

@@ -40,6 +40,8 @@ struct ServerSpec {
     tls: Located<bool>,
     #[confval(default)]
     allow: Vec<Located<String>>,
+    #[confval(default, keywords = LimitMode)]
+    modes: Vec<Located<String>>,
     #[confval(map, default)]
     headers: BTreeMap<String, Located<String>>,
     #[confval(nested)]
@@ -172,7 +174,7 @@ fn the_schema_lists_every_field_in_declaration_order() {
     assert_eq!(
         names,
         vec![
-            "hostname", "port", "workers", "tls", "allow", "headers", "limits"
+            "hostname", "port", "workers", "tls", "allow", "modes", "headers", "limits"
         ]
     );
 }
@@ -245,7 +247,38 @@ fn a_bare_string_list_is_a_string_list() {
     let schema = ServerSpec::schema();
 
     // Assert
-    assert!(matches!(field(&schema, "allow").ty, SchemaType::StringList));
+    assert!(matches!(
+        field(&schema, "allow").ty,
+        SchemaType::StringList { .. }
+    ));
+}
+
+#[test]
+fn a_string_list_records_the_keyword_set_of_its_elements() {
+    // Act
+    let schema = ServerSpec::schema();
+
+    // Assert
+    // The constraint describes one element, so a reader offering completion
+    // inside the list reads the same set a scalar field would give.
+    assert_eq!(
+        field(&schema, "modes").ty,
+        SchemaType::StringList {
+            constraint: Some(Constraint::Keywords(&LimitMode::KEYWORDS)),
+        }
+    );
+}
+
+#[test]
+fn a_string_list_with_no_attribute_records_no_constraint() {
+    // Act
+    let schema = ServerSpec::schema();
+
+    // Assert
+    assert_eq!(
+        field(&schema, "allow").ty,
+        SchemaType::StringList { constraint: None }
+    );
 }
 
 #[test]
@@ -384,7 +417,7 @@ fn an_optional_wrapped_string_list_is_a_string_list_and_not_required() {
 
     // Assert
     let maybe_tags = field(&schema, "maybe_tags");
-    assert!(matches!(maybe_tags.ty, SchemaType::StringList));
+    assert!(matches!(maybe_tags.ty, SchemaType::StringList { .. }));
     assert!(!maybe_tags.required);
     assert!(!maybe_tags.has_default);
 }

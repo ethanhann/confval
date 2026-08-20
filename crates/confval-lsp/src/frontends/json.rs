@@ -42,7 +42,7 @@ impl Frontend for Json {
                 (format!("\"{}\": [{{ $0 }}]", field.name), true)
             }
             SchemaType::Block { .. } => (format!("\"{}\": {{\n  $0\n}}", field.name), true),
-            SchemaType::StringList => (format!("\"{}\": [$0]", field.name), true),
+            SchemaType::StringList { .. } => (format!("\"{}\": [$0]", field.name), true),
             SchemaType::StringMap => (format!("\"{}\": {{ $0 }}", field.name), true),
             _ => {
                 let placeholder = super::value_placeholder(self, field);
@@ -108,7 +108,10 @@ mod tests {
     #[test]
     fn a_string_list_opens_an_array() {
         // Arrange, Act
-        let insert = Json.insert_text(&field("allow", SchemaType::StringList), &[]);
+        let insert = Json.insert_text(
+            &field("allow", SchemaType::StringList { constraint: None }),
+            &[],
+        );
 
         // Assert
         assert_eq!(insert.text, "\"allow\": [$0]");

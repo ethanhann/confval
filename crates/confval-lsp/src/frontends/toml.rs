@@ -52,7 +52,7 @@ impl Frontend for Toml {
                 absorb: Absorb::Run(b'['),
                 snippet: false,
             },
-            SchemaType::StringList => Insert::snippet(format!("{} = [$0]", field.name)),
+            SchemaType::StringList { .. } => Insert::snippet(format!("{} = [$0]", field.name)),
             SchemaType::StringMap => Insert::snippet(format!("{} = {{ $0 }}", field.name)),
             _ => {
                 let placeholder = super::value_placeholder(self, field);

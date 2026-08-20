@@ -101,8 +101,15 @@ pub enum SchemaType {
         /// The mechanical constraint the field records, or `None`.
         constraint: Option<Constraint>,
     },
-    /// A list of strings.
-    StringList,
+    /// A list of strings, with the constraint each element declares, if any.
+    ///
+    /// The constraint describes one element rather than the list, so a closed
+    /// set here means every entry must be one of those words. A reader offering
+    /// completion inside the list reads the same set a scalar field would give.
+    StringList {
+        /// The mechanical constraint each element records, or `None`.
+        constraint: Option<Constraint>,
+    },
     /// A nested block. `repeated` is true for a zero-or-more block list.
     Block {
         /// The child level's schema.

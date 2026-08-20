@@ -54,9 +54,14 @@ struct LimitsSpec {
 }
 ```
 
-Use it rather than `#[derive(Default)]` on a spec.
+Two cases decide which `Default` a spec gets.
+A spec whose every field is optional and declares no default may use `#[derive(Default)]`, because all `None` is what the parser fills and nothing can drift.
+A spec where any field declares `#[confval(default = ...)]` uses `#[confval(derive_default)]`.
+
 The standard derive fills an undeclared field with `T::default()` without reporting it, so the value for an absent block and the value for an omitted field can drift apart.
 `#[confval(derive_default)]` refuses a field that declares no default rather than inventing a value, which keeps the two the same.
+A handwritten `impl Default` that repeats the attribute values is the same drift written out by hand, and it is what a migration from an earlier version leaves behind.
+Delete it and add the attribute.
 
 ## The configuration with no file
 
@@ -181,6 +186,10 @@ impl Validate for ServerSpec {
 
 `descend` runs after `validate`, so whatever the block reported about itself survives the pruning of its subtree.
 A disabled feature whose sub-blocks no longer mean anything is the other common case.
+
+A recorded constraint is not pruned.
+`validate_all` runs every recorded check before `validate`, so a `range` or `keywords` attribute fires even when the gate has already reported that the block does not apply.
+Keep such a check in `validate`, behind the same condition, rather than on the field.
 
 ## A labeled block another block references
 
