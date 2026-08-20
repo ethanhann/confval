@@ -1,0 +1,61 @@
+crates/confval-derive/src/spec/schema.rs
+  s_8fdbb0ce27b053::t_8ac7cf72fdb47d 202,212,227,238-241
+crates/confval-lsp/src/frontends/hcl.rs
+  s_8fdbb0ce27b053::t_54979b37b7ec61 41,57
+crates/confval-lsp/src/frontends/json.rs
+  s_8fdbb0ce27b053::t_87db1d8a58a627 83,108
+crates/confval-lsp/src/frontends/kdl.rs
+  s_8fdbb0ce27b053::t_637977fa6d81d5 76
+crates/confval-lsp/src/frontends/toml.rs
+  s_8fdbb0ce27b053::t_24c04e5a8c6e1b 74,83
+crates/confval-lsp/src/frontends/yaml.rs
+  s_8fdbb0ce27b053::t_a206497090b30a 73,106
+crates/confval-lsp/src/handlers/completion/mod.rs
+  s_8fdbb0ce27b053::t_ae14802c343536 232,241
+crates/confval-lsp/src/handlers/completion/values.rs
+  s_8fdbb0ce27b053::t_b95a6fe4f381c4 46
+crates/confval-lsp/src/handlers/hover.rs
+  s_8fdbb0ce27b053::t_6ad894eeedcced 226,228,260,273
+crates/confval-lsp/src/resolve.rs
+  s_8fdbb0ce27b053::t_56f9c7bfd43a51 246-248,260-277
+crates/confval-lsp/src/walk.rs
+  s_8fdbb0ce27b053::t_e85240adcfb815 164
+crates/confval-lsp/tests/completion.rs
+  s_8fdbb0ce27b053::t_3dd986503330a0 574-653
+crates/confval-lsp/tests/completion_json_toml.rs
+  s_da4d793206de9d::t_5a4e2bd9abcf56 8,432-486
+crates/confval-lsp/tests/fixture/mod.rs
+  s_8fdbb0ce27b053::t_48e916961aa59d 5-6,39-44
+crates/confval/examples/handwritten/spec.rs
+  s_8fdbb0ce27b053::t_22d8291686790a 216,250-251
+crates/confval/examples/handwritten/tls.rs
+  s_8fdbb0ce27b053::t_1ced8c9ca6eecd 213
+crates/confval/src/schema.rs
+  s_8fdbb0ce27b053::t_ceb04b0fad67d4 107-111,117,125,129-167
+crates/confval/tests/schema.rs
+  s_8fdbb0ce27b053::t_14b3a08120ef81 266,276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "47ca0a65a7f1297f5c4297e5fcb226fc75c82bd4",
+  "prompts": {},
+  "sessions": {
+    "s_8fdbb0ce27b053": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d1db920-f009-4078-9ae8-8138b14c4fde",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    },
+    "s_da4d793206de9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6a89f4c-ee24-48ac-a0a6-551d51a0fb6a",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
