@@ -435,3 +435,77 @@ fn hover_on_an_unconstrained_list_names_no_set() {
     assert!(body.contains("string list"), "body: {body}");
     assert!(!body.contains("One of:"), "body: {body}");
 }
+
+/// The hover body for `name` in YAML text, or `None` when no hover is produced.
+fn yaml_hover_body(text: &str, name: &str) -> Option<String> {
+    let offset = text.find(name).expect("the field is present") + 1;
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+    hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    )
+    .map(markdown)
+}
+
+#[test]
+fn yaml_hover_on_a_block_sequence_list_renders_its_body() {
+    // Arrange
+    let text = "modes:\n  - \"enforce\"\nport: 8080\n";
+
+    // Act
+    let body = yaml_hover_body(text, "modes").expect("a hover is produced");
+
+    // Assert
+    assert!(body.contains("string list"), "body: {body}");
+    assert!(body.contains("One of: enforce, log, off."), "body: {body}");
+}
+
+#[test]
+fn yaml_hover_on_a_scalar_beside_a_list_still_renders() {
+    // Arrange
+    let text = "modes:\n  - \"enforce\"\nport: 8080\n";
+
+    // Act
+    let body = yaml_hover_body(text, "port").expect("a hover is produced");
+
+    // Assert
+    assert!(body.contains("integer"), "body: {body}");
+}
+
+#[test]
+fn yaml_hover_on_a_list_between_other_keys_renders_its_body() {
+    // Arrange
+    // The sample documents put the list after a scalar and before a nested
+    // block, which is the shape the UAT hovered.
+    let text = "hostname: \"0.0.0.0\"\nmodes:\n  - \"enforce\"\n  - \"shout\"\nlimits:\n  max_body_mb: 64\n";
+
+    // Act
+    let body = yaml_hover_body(text, "modes").expect("a hover is produced");
+
+    // Assert
+    assert!(body.contains("string list"), "body: {body}");
+    assert!(body.contains("One of: enforce, log, off."), "body: {body}");
+}
+
+#[test]
+fn yaml_hover_on_a_list_element_names_the_list() {
+    // Arrange
+    // A YAML element sits on its own line, away from the key, so hovering it is
+    // the only way an operator reads the list from that line.
+    let text = "modes:\n  - \"enforce\"\n  - \"shout\"\n";
+
+    // Act
+    let body = yaml_hover_body(text, "shout").expect("a hover is produced");
+
+    // Assert
+    assert!(body.contains("string list"), "body: {body}");
+    assert!(body.contains("One of: enforce, log, off."), "body: {body}");
+}
