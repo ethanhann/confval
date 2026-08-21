@@ -669,3 +669,21 @@ fn a_kdl_list_node_with_no_argument_inserts_past_its_name() {
     assert_eq!(range.start, range.end, "an insert, not a replace");
     assert_eq!(range.start.character, 5);
 }
+
+#[test]
+fn a_kdl_node_declared_scalar_still_inserts_past_its_name() {
+    // Arrange
+    // KDL parses a node with no arguments as an empty sequence whatever the
+    // field's declared type, so a scalar field reaches the list branch too. The
+    // clamp has to hold there as well, or completing a value overwrites the
+    // node name.
+    let text = "workers";
+    let offset = text.len();
+
+    // Act
+    let range = edit_range_at(&Kdl, text, offset).expect("a replace edit is offered");
+
+    // Assert
+    assert_eq!(range.start, range.end, "an insert, not a replace");
+    assert_eq!(range.start.character, 7);
+}

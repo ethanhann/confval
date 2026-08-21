@@ -645,3 +645,19 @@ fn a_handwritten_field_carries_the_builder_text() {
     assert!(built.has_default);
     assert!(!built.required, "a defaulted field is not required");
 }
+
+#[test]
+fn a_block_and_a_map_record_no_constraint() {
+    // Arrange
+    let schema = ServerSpec::schema();
+
+    // Act
+    let block = field(&schema, "limits").ty.constraint();
+    let map = field(&schema, "headers").ty.constraint();
+
+    // Assert
+    // A shape that carries no constraint answers `None`, so a reader that
+    // renders one asks every field rather than testing the variant first.
+    assert!(block.is_none());
+    assert!(map.is_none());
+}

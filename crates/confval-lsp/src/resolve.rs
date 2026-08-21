@@ -258,6 +258,9 @@ fn value_replace_token(field: &Field, value: &Value, text: &str, offset: usize) 
     if has_value {
         return span_token(value.span, text);
     }
+    // No format reaches here today. KDL is the only one that writes a name with
+    // no value, and it parses that as an empty sequence, which the branch above
+    // takes. The fallback stays for a frontend that models it another way.
     cursor_insert(field, text, offset)
 }
 
