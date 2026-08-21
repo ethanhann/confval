@@ -1,0 +1,19 @@
+Justfile
+  s_8fdbb0ce27b053::t_08d28acf60b903 29,31-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "0bc9191beb4ee0b15f87402c929afa24d6173612",
+  "prompts": {},
+  "sessions": {
+    "s_8fdbb0ce27b053": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d1db920-f009-4078-9ae8-8138b14c4fde",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
