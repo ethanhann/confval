@@ -1,0 +1,23 @@
+Cargo.lock
+  s_3f00331b9df865::t_be07a8cf929f8f 68
+Cargo.toml
+  s_3f00331b9df865::t_d92b14b20342a1 57-59
+crates/confval-derive/Cargo.toml
+  s_3f00331b9df865::t_f316fb5059f1c2 19-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "77d5fce328b7e80c9f79051b61bbcf4b4264f20f",
+  "prompts": {},
+  "sessions": {
+    "s_3f00331b9df865": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a9aff82801748ef60",
+        "model": "unknown"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
