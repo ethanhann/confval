@@ -69,6 +69,10 @@ pub(crate) fn field_recorded_check(
     // `keywords` reaches here, because the schema walk refuses `range` and
     // `references` on a list. The bare form is already a slice. The optional
     // form keeps the outer `Located`, so the list is reached through its value.
+    //
+    // Neither arm carries the defaulted-value branch a required leaf gets
+    // below. A list default is always the empty list, so there is no declared
+    // value for the constraint to reject.
     let each = |values: &TokenStream2| -> Option<TokenStream2> {
         let path = options.keywords.as_ref()?;
         Some(quote! { #path::keyword_set().check_each_in(#values, #name, report); })
