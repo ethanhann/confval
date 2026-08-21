@@ -379,3 +379,59 @@ fn hover_on_a_reference_field_name_states_the_target_block() {
         "the constraint line names the target: {markdown}"
     );
 }
+
+#[test]
+fn hover_on_a_constrained_list_names_the_element_set() {
+    // Arrange
+    let text = "modes = [\"enforce\"]\n";
+    let offset = text.find("modes").expect("the field is present") + 1;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    // The set describes one element, and the label reads the same as it does on
+    // a scalar keyword field, so an operator learns the vocabulary from either.
+    let body = markdown(hover.expect("a hover is produced"));
+    assert!(body.contains("string list"), "body: {body}");
+    assert!(body.contains("One of: enforce, log, off."), "body: {body}");
+}
+
+#[test]
+fn hover_on_an_unconstrained_list_names_no_set() {
+    // Arrange
+    let text = "allow = [\"10.0.0.0/8\"]\n";
+    let offset = text.find("allow").expect("the field is present") + 1;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let body = markdown(hover.expect("a hover is produced"));
+    assert!(body.contains("string list"), "body: {body}");
+    assert!(!body.contains("One of:"), "body: {body}");
+}

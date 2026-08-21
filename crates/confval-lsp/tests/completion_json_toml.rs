@@ -485,3 +485,59 @@ fn json_keyword_inside_a_list_replaces_only_that_element() {
     assert_eq!(range.start.character, 19);
     assert_eq!(range.end.character, 24);
 }
+
+/// The labels offered at `offset`, resolved through the real parse and cursor
+/// resolution.
+fn offered_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Vec<String> {
+    let (tree, context) = at_with(frontend, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+    labels(&completion(
+        frontend,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    ))
+}
+
+#[test]
+fn a_half_typed_json_list_element_offers_the_list_keywords() {
+    // Arrange
+    // The buffer does not parse yet, which is the state an operator types in,
+    // so this runs through the recovery scanner rather than the tree.
+    let text = "{\n  \"modes\": [\"enf\n";
+    let offset = text.find("enf").expect("the element is present") + 3;
+
+    // Act
+    let offered = offered_at(&Json, text, offset);
+
+    // Assert
+    assert!(
+        offered.contains(&"enforce".to_string()),
+        "offered: {:?}",
+        offered
+    );
+}
+
+#[test]
+fn a_half_typed_toml_list_element_offers_the_list_keywords() {
+    // Arrange
+    let text = "modes = [\"enf\n";
+    let offset = text.find("enf").expect("the element is present") + 3;
+
+    // Act
+    let offered = offered_at(&Toml, text, offset);
+
+    // Assert
+    assert!(
+        offered.contains(&"enforce".to_string()),
+        "offered: {:?}",
+        offered
+    );
+}

@@ -5,7 +5,7 @@
 mod fixture;
 mod support;
 
-use lsp_types::{CompletionTextEdit, Position};
+use lsp_types::{CompletionTextEdit, Position, Range};
 
 use confval::schema::ToSchema;
 use confval_lsp::handlers::{ClientSupport, Cx, completion};
@@ -392,4 +392,87 @@ fn a_yaml_value_without_a_closed_set_offers_nothing() {
             "case: {name}"
         );
     }
+}
+
+/// The items and the first item's edit range at `offset`, resolved through the
+/// real parse and cursor resolution.
+fn offered_with_range(text: &str, offset: usize) -> (Vec<String>, Option<Range>) {
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+    let range = items.first().and_then(|item| match &item.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => Some(edit.range),
+        _ => None,
+    });
+    (labels(&items), range)
+}
+
+#[test]
+fn a_yaml_sequence_element_offers_the_list_keywords() {
+    // Arrange
+    // The frontend's own insert for a string list leaves the cursor here, on a
+    // dash line under the key, so this is the position an operator reaches.
+    let text = "modes:\n  - enf\n";
+    let offset = text.find("enf").expect("the element is present") + 3;
+
+    // Act
+    let (offered, range) = offered_with_range(text, offset);
+
+    // Assert
+    assert_eq!(
+        offered,
+        vec!["enforce".to_string(), "log".to_string(), "off".to_string()]
+    );
+    let range = range.expect("a replace edit is offered");
+    assert_eq!(range.start.line, 1);
+    assert_eq!(range.start.character, 4);
+    assert_eq!(range.end.character, 7);
+}
+
+#[test]
+fn a_bare_yaml_sequence_dash_offers_the_list_keywords() {
+    // Arrange
+    let text = "modes:\n  - \n";
+    let offset = text.find("- ").expect("the dash is present") + 2;
+
+    // Act
+    let (offered, _) = offered_with_range(text, offset);
+
+    // Assert
+    assert!(
+        offered.contains(&"enforce".to_string()),
+        "offered: {:?}",
+        offered
+    );
+}
+
+#[test]
+fn a_yaml_block_sequence_still_completes_field_names() {
+    // Arrange
+    // `rules` is a repeated block, so its elements have a body. The list
+    // redirect must not take this position.
+    let text = "rules:\n  - \n";
+    let offset = text.len() - 1;
+
+    // Act
+    let (offered, _) = offered_with_range(text, offset);
+
+    // Assert
+    assert!(
+        offered.contains(&"prefix".to_string()),
+        "offered: {:?}",
+        offered
+    );
 }

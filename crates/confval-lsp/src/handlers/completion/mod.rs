@@ -86,6 +86,9 @@ pub fn completion<F: Frontend>(
 /// The completion items with byte-range edits, the pure core the table tests
 /// exercise.
 fn raw_items<F: Frontend>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
+    if let Some((parent, field)) = string_list_element(cx) {
+        return value_items(frontend, parent, field, cx);
+    }
     let Some(enclosing) = schema_at(cx.schema, &cx.ctx.path) else {
         return Vec::new();
     };
@@ -94,6 +97,25 @@ fn raw_items<F: Frontend>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
         PositionKind::AttributeValue { field } => value_items(frontend, enclosing, field, cx),
         PositionKind::BlockLabel { .. } => Vec::new(),
     }
+}
+
+/// The list a cursor inside a sequence element belongs to, and the level that
+/// declares it.
+///
+/// A sequence element sits on its own line in YAML and inside brackets in the
+/// JSON recovery, so resolution reads the element as a body position under the
+/// list's own key. A list of strings has no body, so that position is really the
+/// value of the list itself. Reading the parent level answers which it is, and
+/// answering only for a string list leaves a sequence of blocks resolving to the
+/// body position its elements need.
+fn string_list_element<'a>(cx: &'a Cx) -> Option<(&'a Schema, &'a str)> {
+    if !matches!(cx.ctx.kind, PositionKind::Body) {
+        return None;
+    }
+    let (field, parent_path) = cx.ctx.path.split_last()?;
+    let parent = schema_at(cx.schema, parent_path)?;
+    let target = parent.fields.iter().find(|entry| entry.name == *field)?;
+    matches!(target.ty, SchemaType::StringList { .. }).then_some((parent, field.as_str()))
 }
 
 /// Attribute-name and block-type completions at a body position.
