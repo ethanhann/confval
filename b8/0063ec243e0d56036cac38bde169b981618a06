@@ -1,0 +1,19 @@
+docs/docs/contributing.md
+  s_5149da1748dd97::t_2f92c68c639a39 63,67,75-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "b80063ec243e0d56036cac38bde169b981618a06",
+  "prompts": {},
+  "sessions": {
+    "s_5149da1748dd97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5fa71b8-5586-468e-9cb9-859f488fa058",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
