@@ -69,23 +69,6 @@ impl Validate for TagsRoot {
     fn validate(&self, _report: &mut Report) {}
 }
 
-fn tags(modes: &[&str], limits: Option<&[&str]>) -> Tags {
-    Tags {
-        modes: modes
-            .iter()
-            .map(|word| Located::detached(word.to_string()))
-            .collect(),
-        limits: limits.map(|words| {
-            Located::detached(
-                words
-                    .iter()
-                    .map(|word| Located::detached(word.to_string()))
-                    .collect(),
-            )
-        }),
-    }
-}
-
 /// A nested block whose only rule is a recorded range, so it is checked only
 /// through its parent's descent once its `Validate` body is empty.
 #[derive(confval::Spec)]
@@ -214,6 +197,23 @@ fn messages(report: &Report) -> Vec<&str> {
         .iter()
         .map(|issue| issue.message.as_str())
         .collect()
+}
+
+fn tags(modes: &[&str], limits: Option<&[&str]>) -> Tags {
+    Tags {
+        modes: modes
+            .iter()
+            .map(|word| Located::detached(word.to_string()))
+            .collect(),
+        limits: limits.map(|words| {
+            Located::detached(
+                words
+                    .iter()
+                    .map(|word| Located::detached(word.to_string()))
+                    .collect(),
+            )
+        }),
+    }
 }
 
 fn server(port: i64, mode: &str, level: Option<i64>) -> Server {

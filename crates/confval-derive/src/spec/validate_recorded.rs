@@ -73,16 +73,15 @@ pub(crate) fn field_recorded_check(
     // Neither arm carries the defaulted-value branch a required leaf gets
     // below. A list default is always the empty list, so there is no declared
     // value for the constraint to reject.
-    let each = |values: &TokenStream2| -> Option<TokenStream2> {
+    let check_each_call = |values: &TokenStream2| -> Option<TokenStream2> {
         let path = options.keywords.as_ref()?;
         Some(quote! { #path::keyword_set().check_each_in(#values, #name, report); })
     };
     if matches!(shape, FieldShape::BareStringList) {
-        let call = each(&quote! { &self.#ident })?;
-        return Some(call);
+        return check_each_call(&quote! { &self.#ident });
     }
     if matches!(shape, FieldShape::OptionalWrappedStringList) {
-        let call = each(&quote! { &__list.value })?;
+        let call = check_each_call(&quote! { &__list.value })?;
         return Some(quote! {
             if let ::core::option::Option::Some(__list) = &self.#ident {
                 #call

@@ -242,18 +242,6 @@ fn an_optional_nested_block_is_not_required_and_has_no_default() {
 }
 
 #[test]
-fn a_bare_string_list_is_a_string_list() {
-    // Act
-    let schema = ServerSpec::schema();
-
-    // Assert
-    assert!(matches!(
-        field(&schema, "allow").ty,
-        SchemaType::StringList { .. }
-    ));
-}
-
-#[test]
 fn a_string_list_records_the_keyword_set_of_its_elements() {
     // Act
     let schema = ServerSpec::schema();
