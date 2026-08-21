@@ -438,7 +438,7 @@ fn hover_on_an_unconstrained_list_names_no_set() {
 
 /// The hover body for `name` in YAML text, or `None` when no hover is produced.
 fn yaml_hover_body(text: &str, name: &str) -> Option<String> {
-    let offset = text.find(name).expect("the field is present") + 1;
+    let offset = text.find(name)? + 1;
     let (tree, context) = at_with(&Yaml, text, offset);
     let index = LineIndex::new(text);
     let schema = ServerSpec::schema();

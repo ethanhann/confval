@@ -552,8 +552,9 @@ fn byte_offset(text: &str, position: Position) -> usize {
     line_start + position.character as usize
 }
 
-/// The text a completion at `offset` produces when applied to `text`.
-fn applied<F: Frontend>(frontend: &F, text: &str, offset: usize, label: &str) -> String {
+/// The text a completion at `offset` produces when applied to `text`, or
+/// `None` when the item is absent or carries no replace edit.
+fn applied<F: Frontend>(frontend: &F, text: &str, offset: usize, label: &str) -> Option<String> {
     let (tree, context) = at_with(frontend, text, offset);
     let index = LineIndex::new(text);
     let schema = ServerSpec::schema();
@@ -569,18 +570,20 @@ fn applied<F: Frontend>(frontend: &F, text: &str, offset: usize, label: &str) ->
         ENCODING,
         ClientSupport::default(),
     );
-    let item = items
-        .iter()
-        .find(|item| item.label == label)
-        .expect("the item is offered");
+    let item = items.iter().find(|item| item.label == label)?;
     let (start, end) = match &item.text_edit {
         Some(CompletionTextEdit::Edit(edit)) => (
             byte_offset(text, edit.range.start),
             byte_offset(text, edit.range.end),
         ),
-        _ => panic!("expected a replace edit"),
+        _ => return None,
     };
-    format!("{}{}{}", &text[..start], inserted(item), &text[end..])
+    Some(format!(
+        "{}{}{}",
+        &text[..start],
+        inserted(item),
+        &text[end..]
+    ))
 }
 
 #[test]
@@ -592,7 +595,7 @@ fn accepting_a_keyword_in_a_half_typed_json_element_does_not_double_the_quote() 
     let offset = text.find("enf").expect("the element is present") + 3;
 
     // Act
-    let result = applied(&Json, text, offset, "enforce");
+    let result = applied(&Json, text, offset, "enforce").expect("the item is offered");
 
     // Assert
     // The item renders a whole quoted literal, so it takes the typed opening
@@ -607,7 +610,7 @@ fn accepting_a_keyword_in_a_half_typed_toml_element_does_not_double_the_quote() 
     let offset = text.find("enf").expect("the element is present") + 3;
 
     // Act
-    let result = applied(&Toml, text, offset, "enforce");
+    let result = applied(&Toml, text, offset, "enforce").expect("the item is offered");
 
     // Assert
     assert_eq!(result, "modes = [\"enforce\"\n");
