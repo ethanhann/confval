@@ -167,7 +167,6 @@ html:not([data-theme="dark"]) pre.prism-code {
   stroke: #d8d6cc !important;
 }
 
-/* Paanes nested inside an outer pane. */
 .docusaurus-mermaid-container .cluster.outer-pane rect {
     fill: #faf9f3 !important;
 }
@@ -183,10 +182,6 @@ html:not([data-theme="dark"]) pre.prism-code {
 
 [data-theme="dark"] .docusaurus-mermaid-container :is(.cluster-label, .cluster-label p, .cluster-label span) {
   color: #d7e4d7 !important;
-}
-
-.docusaurus-mermaid-container .cluster.module rect {
-  stroke-width: 2px !important;
 }
 
 [data-theme="dark"] .docusaurus-mermaid-container .cluster.module rect {

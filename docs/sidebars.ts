@@ -10,6 +10,8 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 const sidebars: SidebarsConfig = {
     tutorialSidebar: [
         'getting-started',
+        'examples',
+        'agent-skills',
         {
             type: 'category',
             label: 'Guide',
@@ -55,10 +57,17 @@ const sidebars: SidebarsConfig = {
                 },
             ],
         },
-        'examples',
-        'agent-skills',
-        'architecture',
-        'contributing',
+        {
+            type: 'category',
+            label: 'Internals',
+            link: {
+                type: 'generated-index',
+                slug: '/internals',
+                description:
+                    'How confval is built: the crates, the modules, and the contribution workflow.',
+            },
+            items: ['architecture', 'contributing'],
+        },
     ],
 };
 

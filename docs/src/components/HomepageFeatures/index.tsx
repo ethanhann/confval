@@ -161,7 +161,7 @@ export default function HomepageFeatures(): ReactNode {
                     <Mermaid value={wide ? PIPELINE_WIDE : PIPELINE_TALL}/>
                 </div>
                 <p className={styles.caption}>
-                    See <Link to="/docs/pipeline">The pipeline contract</Link> for more architecture details.
+                    See <Link to="/docs/next/architecture">Architecture</Link> for the full map of confval's internals.
                 </p>
             </section>
 

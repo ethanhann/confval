@@ -1,95 +1,38 @@
 ---
-sidebar_position: 6
+sidebar_position: 5
 ---
 
 # Architecture
 
 The [pipeline contract](./pipeline.md) details the high-level confval stages.
 This page gives a deeper look into confval's architecture and internals.
+It is for the reader who works on confval itself, or embeds it and wants the whole system in one view.
 
 ## The three crates
 
-| Crate            | Runs                  | Role                                                                                       |
-|------------------|-----------------------|--------------------------------------------------------------------------------------------|
+| Crate            | Runs                  | Role                                                                                                       |
+|------------------|-----------------------|------------------------------------------------------------------------------------------------------------|
 | `confval`        | At runtime            | The field model, the format frontends and emitters, the pipeline, diagnostics, the schema IR, and layering |
-| `confval-derive` | At compile time       | The `Spec` and `Config` derives, which generate the trait impls the pipeline needs         |
-| `confval-lsp`    | In the editor session | The schema-generic language server core, built from the same model, pipeline, and schema   |
+| `confval-derive` | At compile time       | The `Spec` and `Config` derives, which generate the trait impls the pipeline needs                         |
+| `confval-lsp`    | In the editor session | The schema-generic language server core, built from the same model, pipeline, and schema                   |
 
-## The high-level map
-
-Every diagram on this page uses one legend.
-Solid arrows carry data at runtime.
-Dashed arrows either record issues in the report or mark code that a derive generates at compile time.
-The node shape carries a role: a slanted box is an input from outside, a stadium is a final product, a cylinder is a store that accumulates, and a diamond is a decision.
-The stroke color carries a role too: gray for a boundary, blue for a data structure, green for a stage function, yellow for diagnostics, red for a failure stop, and purple for a derive.
-
-```mermaid
-%%{ init: { "flowchart": { "curve": "basis" } } }%%
-flowchart TB
-    SRC[/"<b>Sources</b><br/>file, environment, command line"/]
-    ED[/"<b>Editor</b>"/]
-    FIELDS["<b>Fields</b><br/>the format-neutral model"]
-    SPEC["<b>Spec type</b><br/>values with spans"]
-    REPORT[("<b>Report</b><br/>every issue, with spans")]
-    GATE{"errors?"}
-    STOP(["<b>Stop</b><br/>render diagnostics"])
-    CONFIG(["<b>Config type</b><br/>runtime form"])
-    OUT(["<b>Canonical text</b><br/>any format"])
-    SCHEMA["<b>Schema</b><br/>read from the type"]
-    LSPD["<b>Language server</b><br/>confval-lsp"]
-    DERIVE["<b>Derives</b><br/>confval-derive, compile time"]
-
-    SRC -->|"parse · merge layers"| FIELDS
-    FIELDS -->|"FromFields"| SPEC
-    SPEC -->|"validate"| REPORT
-    REPORT --> GATE
-    GATE -->|"errors"| STOP
-    GATE -->|"no errors · lower"| CONFIG
-    SPEC -->|"ToFields"| FIELDS
-    FIELDS -->|"emit"| OUT
-    SPEC -.->|"ToSchema"| SCHEMA
-    SCHEMA --> LSPD
-    ED --> LSPD
-    LSPD --> ED
-    DERIVE -.-> SPEC
-
-    classDef io stroke:#928374,stroke-width:1.5px;
-    classDef data stroke:#458588,stroke-width:1.5px;
-    classDef step stroke:#5aa469,stroke-width:1.5px;
-    classDef diag stroke:#d79921,stroke-width:1.5px;
-    classDef bad stroke:#cc4b37,stroke-width:1.5px;
-    classDef gen stroke:#b16286,stroke-width:1.5px;
-
-    class SRC,ED,OUT io;
-    class FIELDS,SPEC,CONFIG,SCHEMA data;
-    class LSPD step;
-    class REPORT,GATE diag;
-    class STOP bad;
-    class DERIVE gen;
-```
-
-The italic line in a node names the external crates behind it.
-In `confval` every one of them is optional.
-Each format parser sits behind its format feature, `annotate-snippets` behind `color`, and `serde` with `serde_json` behind `serde`.
-The nodes without an italic line are dependency-free confval code.
-
-Configuration text from any source becomes the format-neutral `Fields` model.
-A span-tracked spec type parses out of that model.
-Validation fills the report, and the gate decides whether lowering runs.
-The same spec walks back out through the model to canonical text in any format.
-The schema reads the spec type without an instance and drives the language server.
-The derives generate the impls that carry all of it.
+The `confval` package also ships a `confval` binary.
+The binary installs the agent skills, and it parses no configuration.
+[Agent Skills](./agent-skills.md) covers it.
 
 ## The full map
 
-This map expands the high-level one into the modules, the traits, and the functions that carry each step.
+This map shows the regions, the traits, and the functions that carry each step.
+Inside `confval` the module dependency direction is strictly downward.
+`format` builds on `pipeline`, `pipeline` builds on `diagnostic`, and `diagnostic` builds on `source`.
+`layering` builds on `format`, and `schema` depends on no other module.
 
 ```mermaid
-%%{ init: { "flowchart": { "curve": "basis" }, "themeVariables": { "fontSize": 18px" } } }%%
+%%{ init: { "flowchart": { "curve": "basis" }, "themeVariables": { "fontSize": "18px" } } }%%
 flowchart TB
     EDITOR[/"<b>Editor</b><br/>LSP client"/]
     OUT(["<b>Canonical text</b><br/>any format"])
-    STOP(["<b>Stop</b><br/>exit, or reject the reload"])
+    STOP(["<b>Stop</b><br/>render diagnostics<br/>exit, or reject the reload"])
 
     subgraph SOURCES["Configuration sources"]
         FILE[/"<b>File text</b><br/>HCL, TOML, KDL, JSON, YAML"/]
@@ -105,8 +48,8 @@ flowchart TB
         end
 
         subgraph FORMAT["format"]
-            FE["<b>Frontends</b><br/>parse_hcl"]
-            FIELDS["<b>Fields</b><br/>the format-neutral model<br/>Field, Value, Scalar"]
+            FE["<b>Frontends</b><br/>parse_hcl_fields, parse_toml_fields, parse_kdl_fields<br/>parse_json_fields, parse_yaml_fields"]
+            FIELDS["<b>Fields</b><br/>the format-neutral model<br/>Field, Value, ValueKind, Scalar"]
             EMIT["<b>Emitters</b><br/>emit_hcl, emit_toml, emit_kdl<br/>emit_json, emit_yaml"]
         end
 
@@ -123,11 +66,11 @@ flowchart TB
 
         subgraph PIPELINE["pipeline"]
             VAL["<b>validate_all</b><br/>Validate + ValidateNested"]
-            CONSTR["<b>Recorded constraints</b><br/>KeywordSet, RangeConstraint"]
+            CONSTR["<b>Recorded constraints</b><br/>KeywordSet, RangeConstraint<br/>keyword_enum!, range_constraint!"]
             REFS["<b>check_references</b><br/>labels resolved by scope"]
             GATE{"report.has_errors()"}
-            LOWER["<b>Lower::lower</b><br/>narrow helpers"]
-            CONFIG(["<b>Config type</b><br/>IpNet, SocketAddr, runtime enums"])
+            LOWER["<b>Lower::lower</b><br/>narrow helpers, LowerAuto"]
+            CONFIG(["<b>Config type</b><br/>runtime form<br/>IpNet, SocketAddr, runtime enums"])
         end
 
         subgraph WRITE["write path"]
@@ -183,7 +126,7 @@ flowchart TB
     WALKS --> FIELDS
     FIELDS --> EMIT
     EMIT --> OUT
-    SPEC -.->|"ToSchema::schema"| SCHEMA
+    SPEC -->|"ToSchema::schema"| SCHEMA
     REPORT --> RENDER
     SM -->|"resolves spans"| RENDER
     DSPEC -.-> FF
@@ -198,40 +141,41 @@ flowchart TB
     FRONT --> CTX
     CTX --> HAND
     SCHEMA --> HAND
-    HAND -.->|"runs the pipeline"| VAL
+    HAND -->|"runs the pipeline"| VAL
     HAND --> SRV
 
     classDef io stroke:#928374,stroke-width:1.5px;
     classDef data stroke:#458588,stroke-width:1.5px;
     classDef step stroke:#5aa469,stroke-width:1.5px;
     classDef diag stroke:#d79921,stroke-width:1.5px;
+    classDef decide stroke:#d79921,stroke-width:1.5px;
     classDef bad stroke:#cc4b37,stroke-width:1.5px;
     classDef gen stroke:#b16286,stroke-width:1.5px;
 
     class FILE,ENV,CLI,EDITOR,OUT io;
     class SM,FIELDS,SPEC,CONFIG,SCHEMA,CTX data;
     class FE,EMIT,ENVP,CLIP,ASM,FF,VAL,CONSTR,REFS,LOWER,WALKS,RENDER,SRV,FRONT,HAND step;
-    class REPORT,GATE diag;
+    class REPORT diag;
+    class GATE decide;
     class STOP bad;
     class DSPEC,DCONF gen;
 
     classDef module stroke-width:2px;
     classDef outer-pane stroke-width:1.5px;
     class SRC,FORMAT,LAYERING,SPECLAYER,PIPELINE,WRITE,SCHEMAMOD,DIAG module;
-    class CONFVAL crate;
+    class CONFVAL outer-pane;
 ```
 
-The sections below walk the map one region at a time.
-Each one links to the guide page that covers the region in depth.
+Each section below describes one region of the map and links to the guide page that covers it in depth.
 
 ## Sources and spans
 
-The `source` module holds location.
+The `source` module records where each value came from.
 A `SourceMap` interns each file or in-memory string once and issues a `SourceId` for it.
 A `Span` is a `SourceId` plus a byte range.
 A `Located<T>` pairs a parsed value with its `Span`, so every field on a spec knows where it came from.
 Spans are plain data.
-No stage reads source text until a renderer resolves a span at render time.
+After parsing, no stage reads source text until a renderer resolves a span at render time.
 [Diagnostics](./guide/diagnostics.md#spans-and-source) covers the types.
 
 ## The format-neutral field model
@@ -239,8 +183,9 @@ No stage reads source text until a renderer resolves a span at render time.
 The `format` module is the boundary between text and the rest of the system.
 A frontend parses one format into `Fields`, one level of named entries.
 Each `Field` carries its name span, its entry span, and a `FieldKind` of `Value` or `Block`.
-A `Value` holds a `Scalar`, a sequence, a map, or an out-of-model `Other`.
-After a frontend runs, nothing downstream knows which format the text was.
+A `Value` pairs a span with a `ValueKind`.
+The kinds are a `Scalar`, a sequence, a map, and an out-of-model `Other`.
+After a frontend runs, no later stage knows which format the text came from.
 
 The same model flows both directions.
 The emitters render a `Fields` back to canonical text in any format, so a configuration converts between formats through the model.
@@ -262,38 +207,48 @@ Environment and command line values enter as `Unparsed` scalars, so the field's 
 `FromFields::from_fields` builds a spec type out of a `Fields` level.
 The `Spec` derive generates the impl for a plain struct, and a handwritten impl covers shapes such as tagged unions.
 The parse checks structure only.
-A missing field, a wrong type, a duplicate, and an unknown field each become a spanned issue in the report, and the parse continues.
-Every field on the spec is a `Located<T>`, in the rawest type that parses infallibly.
+A missing field, a wrong type, a duplicate, and an unknown field each become a spanned issue in the report.
+The parse continues after each one.
+Every field on the spec is a `Located<T>`.
+The inner type is the rawest type that parses infallibly.
 [Parsing](./guide/parsing.md) covers the derive and the handwritten path.
 
 ## Validation, the gate, and lowering
 
 `validate_all` runs the spec's `Validate` rules and descends through `ValidateNested` into every nested block.
 The recorded constraints, `KeywordSet` and `RangeConstraint`, run inside that pass for a derived spec.
+The `keyword_enum!` and `range_constraint!` macros declare those two types, and `confval` itself exports the macros.
 `check_references` is separate because it reads the whole parsed tree and the schema, not one level's own fields.
 Every rule appends spanned issues to the report and never panics.
 
 The gate is a caller-side check.
 Call `report.has_errors()` and stop before lowering when it is true.
 `Lower::lower` then narrows the validated spec into the runtime config type with the `narrow` helpers.
-A lowering error is rare, short-circuits, and points at a missing validation rule rather than at the operator.
+A lowering error is rare.
+It short-circuits instead of accumulating, and it indicates a missing validation rule rather than invalid input.
 [Validation](./guide/validation.md) and [Lowering](./guide/lowering.md) cover the two stages.
 
-## The write path and the views
+## The write path
 
 A spec walks back out through `ToFields`.
-`to_fields` fills every default and detaches spans, which is the populated view and the input to format conversion.
-`to_source_fields` keeps only the fields whose spans are attached, which is the source view.
-`to_template` adds each field's doc comment, which is the annotated starter file.
+`to_fields` fills every default and detaches spans.
+Its output is the populated view and the input to format conversion.
+`to_source_fields` keeps only the fields whose spans are attached.
+Its output is the source view.
+`to_template` adds each field's doc comment.
+Its output is the annotated template.
 All three produce a `Fields`, so the ordinary emitters render each of them in any format.
-[Representations](./guide/representations.md) and [Templates](./guide/templates.md) cover the views.
+Each format renders the comments its syntax allows, and JSON renders none.
+A handwritten spec lists its fields once through `FieldsBuilder`, which takes the walk as a parameter.
+[Representations](./guide/representations.md) and [Templates](./guide/templates.md) cover the views, and [Parsing](./guide/parsing.md#writing-emitters-by-hand) covers the builder.
 
 ## The schema IR
 
 `ToSchema::schema` reads the spec type rather than a value, so it needs no instance.
 The `Schema` tree carries each field's name, doc comment, `required` flag, default text, and declared `SchemaType`.
 The recorded constraints appear as `Constraint::Keywords`, `Constraint::Range`, and `Constraint::References`.
-Two consumers read it: `check_references` resolves labels against it, and the language server answers every editor question from it.
+Two consumers read it.
+`check_references` resolves labels against it, and the language server answers each editor request from it.
 [Schema IR](./guide/schema-ir.md) covers the node types and the reference scoping rule.
 
 ## Diagnostics
