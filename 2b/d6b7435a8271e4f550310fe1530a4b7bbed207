@@ -1,0 +1,43 @@
+docs/sidebars.ts
+  s_5149da1748dd97::t_618aaf497785a2 13-14,60-70
+docs/docs/architecture.md
+  s_5149da1748dd97::t_a5f7f82ec98742 151
+  s_5149da1748dd97::t_5396300d02b78a 186-187
+  s_5149da1748dd97::t_385828b508e0b6 51
+  s_5149da1748dd97::t_26d3ea094d5ae8 210-212
+  s_5149da1748dd97::t_e8f9e033703665 158
+  s_5149da1748dd97::t_b3a39ebee58dfd 234-239,241-242
+  s_5149da1748dd97::t_afbe1678bf1375 19-21
+  s_5149da1748dd97::t_afc605d7c1d40d 2
+  s_5149da1748dd97::t_234cea58643a0b 25-27
+  s_5149da1748dd97::t_88e6e9a2518ab0 227
+  s_5149da1748dd97::t_be5bd449ac6278 250
+  s_5149da1748dd97::t_5ba6fcb1896ad9 72
+  s_5149da1748dd97::t_4f242e065075ec 28
+  s_5149da1748dd97::t_d6e38d7c8c2d41 52
+  s_5149da1748dd97::t_ca5f6951ceadd9 73
+  s_5149da1748dd97::t_6e7cf78c70adf1 159
+  s_5149da1748dd97::t_086588d2732cab 188
+  s_5149da1748dd97::t_68d6f4a8e410db 213
+  s_5149da1748dd97::t_4adb9ea12f87f9 228
+  s_5149da1748dd97::t_bb050965f5a690 243
+  s_5149da1748dd97::t_9bf5f2ff65063b 251
+docs/src/components/HomepageFeatures/index.tsx
+  s_5149da1748dd97::t_feaddb704a3e07 164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2bd6b7435a8271e4f550310fe1530a4b7bbed207",
+  "prompts": {},
+  "sessions": {
+    "s_5149da1748dd97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5fa71b8-5586-468e-9cb9-859f488fa058",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
