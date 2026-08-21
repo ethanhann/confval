@@ -1,0 +1,23 @@
+crates/confval-lsp/src/handlers/hover.rs
+  s_8fdbb0ce27b053::t_83b6f109ea9658 16,22-29,56-67,73,79
+crates/confval-lsp/src/handlers/mod.rs
+  s_8fdbb0ce27b053::t_8c5dbbdbdee0e2 25,27-28,46-64
+crates/confval-lsp/tests/hover.rs
+  s_8fdbb0ce27b053::t_7a0858128d0c32 438-511
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "e2679a81483f7ea91f311236e6c1a7dbcaf1d370",
+  "prompts": {},
+  "sessions": {
+    "s_8fdbb0ce27b053": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d1db920-f009-4078-9ae8-8138b14c4fde",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
