@@ -163,21 +163,22 @@ impl Validate for LimitsSpec {
 }
 ```
 
-A recorded list runs `check_each`, so each bad element is reported at its own span.
-Both list shapes are covered, the bare `Vec<Located<String>>` and the wrapped `Option<Located<Vec<Located<String>>>>`.
-The message names the field rather than one element, because the derive reads the field name.
-Write the check by hand when you want the singular wording.
+A recorded list runs `check_each_in`, so each bad element is reported at its own span.
+The bare `Vec<Located<String>>` and the wrapped `Option<Located<Vec<Located<String>>>>` both work.
+The message is `unknown value in <field>: <value>`, which reads correctly whatever the list is called.
+Call `check_each` by hand when you have a singular noun for one element, because `unknown mode: shout` is the shorter sentence.
 
 The attribute is then the single source for that field.
 It records the constraint for the [schema IR](./schema-ir.md) and runs the check, so the two cannot disagree.
 
-A `range` is recorded on a scalar leaf alone.
-There is no numeric list shape, so a list of numbers is not a field a range can apply to.
-`references` resolves one value against the labels in scope, so it is recorded on a scalar leaf alone too.
+A list of numbers has no field shape in confval, so `range` has nothing to bound on a list.
+Record it on an `Int` or `Float` leaf.
+`references` resolves one value against the labels in scope, so it is recorded on a scalar leaf too.
 
 A cross-field rule and an emptiness check have no attribute, so they stay in the `Validate` body.
-A keyword list checked by hand with `check_each` also stays there, and removing that line because you recorded other fields drops the check with no compile error.
-Record the set on the field instead, and the derive keeps the two from parting.
+A keyword list checked by hand with `check_each` also stays there.
+If you record other fields and delete that line, the check disappears with no compile error.
+Record the set on the field instead, so the schema IR and the check come from one attribute.
 
 ## keyword_enum!
 
