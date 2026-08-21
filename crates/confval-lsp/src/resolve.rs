@@ -244,7 +244,13 @@ fn seq_element_body(
 /// stay past the name, so completing the value never overwrites the name.
 fn value_replace_token(field: &Field, value: &Value, text: &str, offset: usize) -> (usize, usize) {
     if let ValueKind::Seq(elements) = &value.kind {
-        return seq_element_token(elements, text, offset);
+        if let Some(element) = elements
+            .iter()
+            .find(|element| contains(element.span, offset))
+        {
+            return span_token(element.span, text);
+        }
+        return cursor_insert(field, text, offset);
     }
     let has_value = !field.name_span.is_detached()
         && !value.span.is_detached()
@@ -252,27 +258,18 @@ fn value_replace_token(field: &Field, value: &Value, text: &str, offset: usize) 
     if has_value {
         return span_token(value.span, text);
     }
+    cursor_insert(field, text, offset)
+}
+
+/// An insert at the cursor, held past the field name.
+///
+/// A KDL node with no argument parses with its value span on the node name, and
+/// with an empty sequence for a list field, so both reach here. The clamp is
+/// what keeps completing a value from overwriting the name.
+fn cursor_insert(field: &Field, text: &str, offset: usize) -> (usize, usize) {
     let name_end = field.name_span.end as usize;
     let (start, end) = value_token(text, offset);
     (start.max(name_end), end.max(name_end))
-}
-
-/// The completion replace range for a cursor inside a list literal.
-///
-/// A list holds one value per element, so the element the cursor sits in is
-/// replaced whole. Between two elements, and inside empty brackets, the range is
-/// the run of value bytes around the cursor, which is empty in both places.
-/// `is_value_byte` excludes a bracket and a comma, so either range stays inside
-/// one element slot. Replacing the whole literal instead would delete the
-/// brackets and every sibling entry.
-fn seq_element_token(elements: &[Value], text: &str, offset: usize) -> (usize, usize) {
-    match elements
-        .iter()
-        .find(|element| contains(element.span, offset))
-    {
-        Some(element) => span_token(element.span, text),
-        None => value_token(text, offset),
-    }
 }
 
 /// The completion replace token for the value of `name` in a resolved instance

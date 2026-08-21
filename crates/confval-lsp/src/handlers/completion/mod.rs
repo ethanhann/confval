@@ -25,10 +25,8 @@ use lsp_types::{CompletionItem, CompletionItemKind};
 use confval::schema::{Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
-#[cfg(test)]
-use crate::frontend::CursorContext;
-use crate::frontend::{Absorb, Frontend, PositionKind};
-use crate::handlers::Cx;
+use crate::frontend::{Absorb, CursorContext, Frontend, PositionKind};
+use crate::handlers::{Cx, string_list_element};
 use crate::walk::{repeated_block_at, resolved_level, schema_at};
 
 use encode::encode_item;
@@ -87,7 +85,19 @@ pub fn completion<F: Frontend>(
 /// exercise.
 fn raw_items<F: Frontend>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
     if let Some((parent, field)) = string_list_element(cx) {
-        return value_items(frontend, parent, field, cx);
+        // A value item renders its own quotes, so the range has to cover the
+        // ones the operator already typed. The element token comes from a text
+        // scan on this path, and a quote is not a value byte, so the scan stops
+        // inside the quotes and the range would otherwise double them.
+        let widened = CursorContext {
+            token: widen_over_quotes(cx.text, cx.ctx.token),
+            ..cx.ctx.clone()
+        };
+        let cx = Cx {
+            ctx: &widened,
+            ..*cx
+        };
+        return value_items(frontend, parent, field, &cx);
     }
     let Some(enclosing) = schema_at(cx.schema, &cx.ctx.path) else {
         return Vec::new();
@@ -99,23 +109,21 @@ fn raw_items<F: Frontend>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
     }
 }
 
-/// The list a cursor inside a sequence element belongs to, and the level that
-/// declares it.
+/// A replace range grown to cover a quote directly outside each end.
 ///
-/// A sequence element sits on its own line in YAML and inside brackets in the
-/// JSON recovery, so resolution reads the element as a body position under the
-/// list's own key. A list of strings has no body, so that position is really the
-/// value of the list itself. Reading the parent level answers which it is, and
-/// answering only for a string list leaves a sequence of blocks resolving to the
-/// body position its elements need.
-fn string_list_element<'a>(cx: &'a Cx) -> Option<(&'a Schema, &'a str)> {
-    if !matches!(cx.ctx.kind, PositionKind::Body) {
-        return None;
-    }
-    let (field, parent_path) = cx.ctx.path.split_last()?;
-    let parent = schema_at(cx.schema, parent_path)?;
-    let target = parent.fields.iter().find(|entry| entry.name == *field)?;
-    matches!(target.ty, SchemaType::StringList { .. }).then_some((parent, field.as_str()))
+/// An unterminated element has an opening quote and no closing one, so each side
+/// is grown on its own rather than as a pair.
+fn widen_over_quotes(text: &str, token: (usize, usize)) -> (usize, usize) {
+    let bytes = text.as_bytes();
+    let start = match token.0.checked_sub(1) {
+        Some(before) if bytes.get(before) == Some(&b'"') => before,
+        _ => token.0,
+    };
+    let end = match bytes.get(token.1) {
+        Some(&b'"') => token.1 + 1,
+        _ => token.1,
+    };
+    (start, end)
 }
 
 /// Attribute-name and block-type completions at a body position.

@@ -476,3 +476,58 @@ fn a_yaml_block_sequence_still_completes_field_names() {
         offered
     );
 }
+
+/// The byte offset of an LSP position, for the ASCII fixtures these tests use.
+fn byte_offset(text: &str, position: Position) -> usize {
+    let line_start = text
+        .split_inclusive('\n')
+        .take(position.line as usize)
+        .map(str::len)
+        .sum::<usize>();
+    line_start + position.character as usize
+}
+
+/// The text a completion at `offset` produces when applied to `text`.
+fn applied(text: &str, offset: usize, label: &str) -> String {
+    let (tree, context) = at_with(&Yaml, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+    let items = completion(
+        &Yaml,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+    let item = items
+        .iter()
+        .find(|item| item.label == label)
+        .expect("the item is offered");
+    let (start, end) = match &item.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => (
+            byte_offset(text, edit.range.start),
+            byte_offset(text, edit.range.end),
+        ),
+        _ => panic!("expected a replace edit"),
+    };
+    let new_text = inserted(item);
+    format!("{}{}{}", &text[..start], new_text, &text[end..])
+}
+
+#[test]
+fn accepting_a_keyword_in_a_quoted_yaml_element_does_not_double_the_quotes() {
+    // Arrange
+    let text = "modes:\n  - \"enf\"\n";
+    let offset = text.find("enf").expect("the element is present") + 3;
+
+    // Act
+    let result = applied(text, offset, "enforce");
+
+    // Assert
+    assert_eq!(result, "modes:\n  - \"enforce\"\n");
+}

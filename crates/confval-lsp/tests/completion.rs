@@ -652,3 +652,20 @@ fn a_keyword_inside_empty_list_brackets_inserts_at_the_cursor() {
     assert_eq!(range.start, range.end);
     assert_eq!(range.start.character, 9);
 }
+
+#[test]
+fn a_kdl_list_node_with_no_argument_inserts_past_its_name() {
+    // Arrange
+    // KDL parses a node with no arguments as an empty sequence, so the list
+    // path takes this position. The range must still start past the name, or
+    // accepting an item overwrites the node.
+    let text = "modes";
+    let offset = text.len();
+
+    // Act
+    let range = edit_range_at(&Kdl, text, offset).expect("a replace edit is offered");
+
+    // Assert
+    assert_eq!(range.start, range.end, "an insert, not a replace");
+    assert_eq!(range.start.character, 5);
+}
