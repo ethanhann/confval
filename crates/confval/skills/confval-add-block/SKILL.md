@@ -36,6 +36,8 @@ Mark a string field that points at one of those names with `#[confval(references
 
 Declare a numeric range with `#[confval(range = ...)]` and a closed set with `#[confval(keywords = ...)]` on the field.
 The derive runs a recorded constraint during validation, so the `Validate` impl carries no line for it.
+A recorded constraint expands where the spec struct is declared, so put the `range_constraint!` const and the keyword enum in that module.
+A project that holds its constraints elsewhere will not compile until they move, and the compiler names the missing const rather than the reason.
 Add a rule an attribute cannot express to the spec type's `Validate` impl.
 A new block needs its own `Validate` impl, which `validate_all` reaches on its own through the generated traversal, so you do not call it by hand.
 Report at the field's span and accumulate into the `Report` with no early return.
@@ -56,6 +58,9 @@ Narrow an integer with a `narrow` helper, and convert a keyword string with `nar
 When the spec type carries `#[confval(derive_default)]`, give the new field a `#[confval(default = ...)]` so the derived `Default` still builds.
 When the type has a handwritten `impl Default`, add the field there too.
 A field with no default on a `derive_default` type is a compile error.
+
+When the runtime default comes from lowering the spec's `Default`, the spec attribute is the only place to update.
+There is no second declaration to keep in agreement.
 
 ## What not to collapse
 

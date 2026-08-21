@@ -1,4 +1,4 @@
-error: #[confval(range = ...)] requires an Int or Float leaf; it cannot apply to a list, a map, or a nested block
+error: #[confval(range = ...)] requires an Int or Float leaf; it cannot apply to a map or a nested block
   --> tests/ui/fail/schema_range_on_nested.rs:10:31
    |
 10 |     #[confval(nested, range = PORT)]

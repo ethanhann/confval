@@ -17,6 +17,11 @@ pub struct ServerConfig {
     pub tls: bool,
     #[confval(lower(from = allow, with = allow_to_vec))]
     pub allow: Vec<String>,
+    // `narrow::keyword_list` lowers each validated string through the `TryFrom`
+    // that `keyword_enum!` generates, so a list of keywords needs no handwritten
+    // converter either.
+    #[confval(lower(from = log_events, with = narrow::keyword_list::<LogEvent>))]
+    pub log_events: Vec<LogEvent>,
     // Auto-mapped from the spec's `BTreeMap<String, Located<String>>`. The
     // `LowerAuto` impl drops each value's span and hands back a plain runtime
     // map.
@@ -52,6 +57,10 @@ impl Display for ServerConfig {
         )?;
         if !self.allow.is_empty() {
             writeln!(f, "allow: {}", self.allow.join(", "))?;
+        }
+        if !self.log_events.is_empty() {
+            let names: Vec<&str> = self.log_events.iter().map(LogEvent::as_str).collect();
+            writeln!(f, "log_events: {}", names.join(", "))?;
         }
         if !self.headers.is_empty() {
             let mut entries: Vec<_> = self

@@ -25,10 +25,8 @@ use lsp_types::{CompletionItem, CompletionItemKind};
 use confval::schema::{Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
-#[cfg(test)]
-use crate::frontend::CursorContext;
-use crate::frontend::{Absorb, Frontend, PositionKind};
-use crate::handlers::Cx;
+use crate::frontend::{Absorb, CursorContext, Frontend, PositionKind};
+use crate::handlers::{Cx, string_list_element};
 use crate::walk::{repeated_block_at, resolved_level, schema_at};
 
 use encode::encode_item;
@@ -86,6 +84,21 @@ pub fn completion<F: Frontend>(
 /// The completion items with byte-range edits, the pure core the table tests
 /// exercise.
 fn raw_items<F: Frontend>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
+    if let Some((parent, field)) = string_list_element(cx) {
+        // A value item renders its own quotes, so the range has to cover the
+        // ones the operator already typed. The element token comes from a text
+        // scan on this path, and a quote is not a value byte, so the scan stops
+        // inside the quotes and the range would otherwise double them.
+        let widened = CursorContext {
+            token: widen_over_quotes(cx.text, cx.ctx.token),
+            ..cx.ctx.clone()
+        };
+        let cx = Cx {
+            ctx: &widened,
+            ..*cx
+        };
+        return value_items(frontend, parent, field, &cx);
+    }
     let Some(enclosing) = schema_at(cx.schema, &cx.ctx.path) else {
         return Vec::new();
     };
@@ -94,6 +107,23 @@ fn raw_items<F: Frontend>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
         PositionKind::AttributeValue { field } => value_items(frontend, enclosing, field, cx),
         PositionKind::BlockLabel { .. } => Vec::new(),
     }
+}
+
+/// A replace range grown to cover a quote directly outside each end.
+///
+/// An unterminated element has an opening quote and no closing one, so each side
+/// is grown on its own rather than as a pair.
+fn widen_over_quotes(text: &str, token: (usize, usize)) -> (usize, usize) {
+    let bytes = text.as_bytes();
+    let start = match token.0.checked_sub(1) {
+        Some(before) if bytes.get(before) == Some(&b'"') => before,
+        _ => token.0,
+    };
+    let end = match bytes.get(token.1) {
+        Some(&b'"') => token.1 + 1,
+        _ => token.1,
+    };
+    (start, end)
 }
 
 /// Attribute-name and block-type completions at a body position.
@@ -222,14 +252,20 @@ mod tests {
         .required()
     }
 
+    fn keyword_list_field(name: &str) -> SchemaField {
+        SchemaField::new(
+            name.to_string(),
+            None,
+            SchemaType::string_list(Some(Constraint::Keywords(&["enforce", "log"]))),
+        )
+        .required()
+    }
+
     fn repeated(name: &str, fields: Vec<SchemaField>) -> SchemaField {
         SchemaField::new(
             name.to_string(),
             None,
-            SchemaType::Block {
-                schema: Box::new(Schema::new(None, fields)),
-                repeated: true,
-            },
+            SchemaType::block(Schema::new(None, fields), true),
         )
         .required()
     }
@@ -342,7 +378,14 @@ mod tests {
         // One table per value case: a keyword completion over a typed value,
         // over a bare colon that needs the separating space, and at a field
         // with no closed set.
-        let schema = Schema::new(None, vec![keyword_field("mode"), scalar("port")]);
+        let schema = Schema::new(
+            None,
+            vec![
+                keyword_field("mode"),
+                scalar("port"),
+                keyword_list_field("modes"),
+            ],
+        );
         let value = |field: &str| PositionKind::AttributeValue {
             field: field.to_string(),
         };
@@ -373,6 +416,16 @@ mod tests {
                 value("port"),
                 (6, 6),
                 vec![],
+            ),
+            (
+                "a list element offers the element keywords",
+                "modes: enf",
+                value("modes"),
+                (7, 10),
+                vec![
+                    ("enforce".to_string(), (7, 10), "\"enforce\"".to_string()),
+                    ("log".to_string(), (7, 10), "\"log\"".to_string()),
+                ],
             ),
         ];
 

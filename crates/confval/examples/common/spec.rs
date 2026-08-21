@@ -11,6 +11,12 @@ keyword_enum!(pub LimitMode, {
     Off     => "off",
 });
 
+keyword_enum!(pub LogEvent, {
+    Request  => "request",
+    Response => "response",
+    Error    => "error",
+});
+
 #[derive(confval::Spec)]
 pub struct ServerSpec {
     pub hostname: Located<String>,
@@ -22,8 +28,16 @@ pub struct ServerSpec {
     pub tls: Located<bool>,
     // A list field. The bare `default` reads an absent list as empty. Each
     // element keeps its own span, so a bad entry is reported at that entry.
+    // Its rule is that an entry must not be empty, which no attribute states,
+    // so the check stays in the `Validate` body below.
     #[confval(default)]
     pub allow: Vec<Located<String>>,
+    // A list whose entries come from a closed set. `keywords` on a list records
+    // the set each element must come from, so the derive checks every entry and
+    // this field needs no line in `Validate`. The set also reaches the schema,
+    // so an editor offers the same words inside the list.
+    #[confval(default, keywords = LogEvent)]
+    pub log_events: Vec<Located<String>>,
     // An open-ended, string-keyed map. The bare `default` reads an absent map
     // as empty. Each value keeps its span, so a bad entry is reported at that
     // entry, and a key can be any string, including a non-identifier such as a

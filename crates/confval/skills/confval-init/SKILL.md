@@ -41,6 +41,10 @@ First, decide which configuration surface to target when the project has more th
 Second, decide whether the confval layer runs beside the existing loader or replaces it.
 Ask the operator to settle each choice before you write code.
 
+Ask also whether the configuration is one file or several.
+A configuration that spans several files needs a way to find the others, such as a list or a glob in an entry file.
+That discovery is the project's decision rather than something confval supplies.
+
 ### 2. Add the dependency
 
 confval has no default features, so you enable the ones the project uses.
@@ -106,6 +110,30 @@ struct ServerSpec {
 }
 ```
 
+A recorded constraint expands where the spec struct is declared, so what it names must be reachable there.
+The two attributes differ on what that means.
+`range = ...` names a value, and `range_constraint!` generates a private const, so that const must sit in the module that declares the spec struct.
+`keywords = ...` names a type, so the enum may sit anywhere the spec module can import it from.
+Hold every `keyword_enum!` in one vocabulary module and import it.
+A closed set of words belongs to no single stage, because the spec checks it, lowering converts through it, and the runtime type holds it.
+The `Validate` impl may also live in another module, because a trait impl can be anywhere in the crate.
+
+The shape of the field decides whether a recorded constraint applies.
+A `Located<T>` takes one, and so does an `Option<Located<T>>`, which the derive checks only when the value is present.
+`keywords` also takes a string list, in both the bare and the optional form, where it records the set each element must come from and reports each bad element at its own span.
+`range` takes a scalar leaf alone, because there is no numeric list shape for it to apply to.
+A map and a nested block take neither.
+The derive rejects an attribute on a shape that cannot carry it, so a misplaced attribute fails the build rather than being skipped in silence.
+
+Write the check in `Validate` in three cases.
+
+- A set of words held as a slice rather than as a `keyword_enum!` type, which `KeywordSet::new` checks.
+- A spec with a handwritten `FromFields`, which has no derive to carry an attribute.
+- A check that must not run under a gate, because `validate_all` runs every recorded check before `validate` and `descend` does not prune it.
+
+The first two shapes have no attribute available, so the check has to go in `Validate`.
+The third is your decision about whether the gate should suppress the message.
+
 Write a `Validate` impl for the rules an attribute cannot express: a cross-field rule or a value with its own logic.
 Its `validate` reports the rules for that type's own fields.
 `validate_all` reaches the children, so a validator never calls a child's validator by hand.
@@ -129,10 +157,36 @@ Leave numeric narrowing and keyword-to-enum conversion to lowering, where the `n
 Add a second location to a diagnostic with `.related(span, label)`.
 For example, point a duplicate at the line that declared it first.
 
+One case earns an early return.
+When a block declares itself inapplicable, the rules below it check against the wrong thing and their diagnostics are noise.
+A version field that names a schema this build does not know is the usual case.
+Report the one error, return from `validate`, and override `descend` to break so the children are skipped too.
+
 A `validate` impl sees only `&self`.
 A rule that needs a sibling field's span, an enclosing span, or another file does not belong there.
 Write it as a function that takes the surrounding values.
 Call it yourself.
+
+Give those functions one entry point that the loader calls.
+It runs `validate_all` on the root, then each rule that spans more than one entity or more than one file.
+Split them by scope as they grow, into the rules that hold within one document and the rules that hold across documents.
+Keep the reusable leaf checks apart from both, because a check such as an address format or a path shape carries no domain rule of its own and several entities call it.
+
+A rule may read local state when the answer helps the operator before startup.
+Reading a file's contents, checking that a directory exists, and parsing a certificate are all fair.
+Do not resolve a hostname, open a socket, or call a remote service.
+A load that depends on remote state is slow and answers differently on each run.
+Refuse the value at validation and resolve it at runtime instead.
+
+Look for a relationship between two fields before you finish.
+A pair of bounds that must be ordered, a field that is required only when another is set, and a total that must not exceed a limit are the common ones.
+Report the rule at one field's span, and point at the other with `.related(span, label)`.
+When the domain has no such relationship, write the empty `Validate` impl and say why.
+An attribute records every field-local constraint, so a `Validate` impl that holds nothing else is empty by design rather than by omission.
+
+Report a value as a warning when it is legal but likely wrong.
+A value that is inside its range and still risky is the usual case.
+A warning does not trip the gate, so the program starts and the operator reads the note.
 
 ### 5. Write the runtime type
 
@@ -188,10 +242,53 @@ if let Some(config) = ServerConfig::lower(&spec, &mut report) {
 }
 ```
 
-### 7. Write a round-trip test
+A configuration that spans several files uses one `SourceMap` and one `Report` for the whole load.
+A span carries the source it came from, so issues from different files merge into one report and render together.
+Read and parse every file before you stop.
+Record that a file failed to parse, and stop after the loop rather than at the first failure, so one run reports every syntax error.
 
-Add a test that parses a fixture file, validates it, lowers it, and asserts the runtime values.
-Add one more case that feeds a fixture with several bad values and asserts the report names every problem in a single pass, which is the property that makes accumulation worth having.
+Load once, at the outermost entry point that can report a failure and stop.
+Do not move the load into a function that has no way to report one.
+Give that function a resolved value instead.
+A load pushed down into a function that returns nothing forces an error branch which cannot act.
+
+Do not change the signature of a function the project already exports.
+Add an entry point beside it that takes the configuration, and let the original delegate with a resolved default.
+A changed signature moves the cost onto every existing caller, including the project's own tests.
+
+Pass a consumer the narrowest part of the config it reads.
+A function that needs one block takes that block, not the root.
+The root belongs to the entry point that loaded it.
+A wide parameter couples a module to settings it never touches, and it hides which settings that module depends on.
+The new entry point is where this is easiest to get right, because nothing constrains its parameter list yet.
+
+Return the diagnostics rather than print them.
+The caller then owns the output stream, and a test asserts on the result rather than on captured standard error.
+
+### 7. Write a starter configuration file
+
+Write a file that names every setting at its default, and check it into the project.
+An operator copies that file rather than reads the source to learn what the settings are.
+Write it by hand, or generate it from the spec with `to_template`, which renders each field's doc comment above its field.
+Say in the file which values are the defaults, and how a command line flag interacts with them.
+
+### 8. Write a round-trip test
+
+Cover each of these cases:
+
+- A complete file lowers to the values it names.
+- An omitted field takes its declared default.
+- A file with several bad values reports every problem in one pass.
+- A warning does not stop the load.
+- No file at all yields the declared defaults.
+- A syntax error reports rather than panics.
+
+The third one is the property that makes accumulation worth having, so write it first.
+A `[dependencies]` entry is available to test targets, so an integration test can import confval and assert on the `Report` directly.
+
+Expose a way to build the configuration from specs rather than from text, and use it in the tests that do not exercise parsing.
+`Located::detached` supplies a value with no source position.
+A validator must not assume a source entry exists, because a detached span has none.
 
 ```rust
 #[test]
@@ -216,7 +313,7 @@ fn a_bad_fixture_reports_every_problem_at_once() {
 }
 ```
 
-### 8. Verify
+### 9. Verify
 
 Run `cargo check`, then `cargo test`.
 Read the spec, validation, and lowering back against the current confval crate.

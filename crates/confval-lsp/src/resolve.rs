@@ -243,12 +243,33 @@ fn seq_element_body(
 /// there is no value to replace. It inserts at the cursor instead, clamped to
 /// stay past the name, so completing the value never overwrites the name.
 fn value_replace_token(field: &Field, value: &Value, text: &str, offset: usize) -> (usize, usize) {
+    if let ValueKind::Seq(elements) = &value.kind {
+        if let Some(element) = elements
+            .iter()
+            .find(|element| contains(element.span, offset))
+        {
+            return span_token(element.span, text);
+        }
+        return cursor_insert(field, text, offset);
+    }
     let has_value = !field.name_span.is_detached()
         && !value.span.is_detached()
         && value.span.start > field.name_span.end;
     if has_value {
         return span_token(value.span, text);
     }
+    // No format reaches here today. KDL is the only one that writes a name with
+    // no value, and it parses that as an empty sequence, which the branch above
+    // takes. The fallback stays for a frontend that models it another way.
+    cursor_insert(field, text, offset)
+}
+
+/// An insert at the cursor, held past the field name.
+///
+/// A KDL node with no argument parses with its value span on the node name, and
+/// with an empty sequence for a list field, so both reach here. The clamp is
+/// what keeps completing a value from overwriting the name.
+fn cursor_insert(field: &Field, text: &str, offset: usize) -> (usize, usize) {
     let name_end = field.name_span.end as usize;
     let (start, end) = value_token(text, offset);
     (start.max(name_end), end.max(name_end))

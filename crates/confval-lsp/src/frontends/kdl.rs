@@ -73,10 +73,7 @@ mod tests {
         let field = SchemaField::new(
             "limits".to_string(),
             None,
-            SchemaType::Block {
-                schema: Box::new(Schema::new(None, Vec::new())),
-                repeated: false,
-            },
+            SchemaType::block(Schema::new(None, Vec::new()), false),
         );
 
         // Act

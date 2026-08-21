@@ -2,8 +2,8 @@
 //!
 //! It mirrors the `common` example spec, the representative shape the schema IR
 //! is pinned against: a required scalar, a defaulted scalar with a range, a
-//! keyword field, a string list, a map, an optional nested block, and a repeated
-//! block.
+//! keyword field, a string list, a constrained string list in both shapes, a
+//! map, an optional nested block, and a repeated block.
 #![allow(dead_code)]
 
 use confval::prelude::*;
@@ -36,6 +36,12 @@ pub struct ServerSpec {
     /// The networks allowed to connect.
     #[confval(default)]
     pub allow: Vec<Located<String>>,
+    /// How each limit breach is handled. A constrained list in the bare shape.
+    #[confval(default, keywords = LimitMode)]
+    pub modes: Vec<Located<String>>,
+    /// The same set in the optional-wrapped shape, so both reach the editor.
+    #[confval(keywords = LimitMode)]
+    pub events: Option<Located<Vec<Located<String>>>>,
     /// Extra response headers, by name.
     #[confval(map, default)]
     pub headers: BTreeMap<String, Located<String>>,

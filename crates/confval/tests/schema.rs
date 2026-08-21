@@ -40,6 +40,8 @@ struct ServerSpec {
     tls: Located<bool>,
     #[confval(default)]
     allow: Vec<Located<String>>,
+    #[confval(default, keywords = LimitMode)]
+    modes: Vec<Located<String>>,
     #[confval(map, default)]
     headers: BTreeMap<String, Located<String>>,
     #[confval(nested)]
@@ -172,7 +174,7 @@ fn the_schema_lists_every_field_in_declaration_order() {
     assert_eq!(
         names,
         vec![
-            "hostname", "port", "workers", "tls", "allow", "headers", "limits"
+            "hostname", "port", "workers", "tls", "allow", "modes", "headers", "limits"
         ]
     );
 }
@@ -240,12 +242,24 @@ fn an_optional_nested_block_is_not_required_and_has_no_default() {
 }
 
 #[test]
-fn a_bare_string_list_is_a_string_list() {
+fn a_string_list_records_the_keyword_set_of_its_elements() {
     // Act
     let schema = ServerSpec::schema();
 
     // Assert
-    assert!(matches!(field(&schema, "allow").ty, SchemaType::StringList));
+    assert_eq!(
+        field(&schema, "modes").ty,
+        SchemaType::string_list(Some(Constraint::Keywords(&LimitMode::KEYWORDS)))
+    );
+}
+
+#[test]
+fn a_string_list_with_no_attribute_records_no_constraint() {
+    // Act
+    let schema = ServerSpec::schema();
+
+    // Assert
+    assert_eq!(field(&schema, "allow").ty, SchemaType::string_list(None));
 }
 
 #[test]
@@ -384,7 +398,7 @@ fn an_optional_wrapped_string_list_is_a_string_list_and_not_required() {
 
     // Assert
     let maybe_tags = field(&schema, "maybe_tags");
-    assert!(matches!(maybe_tags.ty, SchemaType::StringList));
+    assert!(matches!(maybe_tags.ty, SchemaType::StringList { .. }));
     assert!(!maybe_tags.required);
     assert!(!maybe_tags.has_default);
 }
@@ -630,4 +644,20 @@ fn a_handwritten_field_carries_the_builder_text() {
     assert_eq!(built.default_text.as_deref(), Some("4"));
     assert!(built.has_default);
     assert!(!built.required, "a defaulted field is not required");
+}
+
+#[test]
+fn a_block_and_a_map_record_no_constraint() {
+    // Arrange
+    let schema = ServerSpec::schema();
+
+    // Act
+    let block = field(&schema, "limits").ty.constraint();
+    let map = field(&schema, "headers").ty.constraint();
+
+    // Assert
+    // A shape that carries no constraint answers `None`, so a reader that
+    // renders one asks every field rather than testing the variant first.
+    assert!(block.is_none());
+    assert!(map.is_none());
 }

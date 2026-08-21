@@ -124,7 +124,26 @@ html:not([data-theme="dark"]) pre.prism-code {
   color: var(--ifm-background-color);
 }
 
-/* Mermaid diagrams. */
+/* Mermaid diagrams.
+ *
+ * Diagrams in doc pages get the same framed pane the homepage builds with its
+ * own wrapper div. Scoped to .markdown so the homepage pane is not framed
+ * twice. */
+.markdown .docusaurus-mermaid-container {
+  margin-block: 2.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-background-surface-color);
+  overflow-x: auto;
+}
+
+.markdown .docusaurus-mermaid-container svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+}
+
 .docusaurus-mermaid-container .node :is(rect, polygon, path) {
   fill: #fbfaf5 !important;
 }
@@ -139,6 +158,34 @@ html:not([data-theme="dark"]) pre.prism-code {
 
 [data-theme="dark"] .docusaurus-mermaid-container :is(.nodeLabel, .nodeLabel p) {
   color: #d7e4d7 !important;
+}
+
+/* Subgraph panes: a faint step off the diagram pane with a hairline border,
+ * instead of the theme's gray cluster fill. */
+.docusaurus-mermaid-container .cluster rect {
+  fill: #ffffff !important;
+  stroke: #d8d6cc !important;
+}
+
+.docusaurus-mermaid-container .cluster.outer-pane rect {
+    fill: #faf9f3 !important;
+}
+
+.docusaurus-mermaid-container :is(.cluster-label, .cluster-label p, .cluster-label span) {
+  color: #3c3836 !important;
+}
+
+[data-theme="dark"] .docusaurus-mermaid-container .cluster rect {
+  fill: #131c15 !important;
+  stroke: #1e2a1e !important;
+}
+
+[data-theme="dark"] .docusaurus-mermaid-container :is(.cluster-label, .cluster-label p, .cluster-label span) {
+  color: #d7e4d7 !important;
+}
+
+[data-theme="dark"] .docusaurus-mermaid-container .cluster.module rect {
+  fill: #1b2a1e !important;
 }
 
 /* Edge lines and arrowheads read as one muted neutral in both modes. */

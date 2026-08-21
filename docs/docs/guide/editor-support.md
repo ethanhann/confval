@@ -27,6 +27,7 @@ The list follows the schema's declaration order, so related fields stay together
 
 On a value, it offers the values the schema allows.
 A field with a fixed set of keywords offers those keywords.
+Inside a list whose elements come from such a set, it offers the same words, and accepting one replaces the element under the cursor rather than the whole list.
 A field that points at another block offers the labels defined in the scope the reference resolves in.
 These are the labels a reference can resolve to without an error.
 

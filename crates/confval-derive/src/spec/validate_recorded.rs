@@ -3,17 +3,17 @@
 //!
 //! Where the schema walk in [`schema`](super::schema) records a field's
 //! `#[confval(range = ...)]` or `#[confval(keywords = ...)]` constraint for the
-//! IR, this walk runs the same constraint during validation. It emits one
-//! `check_located` call per recorded field, so the attribute is the single
-//! source and the author's `Validate` body carries no line for it.
+//! IR, this walk runs the same constraint during validation, so the attribute is
+//! the single source and the author's `Validate` body carries no line for it. A
+//! scalar leaf emits a `check_located` call and a string list emits a
+//! `check_each_in` call, which reports each bad element at its own span.
 //!
 //! The walk decides what to emit from the presence of `options.range` or
-//! `options.keywords` alone. The leaf-type pairing, that `keywords` needs a
-//! `String` leaf and `range` needs an `Int` or `Float` leaf, already ran in
-//! `spec/schema.rs` when the always-emitted `ToSchema` was generated, so a
-//! mispaired attribute is a compile error before this walk runs. Keeping the
-//! pairing in one generator and reading only attribute presence here keeps the
-//! two from drifting on which attribute means what.
+//! `options.keywords` alone. Which shape may carry which attribute is settled in
+//! `spec/schema.rs` when the always-emitted `ToSchema` is generated, so a
+//! misplaced attribute is a compile error before this walk runs. Keeping that
+//! rule in one generator and reading only attribute presence here keeps the two
+//! from drifting on which attribute means what.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
@@ -59,6 +59,31 @@ pub(crate) fn field_recorded_check(
         let call = call(&quote! { __value }, &quote! { report })?;
         return Some(quote! {
             if let ::core::option::Option::Some(__value) = &self.#ident {
+                #call
+            }
+        });
+    }
+
+    // A list records the constraint for one element, so the check runs through
+    // `check_each_in`, which reports each bad element at its own span. Only
+    // `keywords` reaches here, because the schema walk refuses `range` and
+    // `references` on a list. The bare form is already a slice. The optional
+    // form keeps the outer `Located`, so the list is reached through its value.
+    //
+    // Neither arm carries the defaulted-value branch a required leaf gets
+    // below. A list default is always the empty list, so there is no declared
+    // value for the constraint to reject.
+    let check_each_call = |values: &TokenStream2| -> Option<TokenStream2> {
+        let path = options.keywords.as_ref()?;
+        Some(quote! { #path::keyword_set().check_each_in(#values, #name, report); })
+    };
+    if matches!(shape, FieldShape::BareStringList) {
+        return check_each_call(&quote! { &self.#ident });
+    }
+    if matches!(shape, FieldShape::OptionalWrappedStringList) {
+        let call = check_each_call(&quote! { &__list.value })?;
+        return Some(quote! {
+            if let ::core::option::Option::Some(__list) = &self.#ident {
                 #call
             }
         });

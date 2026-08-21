@@ -5,18 +5,18 @@
 //! per field, read off the same `FieldShape` and `FieldOptions` the parser and
 //! the populate walk are built from, so the schema cannot drift from them.
 //!
-//! The leaf-type pairing check for the two recording attributes runs here, not
-//! in `options.rs`. A `#[confval(keywords = ...)]` requires a `String` leaf and
-//! a `#[confval(range = ...)]` requires an `Int` or `Float` leaf. `options.rs`
-//! reads the attribute tokens and never classifies the field type, so the pairing
-//! rule runs in this module, the only place the `Leaf` is known.
+//! Which shape may carry which recording attribute is settled here, not in
+//! `options.rs`. A `#[confval(keywords = ...)]` takes a `String` leaf or a
+//! string list, and a `#[confval(range = ...)]` takes an `Int` or `Float` leaf.
+//! `options.rs` reads the attribute tokens and never classifies the field type,
+//! so the rule runs in this module, the only place the shape is known.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::Ident;
 use syn::ext::IdentExt;
+use syn::{Ident, Path};
 
 /// Assembles the `impl ToSchema` for one struct from its per-field fragments and
 /// the struct's own doc comment. The generated `schema()` builds the level
@@ -194,35 +194,20 @@ fn structurally_required(shape: &FieldShape) -> bool {
 /// The `SchemaType` expression for a field's shape, running the constraint
 /// pairing check on the way.
 fn schema_type(shape: &FieldShape, options: &FieldOptions) -> syn::Result<TokenStream2> {
+    let constraint = constraint_tokens(shape, options)?;
     match shape {
         FieldShape::Leaf { leaf, .. } => {
             let scalar = scalar_type(leaf);
-            let constraint = constraint_tokens(leaf, options)?;
             Ok(quote! {
-                ::confval::schema::SchemaType::Scalar {
-                    leaf: #scalar,
-                    constraint: #constraint,
-                }
+                ::confval::schema::SchemaType::scalar(#scalar, #constraint)
             })
         }
-        FieldShape::BareStringList | FieldShape::OptionalWrappedStringList => {
-            reject_constraint_on_non_scalar(options)?;
-            Ok(quote! { ::confval::schema::SchemaType::StringList })
-        }
-        FieldShape::Nested { spec_ty, .. } => {
-            reject_constraint_on_non_scalar(options)?;
-            let spec_ty = &**spec_ty;
-            Ok(block_type(spec_ty, false))
-        }
-        FieldShape::NestedList { spec_ty } => {
-            reject_constraint_on_non_scalar(options)?;
-            let spec_ty = &**spec_ty;
-            Ok(block_type(spec_ty, true))
-        }
-        FieldShape::Map => {
-            reject_constraint_on_non_scalar(options)?;
-            Ok(quote! { ::confval::schema::SchemaType::StringMap })
-        }
+        FieldShape::BareStringList | FieldShape::OptionalWrappedStringList => Ok(quote! {
+            ::confval::schema::SchemaType::string_list(#constraint)
+        }),
+        FieldShape::Nested { spec_ty, .. } => Ok(block_type(spec_ty, false)),
+        FieldShape::NestedList { spec_ty } => Ok(block_type(spec_ty, true)),
+        FieldShape::Map => Ok(quote! { ::confval::schema::SchemaType::string_map() }),
     }
 }
 
@@ -232,12 +217,10 @@ fn schema_type(shape: &FieldShape, options: &FieldOptions) -> syn::Result<TokenS
 /// `ToFields`.
 fn block_type(spec_ty: &syn::Type, repeated: bool) -> TokenStream2 {
     quote! {
-        ::confval::schema::SchemaType::Block {
-            schema: ::std::boxed::Box::new(
-                <#spec_ty as ::confval::schema::ToSchema>::schema(),
-            ),
-            repeated: #repeated,
-        }
+        ::confval::schema::SchemaType::block(
+            <#spec_ty as ::confval::schema::ToSchema>::schema(),
+            #repeated,
+        )
     }
 }
 
@@ -251,36 +234,79 @@ fn scalar_type(leaf: &Leaf) -> TokenStream2 {
     }
 }
 
-/// The `Option<Constraint>` expression for a scalar leaf, and the site of the
-/// pairing check. `keywords` requires a `String` leaf, `range` requires an `Int`
-/// or `Float` leaf, and the two cannot share a field, because one leaf cannot be
-/// both.
-fn constraint_tokens(leaf: &Leaf, options: &FieldOptions) -> syn::Result<TokenStream2> {
+/// The `Option<Constraint>` expression a field records, and the one place a
+/// (shape, attribute) pair is judged legal.
+///
+/// The mutual-exclusion check runs first for every shape, so a field carrying
+/// two recording attributes reads that mistake rather than a pairing message
+/// about one of them. What each shape can then carry differs. A scalar leaf
+/// records all three against its leaf type. A string list records `keywords`
+/// alone, for the set each element must come from. A map and a nested block
+/// record nothing.
+fn constraint_tokens(shape: &FieldShape, options: &FieldOptions) -> syn::Result<TokenStream2> {
+    let Some(recorded) = one_recording_attribute(options)? else {
+        return Ok(quote! { ::core::option::Option::None });
+    };
+    match shape {
+        FieldShape::Leaf { leaf, .. } => leaf_constraint(leaf, recorded),
+        FieldShape::BareStringList | FieldShape::OptionalWrappedStringList => match recorded {
+            Recorded::Keywords(path) => Ok(keywords_tokens(path)),
+            Recorded::Range(path) => Err(refused(path, RANGE_REQUIRES, "a list")),
+            Recorded::References(block) => Err(refused(block, REFERENCES_REQUIRES, "a list")),
+        },
+        FieldShape::Nested { .. } | FieldShape::NestedList { .. } | FieldShape::Map => {
+            let where_not = "a map or a nested block";
+            match recorded {
+                Recorded::Keywords(path) => Err(refused(path, KEYWORDS_REQUIRES, where_not)),
+                Recorded::Range(path) => Err(refused(path, RANGE_REQUIRES, where_not)),
+                Recorded::References(block) => Err(refused(block, REFERENCES_REQUIRES, where_not)),
+            }
+        }
+    }
+}
+
+const KEYWORDS_REQUIRES: &str =
+    "#[confval(keywords = ...)] requires a String leaf or a string list";
+const RANGE_REQUIRES: &str = "#[confval(range = ...)] requires an Int or Float leaf";
+const REFERENCES_REQUIRES: &str = "#[confval(references = ...)] requires a String leaf";
+
+/// The one recording attribute a field declares.
+enum Recorded<'a> {
+    Keywords(&'a Path),
+    Range(&'a Path),
+    References(&'a Ident),
+}
+
+/// The recording attribute a field declares, or `None` when it declares none.
+///
+/// Two of them on one field is an error wherever the field sits, because no
+/// shape carries two constraints.
+fn one_recording_attribute(options: &FieldOptions) -> syn::Result<Option<Recorded<'_>>> {
     let too_many = "a field takes at most one of #[confval(keywords = ...)], \
                     #[confval(range = ...)], or #[confval(references = ...)]";
     match (&options.keywords, &options.range, &options.references) {
         (Some(_), Some(range), _) => Err(syn::Error::new_spanned(range, too_many)),
         (Some(_), _, Some(references)) => Err(syn::Error::new_spanned(references, too_many)),
         (_, Some(_), Some(references)) => Err(syn::Error::new_spanned(references, too_many)),
-        (Some(path), None, None) => {
+        (Some(path), None, None) => Ok(Some(Recorded::Keywords(path))),
+        (None, Some(path), None) => Ok(Some(Recorded::Range(path))),
+        (None, None, Some(block)) => Ok(Some(Recorded::References(block))),
+        (None, None, None) => Ok(None),
+    }
+}
+
+/// The constraint a scalar leaf records, paired against its leaf type.
+fn leaf_constraint(leaf: &Leaf, recorded: Recorded<'_>) -> syn::Result<TokenStream2> {
+    match recorded {
+        Recorded::Keywords(path) => {
             if !matches!(leaf, Leaf::String) {
-                return Err(syn::Error::new_spanned(
-                    path,
-                    "#[confval(keywords = ...)] requires a String leaf",
-                ));
+                return Err(syn::Error::new_spanned(path, KEYWORDS_REQUIRES));
             }
-            Ok(quote! {
-                ::core::option::Option::Some(
-                    ::confval::schema::Constraint::Keywords(&#path::KEYWORDS),
-                )
-            })
+            Ok(keywords_tokens(path))
         }
-        (None, Some(path), None) => {
+        Recorded::Range(path) => {
             if !matches!(leaf, Leaf::Int | Leaf::Float) {
-                return Err(syn::Error::new_spanned(
-                    path,
-                    "#[confval(range = ...)] requires an Int or Float leaf",
-                ));
+                return Err(syn::Error::new_spanned(path, RANGE_REQUIRES));
             }
             // A float bound renders through `{:?}`, the form the default text
             // uses, so a whole-number bound keeps its `.0` and hover on a
@@ -306,12 +332,9 @@ fn constraint_tokens(leaf: &Leaf, options: &FieldOptions) -> syn::Result<TokenSt
                 )
             })
         }
-        (None, None, Some(block)) => {
+        Recorded::References(block) => {
             if !matches!(leaf, Leaf::String) {
-                return Err(syn::Error::new_spanned(
-                    block,
-                    "#[confval(references = ...)] requires a String leaf",
-                ));
+                return Err(syn::Error::new_spanned(block, REFERENCES_REQUIRES));
             }
             let block = block.unraw().to_string();
             Ok(quote! {
@@ -320,35 +343,21 @@ fn constraint_tokens(leaf: &Leaf, options: &FieldOptions) -> syn::Result<TokenSt
                 )
             })
         }
-        (None, None, None) => Ok(quote! { ::core::option::Option::None }),
     }
 }
 
-/// Rejects a recording attribute on a shape that is not a scalar leaf. A list, a
-/// map, or a nested block has no closed set or numeric bound to record.
-fn reject_constraint_on_non_scalar(options: &FieldOptions) -> syn::Result<()> {
-    if let Some(path) = &options.keywords {
-        return Err(syn::Error::new_spanned(
-            path,
-            "#[confval(keywords = ...)] requires a String leaf; \
-             it cannot apply to a list, a map, or a nested block",
-        ));
+/// The `Constraint::Keywords` expression reading a `keyword_enum!` type's set.
+fn keywords_tokens(path: &Path) -> TokenStream2 {
+    quote! {
+        ::core::option::Option::Some(
+            ::confval::schema::Constraint::Keywords(&#path::KEYWORDS),
+        )
     }
-    if let Some(path) = &options.range {
-        return Err(syn::Error::new_spanned(
-            path,
-            "#[confval(range = ...)] requires an Int or Float leaf; \
-             it cannot apply to a list, a map, or a nested block",
-        ));
-    }
-    if let Some(block) = &options.references {
-        return Err(syn::Error::new_spanned(
-            block,
-            "#[confval(references = ...)] requires a String leaf; \
-             it cannot apply to a list, a map, or a nested block",
-        ));
-    }
-    Ok(())
+}
+
+/// A refusal naming what the attribute needs and the shape it cannot sit on.
+fn refused<T: quote::ToTokens>(at: &T, requires: &str, where_not: &str) -> syn::Error {
+    syn::Error::new_spanned(at, format!("{requires}; it cannot apply to {where_not}"))
 }
 
 /// The `Option<String>` expression for a doc comment, built for `Schema::doc` and

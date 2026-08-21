@@ -101,9 +101,20 @@ pub enum SchemaType {
         /// The mechanical constraint the field records, or `None`.
         constraint: Option<Constraint>,
     },
-    /// A list of strings.
-    StringList,
+    /// A list of strings, with the constraint each element declares, if any.
+    ///
+    /// The constraint describes one element rather than the list, so a closed
+    /// set means every entry must be one of those words. Only
+    /// [`Keywords`](Constraint::Keywords) is meaningful here, because the derive
+    /// records nothing else on a list. A constraint that bounds the list itself,
+    /// such as a length, would need its own slot rather than this one.
+    #[non_exhaustive]
+    StringList {
+        /// The mechanical constraint each element records, or `None`.
+        constraint: Option<Constraint>,
+    },
     /// A nested block. `repeated` is true for a zero-or-more block list.
+    #[non_exhaustive]
     Block {
         /// The child level's schema.
         schema: Box<Schema>,
@@ -111,8 +122,47 @@ pub enum SchemaType {
         repeated: bool,
     },
     /// An open-ended, string-keyed map with string values. Keys are open, so the
-    /// node names no key or value type, mirroring [`StringList`](SchemaType::StringList).
+    /// node names no key or value type.
     StringMap,
+}
+
+impl SchemaType {
+    /// A scalar leaf of `leaf`, recording `constraint`.
+    pub fn scalar(leaf: ScalarType, constraint: Option<Constraint>) -> Self {
+        Self::Scalar { leaf, constraint }
+    }
+
+    /// A string list whose elements record `constraint`.
+    pub fn string_list(constraint: Option<Constraint>) -> Self {
+        Self::StringList { constraint }
+    }
+
+    /// A nested block holding `schema`, repeated when `repeated` is true.
+    pub fn block(schema: Schema, repeated: bool) -> Self {
+        Self::Block {
+            schema: Box::new(schema),
+            repeated,
+        }
+    }
+
+    /// An open-ended, string-keyed map with string values.
+    pub fn string_map() -> Self {
+        Self::StringMap
+    }
+
+    /// The constraint this type records, or `None`.
+    ///
+    /// A scalar records one for its value and a string list records one for
+    /// each element, so a reader that renders a constraint takes it from here
+    /// rather than naming both variants.
+    pub fn constraint(&self) -> Option<&Constraint> {
+        match self {
+            Self::Scalar { constraint, .. } | Self::StringList { constraint } => {
+                constraint.as_ref()
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The scalar leaf types the derive can classify. `Path` is the config-level

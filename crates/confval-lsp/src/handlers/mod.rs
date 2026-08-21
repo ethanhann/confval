@@ -22,9 +22,10 @@ pub use navigation::{definition, references};
 pub use symbols::{SymbolShape, document_symbols};
 
 use confval::format::Fields;
-use confval::schema::Schema;
+use confval::schema::{Schema, SchemaType};
 
-use crate::frontend::CursorContext;
+use crate::frontend::{CursorContext, PositionKind};
+use crate::walk::schema_at;
 
 /// The document inputs a handler reads: the schema and parse beside the
 /// resolved cursor context and the buffer text.
@@ -41,4 +42,23 @@ pub struct Cx<'a> {
     pub ctx: &'a CursorContext,
     /// The buffer text.
     pub text: &'a str,
+}
+
+/// The list a cursor inside a sequence element belongs to, and the level that
+/// declares it.
+///
+/// A sequence element sits on its own line in YAML and inside brackets in the
+/// JSON recovery, so resolution reads the element as a body position under the
+/// list's own key. A list of strings has no body, so that position is really the
+/// value of the list itself. Reading the parent level answers which it is, and
+/// answering only for a string list leaves a sequence of blocks resolving to the
+/// body position its elements need.
+pub(crate) fn string_list_element<'a>(cx: &'a Cx) -> Option<(&'a Schema, &'a str)> {
+    if !matches!(cx.ctx.kind, PositionKind::Body) {
+        return None;
+    }
+    let (field, parent_path) = cx.ctx.path.split_last()?;
+    let parent = schema_at(cx.schema, parent_path)?;
+    let target = parent.fields.iter().find(|entry| entry.name == *field)?;
+    matches!(target.ty, SchemaType::StringList { .. }).then_some((parent, field.as_str()))
 }

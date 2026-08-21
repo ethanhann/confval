@@ -52,7 +52,7 @@ impl Frontend for Toml {
                 absorb: Absorb::Run(b'['),
                 snippet: false,
             },
-            SchemaType::StringList => Insert::snippet(format!("{} = [$0]", field.name)),
+            SchemaType::StringList { .. } => Insert::snippet(format!("{} = [$0]", field.name)),
             SchemaType::StringMap => Insert::snippet(format!("{} = {{ $0 }}", field.name)),
             _ => {
                 let placeholder = super::value_placeholder(self, field);
@@ -71,10 +71,7 @@ mod tests {
         SchemaField::new(
             name.to_string(),
             None,
-            SchemaType::Block {
-                schema: Box::new(Schema::new(None, Vec::new())),
-                repeated: false,
-            },
+            SchemaType::block(Schema::new(None, Vec::new()), false),
         )
         .required()
     }
@@ -83,10 +80,7 @@ mod tests {
         SchemaField::new(
             name.to_string(),
             None,
-            SchemaType::Block {
-                schema: Box::new(Schema::new(None, Vec::new())),
-                repeated: true,
-            },
+            SchemaType::block(Schema::new(None, Vec::new()), true),
         )
         .required()
     }

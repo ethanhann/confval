@@ -13,13 +13,20 @@ use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, PositionKind};
-use crate::handlers::Cx;
+use crate::handlers::{Cx, string_list_element};
 use crate::walk::{field_text, label_matches, reference_labels, resolved_level, schema_at};
 
 /// Produces the hover for a resolved cursor, or `None` when the cursor is on
 /// no field.
 pub fn hover(cx: &Cx, index: &LineIndex, encoding: PositionEncoding) -> Option<Hover> {
-    let (schema, fields, ctx, text) = (cx.schema, cx.fields, cx.ctx, cx.text);
+    let (schema, ctx, text) = (cx.schema, cx.ctx, cx.text);
+    // A cursor inside a sequence element resolves to a body position under the
+    // list's key, and the token there is the element the operator wrote rather
+    // than a field name. The list is what the hover describes. This runs before
+    // the descent below, which cannot enter a list and would answer nothing.
+    if let Some((parent, field)) = string_list_element(cx) {
+        return field_hover(parent, field, cx, index, encoding);
+    }
     let enclosing = schema_at(schema, &ctx.path)?;
     // A cursor in a block's label names the block rather than a field.
     if let PositionKind::BlockLabel { block } = &ctx.kind {
@@ -46,18 +53,30 @@ pub fn hover(cx: &Cx, index: &LineIndex, encoding: PositionEncoding) -> Option<H
         }
         PositionKind::BlockLabel { .. } => return None,
     };
+    field_hover(enclosing, &name, cx, index, encoding)
+}
+
+/// The hover for one named field of `enclosing`, or `None` when the level has no
+/// field by that name.
+fn field_hover(
+    enclosing: &Schema,
+    name: &str,
+    cx: &Cx,
+    index: &LineIndex,
+    encoding: PositionEncoding,
+) -> Option<Hover> {
     let field = enclosing.fields.iter().find(|field| field.name == name)?;
     // `None` when there is no parse to read the state from, so the state is
     // unknown rather than "not set". The resolved level addresses the exact
     // instance of a repeated block, falling back to the first only on the text
     // recovery path.
-    let set = resolved_level(ctx, fields).map(|level| level.has(&name));
+    let set = resolved_level(cx.ctx, cx.fields).map(|level| level.has(name));
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent {
             kind: MarkupKind::Markdown,
             value: render(field, set),
         }),
-        range: Some(index.range_of_bytes(text, ctx.token, encoding)),
+        range: Some(index.range_of_bytes(cx.text, cx.ctx.token, encoding)),
     })
 }
 
@@ -203,7 +222,7 @@ fn state_label(set: bool, has_default: bool) -> &'static str {
 fn type_label(ty: &SchemaType) -> &'static str {
     match ty {
         SchemaType::Scalar { leaf, .. } => scalar_label(leaf),
-        SchemaType::StringList => "string list",
+        SchemaType::StringList { .. } => "string list",
         SchemaType::Block { repeated: true, .. } => "block (repeatable)",
         SchemaType::Block { .. } => "block",
         SchemaType::StringMap => "map",
@@ -223,12 +242,9 @@ fn scalar_label(leaf: &ScalarType) -> &'static str {
     }
 }
 
-/// The constraint of a scalar field, if any.
+/// The constraint a field records, if any.
 fn constraint_of(ty: &SchemaType) -> Option<&Constraint> {
-    match ty {
-        SchemaType::Scalar { constraint, .. } => constraint.as_ref(),
-        _ => None,
-    }
+    ty.constraint()
 }
 
 /// A human label for a constraint.
@@ -260,10 +276,7 @@ mod tests {
     use confval::schema::Schema;
 
     fn block(repeated: bool) -> SchemaType {
-        SchemaType::Block {
-            schema: Box::new(Schema::new(None, Vec::new())),
-            repeated,
-        }
+        SchemaType::block(Schema::new(None, Vec::new()), repeated)
     }
 
     #[test]
@@ -276,7 +289,7 @@ mod tests {
             }),
             "integer"
         );
-        assert_eq!(type_label(&SchemaType::StringList), "string list");
+        assert_eq!(type_label(&SchemaType::string_list(None)), "string list");
         assert_eq!(type_label(&SchemaType::StringMap), "map");
         assert_eq!(type_label(&block(false)), "block");
         assert_eq!(type_label(&block(true)), "block (repeatable)");

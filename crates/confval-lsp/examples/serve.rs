@@ -24,6 +24,12 @@ keyword_enum!(LimitMode, {
     Off     => "off",
 });
 
+keyword_enum!(LogEvent, {
+    Request  => "request",
+    Response => "response",
+    Error    => "error",
+});
+
 /// The demo root spec.
 #[derive(confval::Spec)]
 struct ServerSpec {
@@ -41,6 +47,11 @@ struct ServerSpec {
     /// The networks allowed to connect.
     #[confval(default)]
     allow: Vec<Located<String>>,
+    /// The request lifecycle points to log. Each entry comes from a closed set,
+    /// so the editor completes inside the list and a bad entry is reported at
+    /// that entry.
+    #[confval(default, keywords = LogEvent)]
+    log_events: Vec<Located<String>>,
     /// Extra response headers, by name.
     #[confval(map, default)]
     headers: BTreeMap<String, Located<String>>,

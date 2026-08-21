@@ -34,7 +34,9 @@ Each `SchemaField` carries the field name as it appears in a config file, the fi
 
 The declared type is a `SchemaType`.
 A scalar leaf carries its `ScalarType` and any constraint it declares.
-A string list is `StringList`, and a string-keyed map is `StringMap`.
+A string list is `StringList`, which carries any constraint its elements declare.
+A string-keyed map is `StringMap`.
+A list's constraint describes one element, so an editor offering completion inside the list reads the same set a scalar field would give.
 A nested block is `Block`, which holds the child level's own `Schema` and a `repeated` flag for a zero-or-more block list.
 
 A leaf reads its `ScalarType` from the Rust type, so `port: Located<i64>` is `Int` and `hostname: Located<String>` is `String`.
@@ -61,15 +63,18 @@ An editor reads `required` to report only the fields the parser would reject as 
 ## Recording constraints
 
 The derive cannot read a `Validate` body, so a closed-set field looks like a plain `Located<String>` and a numeric range is invisible to the schema.
-Three attributes record a constraint on a scalar leaf so the schema can carry it.
+Three attributes record a constraint so the schema can carry it.
 
-`#[confval(keywords = PATH)]` names a `keyword_enum!` type and requires a `String` leaf.
+`#[confval(keywords = PATH)]` names a `keyword_enum!` type and takes a `String` leaf or a string list.
 The schema carries its allowed strings as `Constraint::Keywords`.
+On a list the set describes one element, so an editor offers the same words inside the list that it offers on a scalar.
 
 `#[confval(range = PATH)]` names a `RangeConstraint` and requires an `Int` or `Float` leaf.
 The schema carries its bounds, units, and help line as `Constraint::Range`.
+A list of numbers is not a field shape confval parses, so a range has nothing to bound on a list.
 
 `#[confval(references = <block>)]` marks a `String` leaf whose value names another block by its label.
+It takes a leaf alone, because the reference pass resolves one value against the labels in scope.
 The `<block>` is the config field name of a labeled block, one that marks a child field with `#[confval(label)]`.
 The schema carries the target as `Constraint::References`.
 

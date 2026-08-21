@@ -161,10 +161,7 @@ mod tests {
         SchemaField::new(
             name.to_string(),
             None,
-            SchemaType::Block {
-                schema: Box::new(Schema::new(None, vec![label])),
-                repeated: true,
-            },
+            SchemaType::block(Schema::new(None, vec![label]), true),
         )
     }
 

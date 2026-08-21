@@ -36,7 +36,7 @@ impl Frontend for Yaml {
         match &field.ty {
             // A repeated block and a string list are both sequences, so the
             // insert opens the first element with a `-` marker.
-            SchemaType::Block { repeated: true, .. } | SchemaType::StringList => {
+            SchemaType::Block { repeated: true, .. } | SchemaType::StringList { .. } => {
                 Insert::snippet(format!("{}:\n  - $0", field.name))
             }
             // A single nested mapping and a map both open a body on the next
@@ -70,10 +70,7 @@ mod tests {
     }
 
     fn block_type(repeated: bool) -> SchemaType {
-        SchemaType::Block {
-            schema: Box::new(Schema::new(None, Vec::new())),
-            repeated,
-        }
+        SchemaType::block(Schema::new(None, Vec::new()), repeated)
     }
 
     #[test]
@@ -106,7 +103,7 @@ mod tests {
     #[test]
     fn a_string_list_opens_a_sequence_element() {
         // Arrange, Act
-        let insert = Yaml.insert_text(&field("tags", SchemaType::StringList), &[]);
+        let insert = Yaml.insert_text(&field("tags", SchemaType::string_list(None)), &[]);
 
         // Assert
         assert_eq!(insert.text, "tags:\n  - $0");

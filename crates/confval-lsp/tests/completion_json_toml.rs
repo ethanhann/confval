@@ -5,7 +5,7 @@
 mod fixture;
 mod support;
 
-use lsp_types::{CompletionTextEdit, InsertTextFormat, Position};
+use lsp_types::{CompletionTextEdit, InsertTextFormat, Position, Range};
 
 use confval::schema::ToSchema;
 use confval_lsp::handlers::{ClientSupport, Cx, completion};
@@ -428,4 +428,190 @@ fn toml_list_and_map_completion_open_the_container() {
         .find(|i| i.label == "headers")
         .expect("headers offered");
     assert_eq!(inserted(headers), "headers = {  }");
+}
+
+/// The edit range of the first item offered at `offset`, resolved through the
+/// real parse and cursor resolution rather than a synthesized position. `None`
+/// when nothing is offered or the item carries no replace edit.
+fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Option<Range> {
+    let (tree, context) = at_with(frontend, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+    let items = completion(
+        frontend,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+    match &items.first()?.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => Some(edit.range),
+        _ => None,
+    }
+}
+
+#[test]
+fn toml_keyword_inside_a_list_replaces_only_that_element() {
+    // Arrange
+    let text = "modes = [\"log\", \"enf\"]\n";
+    let offset = text.find("\"enf\"").expect("the element is present") + 2;
+
+    // Act
+    let range = edit_range_at(&Toml, text, offset).expect("a replace edit is offered");
+
+    // Assert
+    assert_eq!(range.start.character, 16);
+    assert_eq!(range.end.character, 21);
+}
+
+#[test]
+fn json_keyword_inside_a_list_replaces_only_that_element() {
+    // Arrange
+    let text = "{\n  \"modes\": [\"log\", \"enf\"]\n}\n";
+    let offset = text.find("\"enf\"").expect("the element is present") + 2;
+
+    // Act
+    let range = edit_range_at(&Json, text, offset).expect("a replace edit is offered");
+
+    // Assert
+    // Line 1 is the member line. The range covers the element alone, so the
+    // brackets and the sibling entry survive the edit.
+    assert_eq!(range.start.line, 1);
+    assert_eq!(range.start.character, 19);
+    assert_eq!(range.end.character, 24);
+}
+
+/// The labels offered at `offset`, resolved through the real parse and cursor
+/// resolution.
+fn offered_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Vec<String> {
+    let (tree, context) = at_with(frontend, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+    labels(&completion(
+        frontend,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    ))
+}
+
+#[test]
+fn a_half_typed_json_list_element_offers_the_list_keywords() {
+    // Arrange
+    // The buffer does not parse yet, which is the state an operator types in,
+    // so this runs through the recovery scanner rather than the tree.
+    let text = "{\n  \"modes\": [\"enf\n";
+    let offset = text.find("enf").expect("the element is present") + 3;
+
+    // Act
+    let offered = offered_at(&Json, text, offset);
+
+    // Assert
+    assert!(
+        offered.contains(&"enforce".to_string()),
+        "offered: {:?}",
+        offered
+    );
+}
+
+#[test]
+fn a_half_typed_toml_list_element_offers_the_list_keywords() {
+    // Arrange
+    let text = "modes = [\"enf\n";
+    let offset = text.find("enf").expect("the element is present") + 3;
+
+    // Act
+    let offered = offered_at(&Toml, text, offset);
+
+    // Assert
+    assert!(
+        offered.contains(&"enforce".to_string()),
+        "offered: {:?}",
+        offered
+    );
+}
+
+/// The byte offset of an LSP position, for the ASCII fixtures these tests use.
+fn byte_offset(text: &str, position: Position) -> usize {
+    let line_start = text
+        .split_inclusive('\n')
+        .take(position.line as usize)
+        .map(str::len)
+        .sum::<usize>();
+    line_start + position.character as usize
+}
+
+/// The text a completion at `offset` produces when applied to `text`, or
+/// `None` when the item is absent or carries no replace edit.
+fn applied<F: Frontend>(frontend: &F, text: &str, offset: usize, label: &str) -> Option<String> {
+    let (tree, context) = at_with(frontend, text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+    let items = completion(
+        frontend,
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+        ClientSupport::default(),
+    );
+    let item = items.iter().find(|item| item.label == label)?;
+    let (start, end) = match &item.text_edit {
+        Some(CompletionTextEdit::Edit(edit)) => (
+            byte_offset(text, edit.range.start),
+            byte_offset(text, edit.range.end),
+        ),
+        _ => return None,
+    };
+    Some(format!(
+        "{}{}{}",
+        &text[..start],
+        inserted(item),
+        &text[end..]
+    ))
+}
+
+#[test]
+fn accepting_a_keyword_in_a_half_typed_json_element_does_not_double_the_quote() {
+    // Arrange
+    // The opening quote is typed and the closing one is not, so each side of
+    // the range grows on its own.
+    let text = "{\n  \"modes\": [\"enf\n";
+    let offset = text.find("enf").expect("the element is present") + 3;
+
+    // Act
+    let result = applied(&Json, text, offset, "enforce").expect("the item is offered");
+
+    // Assert
+    // The item renders a whole quoted literal, so it takes the typed opening
+    // quote and supplies the closing one.
+    assert_eq!(result, "{\n  \"modes\": [\"enforce\"\n");
+}
+
+#[test]
+fn accepting_a_keyword_in_a_half_typed_toml_element_does_not_double_the_quote() {
+    // Arrange
+    let text = "modes = [\"enf\n";
+    let offset = text.find("enf").expect("the element is present") + 3;
+
+    // Act
+    let result = applied(&Toml, text, offset, "enforce").expect("the item is offered");
+
+    // Assert
+    assert_eq!(result, "modes = [\"enforce\"\n");
 }

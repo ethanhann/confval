@@ -72,7 +72,8 @@ Every element that fails is reported before the call returns, so an operator see
 bad element leaves the whole field unlowered.
 `opt_keyword_list::<T>` takes the wrapped optional list, `Option<Located<Vec<Located<String>>>>`, and returns `Some(None)` for an absent field.
 It unwraps that wrapper as well as the `Option`, which the other `opt_` helpers do not, because the wrapped shape adds a `Located` around the list.
-Validate a keyword list with [`check_each`](./validation.md#keywordset) so a bad element is reported at its own span during validation rather than through the lowering helper's defensive branch.
+Record the set on the field with `#[confval(keywords = ...)]` so a bad element is reported at its own span during validation rather than through the lowering helper's defensive branch.
+Handwritten specs reach the same check through [`check_each`](./validation.md#keywordset).
 
 ```rust
 use confval::pipeline::narrow;
