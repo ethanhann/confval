@@ -4,6 +4,7 @@ workers  = 9999
 tls      = true
 
 oops = "not a known field"
+log_events = ["request", "shout"]
 
 limits {
   max_body_mb = 5000
