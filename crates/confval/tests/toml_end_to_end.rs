@@ -558,3 +558,63 @@ fn a_repeated_block_with_one_instance_round_trips() {
     assert_eq!(round.service.len(), 1);
     assert_eq!(round.service[0].value.name.value, "api");
 }
+
+confval::keyword_enum!(Mode, {
+    Enforce => "enforce",
+    Log     => "log",
+});
+
+/// A spec whose only rule is a keyword set recorded on a list, so the check the
+/// derive generates is the only thing that can report.
+#[derive(confval::Spec)]
+struct ModesSpec {
+    #[confval(default, keywords = Mode)]
+    modes: Vec<Located<String>>,
+}
+
+impl Validate for ModesSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_parsed_list_reports_a_bad_element_at_that_element() {
+    // Arrange
+    // The spans come from the parse rather than from a hand-built `Located`, so
+    // this pins that a real TOML list carries one span per element.
+    let input = "modes = [\"enforce\", \"shout\"]\n";
+    let mut sources = SourceMap::new();
+    let mut report = Report::new();
+    let id = sources.add("modes.toml", input);
+    let spec: Option<ModesSpec> = parse_toml(&sources, id, &mut report);
+
+    // Act
+    spec.expect("the input parses").validate_all(&mut report);
+
+    // Assert
+    let issue = &report.issues()[0];
+    assert_eq!(issue.message, "unknown value in modes: shout");
+    let span = issue.span.expect("the issue carries a span");
+    assert_eq!(
+        &input[span.start as usize..span.end as usize],
+        "\"shout\"",
+        "the span underlines the element rather than the list"
+    );
+}
+
+#[test]
+fn an_absent_defaulted_list_reports_nothing() {
+    // Arrange
+    // A list default is always the empty list, so the recorded check has no
+    // value to reject and the defaulted-value branch scalars get is vacuous.
+    let input = "";
+    let mut sources = SourceMap::new();
+    let mut report = Report::new();
+    let id = sources.add("empty.toml", input);
+    let spec: Option<ModesSpec> = parse_toml(&sources, id, &mut report);
+
+    // Act
+    spec.expect("the input parses").validate_all(&mut report);
+
+    // Assert
+    assert!(!report.has_issues());
+}

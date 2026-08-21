@@ -123,13 +123,16 @@ A `Located<T>` takes one, and so does an `Option<Located<T>>`, which the derive 
 `keywords` also takes a string list, in both the bare and the optional form, where it records the set each element must come from and reports each bad element at its own span.
 `range` takes a scalar leaf alone, because there is no numeric list shape for it to apply to.
 A map and a nested block take neither.
-The derive rejects an attribute on a shape that cannot carry it, rather than skipping the check, so this is never missed by accident.
+The derive rejects an attribute on a shape that cannot carry it, so a misplaced attribute fails the build rather than being skipped in silence.
 
 Write the check in `Validate` in three cases.
-The first is a set of words held as a slice rather than as a `keyword_enum!` type, which `KeywordSet::new` checks.
-The second is a spec with a handwritten `FromFields`, which has no derive to carry an attribute.
-The third is a check that must not run under a gate, because `validate_all` runs every recorded check before `validate` and `descend` does not prune it.
-The first two are forced. The third is a judgment call.
+
+- A set of words held as a slice rather than as a `keyword_enum!` type, which `KeywordSet::new` checks.
+- A spec with a handwritten `FromFields`, which has no derive to carry an attribute.
+- A check that must not run under a gate, because `validate_all` runs every recorded check before `validate` and `descend` does not prune it.
+
+The first two shapes have no attribute available, so the check has to go in `Validate`.
+The third is your decision about whether the gate should suppress the message.
 
 Write a `Validate` impl for the rules an attribute cannot express: a cross-field rule or a value with its own logic.
 Its `validate` reports the rules for that type's own fields.
