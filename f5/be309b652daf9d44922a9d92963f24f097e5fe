@@ -1,0 +1,14 @@
+docs/releases/v0_9_0.md
+  h_4fc023ad4863a8 1-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f5be309b652daf9d44922a9d92963f24f097e5fe",
+  "prompts": {},
+  "humans": {
+    "h_4fc023ad4863a8": {
+      "author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
