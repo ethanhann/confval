@@ -1,0 +1,33 @@
+crates/confval-lsp/tests/completion_json_toml.rs
+  s_5149da1748dd97::t_12375aa679aaee 488-543
+crates/confval-lsp/src/handlers/completion/mod.rs
+  s_8fdbb0ce27b053::t_afda83ff78f037 89-91,102-120
+crates/confval-lsp/tests/completion_yaml.rs
+  s_8fdbb0ce27b053::t_f343a1703d2f59 8,396-478
+crates/confval-lsp/tests/hover.rs
+  s_8fdbb0ce27b053::t_a48cbb34119fba 382-437
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "e0763f6c03c5b5420f412cfdb15641e195af9a7f",
+  "prompts": {},
+  "sessions": {
+    "s_5149da1748dd97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5fa71b8-5586-468e-9cb9-859f488fa058",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    },
+    "s_8fdbb0ce27b053": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d1db920-f009-4078-9ae8-8138b14c4fde",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
