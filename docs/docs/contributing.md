@@ -60,10 +60,11 @@ If you add an example or change one's required features, update that page and th
 
 ## Crate layout
 
-confval is organized into four layers, each a module, plus a prelude.
+confval is organized into six modules, plus a prelude.
 The dependency direction is strictly downward.
 `format` builds on `pipeline`, which builds on `diagnostic`, which builds
 on `source`.
+`layering` builds on `format`, and `schema` depends on no other module.
 
 | Module                | Holds                                                                                       |
 |-----------------------|---------------------------------------------------------------------------------------------|
@@ -71,6 +72,8 @@ on `source`.
 | `confval::diagnostic` | `Report`, `Issue`, `IssueBuilder`, `Severity`, the renderers (the "what")                   |
 | `confval::pipeline`   | `Lower`, `LowerAuto`, `Validate`, `narrow`, `RangeConstraint`, `KeywordSet` (the transform) |
 | `confval::format`     | the neutral field model (`field`) and the frontends (`hcl`, `json`, `kdl`, `toml`, `yaml`)          |
+| `confval::layering`   | `Assembly` and the `env_fields` and `cli_fields` providers (the merge)                      |
+| `confval::schema`     | `Schema`, `SchemaField`, `SchemaType`, `Constraint`, `ToSchema` (the type-level view)       |
 | `confval::prelude`    | a glob re-export of the common imports across those layers                                  |
 
 `use confval::prelude::*;` pulls the everyday names (`Located`, `Span`, `Report`, `Lower`, `Validate`, `narrow`,
