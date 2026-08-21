@@ -1,0 +1,23 @@
+crates/confval-derive/src/spec/validate_recorded.rs
+  s_8fdbb0ce27b053::t_011faae8462de0 76,81,84
+crates/confval/tests/recorded_validation.rs
+  s_8fdbb0ce27b053::t_093cbb4385292c 202-218
+crates/confval/tests/ui/fail/schema_range_on_list.rs
+  s_8fdbb0ce27b053::t_1d92b137f11d7a 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "145a949d45dd00e11e509f20755bff3af11a8a95",
+  "prompts": {},
+  "sessions": {
+    "s_8fdbb0ce27b053": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d1db920-f009-4078-9ae8-8138b14c4fde",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
