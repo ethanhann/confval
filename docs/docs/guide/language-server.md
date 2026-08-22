@@ -6,7 +6,7 @@ sidebar_position: 11
 
 `confval-lsp` is a language server.
 It gives an editor the completion, hover, diagnostics, and navigation that [Editor Support](./editor-support.md) describes.
-The server works for any confval schema and any format confval parses, so you build one server for your own root spec.
+The server works for any confval schema and any format confval parses, so you build one server for your own configuration.
 
 This page is for the developer who owns the spec and wants to run a server.
 
@@ -46,9 +46,9 @@ For example, serve an entrypoint by file name and route every other document thr
 use confval_lsp::{Matcher, bind, serve_multi, Hcl};
 
 serve_multi(vec![
-    bind::<EntrypointSpec, _>(Matcher::FileName("snakeway.hcl".into()), Hcl),
-    bind::<DevicesFile, _>(Matcher::Fn(Box::new(devices_matcher)), Hcl),
-    bind::<IngressSpec, _>(Matcher::Fn(Box::new(ingresses_matcher)), Hcl),
+    bind::<AppSpec, _>(Matcher::FileName("app.hcl".into()), Hcl),
+    bind::<DeviceSpec, _>(Matcher::Fn(Box::new(device_matcher)), Hcl),
+    bind::<RouteSpec, _>(Matcher::Fn(Box::new(route_matcher)), Hcl),
 ])
 ```
 
@@ -58,7 +58,7 @@ Bindings are tried in declaration order, and the first match wins.
 `Matcher::Any` accepts every document, so an `Any` binding declared last acts as a fallback.
 
 A matcher must not panic.
-When your rule hits a problem, such as an unreadable file, return `false` so the document reports as unmatched.
+When your rule hits a problem, such as an unreadable file, return `false` so the binding declines and the next one is tried.
 
 A document that matches no binding stays open but inert.
 It gets no diagnostics and empty answers, and the server logs a warning naming it, so a mismatch between the editor's file patterns and your bindings is visible rather than silent.

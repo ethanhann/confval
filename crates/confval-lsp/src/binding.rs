@@ -28,7 +28,7 @@ use crate::frontend::Frontend;
 pub enum Matcher {
     /// Every document, including one whose URI yields no file path.
     Any,
-    /// The document's file name equals this name, such as `"snakeway.hcl"`.
+    /// The document's file name equals this name, such as `"app.hcl"`.
     FileName(String),
     /// The host decides, from the document's absolute path.
     Fn(Box<dyn Fn(&Path) -> bool + Send>),
@@ -37,7 +37,8 @@ pub enum Matcher {
 impl Matcher {
     /// Whether the matcher accepts a document with this file path. `Any`
     /// needs no path. The other matchers answer no match without one.
-    pub(crate) fn matches(&self, path: Option<&Path>) -> bool {
+    /// A host tests its own binding order through this, without a connection.
+    pub fn matches(&self, path: Option<&Path>) -> bool {
         match self {
             Matcher::Any => true,
             Matcher::FileName(name) => path
@@ -111,7 +112,8 @@ pub struct Binding {
 
 /// A binding of the root spec `S` and a frontend to the documents `matcher`
 /// accepts. The schema is `S::schema()`, evaluated once here rather than per
-/// document.
+/// document. The matcher must not panic, and on any problem it answers no
+/// match. See [`Matcher`].
 pub fn bind<S, F>(matcher: Matcher, frontend: F) -> Binding
 where
     S: FromFields + Validate + ValidateNested + ToSchema + 'static,
@@ -125,16 +127,28 @@ where
     }
 }
 
-/// The file path of a document URI: a `file` scheme whose path percent
-/// decodes to UTF-8, with the slash ahead of a Windows drive letter stripped.
-/// Any other URI yields `None`, so a path matcher answers no match for it.
+/// The file path of a document URI: a `file` scheme, compared without case,
+/// with no authority or a `localhost` authority, whose non-empty path percent
+/// decodes to UTF-8. The slash ahead of a Windows drive letter is stripped
+/// only when a separator or the end follows the colon. Any other URI yields
+/// `None`, so a path matcher answers no match for it. A remote authority
+/// yields `None`, because its path would name a different file locally.
 pub(crate) fn file_path(uri: &Uri) -> Option<PathBuf> {
-    if uri.scheme()?.as_str() != "file" {
+    if !uri.scheme()?.eq_lowercase("file") {
+        return None;
+    }
+    let host = uri.authority().map(|authority| authority.as_str());
+    if host.is_some_and(|host| !host.is_empty() && !host.eq_ignore_ascii_case("localhost")) {
         return None;
     }
     let decoded = uri.path().as_estr().decode().into_string().ok()?;
+    if decoded.is_empty() {
+        return None;
+    }
     let path = match decoded.as_bytes() {
-        [b'/', letter, b':', ..] if letter.is_ascii_alphabetic() => &decoded[1..],
+        [b'/', letter, b':'] | [b'/', letter, b':', b'/', ..] if letter.is_ascii_alphabetic() => {
+            &decoded[1..]
+        }
         _ => &decoded,
     };
     Some(PathBuf::from(path))
@@ -240,6 +254,31 @@ mod tests {
     }
 
     #[test]
+    fn the_file_scheme_compares_without_case() {
+        // Arrange, Act, Assert
+        assert_eq!(path_of("FILE:///a/b.hcl"), Some(PathBuf::from("/a/b.hcl")));
+        assert_eq!(path_of("File:///a/b.hcl"), Some(PathBuf::from("/a/b.hcl")));
+    }
+
+    #[test]
+    fn a_remote_authority_yields_no_path() {
+        // Arrange, Act, Assert
+        assert_eq!(path_of("file://myhost/share/app.hcl"), None);
+        assert_eq!(
+            path_of("file://localhost/share/app.hcl"),
+            Some(PathBuf::from("/share/app.hcl")),
+            "localhost names this machine"
+        );
+    }
+
+    #[test]
+    fn an_empty_path_yields_no_path() {
+        // Arrange, Act, Assert
+        assert_eq!(path_of("file://"), None);
+        assert_eq!(path_of("file:"), None);
+    }
+
+    #[test]
     fn a_path_that_does_not_decode_to_utf8_yields_no_path() {
         // Arrange, Act, Assert
         assert_eq!(path_of("file:///a%FF/x.hcl"), None);
@@ -252,6 +291,31 @@ mod tests {
             path_of("file:///C:/proj/x.hcl"),
             Some(PathBuf::from("C:/proj/x.hcl"))
         );
+        assert_eq!(path_of("file:///C:"), Some(PathBuf::from("C:")));
+    }
+
+    #[test]
+    fn a_posix_path_with_a_colon_component_keeps_its_leading_slash() {
+        // Arrange, Act, Assert
+        assert_eq!(
+            path_of("file:///a:b/x.hcl"),
+            Some(PathBuf::from("/a:b/x.hcl"))
+        );
+        assert_eq!(
+            path_of("file:///c:temp/x.hcl"),
+            Some(PathBuf::from("/c:temp/x.hcl"))
+        );
+    }
+
+    #[test]
+    fn the_matcher_debug_names_the_variant_and_hides_the_closure() {
+        // Arrange
+        let by_name = Matcher::FileName("app.hcl".to_string());
+        let by_rule = Matcher::Fn(Box::new(|_: &Path| true));
+
+        // Act, Assert
+        assert_eq!(format!("{by_name:?}"), "FileName(\"app.hcl\")");
+        assert_eq!(format!("{by_rule:?}"), "Fn(..)");
     }
 
     #[test]

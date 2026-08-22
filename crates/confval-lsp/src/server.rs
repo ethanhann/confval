@@ -39,7 +39,7 @@ use crate::capabilities::{
     completion_support, negotiate, server_capabilities, supports_hierarchical_symbols,
 };
 use crate::encoding::{LineIndex, PositionEncoding};
-use crate::frontend::Frontend;
+use crate::frontend::{CursorContext, Frontend};
 use crate::handlers;
 
 /// The boxed error the entry points propagate.
@@ -177,7 +177,8 @@ impl Router {
                     notification.extract::<DidOpenTextDocumentParams>(DidOpenTextDocument::METHOD)
                 {
                     let uri = params.text_document.uri;
-                    self.open_document(connection, &uri, params.text_document.text)?;
+                    let matched = self.open_document(&uri, params.text_document.text);
+                    log_routing(connection, &uri, self.matched(matched))?;
                     self.publish(connection, &uri)?;
                 }
             }
@@ -188,13 +189,14 @@ impl Router {
                     let uri = params.text_document.uri;
                     if let Some(change) = params.content_changes.into_iter().next_back() {
                         // A change for a document the store does not hold
-                        // routes it the way an open would, preserving the
-                        // pre-routing behavior for a client that skips the
-                        // open notification.
-                        if self.documents.contains_key(&key(&uri)) {
+                        // routes it the way an open would, so a client that
+                        // sends a change without an open still gets a routed,
+                        // parsed document.
+                        if self.documents.contains_key(uri.as_str()) {
                             self.update_document(&uri, change.text);
                         } else {
-                            self.open_document(connection, &uri, change.text)?;
+                            let matched = self.open_document(&uri, change.text);
+                            log_routing(connection, &uri, self.matched(matched))?;
                         }
                     }
                     self.publish(connection, &uri)?;
@@ -205,7 +207,7 @@ impl Router {
                     notification.extract::<DidCloseTextDocumentParams>(DidCloseTextDocument::METHOD)
                 {
                     let uri = params.text_document.uri;
-                    self.documents.remove(&key(&uri));
+                    self.documents.remove(uri.as_str());
                     self.clear_diagnostics(connection, &uri)?;
                 }
             }
@@ -214,82 +216,50 @@ impl Router {
         Ok(())
     }
 
-    /// Routes a document, stores its text and parse, and logs the routing
-    /// outcome: the matched binding at LOG level, or the unmatched document
-    /// at WARNING, once per open.
-    fn open_document(
-        &mut self,
-        connection: &Connection,
-        uri: &Uri,
-        text: String,
-    ) -> Result<(), LspError> {
-        let binding = self.route(uri);
-        let (level, message) = match binding {
-            Some(index) => (
-                MessageType::LOG,
-                format!("{} matched binding {index}", uri.as_str()),
-            ),
-            None => (
-                MessageType::WARNING,
-                format!("no binding matches {}", uri.as_str()),
-            ),
-        };
-        log(connection, level, message)?;
-        let (tree, report) = self.parse_with(binding, &text);
+    /// Routes a document and stores its text and parse, answering the matched
+    /// binding index. `Matcher::Any` needs no path, so a URI that yields none
+    /// still routes to an `Any` binding. The caller logs the outcome, so the
+    /// store stays free of the connection.
+    fn open_document(&mut self, uri: &Uri, text: String) -> Option<usize> {
+        let path = file_path(uri);
+        let matched = self
+            .bindings
+            .iter()
+            .position(|binding| binding.matcher.matches(path.as_deref()));
+        let (tree, report) = parse_with(&self.bindings, matched, &text);
         self.documents.insert(
-            key(uri),
+            uri.as_str().to_string(),
             Document {
                 text,
                 tree,
                 report,
-                binding,
+                binding: matched,
             },
         );
-        Ok(())
+        matched
+    }
+
+    /// The matched index paired with its binding, for the routing log.
+    fn matched(&self, index: Option<usize>) -> Option<(usize, &Binding)> {
+        index.and_then(|index| self.bindings.get(index).map(|binding| (index, binding)))
     }
 
     /// Stores new text for a document the store already holds, keeping the
-    /// binding index its open assigned.
+    /// binding index its open assigned. An absent document stores nothing.
     fn update_document(&mut self, uri: &Uri, text: String) {
-        let Some(binding) = self.documents.get(&key(uri)).map(|entry| entry.binding) else {
+        let Some(entry) = self.documents.get_mut(uri.as_str()) else {
             return;
         };
-        let (tree, report) = self.parse_with(binding, &text);
-        if let Some(entry) = self.documents.get_mut(&key(uri)) {
-            entry.text = text;
-            entry.tree = tree;
-            entry.report = report;
-        }
-    }
-
-    /// Parses with the matched binding's frontend. An unmatched document is
-    /// held as text with no tree and an empty report, so resolution recovers
-    /// nothing and every answer stays empty.
-    fn parse_with(
-        &self,
-        binding: Option<usize>,
-        text: &str,
-    ) -> (Option<Fields>, confval::diagnostic::Report) {
-        match binding.and_then(|index| self.bindings.get(index)) {
-            Some(binding) => binding.frontend.parse_buffer(text),
-            None => (None, confval::diagnostic::Report::new()),
-        }
-    }
-
-    /// The index of the first binding whose matcher accepts the document.
-    /// `Matcher::Any` needs no path, so a URI that yields none still routes
-    /// to an `Any` binding.
-    fn route(&self, uri: &Uri) -> Option<usize> {
-        let path = file_path(uri);
-        self.bindings
-            .iter()
-            .position(|binding| binding.matcher.matches(path.as_deref()))
+        let (tree, report) = parse_with(&self.bindings, entry.binding, &text);
+        entry.text = text;
+        entry.tree = tree;
+        entry.report = report;
     }
 
     /// Publishes the diagnostics for a document. An unmatched document
     /// publishes nothing.
-    fn publish(&mut self, connection: &Connection, uri: &Uri) -> Result<(), LspError> {
-        let Some(document) = self.documents.get(&key(uri)) else {
+    fn publish(&self, connection: &Connection, uri: &Uri) -> Result<(), LspError> {
+        let Some(document) = self.documents.get(uri.as_str()) else {
             return Ok(());
         };
         let Some(binding) = document.binding.and_then(|index| self.bindings.get(index)) else {
@@ -343,12 +313,7 @@ impl Router {
         };
         let items = handlers::completion(
             &*binding.frontend,
-            &handlers::Cx {
-                schema: &binding.schema,
-                fields: document.tree.as_ref(),
-                ctx: &context,
-                text: &document.text,
-            },
+            &cx(document, binding, &context),
             &index,
             self.encoding,
             self.completion_client,
@@ -363,13 +328,8 @@ impl Router {
         &self,
         uri: &Uri,
         position: lsp_types::Position,
-    ) -> Option<(
-        &Document,
-        &Binding,
-        LineIndex,
-        crate::frontend::CursorContext,
-    )> {
-        let document = self.documents.get(&key(uri))?;
+    ) -> Option<(&Document, &Binding, LineIndex, CursorContext)> {
+        let document = self.documents.get(uri.as_str())?;
         let binding = self.bindings.get(document.binding?)?;
         let index = LineIndex::new(&document.text);
         let offset = index.offset_of(&document.text, position, self.encoding);
@@ -418,7 +378,7 @@ impl Router {
     /// answers before the binding lookup.
     fn document_symbols(&self, params: DocumentSymbolParams) -> Option<DocumentSymbolResponse> {
         let uri = &params.text_document.uri;
-        let document = self.documents.get(&key(uri))?;
+        let document = self.documents.get(uri.as_str())?;
         let tree = document.tree.as_ref()?;
         let binding = self.bindings.get(document.binding?)?;
         let index = LineIndex::new(&document.text);
@@ -446,12 +406,7 @@ impl Router {
         };
         handlers::code_action(
             &*binding.frontend,
-            &handlers::Cx {
-                schema: &binding.schema,
-                fields: document.tree.as_ref(),
-                ctx: &context,
-                text: &document.text,
-            },
+            &cx(document, binding, &context),
             &params.context.diagnostics,
             params.context.only.as_deref(),
             uri,
@@ -465,17 +420,59 @@ impl Router {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let (document, binding, index, context) = self.resolve_at(uri, position)?;
-        handlers::hover(
-            &handlers::Cx {
-                schema: &binding.schema,
-                fields: document.tree.as_ref(),
-                ctx: &context,
-                text: &document.text,
-            },
-            &index,
-            self.encoding,
-        )
+        handlers::hover(&cx(document, binding, &context), &index, self.encoding)
     }
+}
+
+/// The handler context for a resolved document and its binding.
+fn cx<'a>(
+    document: &'a Document,
+    binding: &'a Binding,
+    context: &'a CursorContext,
+) -> handlers::Cx<'a> {
+    handlers::Cx {
+        schema: &binding.schema,
+        fields: document.tree.as_ref(),
+        ctx: context,
+        text: &document.text,
+    }
+}
+
+/// Parses with the matched binding's frontend. An unmatched document is held
+/// as text with no tree and an empty report, so resolution recovers nothing
+/// and every answer stays empty.
+fn parse_with(
+    bindings: &[Binding],
+    matched: Option<usize>,
+    text: &str,
+) -> (Option<Fields>, confval::diagnostic::Report) {
+    match matched.and_then(|index| bindings.get(index)) {
+        Some(binding) => binding.frontend.parse_buffer(text),
+        None => (None, confval::diagnostic::Report::new()),
+    }
+}
+
+/// Sends the routing outcome for an opened document: the matched binding at
+/// LOG level, or the unmatched document at WARNING, once per open. The
+/// message names the decoded file path when the URI yields one, and the URI
+/// otherwise, and the matched line carries the winning matcher so an operator
+/// reads which rule fired without counting declarations.
+fn log_routing(
+    connection: &Connection,
+    uri: &Uri,
+    matched: Option<(usize, &Binding)>,
+) -> Result<(), LspError> {
+    let name = file_path(uri)
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|| uri.as_str().to_string());
+    let (level, message) = match matched {
+        Some((index, binding)) => (
+            MessageType::LOG,
+            format!("{name} matched binding {index} {:?}", binding.matcher),
+        ),
+        None => (MessageType::WARNING, format!("no binding matches {name}")),
+    };
+    log(connection, level, message)
 }
 
 /// Sends one `window/logMessage` notification.
@@ -559,11 +556,6 @@ pub fn serve_multi(bindings: Vec<Binding>) -> Result<(), LspError> {
     router.run(&connection)?;
     io_threads.join()?;
     Ok(())
-}
-
-/// The document-store key for a URI.
-fn key(uri: &Uri) -> String {
-    uri.as_str().to_string()
 }
 
 #[cfg(all(test, feature = "hcl"))]
@@ -775,7 +767,7 @@ mod tests {
             !published.diagnostics.is_empty(),
             "the out-of-range port publishes a diagnostic"
         );
-        assert!(router.documents.contains_key(&key(&uri)));
+        assert!(router.documents.contains_key(uri.as_str()));
     }
 
     #[test]
@@ -816,7 +808,7 @@ mod tests {
             published.diagnostics
         );
         assert_eq!(
-            router.documents.get(&key(&uri)).unwrap().text,
+            router.documents.get(uri.as_str()).unwrap().text,
             "hostname = \"api\"\nport = 8080\n"
         );
     }
@@ -850,7 +842,7 @@ mod tests {
             !published.diagnostics.is_empty(),
             "the never-opened document routes, parses, and diagnoses"
         );
-        let stored = router.documents.get(&key(&uri)).unwrap();
+        let stored = router.documents.get(uri.as_str()).unwrap();
         assert_eq!(stored.binding, Some(0));
     }
 
@@ -882,7 +874,52 @@ mod tests {
             published.diagnostics.is_empty(),
             "closing clears the document's diagnostics"
         );
-        assert!(!router.documents.contains_key(&key(&uri)));
+        assert!(!router.documents.contains_key(uri.as_str()));
+    }
+
+    #[test]
+    fn an_unmatched_document_is_held_as_text_without_a_parse() {
+        // Arrange
+        let (server_conn, client_conn) = Connection::memory();
+        let mut router = Router::new(vec![bind::<TestSpec, Hcl>(
+            Matcher::FileName("only.hcl".to_string()),
+            Hcl,
+        )])
+        .unwrap();
+        let uri = Uri::from_str("file:///other.hcl").unwrap();
+        let notification = open_notification(&uri, "hostname = \"api\"\n");
+
+        // Act
+        router.on_notification(&server_conn, notification).unwrap();
+
+        // Assert
+        let stored = router.documents.get(uri.as_str()).unwrap();
+        assert_eq!(stored.text, "hostname = \"api\"\n");
+        assert!(stored.tree.is_none(), "an unmatched document is not parsed");
+        assert_eq!(stored.binding, None);
+        match client_conn.receiver.recv().unwrap() {
+            Message::Notification(notification) => {
+                assert_eq!(notification.method, LogMessage::METHOD);
+            }
+            other => panic!("expected the warning log, got {other:?}"),
+        }
+        assert!(
+            client_conn.receiver.try_recv().is_err(),
+            "an unmatched open publishes nothing"
+        );
+    }
+
+    #[test]
+    fn updating_an_absent_document_stores_nothing() {
+        // Arrange
+        let (mut router, _server_conn, _client_conn) = setup();
+        let uri = Uri::from_str("file:///absent.hcl").unwrap();
+
+        // Act
+        router.update_document(&uri, "hostname = \"api\"\n".to_string());
+
+        // Assert
+        assert!(!router.documents.contains_key(uri.as_str()));
     }
 
     #[test]
@@ -905,7 +942,7 @@ mod tests {
     #[test]
     fn publishing_for_an_unknown_document_sends_nothing() {
         // Arrange
-        let (mut router, server_conn, client_conn) = setup();
+        let (router, server_conn, client_conn) = setup();
         let uri = Uri::from_str("file:///absent.hcl").unwrap();
 
         // Act
