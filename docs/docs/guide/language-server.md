@@ -81,6 +81,16 @@ The example serves over stdin and stdout, so an editor's LSP client launches the
 The demo spec is there to show the feature set, not to deploy.
 Your real server names your own root spec.
 
+A second example, `serve_multi`, shows routing.
+It binds an entrypoint spec to `gateway.cvm` by file name and a device spec to any `device.*` file through a closure matcher, with no fallback, so any other document shows the unmatched warning.
+The sample documents are plain HCL under the made-up `.cvm` extension, so an IDE registers this server on its own file pattern beside a `.hcl` registration.
+
+```
+cargo run -p confval-lsp --example serve_multi
+```
+
+The documents under `dev/sample_configs/multi/` exercise it: a valid entrypoint, a valid device, a device with a bad keyword and an out-of-range port, and one file no binding matches.
+
 ## Choosing a format
 
 Every format is a cargo feature, and all of them are on by default.

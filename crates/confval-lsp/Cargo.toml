@@ -38,3 +38,7 @@ confval = { path = "../confval", features = ["hcl", "toml", "kdl", "json", "yaml
 [[example]]
 name = "serve"
 required-features = ["hcl", "toml", "kdl", "json", "yaml"]
+
+[[example]]
+name = "serve_multi"
+required-features = ["hcl"]

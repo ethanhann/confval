@@ -22,4 +22,16 @@ use confval_lsp::{serve, Hcl};
 serve::<ServerSpec, Hcl>(Hcl)
 ```
 
+A multi document configuration declares one binding per shape.
+The server picks the schema per document from its path:
+
+```rust
+use confval_lsp::{Matcher, bind, serve_multi, Hcl};
+
+serve_multi(vec![
+    bind::<GatewaySpec, _>(Matcher::FileName("gateway.hcl".into()), Hcl),
+    bind::<DeviceSpec, _>(Matcher::Fn(Box::new(device_matcher)), Hcl),
+])
+```
+
 See the [language server guide](https://ethanhann.com/confval/docs/guide/language-server) for the full walkthrough.
