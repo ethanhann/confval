@@ -1,0 +1,22 @@
+crates/confval-lsp/tests/serve_multi.rs
+  s_f3b6a626a0036f::t_4d6117cbc9ba5a 36-48,52-54,67,71-76,78-81,86-87
+  s_f3b6a626a0036f::t_5f520d72672159 202-209,211-214
+  s_f3b6a626a0036f::t_e1b299e93bbc8f 88-93,95-96,100-105,107-113,117-122,134-138,145,156,160,169,171-173,175
+  s_f3b6a626a0036f::t_144a5e56abda7e 1-35,49-51,55-66,68-70,77,82-85,94,97-99,106,114-116,123-133,139-144,146-155,157-159,161-168,170,174,176-201,210,215-534
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "df01e8c9dd5f010a2f350ec3d457cf12f112818a",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
