@@ -1,0 +1,14 @@
+Cargo.lock
+  h_4fc023ad4863a8 68,121,123,133,135,146,148,270,272,279,281,304,306,314,316,323,325,329,334,336,353,414,419,421,456,458,471,473
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "915c5583a8690802656070ce9d8a958e97f4fccd",
+  "prompts": {},
+  "humans": {
+    "h_4fc023ad4863a8": {
+      "author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
