@@ -476,30 +476,6 @@ mod tests {
         assert!(report.issues()[0].span.is_some());
     }
 
-    #[test]
-    fn out_of_range_integer_is_reported_not_panicked() {
-        // Arrange
-        // hcl-edit panics on `-9223372036854775808`, whose magnitude is 2^63.
-        let mut sources = SourceMap::new();
-        let id = sources.add("min.hcl", "offset = -9223372036854775808\n");
-        let mut report = Report::new();
-
-        // Act
-        let parsed = parse_hcl_fields(&sources, id, &mut report);
-
-        // Assert
-        // The parse boundary caught the panic and reported a syntax error.
-        assert!(parsed.is_none());
-        assert!(report.has_errors());
-        assert!(
-            report.issues()[0]
-                .message
-                .contains("number literal out of range"),
-            "got: {}",
-            report.issues()[0].message
-        );
-    }
-
     /// Canary for the `catch_unwind` guard in `parse_hcl_fields` and the
     /// `i64::MIN` rejection in `hcl_expr_of_scalar`. Both exist only because
     /// hcl-edit panics on `-9223372036854775808`, whose magnitude is 2^63. The
