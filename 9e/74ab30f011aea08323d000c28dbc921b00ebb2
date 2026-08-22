@@ -1,0 +1,41 @@
+crates/confval-lsp/Cargo.toml
+  s_f3b6a626a0036f::t_9dc09a450a7e73 41-44
+crates/confval-lsp/README.md
+  s_f3b6a626a0036f::t_6ae66de5ecbbc9 27-36
+  s_f3b6a626a0036f::t_87216b0dc0a25f 25-26
+crates/confval-lsp/examples/serve_multi.rs
+  s_f3b6a626a0036f::t_4aedff2c46970e 6,12-15,29,62
+  s_f3b6a626a0036f::t_d62e7d313e7010 1-5,7-11,16-28,30-61,63-72
+Justfile
+  s_f3b6a626a0036f::t_f0e927ca7a313a 85
+  s_f3b6a626a0036f::t_0ad43235022ab2 88
+docs/docs/guide/language-server.md
+  s_f3b6a626a0036f::t_bdc9c22666de3c 84,87-93
+  s_f3b6a626a0036f::t_4aedff2c46970e 85-86
+docs/docs/examples.md
+  s_f3b6a626a0036f::t_6ae66de5ecbbc9 7,149-150,152-155
+  s_f3b6a626a0036f::t_4aedff2c46970e 151
+  s_f3b6a626a0036f::t_dfeb41d71656f6 156-157
+dev/sample_configs/multi/device.core.cvm
+  s_f3b6a626a0036f::t_bc9639be161208 1-3
+dev/sample_configs/multi/device.edge.cvm
+  s_f3b6a626a0036f::t_a6c5b78c934049 1-3
+dev/sample_configs/multi/other.cvm
+  s_f3b6a626a0036f::t_b505a2c96a8ae9 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "9e74ab30f011aea08323d000c28dbc921b00ebb2",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
