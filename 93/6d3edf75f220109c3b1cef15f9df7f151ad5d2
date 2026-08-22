@@ -1,0 +1,19 @@
+crates/confval/src/format/hcl/mod.rs
+  s_f3b6a626a0036f::t_a4e8bbbb3da8cd 51-52,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "936d3edf75f220109c3b1cef15f9df7f151ad5d2",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
