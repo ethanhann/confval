@@ -1,0 +1,45 @@
+crates/confval-lsp/src/server.rs
+  s_f3b6a626a0036f::t_9196973c4dd5c9 180-181,192-194,198-199
+  s_f3b6a626a0036f::t_b1f76bce036a6c 219-229,236,239-244,248,253-256,261
+  s_f3b6a626a0036f::t_5520a8597c3f0f 195,210,231,250,262,332,381,770,811,845,877,896,922
+  s_f3b6a626a0036f::t_5106aae73601ee 878,880-895,897-921
+  s_f3b6a626a0036f::t_e9ae700f0ed3d9 316,331
+  s_f3b6a626a0036f::t_cc1783949d6d42 423-427,432-451,455-476
+  s_f3b6a626a0036f::t_45c0ac0fce68e5 42
+  s_f3b6a626a0036f::t_734b3b954239ea 945
+  s_f3b6a626a0036f::t_6cf8b9ca93d632 409
+  s_f3b6a626a0036f::t_4dad81a67ed077 428-431,477,879
+docs/docs/guide/language-server.md
+  s_f3b6a626a0036f::t_f88cdd4afaf796 9,49-51,61
+crates/confval-lsp/src/binding.rs
+  s_f3b6a626a0036f::t_a41f200c670c39 257-280
+  s_f3b6a626a0036f::t_94d0e295058a69 256,294-318
+  s_f3b6a626a0036f::t_da9ed31b1a7ddf 130-135,137-141,145-147,149-151
+  s_f3b6a626a0036f::t_684e4eec9d2674 31,40-41
+  s_f3b6a626a0036f::t_223c10669a83e8 115-116
+docs/releases/v0_9_0.md
+  s_f3b6a626a0036f::t_f88cdd4afaf796 35-38,88-90,107
+crates/confval-lsp/tests/serve_multi.rs
+  s_f3b6a626a0036f::t_734b3b954239ea 254-258
+  s_f3b6a626a0036f::t_b4409fe75b5919 12,16-21,24-29,32,38,59,63,69-71,74-75,77,93-107,248-253,259-264,273-285,316,336,343,365,372,394-409,413,422,424,427-430,432-473,475-497,499-510,512-513,519,536-540,561,577-578,584-588,619,656
+crates/confval-lsp/README.md
+  s_f3b6a626a0036f::t_f88cdd4afaf796 7-8
+docs/docs/architecture.md
+  s_f3b6a626a0036f::t_9002b5a3483ead 96,270-271,273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "0ca24f0f1db6fcab65e5d4f7cd53303621ae73e8",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
