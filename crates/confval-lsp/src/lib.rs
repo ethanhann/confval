@@ -14,8 +14,8 @@
 //!
 //! The core is spec erased. [`bind`] captures the traits the derive emits,
 //! `FromFields`, `Validate`, `ValidateNested`, and `ToSchema`, into a
-//! [`Binding`], and a [`Router`] serves one binding per document shape, so
-//! one process serves every document of a multi document configuration.
+//! [`Binding`]. A [`Router`] serves one binding per document shape, so one
+//! process serves every document of a multi document configuration.
 //! [`serve`] binds one root spec and one frontend for the single shape case.
 
 mod binding;

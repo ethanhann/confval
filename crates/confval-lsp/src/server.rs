@@ -3,8 +3,8 @@
 //! It wires the pure handlers and a document store into a runnable server.
 //! [`Router`] owns a set of [`Binding`]s and routes each document to the first
 //! binding whose matcher accepts it when the client opens it, so one process
-//! serves every document of a multi document configuration. It owns the
-//! `lsp-server` connection, negotiates the position encoding at
+//! serves every document of a multi document configuration. It runs over an
+//! `lsp-server` connection the caller provides, negotiates the position encoding at
 //! initialization, updates the document store on open and change
 //! notifications, and answers the completion, hover, and diagnostic requests
 //! by calling the handlers. [`Server`] binds one root spec and one frontend
@@ -52,10 +52,11 @@ const INVALID_PARAMS: i32 = -32602;
 /// JSON-RPC error code for a server-side failure.
 const INTERNAL_ERROR: i32 = -32603;
 
-/// One open document: its current text, its current parse, `None` when the
-/// text does not parse, the report that parse produced, so a publish maps it
-/// rather than parsing again, and the index of the binding that matched it,
-/// `None` when no binding did.
+/// One open document: its current text, its current parse, the report that
+/// parse produced, and the index of the binding that matched it. The parse is
+/// `None` when the text does not parse, and the binding index is `None` when
+/// no binding matched. A publish maps the stored report rather than parsing
+/// again.
 struct Document {
     text: String,
     tree: Option<Fields>,

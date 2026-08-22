@@ -29,7 +29,7 @@ use confval_lsp::{serve, Hcl};
 serve::<ServerSpec, Hcl>(Hcl)
 ```
 
-The derive supplies everything the server needs, so you name your root spec and its frontend and the server does the rest.
+The derive supplies everything the server needs, so the binding is only your root spec and its frontend.
 
 ## Serving a multi document configuration
 
@@ -38,7 +38,8 @@ An entrypoint file names the top level, and included files carry their own shape
 With `serve` alone, each shape needs its own server process and its own editor registration.
 
 `serve_multi` serves every shape from one process.
-You declare one binding per shape with `bind`, pairing a matcher with the shape's root spec and its frontend, and the server picks the schema per document when the editor opens it.
+You declare one binding per shape with `bind`, pairing a matcher with the shape's root spec and its frontend.
+The server picks the schema per document when the editor opens it.
 
 For example, serve an entrypoint by file name and route every other document through your own rule:
 

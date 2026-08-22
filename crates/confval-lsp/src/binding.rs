@@ -21,9 +21,9 @@ use crate::frontend::Frontend;
 /// Decides whether a binding serves a document, from the document's file path.
 ///
 /// A matcher must not panic. On any problem it answers no match, so a routing
-/// mistake surfaces as an unserved document rather than a lost one: a panic
-/// while the server handles an open is dropped by the notification guard on
-/// an unwinding runtime, and a build with `panic = "abort"` aborts.
+/// mistake surfaces as an unserved document rather than a lost one. On an
+/// unwinding runtime, the notification guard drops a panic raised while the
+/// server handles the open. A build with `panic = "abort"` aborts.
 #[non_exhaustive]
 pub enum Matcher {
     /// Every document, including one whose URI yields no file path.

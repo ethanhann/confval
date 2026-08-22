@@ -268,7 +268,8 @@ The generated `Lower` impl carries a `Validate + ValidateNested` bound, so a spe
 ## The language server
 
 `confval-lsp` is three layers over erased bindings.
-A binding pairs one root spec's schema and validate pass with a frontend, and the `Router` serves one binding per document shape, so one process serves a multi document configuration.
+A binding pairs one root spec's schema and validate pass with a frontend.
+The `Router` serves one binding per document shape, so one process serves a multi document configuration.
 
 1. The transport shell owns the `lsp-server` connection, the bindings, the document store, and the position encoding, routing each document to a binding at open.
 2. The `Frontend` trait is the one format-dependent boundary, with an implementation per format.

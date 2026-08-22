@@ -1,6 +1,6 @@
 //! Integration tests for the multi binding router: per-document routing, the
 //! declaration-order rule, the unmatched contract, the reopen and change
-//! semantics, the matcher panic guard, and the pin that a one binding server
+//! semantics, the matcher panic guard, and a check that a one binding server
 //! still serves a document with no file path.
 #![cfg(feature = "hcl")]
 
@@ -145,8 +145,8 @@ impl Client {
         )));
     }
 
-    /// Sends a request and returns the notifications received before its
-    /// response, beside the response.
+    /// Sends a request. Returns the response and the notifications received
+    /// before it.
     fn request<P: serde::Serialize>(
         &mut self,
         method: &str,
@@ -574,8 +574,8 @@ fn a_panicking_matcher_drops_the_open_and_the_server_answers_on() {
     client.open(&document, SERVER_TEXT);
 
     // Assert
-    // The completion request is the probe: an answer proves the server
-    // survived the dropped notification.
+    // An answered completion request proves the server survived the dropped
+    // notification.
     let (seen, response) = client.completion_at(&document);
     assert!(
         seen.is_empty(),
