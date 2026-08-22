@@ -1,0 +1,59 @@
+crates/confval-lsp/README.md
+  s_f3b6a626a0036f::t_c8505955252fb9 7
+crates/confval-lsp/src/handlers/diagnostics.rs
+  s_f3b6a626a0036f::t_9b0222bb615e1f 12-14,16,21-23,29-30,37,40-42,44
+  s_f3b6a626a0036f::t_22b6741df008a7 157-158
+  s_f3b6a626a0036f::t_b5fdc5ac629514 28,38
+crates/confval-lsp/src/binding.rs
+  s_f3b6a626a0036f::t_d7b876ff2cb0d7 1-45,47-168,170-279,283-302
+  s_f3b6a626a0036f::t_ad1d6990965aba 280-282
+  s_f3b6a626a0036f::t_7a563ef7255e77 46
+  s_f3b6a626a0036f::t_35112d3d990dce 169
+crates/confval-lsp/tests/diagnostics.rs
+  s_f3b6a626a0036f::t_f06edcc706bed4 16
+  s_f3b6a626a0036f::t_48af43a18fec3b 38-39
+crates/confval-lsp/src/handlers/completion/mod.rs
+  s_f3b6a626a0036f::t_8e4678591659e4 71,86,130,159
+crates/confval-lsp/src/handlers/completion/values.rs
+  s_f3b6a626a0036f::t_8e4678591659e4 24,85,132
+docs/docs/guide/language-server.md
+  s_f3b6a626a0036f::t_833cbec065fc4e 91
+  s_f3b6a626a0036f::t_12d04f42acce6c 32-68
+crates/confval-lsp/src/server.rs
+  s_f3b6a626a0036f::t_96a67a36b9a865 3-11,18-19,29-30,35,37,45-46,56-58,63,66-73,80-93,95,180,190-198,217-286,289-290,295-300,321-322,341,345,347,359-361,366-369,371,373,376,379,386,388,401,405,415-418,423,426,429,443-444,448,450,467,470,481-491,516-544,547-548,550-557,559,600-602,604-605,608-609,611-620,643,654,660-669,673,681,695,699,713,717,764,769,778,784,786,809,819,824-856,860,862,877,885,891,896,908,912,924,940
+  s_f3b6a626a0036f::t_c7d23323e1dcb7 370
+crates/confval-lsp/tests/defaults.rs
+  s_f3b6a626a0036f::t_48af43a18fec3b 41-42
+crates/confval-lsp/src/handlers/code_action.rs
+  s_f3b6a626a0036f::t_8e4678591659e4 29
+crates/confval-lsp/src/frontend.rs
+  s_f3b6a626a0036f::t_ffdaa348d9cd11 235-237
+crates/confval-lsp/src/lib.rs
+  s_f3b6a626a0036f::t_577fb335387670 49
+  s_f3b6a626a0036f::t_d520becf0daccc 15-19,21,34
+docs/docs/guide/editor-support.md
+  s_f3b6a626a0036f::t_cf5e957114b27f 79
+docs/releases/v0_9_0.md
+  s_f3b6a626a0036f::t_d4c440582d53c0 65-73
+  s_f3b6a626a0036f::t_084d94a593fa61 102-105
+  s_f3b6a626a0036f::t_166754f7f1b7ae 10,16-37
+  s_f3b6a626a0036f::t_d3ca1435dfedda 82-89
+  s_f3b6a626a0036f::t_975140cb8c017e 3
+  s_f3b6a626a0036f::t_e04d7e86e2f774 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "de43b92bd0207d4d3b16fe9ebfecd8d96a484a36",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
