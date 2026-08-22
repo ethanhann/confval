@@ -48,35 +48,16 @@ pub fn parse_hcl_fields(sources: &SourceMap, id: SourceId, report: &mut Report) 
             .emit();
         return None;
     };
-    // hcl-edit's parser panics on an integer literal whose magnitude is 2^63,
-    // the hand-authored `-9223372036854775808`, because it casts the magnitude to
-    // i64 and then negates, which overflows. Catch a panic at this one boundary
-    // so a malformed file yields a diagnostic rather than aborting the host
-    // program. The global panic hook is left in place, so a caught panic may
-    // still print one line to stderr. A concurrent panic on another thread is
-    // unaffected. The upstream fix is
-    // https://github.com/martinohmann/hcl-rs/pull/549. The
-    // `upstream_still_panics_on_i64_min_remove_workarounds_when_this_fails` test
-    // below fails once a released hcl-edit carries it, as a prompt to delete this
-    // guard.
-    let parsed = std::panic::catch_unwind(|| hcl_edit::parser::parse_body(&source.text));
-    match parsed {
-        Ok(Ok(body)) => {
+    match hcl_edit::parser::parse_body(&source.text) {
+        Ok(body) => {
             let enclosing = Span::new(id, 0, source.text.len() as u32);
             Some(fields_of_body(&body, enclosing, &source.text, id, report))
         }
-        Ok(Err(error)) => {
+        Err(error) => {
             let offset = error.location().offset() as u32;
             report
                 .error(syntax_error(error.message()))
                 .at(Span::new(id, offset, offset.saturating_add(1)))
-                .emit();
-            None
-        }
-        Err(_) => {
-            report
-                .error("syntax error: number literal out of range")
-                .at(Span::new(id, 0, source.text.len() as u32))
                 .emit();
             None
         }
@@ -474,31 +455,6 @@ mod tests {
         assert!(report.has_errors());
         assert!(report.issues()[0].message.starts_with("syntax error:"));
         assert!(report.issues()[0].span.is_some());
-    }
-
-    /// Canary for the `catch_unwind` guard in `parse_hcl_fields` and the
-    /// `i64::MIN` rejection in `hcl_expr_of_scalar`. Both exist only because
-    /// hcl-edit panics on `-9223372036854775808`, whose magnitude is 2^63. The
-    /// upstream fix is https://github.com/martinohmann/hcl-rs/pull/549. When a
-    /// released hcl-edit carries it, `parse_body` stops panicking and this test
-    /// fails. Delete both workarounds and the tests that pin them. A clean parse
-    /// error and a faithful round trip then take over.
-    ///
-    /// The caught panic writes to the test's captured output, which the harness
-    /// hides while this test passes.
-    #[test]
-    fn upstream_still_panics_on_i64_min_remove_workarounds_when_this_fails() {
-        let panicked = std::panic::catch_unwind(|| {
-            hcl_edit::parser::parse_body("offset = -9223372036854775808\n")
-        })
-        .is_err();
-        assert!(
-            panicked,
-            "hcl-edit no longer panics on i64::MIN, likely because hcl-rs \
-             PR #549 landed. Remove the catch_unwind guard in parse_hcl_fields, \
-             the i64::MIN rejection in hcl_expr_of_scalar, and the tests that \
-             pin them."
-        );
     }
 
     #[test]
