@@ -1,0 +1,27 @@
+crates/confval/skills/confval-init/references/frontends.md
+  s_f3b6a626a0036f::t_daccb5c2763e8f 18,33
+docs/docs/guide/templates.md
+  s_f3b6a626a0036f::t_daccb5c2763e8f 253-254
+docs/docs/guide/format-limitations.md
+  s_f3b6a626a0036f::t_daccb5c2763e8f 53,106
+crates/confval/src/format/emit.rs
+  s_f3b6a626a0036f::t_daccb5c2763e8f 8-9
+crates/confval/src/format/hcl/emit.rs
+  s_f3b6a626a0036f::t_b4da13628c68ed 30-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8f401334424127f2a9495c551481e53f1c730e8b",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
