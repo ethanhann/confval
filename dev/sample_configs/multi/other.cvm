@@ -1,0 +1,2 @@
+# This file matches no binding, so the server holds it without answers.
+hostname = "127.0.0.1"

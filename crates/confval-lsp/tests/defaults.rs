@@ -38,13 +38,13 @@ where
     F: Frontend,
 {
     let (tree, report) = frontend.parse_buffer(text);
-    diagnostics::<S>(
+    diagnostics(
+        confval_lsp::Validator::of::<S>(),
         schema,
         tree.as_ref(),
         &report,
         uri,
         text,
-        &LineIndex::new(text),
         encoding,
     )
 }

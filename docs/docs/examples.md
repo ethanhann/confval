@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Examples
 
-Fifteen runnable examples ship in the repository: fourteen in `crates/confval/examples/` and a runnable language server in `crates/confval-lsp/examples/`.
+Sixteen runnable examples ship in the repository: fourteen in `crates/confval/examples/` and two runnable language servers in `crates/confval-lsp/examples/`.
 
 `hcl`, `toml`, `kdl`, `json`, and `yaml` are the same program five times.
 Each renders the diagnostics for a failing variant to stderr, feeds a valid document, prints the lowered config, and emits the populated spec back to canonical text.
@@ -144,6 +144,15 @@ Pick a format, then launch an LSP client at the built binary.
 
 ```shell
 cargo run -p confval-lsp --example serve hcl
+```
+
+## serve_multi
+
+The serve_multi example runs one server over two bindings, an entrypoint spec for `gateway.cvm` and a device spec for any `device.*` file, so you can watch routing pick a schema per document.
+The documents under `dev/sample_configs/multi/` exercise it, including one file no binding matches.
+
+```shell
+cargo run -p confval-lsp --example serve_multi
 ```
 
 ## More examples

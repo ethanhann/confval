@@ -82,9 +82,10 @@ check-frontends:
 check-bin:
     cargo check -p confval --no-default-features --bin confval
 
-# Check the LSP example server
+# Check the LSP example servers
 check-lsp-example:
     cargo check -p confval-lsp --example serve
+    cargo check -p confval-lsp --example serve_multi --no-default-features --features hcl
 
 # Test everything
 validate: format lint check-code-quality check-frontends check-bin check-lsp-example test validate-docs examples

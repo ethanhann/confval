@@ -250,14 +250,11 @@ Emit returns a `Result`, because not every field model can be written faithfully
 Emitting a populated spec to TOML always succeeds.
 TOML has a literal for every value populate produces and quotes any key, so `emit_toml(&spec.to_template())?` cannot fail on a populated model.
 
-Emitting a populated spec to HCL fails only for two numeric values HCL has no literal for.
-The first is `i64::MIN`, which HCL would write as a negation that overflows when it is read back.
-The second is a non-finite float, an infinity or a NaN, which HCL has no keyword for.
-A spec that holds neither emits to HCL without failing.
+Emitting a populated spec to HCL fails only for a non-finite float, an infinity or a NaN, which HCL has no keyword for.
+A spec that holds no non-finite float emits to HCL without failing.
 
 Emitting a populated spec to JSON fails only for a non-finite float, an infinity or a NaN, which JSON has no literal
 for.
-`i64::MIN` emits, because JSON writes it as a plain integer.
 
 Emitting a populated spec to YAML never fails.
 YAML 1.2 writes an infinity and a NaN natively, and any key writes as a quoted string.

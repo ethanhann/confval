@@ -93,7 +93,7 @@ flowchart TB
     end
 
     subgraph LSP["confval-lsp"]
-        SRV["<b>Server</b><br/>transport, document store, encoding"]
+        SRV["<b>Router</b><br/>transport, bindings, document store, encoding"]
         FRONT["<b>Frontend trait</b><br/>Hcl, Toml, Kdl, Json, Yaml"]
         CTX["<b>CursorContext</b><br/>tree walk or raw-text scan"]
         HAND["<b>Handlers</b><br/>completion, hover, diagnostics<br/>code action, navigation, symbols"]
@@ -267,9 +267,11 @@ The generated `Lower` impl carries a `Validate + ValidateNested` bound, so a spe
 
 ## The language server
 
-`confval-lsp` is three layers, generic over the root spec and its format.
+`confval-lsp` is three layers over erased bindings.
+A binding pairs one root spec's schema and validate pass with a frontend.
+The `Router` serves one binding per document shape, so one process serves a multi document configuration.
 
-1. The transport shell owns the `lsp-server` connection, the document store, and the position encoding.
+1. The transport shell owns the `lsp-server` connection, the bindings, the document store, and the position encoding, routing each document to a binding at open.
 2. The `Frontend` trait is the one format-dependent boundary, with an implementation per format.
 3. The pure handlers each compute one answer from the document, the schema, and a resolved cursor context.
 

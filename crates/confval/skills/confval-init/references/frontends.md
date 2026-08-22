@@ -15,7 +15,7 @@ Enable the one for the format you parse, and nothing pulls in a parser you do no
 
 | Format | Feature | Parse function | Emit function | Emit of a populated spec can fail |
 |--------|---------|----------------|---------------|-----------------------------------|
-| HCL    | `hcl`   | `confval::format::hcl::parse_hcl`   | `emit_hcl`  | yes, for `i64::MIN` or a non-finite float default |
+| HCL    | `hcl`   | `confval::format::hcl::parse_hcl`   | `emit_hcl`  | yes, for a non-finite float default |
 | TOML   | `toml`  | `confval::format::toml::parse_toml` | `emit_toml` | no |
 | KDL    | `kdl`   | `confval::format::kdl::parse_kdl`   | `emit_kdl`  | no |
 | JSON   | `json`  | `confval::format::json::parse_json` | `emit_json` | yes, for a non-finite float default |
@@ -30,7 +30,7 @@ If your defaults are ordinary numbers, emit succeeds in every format.
 The failures below apply only to the two numeric cases.
 
 - TOML, KDL, and YAML never fail.
-- HCL fails only on `i64::MIN` or a non-finite float.
+- HCL fails only on a non-finite float.
 - JSON fails only on a non-finite float.
 
 Even when your defaults are ordinary and the emit cannot fail, handle the `Result` rather than unwrapping, so the runtime path never panics.

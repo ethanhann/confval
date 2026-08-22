@@ -6,7 +6,7 @@ sidebar_position: 11
 
 `confval-lsp` is a language server.
 It gives an editor the completion, hover, diagnostics, and navigation that [Editor Support](./editor-support.md) describes.
-The server works for any confval schema and any format confval parses, so you build one server for your own root spec.
+The server works for any confval schema and any format confval parses, so you build one server for your own configuration.
 
 This page is for the developer who owns the spec and wants to run a server.
 
@@ -29,7 +29,44 @@ use confval_lsp::{serve, Hcl};
 serve::<ServerSpec, Hcl>(Hcl)
 ```
 
-The derive supplies everything the server needs, so naming your root spec and its frontend is the whole binding.
+The derive supplies everything the server needs, so the binding is only your root spec and its frontend.
+
+## Serving a multi document configuration
+
+Sometimes one configuration spans several document shapes.
+An entrypoint file names the top level, and included files carry their own shapes, each with its own root spec.
+With `serve` alone, each shape needs its own server process and its own editor registration.
+
+`serve_multi` serves every shape from one process.
+You declare one binding per shape with `bind`, pairing a matcher with the shape's root spec and its frontend.
+The server picks the schema per document when the editor opens it.
+
+For example, serve an entrypoint by file name and route every other document through your own rule:
+
+```rust
+use confval_lsp::{Matcher, bind, serve_multi, Hcl};
+
+serve_multi(vec![
+    bind::<AppSpec, _>(Matcher::FileName("app.hcl".into()), Hcl),
+    bind::<DeviceSpec, _>(Matcher::Fn(Box::new(device_matcher)), Hcl),
+    bind::<RouteSpec, _>(Matcher::Fn(Box::new(route_matcher)), Hcl),
+])
+```
+
+Bindings are tried in declaration order, and the first match wins.
+`Matcher::FileName` compares the document's file name.
+`Matcher::Fn` receives the document's absolute path and answers with your own rule, which can read the same include patterns your loader reads.
+`Matcher::Any` accepts every document, so an `Any` binding declared last acts as a fallback.
+
+A matcher must not panic.
+When your rule hits a problem, such as an unreadable file, return `false` so the binding declines and the next one is tried.
+
+A document that matches no binding stays open but inert.
+It gets no diagnostics and empty answers, and the server logs a warning naming it, so a mismatch between the editor's file patterns and your bindings is visible rather than silent.
+
+The server routes a document once, when the editor opens it.
+If you change the inputs your matchers read, such as an include pattern in the entrypoint, a document that is already open keeps its old schema.
+Reopen the file to route it again.
 
 ## Trying it against an editor
 
@@ -44,6 +81,16 @@ The example serves over stdin and stdout, so an editor's LSP client launches the
 The demo spec is there to show the feature set, not to deploy.
 Your real server names your own root spec.
 
+A second example, `serve_multi`, shows routing.
+It binds an entrypoint spec to `gateway.cvm` by file name and a device spec to any `device.*` file through a closure matcher, with no fallback, so any other document shows the unmatched warning.
+The sample documents are plain HCL under the made-up `.cvm` extension, so an IDE registers this server on its own file pattern beside a `.hcl` registration.
+
+```
+cargo run -p confval-lsp --example serve_multi
+```
+
+The documents under `dev/sample_configs/multi/` exercise it: a valid entrypoint, a valid device, a device with a bad keyword and an out-of-range port, and one file no binding matches.
+
 ## Choosing a format
 
 Every format is a cargo feature, and all of them are on by default.
@@ -52,7 +99,7 @@ The build then carries one parser instead of all five.
 
 ```toml
 [dependencies]
-confval-lsp = { version = "0.8.0", default-features = false, features = ["toml"] }
+confval-lsp = { version = "0.9.0", default-features = false, features = ["toml"] }
 ```
 
 ## Position encoding

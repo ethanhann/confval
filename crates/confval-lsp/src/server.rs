@@ -1,18 +1,22 @@
 //! The transport shell.
 //!
-//! It wires the pure handlers and a document store into a runnable server,
-//! generic over the root spec `S` and the frontend `F`. It owns the `lsp-server`
-//! connection, negotiates the position encoding at initialization, updates the
-//! document store on open and change notifications, and answers the completion,
-//! hover, and diagnostic requests by calling the handlers.
+//! It wires the pure handlers and a document store into a runnable server.
+//! [`Router`] owns a set of [`Binding`]s and routes each document to the first
+//! binding whose matcher accepts it when the client opens it, so one process
+//! serves every document of a multi document configuration. It runs over an
+//! `lsp-server` connection the caller provides, negotiates the position encoding at
+//! initialization, updates the document store on open and change
+//! notifications, and answers the completion, hover, and diagnostic requests
+//! by calling the handlers. [`Server`] binds one root spec and one frontend
+//! over the same router, for a single shape consumer.
 
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use lsp_server::{Connection, Message, Notification, Request, Response};
 use lsp_types::notification::{
-    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Notification as _,
-    PublishDiagnostics,
+    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, LogMessage,
+    Notification as _, PublishDiagnostics,
 };
 use lsp_types::request::{
     CodeActionRequest, Completion, DocumentSymbolRequest, GotoDefinition, HoverRequest, References,
@@ -22,22 +26,24 @@ use lsp_types::{
     CodeActionOrCommand, CodeActionParams, CompletionParams, CompletionResponse,
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, Hover, HoverParams,
-    InitializeParams, InitializeResult, PublishDiagnosticsParams, ReferenceParams, Uri,
+    InitializeParams, InitializeResult, LogMessageParams, MessageType, PublishDiagnosticsParams,
+    ReferenceParams, Uri,
 };
 
 use confval::format::{Fields, FromFields};
 use confval::pipeline::{Validate, ValidateNested};
-use confval::schema::{Schema, ToSchema};
+use confval::schema::ToSchema;
 
+use crate::binding::{Binding, Matcher, bind, file_path};
 use crate::capabilities::{
     completion_support, negotiate, server_capabilities, supports_hierarchical_symbols,
 };
 use crate::encoding::{LineIndex, PositionEncoding};
-use crate::frontend::Frontend;
+use crate::frontend::{CursorContext, Frontend};
 use crate::handlers;
 
-/// The boxed error the transport propagates.
-type LspError = Box<dyn std::error::Error + Send + Sync>;
+/// The boxed error the entry points propagate.
+pub type LspError = Box<dyn std::error::Error + Send + Sync>;
 
 /// JSON-RPC error code for an unknown method.
 const METHOD_NOT_FOUND: i32 = -32601;
@@ -46,42 +52,52 @@ const INVALID_PARAMS: i32 = -32602;
 /// JSON-RPC error code for a server-side failure.
 const INTERNAL_ERROR: i32 = -32603;
 
-/// One open document: its current text, its current parse, `None` when the
-/// text does not parse, and the report that parse produced, so a publish maps
-/// it rather than parsing again.
+/// One open document: its current text, its current parse, the report that
+/// parse produced, and the index of the binding that matched it. The parse is
+/// `None` when the text does not parse, and the binding index is `None` when
+/// no binding matched. A publish maps the stored report rather than parsing
+/// again.
 struct Document {
     text: String,
     tree: Option<Fields>,
     report: confval::diagnostic::Report,
+    binding: Option<usize>,
 }
 
-/// The language server, generic over the root spec and the frontend.
-pub struct Server<S, F> {
-    frontend: F,
+/// The erased language server: a set of bindings and the document store.
+///
+/// Routing runs at every open, so reopening a document routes it again, which
+/// is the operator's remedy when the routing inputs on disk changed. An
+/// unmatched document is held as text but gets no parse, no diagnostics, and
+/// empty answers, with one warning log naming it at open.
+pub struct Router {
+    bindings: Vec<Binding>,
     encoding: PositionEncoding,
     completion_client: handlers::ClientSupport,
     hierarchical: bool,
-    schema: Schema,
     documents: HashMap<String, Document>,
-    spec: PhantomData<fn() -> S>,
 }
 
-impl<S, F> Server<S, F>
-where
-    S: FromFields + Validate + ValidateNested + ToSchema,
-    F: Frontend,
-{
-    /// A server bound to a frontend. The encoding defaults to UTF-16, the LSP
-    /// default, until initialization negotiates it.
-    pub fn new(frontend: F) -> Self {
+impl Router {
+    /// A router over the given bindings. An empty list is refused, because a
+    /// server that can answer for no document is a construction mistake that
+    /// should surface before the handshake.
+    pub fn new(bindings: Vec<Binding>) -> Result<Self, LspError> {
+        if bindings.is_empty() {
+            return Err("at least one binding is required".into());
+        }
+        Ok(Self::over(bindings))
+    }
+
+    /// A router over a non-empty binding list. The encoding defaults to
+    /// UTF-16, the LSP default, until initialization negotiates it.
+    fn over(bindings: Vec<Binding>) -> Self {
         Self {
-            frontend,
+            bindings,
             encoding: PositionEncoding::Utf16,
             completion_client: handlers::ClientSupport::default(),
             hierarchical: false,
-            schema: S::schema(),
             documents: HashMap::new(),
-            spec: PhantomData,
         }
     }
 
@@ -162,7 +178,8 @@ where
                     notification.extract::<DidOpenTextDocumentParams>(DidOpenTextDocument::METHOD)
                 {
                     let uri = params.text_document.uri;
-                    self.set_document(&uri, params.text_document.text);
+                    let matched = self.open_document(&uri, params.text_document.text);
+                    log_routing(connection, &uri, self.matched(matched))?;
                     self.publish(connection, &uri)?;
                 }
             }
@@ -172,7 +189,16 @@ where
                 {
                     let uri = params.text_document.uri;
                     if let Some(change) = params.content_changes.into_iter().next_back() {
-                        self.set_document(&uri, change.text);
+                        // A change for a document the store does not hold
+                        // routes it the way an open would, so a client that
+                        // sends a change without an open still gets a routed,
+                        // parsed document.
+                        if self.documents.contains_key(uri.as_str()) {
+                            self.update_document(&uri, change.text);
+                        } else {
+                            let matched = self.open_document(&uri, change.text);
+                            log_routing(connection, &uri, self.matched(matched))?;
+                        }
                     }
                     self.publish(connection, &uri)?;
                 }
@@ -182,7 +208,7 @@ where
                     notification.extract::<DidCloseTextDocumentParams>(DidCloseTextDocument::METHOD)
                 {
                     let uri = params.text_document.uri;
-                    self.documents.remove(&key(&uri));
+                    self.documents.remove(uri.as_str());
                     self.clear_diagnostics(connection, &uri)?;
                 }
             }
@@ -191,33 +217,62 @@ where
         Ok(())
     }
 
-    /// Stores a document's text, its current parse, which is `None` when the
-    /// text does not parse, and the parse report. Resolution recovers from the
-    /// raw text in that case, so a stale tree is never kept.
-    fn set_document(&mut self, uri: &Uri, text: String) {
-        let (tree, report) = self.frontend.parse_buffer(&text);
-        let entry = self.documents.entry(key(uri)).or_insert_with(|| Document {
-            text: String::new(),
-            tree: None,
-            report: confval::diagnostic::Report::new(),
-        });
+    /// Routes a document and stores its text and parse, answering the matched
+    /// binding index. `Matcher::Any` needs no path, so a URI that yields none
+    /// still routes to an `Any` binding. The caller logs the outcome, so the
+    /// store stays free of the connection.
+    fn open_document(&mut self, uri: &Uri, text: String) -> Option<usize> {
+        let path = file_path(uri);
+        let matched = self
+            .bindings
+            .iter()
+            .position(|binding| binding.matcher.matches(path.as_deref()));
+        let (tree, report) = parse_with(&self.bindings, matched, &text);
+        self.documents.insert(
+            uri.as_str().to_string(),
+            Document {
+                text,
+                tree,
+                report,
+                binding: matched,
+            },
+        );
+        matched
+    }
+
+    /// The matched index paired with its binding, for the routing log.
+    fn matched(&self, index: Option<usize>) -> Option<(usize, &Binding)> {
+        index.and_then(|index| self.bindings.get(index).map(|binding| (index, binding)))
+    }
+
+    /// Stores new text for a document the store already holds, keeping the
+    /// binding index its open assigned. An absent document stores nothing.
+    fn update_document(&mut self, uri: &Uri, text: String) {
+        let Some(entry) = self.documents.get_mut(uri.as_str()) else {
+            return;
+        };
+        let (tree, report) = parse_with(&self.bindings, entry.binding, &text);
         entry.text = text;
         entry.tree = tree;
         entry.report = report;
     }
 
-    /// Publishes the diagnostics for a document.
-    fn publish(&mut self, connection: &Connection, uri: &Uri) -> Result<(), LspError> {
-        let Some(document) = self.documents.get(&key(uri)) else {
+    /// Publishes the diagnostics for a document. An unmatched document
+    /// publishes nothing.
+    fn publish(&self, connection: &Connection, uri: &Uri) -> Result<(), LspError> {
+        let Some(document) = self.documents.get(uri.as_str()) else {
             return Ok(());
         };
-        let diagnostics = handlers::diagnostics::<S>(
-            &self.schema,
+        let Some(binding) = document.binding.and_then(|index| self.bindings.get(index)) else {
+            return Ok(());
+        };
+        let diagnostics = handlers::diagnostics(
+            binding.validator,
+            &binding.schema,
             document.tree.as_ref(),
             &document.report,
             uri,
             &document.text,
-            &LineIndex::new(&document.text),
             self.encoding,
         );
         let params = PublishDiagnosticsParams {
@@ -234,7 +289,8 @@ where
         Ok(())
     }
 
-    /// Clears a document's diagnostics by publishing an empty list, for a close.
+    /// Clears a document's diagnostics by publishing an empty list, for a
+    /// close, matched or not.
     fn clear_diagnostics(&self, connection: &Connection, uri: &Uri) -> Result<(), LspError> {
         connection
             .sender
@@ -253,17 +309,12 @@ where
     fn completion(&self, params: CompletionParams) -> CompletionResponse {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        let Some((document, index, context)) = self.resolve_at(uri, position) else {
+        let Some((document, binding, index, context)) = self.resolve_at(uri, position) else {
             return CompletionResponse::Array(Vec::new());
         };
         let items = handlers::completion(
-            &self.frontend,
-            &handlers::Cx {
-                schema: &self.schema,
-                fields: document.tree.as_ref(),
-                ctx: &context,
-                text: &document.text,
-            },
+            &*binding.frontend,
+            &cx(document, binding, &context),
             &index,
             self.encoding,
             self.completion_client,
@@ -271,28 +322,31 @@ where
         CompletionResponse::Array(items)
     }
 
-    /// Resolves the cursor of a positioned request against a stored document.
+    /// Resolves the cursor of a positioned request against a stored document
+    /// and its binding, so each handler does one lookup. An unmatched
+    /// document resolves to `None`, and the callers answer empty.
     fn resolve_at(
         &self,
         uri: &Uri,
         position: lsp_types::Position,
-    ) -> Option<(&Document, LineIndex, crate::frontend::CursorContext)> {
-        let document = self.documents.get(&key(uri))?;
+    ) -> Option<(&Document, &Binding, LineIndex, CursorContext)> {
+        let document = self.documents.get(uri.as_str())?;
+        let binding = self.bindings.get(document.binding?)?;
         let index = LineIndex::new(&document.text);
         let offset = index.offset_of(&document.text, position, self.encoding);
-        let context = self
+        let context = binding
             .frontend
             .resolve(document.tree.as_ref(), &document.text, offset);
-        Some((document, index, context))
+        Some((document, binding, index, context))
     }
 
     /// Computes the definition response for a request.
     fn definition(&self, params: GotoDefinitionParams) -> Option<lsp_types::Location> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let (document, index, context) = self.resolve_at(uri, position)?;
+        let (document, binding, index, context) = self.resolve_at(uri, position)?;
         handlers::definition(
-            &self.schema,
+            &binding.schema,
             &context,
             uri,
             &document.text,
@@ -305,11 +359,11 @@ where
     fn references(&self, params: ReferenceParams) -> Vec<lsp_types::Location> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        let Some((document, index, context)) = self.resolve_at(uri, position) else {
+        let Some((document, binding, index, context)) = self.resolve_at(uri, position) else {
             return Vec::new();
         };
         handlers::references(
-            &self.schema,
+            &binding.schema,
             &context,
             params.context.include_declaration,
             uri,
@@ -319,18 +373,21 @@ where
         )
     }
 
-    /// Computes the document-symbol response for a request. A buffer that does
-    /// not parse answers nothing, because the outline reads parsed spans.
+    /// Computes the document-symbol response for a request. A buffer that
+    /// does not parse answers nothing, because the outline reads parsed
+    /// spans. An unmatched document never holds a tree, so that same guard
+    /// answers before the binding lookup.
     fn document_symbols(&self, params: DocumentSymbolParams) -> Option<DocumentSymbolResponse> {
         let uri = &params.text_document.uri;
-        let document = self.documents.get(&key(uri))?;
+        let document = self.documents.get(uri.as_str())?;
         let tree = document.tree.as_ref()?;
+        let binding = self.bindings.get(document.binding?)?;
         let index = LineIndex::new(&document.text);
         Some(handlers::document_symbols(
-            &self.schema,
+            &binding.schema,
             tree,
             handlers::SymbolShape {
-                covers_body: self.frontend.block_span_covers_body(),
+                covers_body: binding.frontend.block_span_covers_body(),
                 hierarchical: self.hierarchical,
             },
             uri,
@@ -344,17 +401,13 @@ where
     /// request range's start.
     fn code_action(&self, params: CodeActionParams) -> Vec<CodeActionOrCommand> {
         let uri = &params.text_document.uri;
-        let Some((document, index, context)) = self.resolve_at(uri, params.range.start) else {
+        let Some((document, binding, index, context)) = self.resolve_at(uri, params.range.start)
+        else {
             return Vec::new();
         };
         handlers::code_action(
-            &self.frontend,
-            &handlers::Cx {
-                schema: &self.schema,
-                fields: document.tree.as_ref(),
-                ctx: &context,
-                text: &document.text,
-            },
+            &*binding.frontend,
+            &cx(document, binding, &context),
             &params.context.diagnostics,
             params.context.only.as_deref(),
             uri,
@@ -367,18 +420,71 @@ where
     fn hover(&self, params: HoverParams) -> Option<Hover> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let (document, index, context) = self.resolve_at(uri, position)?;
-        handlers::hover(
-            &handlers::Cx {
-                schema: &self.schema,
-                fields: document.tree.as_ref(),
-                ctx: &context,
-                text: &document.text,
-            },
-            &index,
-            self.encoding,
-        )
+        let (document, binding, index, context) = self.resolve_at(uri, position)?;
+        handlers::hover(&cx(document, binding, &context), &index, self.encoding)
     }
+}
+
+/// The handler context for a resolved document and its binding.
+fn cx<'a>(
+    document: &'a Document,
+    binding: &'a Binding,
+    context: &'a CursorContext,
+) -> handlers::Cx<'a> {
+    handlers::Cx {
+        schema: &binding.schema,
+        fields: document.tree.as_ref(),
+        ctx: context,
+        text: &document.text,
+    }
+}
+
+/// Parses with the matched binding's frontend. An unmatched document is held
+/// as text with no tree and an empty report, so resolution recovers nothing
+/// and every answer stays empty.
+fn parse_with(
+    bindings: &[Binding],
+    matched: Option<usize>,
+    text: &str,
+) -> (Option<Fields>, confval::diagnostic::Report) {
+    match matched.and_then(|index| bindings.get(index)) {
+        Some(binding) => binding.frontend.parse_buffer(text),
+        None => (None, confval::diagnostic::Report::new()),
+    }
+}
+
+/// Sends the routing outcome for an opened document: the matched binding at
+/// LOG level, or the unmatched document at WARNING, once per open. The
+/// message names the decoded file path when the URI yields one, and the URI
+/// otherwise, and the matched line carries the winning matcher so an operator
+/// reads which rule fired without counting declarations.
+fn log_routing(
+    connection: &Connection,
+    uri: &Uri,
+    matched: Option<(usize, &Binding)>,
+) -> Result<(), LspError> {
+    let name = file_path(uri)
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|| uri.as_str().to_string());
+    let (level, message) = match matched {
+        Some((index, binding)) => (
+            MessageType::LOG,
+            format!("{name} matched binding {index} {:?}", binding.matcher),
+        ),
+        None => (MessageType::WARNING, format!("no binding matches {name}")),
+    };
+    log(connection, level, message)
+}
+
+/// Sends one `window/logMessage` notification.
+fn log(connection: &Connection, typ: MessageType, message: String) -> Result<(), LspError> {
+    connection
+        .sender
+        .send(Message::Notification(Notification::new(
+            LogMessage::METHOD.to_string(),
+            LogMessageParams { typ, message },
+        )))?;
+    Ok(())
 }
 
 /// Extracts a request's parameters and answers through one handler, or answers
@@ -405,21 +511,52 @@ where
     }
 }
 
-/// Runs the server over stdio, the entry point a subcommand binds.
-pub fn serve<S, F>(frontend: F) -> Result<(), LspError>
-where
-    S: FromFields + Validate + ValidateNested + ToSchema,
-    F: Frontend,
-{
-    let (connection, io_threads) = Connection::stdio();
-    Server::<S, F>::new(frontend).run(&connection)?;
-    io_threads.join()?;
-    Ok(())
+/// The language server bound to one root spec and one frontend: a [`Router`]
+/// with one binding whose matcher is [`Matcher::Any`], so a document with no
+/// file path, such as a never-saved buffer, keeps full service.
+pub struct Server<S, F> {
+    router: Router,
+    marker: PhantomData<fn() -> (S, F)>,
 }
 
-/// The document-store key for a URI.
-fn key(uri: &Uri) -> String {
-    uri.as_str().to_string()
+impl<S, F> Server<S, F>
+where
+    S: FromFields + Validate + ValidateNested + ToSchema + 'static,
+    F: Frontend + Send + 'static,
+{
+    /// A server bound to a frontend.
+    pub fn new(frontend: F) -> Self {
+        Self {
+            router: Router::over(vec![bind::<S, F>(Matcher::Any, frontend)]),
+            marker: PhantomData,
+        }
+    }
+
+    /// Runs the initialize handshake and the request loop over a connection.
+    pub fn run(self, connection: &Connection) -> Result<(), LspError> {
+        self.router.run(connection)
+    }
+}
+
+/// Runs a one binding server over stdio, the entry point a single shape
+/// subcommand binds.
+pub fn serve<S, F>(frontend: F) -> Result<(), LspError>
+where
+    S: FromFields + Validate + ValidateNested + ToSchema + 'static,
+    F: Frontend + Send + 'static,
+{
+    serve_multi(vec![bind::<S, F>(Matcher::Any, frontend)])
+}
+
+/// Runs a server over stdio for a set of bindings, one per document shape of
+/// a multi document configuration. An empty list is refused before the
+/// connection opens.
+pub fn serve_multi(bindings: Vec<Binding>) -> Result<(), LspError> {
+    let router = Router::new(bindings)?;
+    let (connection, io_threads) = Connection::stdio();
+    router.run(&connection)?;
+    io_threads.join()?;
+    Ok(())
 }
 
 #[cfg(all(test, feature = "hcl"))]
@@ -453,21 +590,28 @@ mod tests {
         fn validate(&self, _report: &mut Report) {}
     }
 
-    /// A server bound to the HCL frontend, paired with an in-memory client end.
-    fn setup() -> (Server<TestSpec, Hcl>, Connection, Connection) {
+    /// A router over the one binding `serve` would build, paired with an
+    /// in-memory client end.
+    fn setup() -> (Router, Connection, Connection) {
         let (server_conn, client_conn) = Connection::memory();
-        (Server::<TestSpec, Hcl>::new(Hcl), server_conn, client_conn)
+        let router = Router::new(vec![bind::<TestSpec, Hcl>(Matcher::Any, Hcl)]).unwrap();
+        (router, server_conn, client_conn)
     }
 
-    /// The next published diagnostics on the client end.
+    /// The next published diagnostics on the client end, skipping the routing
+    /// log messages an open emits.
     fn recv_diagnostics(client: &Connection) -> PublishDiagnosticsParams {
-        match client.receiver.recv().unwrap() {
-            Message::Notification(notification)
-                if notification.method == PublishDiagnostics::METHOD =>
-            {
-                serde_json::from_value(notification.params).unwrap()
+        loop {
+            match client.receiver.recv().unwrap() {
+                Message::Notification(notification)
+                    if notification.method == PublishDiagnostics::METHOD =>
+                {
+                    return serde_json::from_value(notification.params).unwrap();
+                }
+                Message::Notification(notification)
+                    if notification.method == LogMessage::METHOD => {}
+                other => panic!("expected a diagnostics notification, got {other:?}"),
             }
-            other => panic!("expected a diagnostics notification, got {other:?}"),
         }
     }
 
@@ -489,7 +633,7 @@ mod tests {
     #[test]
     fn the_loop_ignores_a_response_and_stops_when_the_connection_closes() {
         // Arrange
-        let (mut server, server_conn, client_conn) = setup();
+        let (mut router, server_conn, client_conn) = setup();
         client_conn
             .sender
             .send(Message::Response(Response::new_ok(
@@ -500,16 +644,26 @@ mod tests {
         drop(client_conn);
 
         // Act
-        let result = server.main_loop(&server_conn);
+        let result = router.main_loop(&server_conn);
 
         // Assert
         assert!(result.is_ok(), "the loop returns Ok when the peer hangs up");
     }
 
     #[test]
+    fn an_empty_binding_list_is_refused() {
+        // Arrange, Act
+        let refused = Router::new(Vec::new());
+
+        // Assert
+        let error = refused.map(|_| ()).unwrap_err();
+        assert_eq!(error.to_string(), "at least one binding is required");
+    }
+
+    #[test]
     fn an_unknown_request_method_returns_method_not_found() {
         // Arrange
-        let (mut server, server_conn, client_conn) = setup();
+        let (mut router, server_conn, client_conn) = setup();
         let request = Request::new(
             RequestId::from(7),
             "custom/method".to_string(),
@@ -517,7 +671,7 @@ mod tests {
         );
 
         // Act
-        server.on_request(&server_conn, request).unwrap();
+        router.on_request(&server_conn, request).unwrap();
 
         // Assert
         let response = match client_conn.receiver.recv().unwrap() {
@@ -531,11 +685,11 @@ mod tests {
     #[test]
     fn a_completion_request_with_invalid_params_returns_invalid_params() {
         // Arrange
-        let (mut server, server_conn, client_conn) = setup();
+        let (mut router, server_conn, client_conn) = setup();
         let request = Request::new(RequestId::from(8), Completion::METHOD.to_string(), 42i32);
 
         // Act
-        server.on_request(&server_conn, request).unwrap();
+        router.on_request(&server_conn, request).unwrap();
 
         // Assert
         let response = match client_conn.receiver.recv().unwrap() {
@@ -549,11 +703,11 @@ mod tests {
     #[test]
     fn a_hover_request_with_invalid_params_returns_invalid_params() {
         // Arrange
-        let (mut server, server_conn, client_conn) = setup();
+        let (mut router, server_conn, client_conn) = setup();
         let request = Request::new(RequestId::from(9), HoverRequest::METHOD.to_string(), 42i32);
 
         // Act
-        server.on_request(&server_conn, request).unwrap();
+        router.on_request(&server_conn, request).unwrap();
 
         // Assert
         let response = match client_conn.receiver.recv().unwrap() {
@@ -600,12 +754,12 @@ mod tests {
     #[test]
     fn opening_a_document_stores_it_and_publishes_diagnostics() {
         // Arrange
-        let (mut server, server_conn, client_conn) = setup();
+        let (mut router, server_conn, client_conn) = setup();
         let uri = Uri::from_str("file:///open.hcl").unwrap();
         let notification = open_notification(&uri, "hostname = \"api\"\nport = 99999\n");
 
         // Act
-        server.on_notification(&server_conn, notification).unwrap();
+        router.on_notification(&server_conn, notification).unwrap();
 
         // Assert
         let published = recv_diagnostics(&client_conn);
@@ -614,15 +768,15 @@ mod tests {
             !published.diagnostics.is_empty(),
             "the out-of-range port publishes a diagnostic"
         );
-        assert!(server.documents.contains_key(&key(&uri)));
+        assert!(router.documents.contains_key(uri.as_str()));
     }
 
     #[test]
     fn changing_a_document_updates_the_store_and_republishes() {
         // Arrange
-        let (mut server, server_conn, client_conn) = setup();
+        let (mut router, server_conn, client_conn) = setup();
         let uri = Uri::from_str("file:///change.hcl").unwrap();
-        server
+        router
             .on_notification(
                 &server_conn,
                 open_notification(&uri, "hostname = \"api\"\nport = 99999\n"),
@@ -645,7 +799,7 @@ mod tests {
         );
 
         // Act
-        server.on_notification(&server_conn, change).unwrap();
+        router.on_notification(&server_conn, change).unwrap();
 
         // Assert
         let published = recv_diagnostics(&client_conn);
@@ -655,17 +809,50 @@ mod tests {
             published.diagnostics
         );
         assert_eq!(
-            server.documents.get(&key(&uri)).unwrap().text,
+            router.documents.get(uri.as_str()).unwrap().text,
             "hostname = \"api\"\nport = 8080\n"
         );
     }
 
     #[test]
+    fn a_change_for_an_unopened_document_routes_it_like_an_open() {
+        // Arrange
+        let (mut router, server_conn, client_conn) = setup();
+        let uri = Uri::from_str("file:///unopened.hcl").unwrap();
+        let change = Notification::new(
+            DidChangeTextDocument::METHOD.to_string(),
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 1,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "hostname = \"api\"\nport = 99999\n".to_string(),
+                }],
+            },
+        );
+
+        // Act
+        router.on_notification(&server_conn, change).unwrap();
+
+        // Assert
+        let published = recv_diagnostics(&client_conn);
+        assert!(
+            !published.diagnostics.is_empty(),
+            "the never-opened document routes, parses, and diagnoses"
+        );
+        let stored = router.documents.get(uri.as_str()).unwrap();
+        assert_eq!(stored.binding, Some(0));
+    }
+
+    #[test]
     fn closing_a_document_removes_it_and_clears_diagnostics() {
         // Arrange
-        let (mut server, server_conn, client_conn) = setup();
+        let (mut router, server_conn, client_conn) = setup();
         let uri = Uri::from_str("file:///close.hcl").unwrap();
-        server
+        router
             .on_notification(
                 &server_conn,
                 open_notification(&uri, "hostname = \"api\"\nport = 99999\n"),
@@ -680,7 +867,7 @@ mod tests {
         );
 
         // Act
-        server.on_notification(&server_conn, close).unwrap();
+        router.on_notification(&server_conn, close).unwrap();
 
         // Assert
         let published = recv_diagnostics(&client_conn);
@@ -688,18 +875,63 @@ mod tests {
             published.diagnostics.is_empty(),
             "closing clears the document's diagnostics"
         );
-        assert!(!server.documents.contains_key(&key(&uri)));
+        assert!(!router.documents.contains_key(uri.as_str()));
+    }
+
+    #[test]
+    fn an_unmatched_document_is_held_as_text_without_a_parse() {
+        // Arrange
+        let (server_conn, client_conn) = Connection::memory();
+        let mut router = Router::new(vec![bind::<TestSpec, Hcl>(
+            Matcher::FileName("only.hcl".to_string()),
+            Hcl,
+        )])
+        .unwrap();
+        let uri = Uri::from_str("file:///other.hcl").unwrap();
+        let notification = open_notification(&uri, "hostname = \"api\"\n");
+
+        // Act
+        router.on_notification(&server_conn, notification).unwrap();
+
+        // Assert
+        let stored = router.documents.get(uri.as_str()).unwrap();
+        assert_eq!(stored.text, "hostname = \"api\"\n");
+        assert!(stored.tree.is_none(), "an unmatched document is not parsed");
+        assert_eq!(stored.binding, None);
+        match client_conn.receiver.recv().unwrap() {
+            Message::Notification(notification) => {
+                assert_eq!(notification.method, LogMessage::METHOD);
+            }
+            other => panic!("expected the warning log, got {other:?}"),
+        }
+        assert!(
+            client_conn.receiver.try_recv().is_err(),
+            "an unmatched open publishes nothing"
+        );
+    }
+
+    #[test]
+    fn updating_an_absent_document_stores_nothing() {
+        // Arrange
+        let (mut router, _server_conn, _client_conn) = setup();
+        let uri = Uri::from_str("file:///absent.hcl").unwrap();
+
+        // Act
+        router.update_document(&uri, "hostname = \"api\"\n".to_string());
+
+        // Assert
+        assert!(!router.documents.contains_key(uri.as_str()));
     }
 
     #[test]
     fn an_unknown_notification_method_is_ignored() {
         // Arrange
-        let (mut server, server_conn, client_conn) = setup();
+        let (mut router, server_conn, client_conn) = setup();
         let notification =
             Notification::new("custom/notification".to_string(), serde_json::Value::Null);
 
         // Act
-        server.on_notification(&server_conn, notification).unwrap();
+        router.on_notification(&server_conn, notification).unwrap();
 
         // Assert
         assert!(
@@ -711,11 +943,11 @@ mod tests {
     #[test]
     fn publishing_for_an_unknown_document_sends_nothing() {
         // Arrange
-        let (mut server, server_conn, client_conn) = setup();
+        let (router, server_conn, client_conn) = setup();
         let uri = Uri::from_str("file:///absent.hcl").unwrap();
 
         // Act
-        server.publish(&server_conn, &uri).unwrap();
+        router.publish(&server_conn, &uri).unwrap();
 
         // Assert
         assert!(
@@ -727,7 +959,7 @@ mod tests {
     #[test]
     fn completion_for_an_unknown_document_is_an_empty_array() {
         // Arrange
-        let (server, _server_conn, _client_conn) = setup();
+        let (router, _server_conn, _client_conn) = setup();
         let uri = Uri::from_str("file:///absent.hcl").unwrap();
         let params = CompletionParams {
             text_document_position: TextDocumentPositionParams {
@@ -743,7 +975,7 @@ mod tests {
         };
 
         // Act
-        let response = server.completion(params);
+        let response = router.completion(params);
 
         // Assert
         match response {

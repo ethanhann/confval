@@ -21,7 +21,7 @@ use super::{RawItem, sort_key};
 /// schema. A reference field offers the labels of the block it names, collected
 /// from the root schema and the parsed fields, because the target block sits
 /// elsewhere in the document.
-pub(super) fn value_items<F: Frontend>(
+pub(super) fn value_items<F: Frontend + ?Sized>(
     frontend: &F,
     enclosing: &Schema,
     field: &str,
@@ -82,7 +82,7 @@ pub(super) fn value_items<F: Frontend>(
 /// The boolean literals a boolean value position offers, in the format's own
 /// form. A parsed current value narrows the offer to the other literal, and
 /// an unwritten value offers both, with the field's default preselected.
-fn bool_items<F: Frontend>(
+fn bool_items<F: Frontend + ?Sized>(
     frontend: &F,
     target: &SchemaField,
     field: &str,
@@ -129,7 +129,7 @@ fn bool_value(field: &confval::format::Field) -> Option<bool> {
 
 /// The one preselected item a defaulted scalar offers at a value position: the
 /// rendered default in the format's literal form.
-fn default_item<F: Frontend>(
+fn default_item<F: Frontend + ?Sized>(
     frontend: &F,
     leaf: &ScalarType,
     target: &SchemaField,

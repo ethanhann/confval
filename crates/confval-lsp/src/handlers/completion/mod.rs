@@ -68,7 +68,7 @@ struct RawItem {
 }
 
 /// Produces the completion items for a resolved cursor.
-pub fn completion<F: Frontend>(
+pub fn completion<F: Frontend + ?Sized>(
     frontend: &F,
     cx: &Cx,
     index: &LineIndex,
@@ -83,7 +83,7 @@ pub fn completion<F: Frontend>(
 
 /// The completion items with byte-range edits, the pure core the table tests
 /// exercise.
-fn raw_items<F: Frontend>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
+fn raw_items<F: Frontend + ?Sized>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
     if let Some((parent, field)) = string_list_element(cx) {
         // A value item renders its own quotes, so the range has to cover the
         // ones the operator already typed. The element token comes from a text
@@ -127,7 +127,7 @@ fn widen_over_quotes(text: &str, token: (usize, usize)) -> (usize, usize) {
 }
 
 /// Attribute-name and block-type completions at a body position.
-fn body_items<F: Frontend>(frontend: &F, enclosing: &Schema, cx: &Cx) -> Vec<RawItem> {
+fn body_items<F: Frontend + ?Sized>(frontend: &F, enclosing: &Schema, cx: &Cx) -> Vec<RawItem> {
     let repeated = repeated_block_at(cx.schema, &cx.ctx.path);
     // A cursor starting a new element of a repeated block filters against
     // nothing, because the element has no fields yet. The new-element answer is
@@ -156,7 +156,7 @@ fn body_items<F: Frontend>(frontend: &F, enclosing: &Schema, cx: &Cx) -> Vec<Raw
 }
 
 /// One completion item for a schema field.
-fn field_item<F: Frontend>(
+fn field_item<F: Frontend + ?Sized>(
     frontend: &F,
     field: &SchemaField,
     cx: &Cx,

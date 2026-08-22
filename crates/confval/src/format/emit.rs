@@ -5,8 +5,8 @@
 //! format's text. Not every `Fields` is representable in every format, so emit
 //! is fallible. Emitting a populated spec to TOML never fails, because TOML has a
 //! literal for every value populate produces and quotes any key. Emitting a
-//! populated spec to HCL fails only for the two numeric values HCL cannot write,
-//! an `i64::MIN` and a non-finite float. Emitting a populated spec to JSON fails
+//! populated spec to HCL fails only for a non-finite float, the one numeric
+//! value HCL cannot write. Emitting a populated spec to JSON fails
 //! only for a non-finite float. Emitting a populated spec to KDL or YAML never
 //! fails either, because each has a literal for every value populate produces
 //! and quotes any key. The remaining failures arise when you

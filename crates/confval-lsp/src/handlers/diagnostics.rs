@@ -9,41 +9,39 @@
 use lsp_types::{Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location, Uri};
 
 use confval::diagnostic::{Issue, Report, Severity};
-use confval::format::{Fields, FromFields};
-use confval::pipeline::{Validate, ValidateNested, check_references};
-use confval::schema::{Schema, ToSchema};
+use confval::format::Fields;
+use confval::pipeline::check_references;
+use confval::schema::Schema;
 
+use crate::binding::Validator;
 use crate::encoding::{LineIndex, PositionEncoding};
 
 /// Produces the diagnostics for a document.
 ///
-/// `S` is the root spec and `schema` the caller's already-built schema, so a
-/// default expression evaluates once per server rather than on every publish.
+/// `validator` is the root spec's erased validate pass, built once with
+/// [`Validator::of`], and `schema` the caller's already-built schema, so a
+/// default expression evaluates once per binding rather than on every publish.
 /// `fields` and `parse_report` are the document's stored parse, produced by
 /// [`Frontend::parse_buffer`](crate::frontend::Frontend::parse_buffer) when
 /// the text changed, so a publish does not parse the buffer a second time.
 /// The `uri` is the document's own URI, used for the related locations of a
-/// cross-field issue.
-pub fn diagnostics<S>(
+/// cross-field issue. The line index is computed here from `text`.
+pub fn diagnostics(
+    validator: Validator,
     schema: &Schema,
     fields: Option<&Fields>,
     parse_report: &Report,
     uri: &Uri,
     text: &str,
-    index: &LineIndex,
     encoding: PositionEncoding,
-) -> Vec<Diagnostic>
-where
-    S: FromFields + Validate + ValidateNested + ToSchema,
-{
+) -> Vec<Diagnostic> {
+    let index = &LineIndex::new(text);
     let mut report = Report::new();
-    // The reference pass runs whenever a tree parsed, even when `from_fields`
-    // fails on an unrelated structural error, because a reference still checks
-    // against the labels the text carries.
+    // The reference pass runs whenever a tree parsed, even when the validate
+    // pass fails on an unrelated structural error, because a reference still
+    // checks against the labels the text carries.
     if let Some(fields) = fields {
-        if let Some(spec) = S::from_fields(fields, &mut report) {
-            spec.validate_all(&mut report);
-        }
+        validator.run(fields, &mut report);
         check_references(fields, schema, &mut report);
     }
 
@@ -156,13 +154,13 @@ mod tests {
 
         // Act
         let (tree, report) = Hcl.parse_buffer(text);
-        let produced = diagnostics::<Gateway>(
+        let produced = diagnostics(
+            Validator::of::<Gateway>(),
             &Gateway::schema(),
             tree.as_ref(),
             &report,
             &uri,
             text,
-            &LineIndex::new(text),
             PositionEncoding::Utf16,
         );
 
