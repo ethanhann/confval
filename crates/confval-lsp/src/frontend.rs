@@ -232,7 +232,9 @@ impl CursorContext {
 /// A frontend binds one format's parse function and insert text. Parsing and
 /// resolution reuse `confval`'s machinery, so the block-structured formats share
 /// the default [`parse_tree`](Frontend::parse_tree) and [`resolve`](Frontend::resolve).
-pub trait Frontend {
+/// `Debug` is a supertrait so a binding that stores a frontend behind `dyn`
+/// can render itself in errors and logs.
+pub trait Frontend: std::fmt::Debug {
     /// Parses the buffer into the neutral field model, appending to `report`.
     /// Delegates to the format's existing `confval` parse function, so
     /// diagnostics reuse the real pipeline rather than an approximation.

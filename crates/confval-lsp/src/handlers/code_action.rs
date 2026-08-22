@@ -26,7 +26,7 @@ use crate::walk::schema_at;
 /// only at a value position of a defaulted scalar, when a context diagnostic
 /// is inside the parsed value span. A diagnostic anchored at an enclosing
 /// block or the file produces no fix. `only` is the client's kind filter.
-pub fn code_action<F: Frontend>(
+pub fn code_action<F: Frontend + ?Sized>(
     frontend: &F,
     cx: &Cx,
     diagnostics: &[Diagnostic],

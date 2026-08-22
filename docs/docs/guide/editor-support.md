@@ -76,3 +76,4 @@ The editor checks the file you have open on its own.
 When you assemble a configuration from several [layers](./layering.md), a later layer can supply a value the open file leaves out.
 The editor does not see the other layers, so it can report a required field as missing even though a layer supplies it.
 In a layered setup, treat a missing-field error as a prompt to check the other layers rather than a fault in the open file.
+A multi document server holds every file of the configuration in one process, but each open file is still checked on its own.

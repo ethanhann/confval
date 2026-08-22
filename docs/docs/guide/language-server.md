@@ -29,7 +29,43 @@ use confval_lsp::{serve, Hcl};
 serve::<ServerSpec, Hcl>(Hcl)
 ```
 
-The derive supplies everything the server needs, so naming your root spec and its frontend is the whole binding.
+The derive supplies everything the server needs, so you name your root spec and its frontend and the server does the rest.
+
+## Serving a multi document configuration
+
+Sometimes one configuration spans several document shapes.
+An entrypoint file names the top level, and included files carry their own shapes, each with its own root spec.
+With `serve` alone, each shape needs its own server process and its own editor registration.
+
+`serve_multi` serves every shape from one process.
+You declare one binding per shape with `bind`, pairing a matcher with the shape's root spec and its frontend, and the server picks the schema per document when the editor opens it.
+
+For example, serve an entrypoint by file name and route every other document through your own rule:
+
+```rust
+use confval_lsp::{Matcher, bind, serve_multi, Hcl};
+
+serve_multi(vec![
+    bind::<EntrypointSpec, _>(Matcher::FileName("snakeway.hcl".into()), Hcl),
+    bind::<DevicesFile, _>(Matcher::Fn(Box::new(devices_matcher)), Hcl),
+    bind::<IngressSpec, _>(Matcher::Fn(Box::new(ingresses_matcher)), Hcl),
+])
+```
+
+Bindings are tried in declaration order, and the first match wins.
+`Matcher::FileName` compares the document's file name.
+`Matcher::Fn` receives the document's absolute path and answers with your own rule, which can read the same include patterns your loader reads.
+`Matcher::Any` accepts every document, so an `Any` binding declared last acts as a fallback.
+
+A matcher must not panic.
+When your rule hits a problem, such as an unreadable file, return `false` so the document reports as unmatched.
+
+A document that matches no binding stays open but inert.
+It gets no diagnostics and empty answers, and the server logs a warning naming it, so a mismatch between the editor's file patterns and your bindings is visible rather than silent.
+
+The server routes a document once, when the editor opens it.
+If you change the inputs your matchers read, such as an include pattern in the entrypoint, a document that is already open keeps its old schema.
+Reopen the file to route it again.
 
 ## Trying it against an editor
 
@@ -52,7 +88,7 @@ The build then carries one parser instead of all five.
 
 ```toml
 [dependencies]
-confval-lsp = { version = "0.8.0", default-features = false, features = ["toml"] }
+confval-lsp = { version = "0.9.0", default-features = false, features = ["toml"] }
 ```
 
 ## Position encoding

@@ -12,9 +12,13 @@
 //! for each format confval parses ([`Hcl`], [`Toml`], [`Kdl`], [`Json`], [`Yaml`]). The transport
 //! shell wires the handlers and a document store into a runnable server.
 //!
-//! The core is generic over the root spec `S`, needing only the traits the
-//! derive emits: `FromFields`, `Validate`, `ValidateNested`, and `ToSchema`.
+//! The core is spec erased. [`bind`] captures the traits the derive emits,
+//! `FromFields`, `Validate`, `ValidateNested`, and `ToSchema`, into a
+//! [`Binding`], and a [`Router`] serves one binding per document shape, so
+//! one process serves every document of a multi document configuration.
+//! [`serve`] binds one root spec and one frontend for the single shape case.
 
+mod binding;
 mod capabilities;
 mod encoding;
 mod frontend;
@@ -27,6 +31,7 @@ mod walk;
 
 pub mod handlers;
 
+pub use binding::{Binding, Matcher, Validator, bind};
 pub use encoding::{LineIndex, PositionEncoding};
 pub use frontend::{
     Absorb, CursorContext, Frontend, Insert, PositionKind, Recovery, ValueSeparator,
@@ -41,4 +46,4 @@ pub use frontends::Kdl;
 pub use frontends::Toml;
 #[cfg(feature = "yaml")]
 pub use frontends::Yaml;
-pub use server::{Server, serve};
+pub use server::{LspError, Router, Server, serve, serve_multi};
