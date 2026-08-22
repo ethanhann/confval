@@ -50,7 +50,7 @@ Emitting one returns an `EmitError` rather than inventing a syntax for it.
 | Target | Cannot write                                                                                         | Writes without trouble                                                       |
 |--------|------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
 | TOML   | nothing beyond the markers above                                                                     | non-finite floats, `i64::MIN`, nested arrays, any key                        |
-| HCL    | a non-finite float, `i64::MIN`                                                                       | nested arrays, mixed arrays                                                  |
+| HCL    | a non-finite float                                                                                   | `i64::MIN`, nested arrays, mixed arrays                                      |
 | KDL    | an array inside an array, an array mixing scalars and objects, an object inside a grouped repetition | non-finite floats, as `#inf`, `#-inf`, and `#nan`                            |
 | JSON   | a non-finite float                                                                                   | everything else, `i64::MIN` included                                         |
 | YAML   | nothing beyond the markers above                                                                     | non-finite floats, as `.inf`, `-.inf`, and `.nan`, nested sequences, any key |
@@ -61,8 +61,6 @@ YAML has no gap in this table, and it carries two markers no other format produc
 An alias is not expanded, and a tag outside the core schema has no reading.
 A decimal that overflows `f64` refuses rather than becoming an infinity the operator never wrote.
 JSON refuses the same value for the same reason.
-
-HCL rejects `i64::MIN` because its parser reads the literal as a negation applied to a number that overflows on the way back in.
 
 For example, a KDL config with `rate #inf` converts to TOML, where it emits as `inf`.
 Converting the same config to JSON returns an error at `rate`, because JSON's grammar has no token for infinity.
@@ -105,7 +103,7 @@ Names are Rust identifiers, values are ordinary scalars, and nothing repeats.
 | KDL    | never                                                                   |
 | YAML   | never                                                                   |
 | JSON   | a float default is infinity or NaN                                      |
-| HCL    | a float default is infinity or NaN, or an integer default is `i64::MIN` |
+| HCL    | a float default is infinity or NaN                                      |
 
 If your defaults are ordinary numbers, template generation cannot fail, so you can `expect` on the emit call.
 

@@ -27,9 +27,9 @@ use hcl_edit::structure::{Attribute, Block, Body, Structure};
 /// HCL cannot write, on a [`ValueKind::Other`], on two same-named values at one
 /// level, which HCL rejects as duplicate attributes, and on any repeated name
 /// inside an object. Those arise only when you emit a parsed or hand-built
-/// `Fields`, not on the populate path. It also fails on the two numeric values
-/// HCL has no literal for, an `i64::MIN` and a non-finite float, which a
-/// populated spec can hold.
+/// `Fields`, not on the populate path. It also fails on a non-finite float,
+/// the one numeric value HCL has no literal for, which a populated spec can
+/// hold.
 pub fn emit_hcl(fields: &Fields) -> Result<String, EmitError> {
     let (mut body, pending) = emit_body(fields, 0, "")?;
     if !pending.is_empty() {
