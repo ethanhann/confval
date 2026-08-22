@@ -218,21 +218,7 @@ fn object_key_of(name: &str) -> ObjectKey {
 fn hcl_expr_of_scalar(scalar: &Scalar, path: &str) -> Result<Expression, EmitError> {
     let expr = match scalar {
         Scalar::String(string) => Expression::from(string.clone()),
-        Scalar::Int(int) => {
-            // HCL reads a negative integer as a negation of its magnitude, and
-            // i64::MIN's magnitude is 2^63, which overflows i64 on the way back
-            // in. HCL has no literal that round-trips it, so refuse rather than
-            // emit text the HCL parser cannot read. The upstream fix is
-            // https://github.com/martinohmann/hcl-rs/pull/549. Once a released
-            // hcl-edit round-trips i64::MIN, this rejection can be removed.
-            if *int == i64::MIN {
-                return Err(EmitError::UnrepresentableValue {
-                    label: "i64::MIN",
-                    path: path.to_string(),
-                });
-            }
-            Expression::from(*int)
-        }
+        Scalar::Int(int) => Expression::from(*int),
         Scalar::Float(float) => {
             // HCL has no literal for infinity or NaN. hcl-edit maps a non-finite
             // float to `null`, so refuse rather than silently change the value.
@@ -832,18 +818,21 @@ mod tests {
     }
 
     #[test]
-    fn emit_hcl_rejects_i64_min() {
-        // i64::MIN emits as `-9223372036854775808`, which HCL reads as a negation
-        // of 2^63 and overflows on the way back in, so emit must refuse it rather
-        // than produce text the HCL parser cannot read.
+    fn emit_hcl_round_trips_i64_min() {
+        // The emitted `-9223372036854775808` is a negation whose magnitude is
+        // 2^63, the one integer literal the HCL parser once refused.
         let fields = Fields::detached(vec![scalar("offset", Scalar::Int(i64::MIN))]);
-        assert_eq!(
-            emit_hcl(&fields),
-            Err(EmitError::UnrepresentableValue {
-                label: "i64::MIN",
-                path: "offset".to_string(),
-            })
-        );
+
+        let text = emit_hcl(&fields).unwrap();
+
+        let round = reparse(&text);
+        let FieldKind::Value(value) = &round.get("offset").unwrap().kind else {
+            panic!("offset should be an attribute");
+        };
+        let ValueKind::Scalar(Scalar::Int(int)) = &value.kind else {
+            panic!("offset should be an integer, got {:?}", value.kind);
+        };
+        assert_eq!(*int, i64::MIN);
     }
 
     #[test]
