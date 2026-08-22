@@ -1,0 +1,20 @@
+crates/confval/src/format/hcl/emit.rs
+  s_f3b6a626a0036f::t_ced39854a41c3d 221
+  s_f3b6a626a0036f::t_0f00890fa821d8 821-823,825-835
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "85d98ed44284130fa8deecfcca4829b44cc28d96",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
