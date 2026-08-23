@@ -386,10 +386,10 @@ fn the_schema_records_the_label_field_and_the_reference() {
     let reference = rule.fields.iter().find(|f| f.name == "upstream").unwrap();
     assert_eq!(
         reference.ty,
-        SchemaType::Scalar {
-            leaf: confval::schema::ScalarType::String,
-            constraint: Some(Constraint::References { block: "upstream" }),
-        }
+        SchemaType::scalar(
+            confval::schema::ScalarType::String,
+            Some(Constraint::references("upstream"))
+        )
     );
 }
 

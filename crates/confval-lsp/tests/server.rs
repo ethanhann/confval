@@ -18,8 +18,16 @@ use lsp_types::{
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 
-use confval_lsp::{Hcl, Server, Yaml};
+use confval_lsp::{Hcl, Matcher, Router, Yaml, bind};
 use fixture::ServerSpec;
+
+/// The one binding router `serve` runs for the demo spec, over any frontend.
+fn single<F: confval_lsp::Frontend + Send + 'static>(frontend: F) -> Router {
+    match Router::new(vec![bind::<ServerSpec, F>(Matcher::Any, frontend)]) {
+        Ok(router) => router,
+        Err(error) => panic!("one binding is never empty: {error}"),
+    }
+}
 
 /// Receives messages until one satisfies the predicate, or panics on hangup.
 fn recv_until<T>(connection: &Connection, mut pick: impl FnMut(&Message) -> Option<T>) -> T {
@@ -35,7 +43,7 @@ fn recv_until<T>(connection: &Connection, mut pick: impl FnMut(&Message) -> Opti
 fn the_server_runs_the_initialize_open_and_request_cycle() {
     // Arrange
     let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || Server::<ServerSpec, Hcl>::new(Hcl).run(&server));
+    let handle = std::thread::spawn(move || single(Hcl).run(&server));
     let uri = Uri::from_str("file:///server.hcl").unwrap();
 
     // Act, initialize.
@@ -232,7 +240,7 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
 fn the_server_serves_a_yaml_document() {
     // Arrange
     let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || Server::<ServerSpec, Yaml>::new(Yaml).run(&server));
+    let handle = std::thread::spawn(move || single(Yaml).run(&server));
     let uri = Uri::from_str("file:///server.yaml").unwrap();
 
     // Act, initialize.
@@ -313,7 +321,7 @@ fn the_server_serves_a_yaml_document() {
 fn the_server_advertises_and_routes_the_navigation_requests() {
     // Arrange
     let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || Server::<ServerSpec, Hcl>::new(Hcl).run(&server));
+    let handle = std::thread::spawn(move || single(Hcl).run(&server));
     let uri = Uri::from_str("file:///server.hcl").unwrap();
 
     // Act, initialize and open a parsing document.
@@ -515,7 +523,7 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
 fn a_document_that_does_not_parse_has_no_outline() {
     // Arrange
     let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || Server::<ServerSpec, Hcl>::new(Hcl).run(&server));
+    let handle = std::thread::spawn(move || single(Hcl).run(&server));
     let uri = Uri::from_str("file:///broken.hcl").unwrap();
 
     // Act

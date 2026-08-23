@@ -334,10 +334,7 @@ fn json_field_in_an_array_element_position_opens_an_object() {
         },
         &index,
         ENCODING,
-        ClientSupport {
-            snippets: true,
-            preselect: false,
-        },
+        ClientSupport::new(true, false),
     );
 
     // Assert

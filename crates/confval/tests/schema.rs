@@ -316,6 +316,7 @@ fn a_range_field_renders_its_bounds_to_text() {
         max,
         units,
         help,
+        ..
     }) = constraint(&schema, "port")
     else {
         panic!("port should carry a range");
@@ -629,10 +630,7 @@ fn a_handwritten_field_carries_the_builder_text() {
     let built = confval::schema::SchemaField::new(
         "workers".to_string(),
         None,
-        SchemaType::Scalar {
-            leaf: ScalarType::Int,
-            constraint: None,
-        },
+        SchemaType::scalar(ScalarType::Int, None),
     )
     .required()
     .with_default();

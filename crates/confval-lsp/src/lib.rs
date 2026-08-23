@@ -46,4 +46,4 @@ pub use frontends::Kdl;
 pub use frontends::Toml;
 #[cfg(feature = "yaml")]
 pub use frontends::Yaml;
-pub use server::{LspError, Router, Server, serve, serve_multi};
+pub use server::{LspError, Router, serve, serve_multi};

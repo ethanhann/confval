@@ -9,8 +9,9 @@ use lsp_types::CompletionItemKind;
 
 use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
-use crate::frontend::{Frontend, quoted_literal};
+use crate::frontend::{Frontend, ValueSeparator, quoted_literal};
 use crate::handlers::Cx;
+use crate::resolve::is_value_byte;
 use crate::walk::reference_labels;
 
 use super::{RawItem, sort_key};
@@ -34,6 +35,19 @@ pub(super) fn value_items<F: Frontend + ?Sized>(
     else {
         return Vec::new();
     };
+    // A zero-width cursor beside existing text sits at the edge of an
+    // element or its punctuation. The formats that separate values with
+    // punctuation have no separator to write there, so an accepted item
+    // would fuse with its neighbor or leave the next element without its
+    // comma. Nothing is offered at such a position. The whitespace format
+    // writes its separator instead, in `separated`.
+    let separator = frontend.value_separator();
+    if cx.ctx.token.0 == cx.ctx.token.1
+        && separator != ValueSeparator::Whitespace
+        && insertion_fuses(cx.text.as_bytes(), cx.ctx.token.0)
+    {
+        return Vec::new();
+    }
     match &target.ty {
         // A list offers the same set as a scalar, once for each element the
         // operator writes. A list carries no `default_text`, so no item is
@@ -49,7 +63,7 @@ pub(super) fn value_items<F: Frontend + ?Sized>(
             .iter()
             .enumerate()
             .map(|(order, word)| {
-                let mut item = keyword_item(word, cx, order);
+                let mut item = keyword_item(word, separator, cx, order);
                 // The default among the keywords is preselected rather than
                 // duplicated. A default absent from the set, which the derive
                 // permits, preselects nothing, because the set is
@@ -59,15 +73,16 @@ pub(super) fn value_items<F: Frontend + ?Sized>(
             })
             .collect(),
         SchemaType::Scalar {
-            constraint: Some(Constraint::References { block }),
+            constraint: Some(Constraint::References { block, .. }),
             ..
-        } => reference_items(block, cx),
+        } => reference_items(block, separator, cx),
         // A boolean is its own closed set. A written value offers the literal
         // it could change to, and an empty value offers both, with the
         // default preselected when the field carries one.
         SchemaType::Scalar {
             leaf: ScalarType::Bool,
             constraint: None,
+            ..
         } => bool_items(frontend, target, field, cx),
         // A number bounded by a `Range` and an unconstrained scalar are typed
         // rather than chosen from a closed set, so they offer only the
@@ -111,7 +126,11 @@ fn bool_items<F: Frontend + ?Sized>(
             preselect: current.is_none() && target.default_text.as_deref() == Some(*literal),
             snippet: false,
             edit: cx.ctx.token,
-            new_text: separated(cx, frontend.default_literal(&ScalarType::Bool, literal)),
+            new_text: separated(
+                frontend.value_separator(),
+                cx,
+                frontend.default_literal(&ScalarType::Bool, literal),
+            ),
         })
         .collect()
 }
@@ -137,7 +156,7 @@ fn default_item<F: Frontend + ?Sized>(
 ) -> Option<RawItem> {
     let text = target.default_text.as_deref()?;
     let literal = frontend.default_literal(leaf, text);
-    let new_text = separated(cx, literal);
+    let new_text = separated(frontend.value_separator(), cx, literal);
     Some(RawItem {
         label: text.to_string(),
         kind: CompletionItemKind::VALUE,
@@ -151,15 +170,50 @@ fn default_item<F: Frontend + ?Sized>(
     })
 }
 
-/// Prefixes the separating space when the replace range starts directly after
-/// the colon, so the completed line parses as a mapping entry rather than a
-/// plain scalar that includes the colon.
-fn separated(cx: &Cx, value: String) -> String {
-    if cx.ctx.token.0 > 0 && cx.text.as_bytes()[cx.ctx.token.0 - 1] == b':' {
-        format!(" {value}")
-    } else {
-        value
+/// The completed value with the separator its position needs.
+///
+/// A range starting directly after a mapping colon takes a leading space, so
+/// the completed line parses as an entry rather than a plain scalar that
+/// includes the colon. In a whitespace-separated format, a range touching a
+/// name or value byte on either side takes a space on that side, so the
+/// accepted item does not fuse with its neighbor.
+fn separated(separator: ValueSeparator, cx: &Cx, value: String) -> String {
+    let bytes = cx.text.as_bytes();
+    let before = cx.ctx.token.0.checked_sub(1).and_then(|at| bytes.get(at));
+    let mut result = value;
+    if before == Some(&b':') {
+        result.insert(0, ' ');
     }
+    if separator == ValueSeparator::Whitespace {
+        if before.is_some_and(|byte| is_value_byte(*byte)) {
+            result.insert(0, ' ');
+        }
+        if bytes
+            .get(cx.ctx.token.1)
+            .is_some_and(|byte| is_value_byte(*byte))
+        {
+            result.push(' ');
+        }
+    }
+    result
+}
+
+/// Whether a zero-width insertion at `at` would run into the text beside it.
+///
+/// It does not when the left neighbor is an opening bracket, a separator,
+/// whitespace, or the buffer start, and the right neighbor is a closing
+/// bracket, whitespace, or the buffer end. Anywhere else the inserted element
+/// runs into existing text, or leaves the element after it without its comma.
+fn insertion_fuses(bytes: &[u8], at: usize) -> bool {
+    let left_clear = match at.checked_sub(1).and_then(|index| bytes.get(index)) {
+        None => true,
+        Some(byte) => byte.is_ascii_whitespace() || matches!(byte, b'[' | b'{' | b'=' | b':'),
+    };
+    let right_clear = match bytes.get(at) {
+        None => true,
+        Some(byte) => byte.is_ascii_whitespace() || matches!(byte, b']' | b'}'),
+    };
+    !(left_clear && right_clear)
 }
 
 /// Reference-value completions: the distinct, non-empty labels the declaring
@@ -167,7 +221,7 @@ fn separated(cx: &Cx, value: String) -> String {
 /// outward search the reference pass runs, so the editor offers the labels the
 /// pipeline accepts. Returns nothing when the buffer does not parse or no
 /// enclosing scope declares the target.
-fn reference_items(block: &str, cx: &Cx) -> Vec<RawItem> {
+fn reference_items(block: &str, separator: ValueSeparator, cx: &Cx) -> Vec<RawItem> {
     let Some(labels) = reference_labels(cx.schema, cx.ctx, block) else {
         return Vec::new();
     };
@@ -177,13 +231,13 @@ fn reference_items(block: &str, cx: &Cx) -> Vec<RawItem> {
         .filter(|label| !label.value.is_empty())
         .filter(|label| seen.insert(label.value.as_str()))
         .enumerate()
-        .map(|(order, label)| keyword_item(&label.value, cx, order))
+        .map(|(order, label)| keyword_item(&label.value, separator, cx, order))
         .collect()
 }
 
 /// One completion item for an allowed keyword, inserted as a quoted string.
-fn keyword_item(word: &str, cx: &Cx, order: usize) -> RawItem {
-    let new_text = separated(cx, quoted_literal(word));
+fn keyword_item(word: &str, separator: ValueSeparator, cx: &Cx, order: usize) -> RawItem {
+    let new_text = separated(separator, cx, quoted_literal(word));
     RawItem {
         label: word.to_string(),
         kind: CompletionItemKind::ENUM_MEMBER,
@@ -217,10 +271,7 @@ mod tests {
         let field = SchemaField::new(
             "enabled".to_string(),
             None,
-            SchemaType::Scalar {
-                leaf: ScalarType::Bool,
-                constraint: None,
-            },
+            SchemaType::scalar(ScalarType::Bool, None),
         );
         match default {
             Some(text) => field.with_default_text(text.to_string()),
@@ -263,10 +314,7 @@ mod tests {
         let target = SchemaField::new(
             "port".to_string(),
             None,
-            SchemaType::Scalar {
-                leaf: ScalarType::Int,
-                constraint: None,
-            },
+            SchemaType::scalar(ScalarType::Int, None),
         )
         .with_default_text("8080".to_string());
         let schema = Schema::new(None, Vec::new());
@@ -300,7 +348,7 @@ mod tests {
         };
 
         // Act
-        let result = separated(&cx, "true".to_string());
+        let result = separated(ValueSeparator::Equals, &cx, "true".to_string());
 
         // Assert
         assert_eq!(result, "true");

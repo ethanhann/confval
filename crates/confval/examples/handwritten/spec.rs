@@ -214,10 +214,7 @@ impl ToFields for ServiceSpec {
 impl ToSchema for ServiceSpec {
     fn schema() -> Schema {
         let block = |schema: Schema, repeated: bool| SchemaType::block(schema, repeated);
-        let leaf = |leaf| SchemaType::Scalar {
-            leaf,
-            constraint: None,
-        };
+        let leaf = |leaf| SchemaType::scalar(leaf, None);
         let sf = |name: &str, structurally_required: bool, has_default: bool, ty: SchemaType| {
             let mut field = SchemaField::new(name.to_string(), None, ty);
             if structurally_required {
@@ -228,15 +225,15 @@ impl ToSchema for ServiceSpec {
             }
             field
         };
-        let workers = SchemaType::Scalar {
-            leaf: ScalarType::Int,
-            constraint: Some(Constraint::Range {
-                min: WORKERS.min.to_string(),
-                max: WORKERS.max.to_string(),
-                units: WORKERS.units,
-                help: WORKERS.help,
-            }),
-        };
+        let workers = SchemaType::scalar(
+            ScalarType::Int,
+            Some(Constraint::range(
+                WORKERS.min.to_string(),
+                WORKERS.max.to_string(),
+                WORKERS.units,
+                WORKERS.help,
+            )),
+        );
         Schema::new(
             None,
             vec![

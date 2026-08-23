@@ -7,11 +7,11 @@
 //! `lsp-server` connection the caller provides, negotiates the position encoding at
 //! initialization, updates the document store on open and change
 //! notifications, and answers the completion, hover, and diagnostic requests
-//! by calling the handlers. [`Server`] binds one root spec and one frontend
-//! over the same router, for a single shape consumer.
+//! by calling the handlers. [`serve`] binds one root spec and one frontend
+//! over the same router, for a configuration of one document shape.
 
 use std::collections::HashMap;
-use std::marker::PhantomData;
+use std::fmt;
 
 use lsp_server::{Connection, Message, Notification, Request, Response};
 use lsp_types::notification::{
@@ -42,8 +42,33 @@ use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, Frontend};
 use crate::handlers;
 
-/// The boxed error the entry points propagate.
-pub type LspError = Box<dyn std::error::Error + Send + Sync>;
+/// The error the entry points and [`Router`] return.
+///
+/// It wraps whatever failed underneath, whether transport, protocol, or the
+/// refusal of an empty binding list, and renders it through `Display`. Every
+/// error type converts into it, so `?` works inside a function returning it.
+/// It does not implement `std::error::Error`, so a `main` returning
+/// `anyhow::Result<()>` or `Result<(), Box<dyn Error>>` does not accept it
+/// directly.
+pub struct LspError(Box<dyn std::error::Error + Send + Sync>);
+
+impl fmt::Display for LspError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl fmt::Debug for LspError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
+    }
+}
+
+impl<E: Into<Box<dyn std::error::Error + Send + Sync>>> From<E> for LspError {
+    fn from(error: E) -> Self {
+        Self(error.into())
+    }
+}
 
 /// JSON-RPC error code for an unknown method.
 const METHOD_NOT_FOUND: i32 = -32601;
@@ -508,33 +533,6 @@ where
             }
         }
         Err(_) => Response::new_err(id, INVALID_PARAMS, "invalid params".to_string()),
-    }
-}
-
-/// The language server bound to one root spec and one frontend: a [`Router`]
-/// with one binding whose matcher is [`Matcher::Any`], so a document with no
-/// file path, such as a never-saved buffer, keeps full service.
-pub struct Server<S, F> {
-    router: Router,
-    marker: PhantomData<fn() -> (S, F)>,
-}
-
-impl<S, F> Server<S, F>
-where
-    S: FromFields + Validate + ValidateNested + ToSchema + 'static,
-    F: Frontend + Send + 'static,
-{
-    /// A server bound to a frontend.
-    pub fn new(frontend: F) -> Self {
-        Self {
-            router: Router::over(vec![bind::<S, F>(Matcher::Any, frontend)]),
-            marker: PhantomData,
-        }
-    }
-
-    /// Runs the initialize handshake and the request loop over a connection.
-    pub fn run(self, connection: &Connection) -> Result<(), LspError> {
-        self.router.run(connection)
     }
 }
 

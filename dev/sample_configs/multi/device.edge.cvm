@@ -1,3 +1,0 @@
-name = "edge-cam"
-kind = "drone"
-port = 99999

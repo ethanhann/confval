@@ -98,10 +98,7 @@ fn block_completion_places_the_cursor_with_a_snippet_when_supported() {
         },
         &index,
         ENCODING,
-        ClientSupport {
-            snippets: true,
-            preselect: false,
-        },
+        ClientSupport::new(true, false),
     );
     let without = completion(
         &Hcl,

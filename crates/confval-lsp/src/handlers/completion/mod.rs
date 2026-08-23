@@ -33,8 +33,11 @@ use encode::encode_item;
 use values::value_items;
 
 /// The client's completion switches, read once at initialization: whether the
-/// client expands snippets, and whether it honors a preselected item.
+/// client expands snippets, and whether it honors a preselected item. The
+/// struct is `#[non_exhaustive]`. Build one with [`ClientSupport::new`], or
+/// through `Default` for a client that supports neither.
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub struct ClientSupport {
     /// Whether the client expands a completion snippet. Without it the
     /// markers are unwrapped, so no literal `$0` or placeholder reaches the
@@ -43,6 +46,16 @@ pub struct ClientSupport {
     /// Whether the client honors a preselected item. Without it the flag is
     /// withheld, so the client's own ranking stands.
     pub preselect: bool,
+}
+
+impl ClientSupport {
+    /// The switches for a client with the given snippet and preselect support.
+    pub fn new(snippets: bool, preselect: bool) -> Self {
+        Self {
+            snippets,
+            preselect,
+        }
+    }
 }
 
 /// One completion item with its edit as a byte range, before position encoding.
@@ -85,6 +98,12 @@ pub fn completion<F: Frontend + ?Sized>(
 /// exercise.
 fn raw_items<F: Frontend + ?Sized>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
     if let Some((parent, field)) = string_list_element(cx) {
+        // The scanned token can be the sequence dash, which is structure
+        // rather than element text. Replacing it would delete the marker and
+        // leave the element beside it outside any sequence.
+        if cx.ctx.token_text == "-" {
+            return Vec::new();
+        }
         // A value item renders its own quotes, so the range has to cover the
         // ones the operator already typed. The element token comes from a text
         // scan on this path, and a quote is not a value byte, so the scan stops
@@ -109,18 +128,24 @@ fn raw_items<F: Frontend + ?Sized>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
     }
 }
 
-/// A replace range grown to cover a quote directly outside each end.
+/// A replace range grown to cover a quote directly outside each end, double
+/// or single.
 ///
 /// An unterminated element has an opening quote and no closing one, so each side
-/// is grown on its own rather than as a pair.
+/// is grown on its own rather than as a pair. A zero-width cursor owns no text,
+/// so a quote beside it belongs to a neighboring element and the range stays
+/// where it is.
 fn widen_over_quotes(text: &str, token: (usize, usize)) -> (usize, usize) {
+    if token.0 == token.1 {
+        return token;
+    }
     let bytes = text.as_bytes();
     let start = match token.0.checked_sub(1) {
-        Some(before) if bytes.get(before) == Some(&b'"') => before,
+        Some(before) if matches!(bytes.get(before), Some(b'"' | b'\'')) => before,
         _ => token.0,
     };
     let end = match bytes.get(token.1) {
-        Some(&b'"') => token.1 + 1,
+        Some(b'"' | b'\'') => token.1 + 1,
         _ => token.1,
     };
     (start, end)
@@ -232,10 +257,7 @@ mod tests {
         SchemaField::new(
             name.to_string(),
             None,
-            SchemaType::Scalar {
-                leaf: ScalarType::Int,
-                constraint: None,
-            },
+            SchemaType::scalar(ScalarType::Int, None),
         )
         .required()
     }
@@ -244,10 +266,10 @@ mod tests {
         SchemaField::new(
             name.to_string(),
             None,
-            SchemaType::Scalar {
-                leaf: ScalarType::String,
-                constraint: Some(Constraint::Keywords(&["enforce", "log"])),
-            },
+            SchemaType::scalar(
+                ScalarType::String,
+                Some(Constraint::Keywords(&["enforce", "log"])),
+            ),
         )
         .required()
     }

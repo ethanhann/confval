@@ -1,0 +1,3 @@
+name = "edge-cache"
+kind = "tracing"
+port = 99999

@@ -10,8 +10,8 @@
 //! impls.
 //!
 //! The model is owned and borrows nothing from the format's AST. Config
-//! files are small, so the one copy out of the parse tree is cheap and removes
-//! every dependence on one format's node types.
+//! files are small. The copy removes every dependence on one format's node
+//! types.
 
 use crate::diagnostic::Report;
 use crate::source::{Located, SourceId, Span};

@@ -101,10 +101,7 @@ fn complete<F: Frontend>(
         },
         &index,
         ENCODING,
-        ClientSupport {
-            snippets,
-            preselect,
-        },
+        ClientSupport::new(snippets, preselect),
     )
 }
 

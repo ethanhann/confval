@@ -5,7 +5,7 @@
 //! below, so it is a testing convenience rather than a real deployment. The real
 //! server names its own root spec and is in the snakeway repository.
 //!
-//! The demo spec mirrors the crate's test fixture, so the sample documents in
+//! The demo spec mirrors the shape of the crate's test fixture, so the sample documents in
 //! `dev/sample_configs/` parse against it.
 
 use std::collections::BTreeMap;
@@ -181,7 +181,7 @@ impl Validate for ServerSpec {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn main() -> Result<(), confval_lsp::LspError> {
     match std::env::args().nth(1).as_deref() {
         Some("toml") => serve::<ServerSpec, Toml>(Toml),
         Some("kdl") => serve::<ServerSpec, Kdl>(Kdl),

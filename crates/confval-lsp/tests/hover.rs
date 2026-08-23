@@ -509,3 +509,20 @@ fn yaml_hover_on_a_list_element_names_the_list() {
     assert!(body.contains("string list"), "body: {body}");
     assert!(body.contains("One of: enforce, log, off."), "body: {body}");
 }
+
+#[test]
+fn yaml_hover_on_a_list_element_reports_the_list_as_set() {
+    // Arrange
+    // The element path descends into the list, so the set state has to read
+    // from the level that holds the list's own key.
+    let text = "modes:\n  - \"enforce\"\n";
+
+    // Act
+    let body = yaml_hover_body(text, "enforce").expect("a hover is produced");
+
+    // Assert
+    assert!(
+        body.contains("Set by the configuration."),
+        "the cursor sits on the list's own value, body: {body}"
+    );
+}

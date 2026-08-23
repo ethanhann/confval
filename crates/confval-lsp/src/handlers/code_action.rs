@@ -47,7 +47,10 @@ pub fn code_action<F: Frontend + ?Sized>(
     let Some(target) = enclosing.fields.iter().find(|f| &f.name == field) else {
         return Vec::new();
     };
-    let SchemaType::Scalar { leaf, constraint } = &target.ty else {
+    let SchemaType::Scalar {
+        leaf, constraint, ..
+    } = &target.ty
+    else {
         return Vec::new();
     };
     // A reference names another block's label, so its default, if any, is not

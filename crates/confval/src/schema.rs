@@ -62,9 +62,11 @@ pub struct SchemaField {
     /// not the child struct's doc that the template walk folds in for a docless
     /// block. A block's own documentation is the child level's [`Schema::doc`].
     pub doc: Option<String>,
-    /// Whether an absent field is a parse error. It is `structurally_required
-    /// && !has_default`: false for an `Option` field, false for a zero-or-more
-    /// block list, and false for any field with a `#[confval(default)]`.
+    /// Whether an absent field is a parse error.
+    ///
+    /// The value is `structurally_required && !has_default`. It is false for an
+    /// `Option` field, a zero-or-more block list, and any field with a
+    /// `#[confval(default)]`.
     pub required: bool,
     /// Whether the field declares a `#[confval(default)]`. For an optional
     /// nested block this records the `#[confval(nested, default)]` populate
@@ -72,15 +74,19 @@ pub struct SchemaField {
     /// default, so a hover should not read it as filled when absent.
     pub has_default: bool,
     /// The default value rendered to text, for a scalar leaf that declares one,
-    /// or `None`. The derive evaluates the default expression when `schema()`
-    /// runs and renders it per leaf: a string as its text, an integer and a
-    /// boolean through their display forms, a float in the form the emitters
-    /// write so a whole number keeps its `.0`, and a path through its lossy
-    /// string form. A defaulted list, map, or block carries `None`, because
-    /// there is no single value to render. The reader pairs the text with the
-    /// field's leaf type to know what it holds. The evaluation runs wherever
-    /// `schema()` runs, including inside a long-running language server, so a
-    /// default expression must not panic and must not carry side effects.
+    /// or `None`.
+    ///
+    /// The derive evaluates the default expression when `schema()` runs and
+    /// renders it per leaf: a string as its text, an integer and a boolean
+    /// through their display forms, a float in the form the emitters write
+    /// (a whole number keeps its `.0`), and a path through its lossy string
+    /// form. A defaulted list, map, or block carries `None`, because there is
+    /// no single value to render. The reader pairs the text with the field's
+    /// leaf type to know what it holds.
+    ///
+    /// The evaluation runs wherever `schema()` runs, including inside a
+    /// long-running language server. A default expression must not panic and
+    /// must not carry side effects.
     pub default_text: Option<String>,
     /// The field's declared type.
     pub ty: SchemaType,
@@ -95,6 +101,7 @@ pub struct SchemaField {
 #[non_exhaustive]
 pub enum SchemaType {
     /// A single scalar leaf, with the constraint it declares, if any.
+    #[non_exhaustive]
     Scalar {
         /// The leaf's config-level type.
         leaf: ScalarType,
@@ -188,11 +195,16 @@ pub enum ScalarType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Constraint {
-    /// The allowed strings of a `keyword_enum!`, in declaration order.
+    /// The allowed strings of a `keyword_enum!`, in declaration order. This
+    /// variant is not `#[non_exhaustive]`. A `#[non_exhaustive]` tuple
+    /// variant cannot be matched outside its crate, and matching is how a
+    /// caller binds the set. A richer keyword constraint arrives as a new
+    /// variant.
     Keywords(&'static [&'static str]),
     /// An inclusive numeric range, with its bounds rendered to text for a
     /// text-facing hover or diagnostic line. `help` carries the constraint's
     /// custom help line for the hover, or `None`.
+    #[non_exhaustive]
     Range {
         /// The smallest allowed value, rendered to text.
         min: String,
@@ -209,10 +221,41 @@ pub enum Constraint {
     /// outward from the reference's enclosing block to the nearest enclosing
     /// scope that declares a labeled block field of that name. The root is
     /// searched last. The value is checked against that scope's labels.
+    #[non_exhaustive]
     References {
         /// The config field name of the referenced labeled block.
         block: &'static str,
     },
+}
+
+/// The generated walk and a handwritten impl build a constraint through
+/// these constructors. `Range` and `References` are `#[non_exhaustive]`, so a
+/// struct literal for either does not compile outside this crate.
+impl Constraint {
+    /// Builds a keyword-set constraint over `words`, in declaration order.
+    pub fn keywords(words: &'static [&'static str]) -> Self {
+        Self::Keywords(words)
+    }
+
+    /// Builds an inclusive numeric range with its rendered bounds.
+    pub fn range(
+        min: String,
+        max: String,
+        units: Option<&'static str>,
+        help: Option<&'static str>,
+    ) -> Self {
+        Self::Range {
+            min,
+            max,
+            units,
+            help,
+        }
+    }
+
+    /// Builds a reference to the labels of the named block field.
+    pub fn references(block: &'static str) -> Self {
+        Self::References { block }
+    }
 }
 
 impl Schema {

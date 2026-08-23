@@ -73,13 +73,7 @@ mod tests {
     fn a_scalar_writes_a_key_and_equals() {
         // Arrange, Act
         let insert = Hcl.insert_text(
-            &field(
-                "port",
-                SchemaType::Scalar {
-                    leaf: ScalarType::Int,
-                    constraint: None,
-                },
-            ),
+            &field("port", SchemaType::scalar(ScalarType::Int, None)),
             &[],
         );
 

@@ -15,7 +15,8 @@ mod validate;
 pub use lower::{Lower, LowerAuto};
 
 pub use references::check_references;
-#[cfg(feature = "internal-navigation")]
+#[cfg(feature = "__internal-navigation")]
+#[doc(hidden)]
 pub use references::{
     ReferenceSite, Scope, declares_labeled_block, scope_labels, visit_references,
 };

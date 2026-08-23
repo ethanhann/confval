@@ -35,10 +35,11 @@ use core::ops::ControlFlow;
 /// Closing that gap is what the traversal is for.
 ///
 /// `validate_all` also runs the recorded constraint checks through
-/// [`validate_recorded`](ValidateNested::validate_recorded), so a scalar field
+/// [`validate_recorded`](ValidateNested::validate_recorded), so a field
 /// that declares `#[confval(range = ...)]` or `#[confval(keywords = ...)]` is
-/// checked without a line in `validate`. `validate` then holds only the rules an
-/// attribute cannot express, such as a cross-field rule or a keyword list.
+/// checked without a line in `validate`. This covers a string list carrying a
+/// keyword set. `validate` then holds only the rules an attribute cannot
+/// express, such as a cross-field rule or a non-emptiness check.
 ///
 /// ```ignore
 /// // The range is recorded on the field, so the derive checks it and the
@@ -142,7 +143,7 @@ pub trait ValidateNested {
     /// Runs [`Validate::validate_all`] on every nested child of this value.
     fn validate_nested(&self, report: &mut Report);
 
-    /// Runs this level's own recorded constraint checks, the ones a scalar field
+    /// Runs this level's own recorded constraint checks, the ones a field
     /// declares with `#[confval(range = ...)]` or `#[confval(keywords = ...)]`.
     ///
     /// The default runs nothing, so a handwritten impl keeps its checks in its

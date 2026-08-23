@@ -151,10 +151,7 @@ mod tests {
         let label = SchemaField::new(
             "id".to_string(),
             None,
-            SchemaType::Scalar {
-                leaf: ScalarType::String,
-                constraint: None,
-            },
+            SchemaType::scalar(ScalarType::String, None),
         )
         .required()
         .as_label();

@@ -99,7 +99,7 @@ fn label_site<'a>(schema: &'a Schema, ctx: &'a CursorContext) -> Option<LabelSit
             let enclosing = schema_at(schema, &ctx.path)?;
             let target = enclosing.fields.iter().find(|f| &f.name == field)?;
             if let SchemaType::Scalar {
-                constraint: Some(Constraint::References { block }),
+                constraint: Some(Constraint::References { block, .. }),
                 ..
             } = &target.ty
             {
