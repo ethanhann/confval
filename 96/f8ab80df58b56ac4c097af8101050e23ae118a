@@ -1,0 +1,21 @@
+docs/package.json
+  s_305d8bf077bcda::t_3035689bdddd97 23
+docs/docusaurus.config.ts
+  s_305d8bf077bcda::t_316988593bafe3 34-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "96f8ab80df58b56ac4c097af8101050e23ae118a",
+  "prompts": {},
+  "sessions": {
+    "s_305d8bf077bcda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8298548-5019-4adf-8b7a-e81257c2fb34",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
