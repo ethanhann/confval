@@ -316,6 +316,7 @@ fn a_range_field_renders_its_bounds_to_text() {
         max,
         units,
         help,
+        ..
     }) = constraint(&schema, "port")
     else {
         panic!("port should carry a range");

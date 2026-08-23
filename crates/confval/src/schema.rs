@@ -189,11 +189,15 @@ pub enum ScalarType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Constraint {
-    /// The allowed strings of a `keyword_enum!`, in declaration order.
+    /// The allowed strings of a `keyword_enum!`, in declaration order. The
+    /// variant stays open, because a `#[non_exhaustive]` tuple variant cannot
+    /// be matched outside this crate, and a reader has to bind the set. A
+    /// richer keyword constraint arrives as a new variant instead.
     Keywords(&'static [&'static str]),
     /// An inclusive numeric range, with its bounds rendered to text for a
     /// text-facing hover or diagnostic line. `help` carries the constraint's
     /// custom help line for the hover, or `None`.
+    #[non_exhaustive]
     Range {
         /// The smallest allowed value, rendered to text.
         min: String,
@@ -210,10 +214,41 @@ pub enum Constraint {
     /// outward from the reference's enclosing block to the nearest enclosing
     /// scope that declares a labeled block field of that name. The root is
     /// searched last. The value is checked against that scope's labels.
+    #[non_exhaustive]
     References {
         /// The config field name of the referenced labeled block.
         block: &'static str,
     },
+}
+
+impl Constraint {
+    /// Builds a keyword-set constraint. The generated walk and a handwritten
+    /// impl call these constructors rather than struct literals, because the
+    /// variants are `#[non_exhaustive]` so a later field lands without a
+    /// break, mirroring the [`SchemaType`] constructors.
+    pub fn keywords(words: &'static [&'static str]) -> Self {
+        Self::Keywords(words)
+    }
+
+    /// Builds an inclusive numeric range with its rendered bounds.
+    pub fn range(
+        min: String,
+        max: String,
+        units: Option<&'static str>,
+        help: Option<&'static str>,
+    ) -> Self {
+        Self::Range {
+            min,
+            max,
+            units,
+            help,
+        }
+    }
+
+    /// Builds a reference to the labels of the named block field.
+    pub fn references(block: &'static str) -> Self {
+        Self::References { block }
+    }
 }
 
 impl Schema {

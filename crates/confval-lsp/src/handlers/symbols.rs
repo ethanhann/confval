@@ -28,7 +28,10 @@ struct RawSymbol {
 }
 
 /// The two answers that shape a symbol response: the frontend's block-span
-/// form and the client's hierarchy support.
+/// form and the client's hierarchy support. The struct is
+/// `#[non_exhaustive]`, so a later answer lands without a break, and a caller
+/// builds one with [`SymbolShape::new`].
+#[non_exhaustive]
 pub struct SymbolShape {
     /// The frontend's block-span answer. When a block's span covers only its
     /// header, the container's range extends to the next sibling or the level
@@ -38,6 +41,17 @@ pub struct SymbolShape {
     /// Whether the client renders the hierarchical tree. Without it the flat
     /// form answers.
     pub hierarchical: bool,
+}
+
+impl SymbolShape {
+    /// The shape for a frontend's block-span answer and a client's hierarchy
+    /// support.
+    pub fn new(covers_body: bool, hierarchical: bool) -> Self {
+        Self {
+            covers_body,
+            hierarchical,
+        }
+    }
 }
 
 /// The build inputs every level shares: the frontend's block-span answer and

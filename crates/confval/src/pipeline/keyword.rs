@@ -38,15 +38,21 @@ impl<'a> KeywordSet<'a> {
         Self { allowed }
     }
 
-    /// Reports an error unless `value` is one of the allowed keywords. The
-    /// message is `unknown {field}: {value}` with a help line of
+    /// Reports `unknown {field}: {value}` unless `value` is one of the
+    /// allowed keywords, with a help line of
     /// `expected one of: <comma-joined options>`.
     pub fn check_located(&self, value: &Located<String>, field: &str, report: &mut Report) {
+        self.report_unknown(value, format!("unknown {field}: {}", value.value), report);
+    }
+
+    /// Reports one disallowed value with the given message and the shared
+    /// options help line, unless the value is allowed.
+    fn report_unknown(&self, value: &Located<String>, message: String, report: &mut Report) {
         if self.allowed.contains(&value.value.as_str()) {
             return;
         }
         report
-            .error(format!("unknown {field}: {}", value.value))
+            .error(message)
             .at(value.span)
             .help(format!("expected one of: {}", self.allowed.join(", ")))
             .emit();
@@ -68,10 +74,10 @@ impl<'a> KeywordSet<'a> {
         }
     }
 
-    /// Checks every element of a list field named by the field itself, reporting
-    /// each bad element at its own span.
+    /// Reports `unknown value in {field}: {value}` for every disallowed
+    /// element, each at its own span.
     ///
-    /// The message is `unknown value in {field}: {value}`, which reads correctly
+    /// The message names the list, which reads correctly
     /// whatever the field is called. A list field is conventionally plural, so
     /// `check_each` would report `unknown modes: nope` for a field named
     /// `modes`. Use [`check_each`](KeywordSet::check_each) instead when you have
@@ -82,14 +88,11 @@ impl<'a> KeywordSet<'a> {
     /// the derive knows the field name and not the name of one element.
     pub fn check_each_in(&self, values: &[Located<String>], field: &str, report: &mut Report) {
         for value in values {
-            if self.allowed.contains(&value.value.as_str()) {
-                continue;
-            }
-            report
-                .error(format!("unknown value in {field}: {}", value.value))
-                .at(value.span)
-                .help(format!("expected one of: {}", self.allowed.join(", ")))
-                .emit();
+            self.report_unknown(
+                value,
+                format!("unknown value in {field}: {}", value.value),
+                report,
+            );
         }
     }
 }

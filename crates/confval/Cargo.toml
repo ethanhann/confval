@@ -36,7 +36,7 @@ derive = ["dep:confval-derive"]
 layering = []
 # The reference scope walk, for editor tooling such as confval-lsp. The
 # surface is internal and may change in any release.
-internal-navigation = []
+__internal-navigation = []
 
 [dependencies]
 serde = { workspace = true, features = ["derive"], optional = true }
@@ -195,7 +195,7 @@ required-features = ["derive"]
 
 [[test]]
 name = "references"
-required-features = ["derive", "hcl", "toml", "kdl", "json", "yaml", "internal-navigation"]
+required-features = ["derive", "hcl", "toml", "kdl", "json", "yaml", "__internal-navigation"]
 
 [[test]]
 name = "handwritten_parity"

@@ -268,10 +268,7 @@ fn hierarchical_symbols_nest_the_blocks_with_their_labels() {
     let response = document_symbols(
         &schema,
         &tree,
-        SymbolShape {
-            covers_body: true,
-            hierarchical: true,
-        },
+        SymbolShape::new(true, true),
         &uri,
         text,
         &index,
@@ -312,10 +309,7 @@ fn each_repeated_instance_range_contains_its_own_children() {
     let response = document_symbols(
         &schema,
         &tree,
-        SymbolShape {
-            covers_body: true,
-            hierarchical: true,
-        },
+        SymbolShape::new(true, true),
         &uri,
         text,
         &index,
@@ -361,10 +355,7 @@ fn a_leaf_selection_covers_the_field_name() {
     let response = document_symbols(
         &schema,
         &tree,
-        SymbolShape {
-            covers_body: true,
-            hierarchical: true,
-        },
+        SymbolShape::new(true, true),
         &uri,
         text,
         &index,
@@ -408,10 +399,7 @@ fn toml_container_ranges_contain_their_children() {
     let response = document_symbols(
         &schema,
         &tree,
-        SymbolShape {
-            covers_body: Toml.block_span_covers_body(),
-            hierarchical: true,
-        },
+        SymbolShape::new(Toml.block_span_covers_body(), true),
         &uri,
         text,
         &index,
@@ -451,10 +439,7 @@ fn the_flat_form_lists_every_symbol_with_its_container() {
     let response = document_symbols(
         &schema,
         &tree,
-        SymbolShape {
-            covers_body: true,
-            hierarchical: false,
-        },
+        SymbolShape::new(true, false),
         &uri,
         text,
         &index,
@@ -485,10 +470,7 @@ fn symbol_kinds_cover_the_field_shapes() {
     let response = document_symbols(
         &schema,
         &tree,
-        SymbolShape {
-            covers_body: true,
-            hierarchical: true,
-        },
+        SymbolShape::new(true, true),
         &uri,
         text,
         &index,
@@ -517,10 +499,7 @@ fn toml_repeated_table_symbols_do_not_overlap() {
     let response = document_symbols(
         &schema,
         &tree,
-        SymbolShape {
-            covers_body: Toml.block_span_covers_body(),
-            hierarchical: true,
-        },
+        SymbolShape::new(Toml.block_span_covers_body(), true),
         &doc_uri(),
         text,
         &index,
@@ -708,10 +687,7 @@ fn hcl_native_label_details_the_container_symbol() {
     let response = document_symbols(
         &schema,
         &tree,
-        SymbolShape {
-            covers_body: true,
-            hierarchical: true,
-        },
+        SymbolShape::new(true, true),
         &doc_uri(),
         text,
         &index,
@@ -741,10 +717,7 @@ fn a_single_nested_block_is_a_container_symbol() {
     let response = document_symbols(
         &schema,
         &tree,
-        SymbolShape {
-            covers_body: true,
-            hierarchical: true,
-        },
+        SymbolShape::new(true, true),
         &doc_uri(),
         text,
         &index,

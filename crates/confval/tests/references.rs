@@ -388,7 +388,7 @@ fn the_schema_records_the_label_field_and_the_reference() {
         reference.ty,
         SchemaType::scalar(
             confval::schema::ScalarType::String,
-            Some(Constraint::References { block: "upstream" })
+            Some(Constraint::references("upstream"))
         )
     );
 }

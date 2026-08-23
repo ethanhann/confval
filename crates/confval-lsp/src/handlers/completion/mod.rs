@@ -33,8 +33,11 @@ use encode::encode_item;
 use values::value_items;
 
 /// The client's completion switches, read once at initialization: whether the
-/// client expands snippets, and whether it honors a preselected item.
+/// client expands snippets, and whether it honors a preselected item. The
+/// struct is `#[non_exhaustive]`, because the protocol grows a switch most
+/// revisions, so build one with [`ClientSupport::new`] or through `Default`.
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub struct ClientSupport {
     /// Whether the client expands a completion snippet. Without it the
     /// markers are unwrapped, so no literal `$0` or placeholder reaches the
@@ -43,6 +46,16 @@ pub struct ClientSupport {
     /// Whether the client honors a preselected item. Without it the flag is
     /// withheld, so the client's own ranking stands.
     pub preselect: bool,
+}
+
+impl ClientSupport {
+    /// The switches for a client with the given snippet and preselect support.
+    pub fn new(snippets: bool, preselect: bool) -> Self {
+        Self {
+            snippets,
+            preselect,
+        }
+    }
 }
 
 /// One completion item with its edit as a byte range, before position encoding.

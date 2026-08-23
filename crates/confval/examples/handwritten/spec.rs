@@ -227,12 +227,12 @@ impl ToSchema for ServiceSpec {
         };
         let workers = SchemaType::scalar(
             ScalarType::Int,
-            Some(Constraint::Range {
-                min: WORKERS.min.to_string(),
-                max: WORKERS.max.to_string(),
-                units: WORKERS.units,
-                help: WORKERS.help,
-            }),
+            Some(Constraint::range(
+                WORKERS.min.to_string(),
+                WORKERS.max.to_string(),
+                WORKERS.units,
+                WORKERS.help,
+            )),
         );
         Schema::new(
             None,

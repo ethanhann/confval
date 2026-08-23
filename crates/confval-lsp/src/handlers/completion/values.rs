@@ -73,7 +73,7 @@ pub(super) fn value_items<F: Frontend + ?Sized>(
             })
             .collect(),
         SchemaType::Scalar {
-            constraint: Some(Constraint::References { block }),
+            constraint: Some(Constraint::References { block, .. }),
             ..
         } => reference_items(block, separator, cx),
         // A boolean is its own closed set. A written value offers the literal

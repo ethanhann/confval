@@ -29,7 +29,7 @@ use lsp_types::{
     TextDocumentPositionParams, Uri, VersionedTextDocumentIdentifier,
 };
 
-use confval_lsp::{Binding, Hcl, LspError, Matcher, Router, Server, bind};
+use confval_lsp::{Binding, Hcl, LspError, Matcher, Router, bind};
 use fixture::{GatewaySpec, RelaySpec, ServerSpec};
 
 /// The client end of a server running on its own thread.
@@ -63,12 +63,9 @@ impl Client {
         Client::handshake(client_conn, handle)
     }
 
-    /// Starts the one binding `Server` the way `serve` builds it.
+    /// Starts the one binding router the way `serve` builds it.
     fn single() -> Client {
-        let (server_conn, client_conn) = Connection::memory();
-        let handle =
-            std::thread::spawn(move || Server::<ServerSpec, Hcl>::new(Hcl).run(&server_conn));
-        Client::handshake(client_conn, handle)
+        Client::multi(vec![bind::<ServerSpec, Hcl>(Matcher::Any, Hcl)])
     }
 
     fn handshake(connection: Connection, handle: JoinHandle<Result<(), LspError>>) -> Client {

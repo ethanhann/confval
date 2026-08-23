@@ -323,12 +323,12 @@ fn leaf_constraint(leaf: &Leaf, recorded: Recorded<'_>) -> syn::Result<TokenStre
             };
             Ok(quote! {
                 ::core::option::Option::Some(
-                    ::confval::schema::Constraint::Range {
-                        min: #min,
-                        max: #max,
-                        units: #path.units,
-                        help: #path.help,
-                    },
+                    ::confval::schema::Constraint::range(
+                        #min,
+                        #max,
+                        #path.units,
+                        #path.help,
+                    ),
                 )
             })
         }
@@ -339,18 +339,18 @@ fn leaf_constraint(leaf: &Leaf, recorded: Recorded<'_>) -> syn::Result<TokenStre
             let block = block.unraw().to_string();
             Ok(quote! {
                 ::core::option::Option::Some(
-                    ::confval::schema::Constraint::References { block: #block },
+                    ::confval::schema::Constraint::references(#block),
                 )
             })
         }
     }
 }
 
-/// The `Constraint::Keywords` expression reading a `keyword_enum!` type's set.
+/// The `Constraint::keywords` expression reading a `keyword_enum!` type's set.
 fn keywords_tokens(path: &Path) -> TokenStream2 {
     quote! {
         ::core::option::Option::Some(
-            ::confval::schema::Constraint::Keywords(&#path::KEYWORDS),
+            ::confval::schema::Constraint::keywords(&#path::KEYWORDS),
         )
     }
 }

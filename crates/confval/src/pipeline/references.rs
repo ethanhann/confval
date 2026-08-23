@@ -69,7 +69,7 @@ impl Scope<'_> {
     /// Whether `body` is this scope's own instance body. Identity is by
     /// instance rather than by value, so two equal bodies from different
     /// instances do not match.
-    #[cfg(feature = "internal-navigation")]
+    #[cfg(feature = "__internal-navigation")]
     pub fn same_instance(&self, body: &Fields) -> bool {
         std::ptr::eq(self.body, body)
     }
@@ -82,7 +82,7 @@ impl Scope<'_> {
 /// In the scoped form, a site whose search stays inside the walk resolves
 /// against the walk's own chain, and the root scope it reports is the same
 /// instance the caller passed, which [`Scope::same_instance`] checks.
-#[cfg(feature = "internal-navigation")]
+#[cfg(feature = "__internal-navigation")]
 pub fn visit_references<'a>(
     fields: &'a Fields,
     schema: &'a Schema,

@@ -181,7 +181,7 @@ impl Validate for ServerSpec {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn main() -> Result<(), confval_lsp::LspError> {
     match std::env::args().nth(1).as_deref() {
         Some("toml") => serve::<ServerSpec, Toml>(Toml),
         Some("kdl") => serve::<ServerSpec, Kdl>(Kdl),

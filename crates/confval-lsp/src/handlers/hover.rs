@@ -46,7 +46,7 @@ pub fn hover(cx: &Cx, index: &LineIndex, encoding: PositionEncoding) -> Option<H
     if let PositionKind::AttributeValue { field } = &ctx.kind
         && let Some(target) = enclosing.fields.iter().find(|f| &f.name == field)
         && let SchemaType::Scalar {
-            constraint: Some(Constraint::References { block }),
+            constraint: Some(Constraint::References { block, .. }),
             ..
         } = &target.ty
     {
@@ -267,12 +267,13 @@ fn constraint_of(ty: &SchemaType) -> Option<&Constraint> {
 fn constraint_label(constraint: &Constraint) -> String {
     match constraint {
         Constraint::Keywords(words) => format!("One of: {}.", words.join(", ")),
-        Constraint::References { block } => format!("References the `{block}` block."),
+        Constraint::References { block, .. } => format!("References the `{block}` block."),
         Constraint::Range {
             min,
             max,
             units,
             help,
+            ..
         } => {
             let unit = units.map(|unit| format!(" {unit}")).unwrap_or_default();
             let mut label = format!("Between {min} and {max}{unit}.");
@@ -321,18 +322,13 @@ mod tests {
     #[test]
     fn constraint_labels_render_keywords_and_ranges() {
         // Arrange
-        let range = Constraint::Range {
-            min: "1".to_string(),
-            max: "65535".to_string(),
-            units: Some("ports"),
-            help: Some("Pick an open port."),
-        };
-        let bare = Constraint::Range {
-            min: "1".to_string(),
-            max: "16".to_string(),
-            units: None,
-            help: None,
-        };
+        let range = Constraint::range(
+            "1".to_string(),
+            "65535".to_string(),
+            Some("ports"),
+            Some("Pick an open port."),
+        );
+        let bare = Constraint::range("1".to_string(), "16".to_string(), None, None);
 
         // Act, Assert
         assert_eq!(
