@@ -24,7 +24,7 @@ Only an input that produced no tree (a syntax error) stops the load.
 
 Validation checks ranges, closed sets, and cross-field rules against the spans stored in `Located` fields.
 Rules live in two places: a `Validate` impl on a spec type, which takes `&self` and `&mut Report`, and validator functions you write and call yourself.
-[Validation](./guide/validation.md#where-a-rule-lives) covers which rule goes where.
+[Validation](./guide/validation.md#writing-a-validate-impl) covers which rule goes where.
 
 One call runs the impls:
 
@@ -36,7 +36,7 @@ spec.validate_all(&mut report);
 The descent comes from `#[derive(Spec)]`.
 A nested block added later is therefore validated without editing a validator.
 Calling `validate` checks the root only and does not descend.
-[Validation](./guide/validation.md#validate-impl-contains-the-rules-validate_all-runs-them) covers the distinction.
+[Validation](./guide/validation.md#the-traversal-validate-vs-validate_all) covers the distinction.
 
 Validation never panics.
 Every validator appends issues to the report.
