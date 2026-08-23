@@ -83,9 +83,8 @@ fn field_hover(
     encoding: PositionEncoding,
 ) -> Option<Hover> {
     let field = enclosing.fields.iter().find(|field| field.name == name)?;
-    // `level` is the body whose members the state reads, and `None` when
-    // there is no parse to read it from, so the state is unknown rather than
-    // "not set".
+    // `None` means there is no parse to read the state from, so the state is
+    // unknown rather than "not set".
     let set = level.map(|level| level.has(name));
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent {

@@ -431,8 +431,8 @@ fn token_around(text: &str, offset: usize, is_member: fn(u8) -> bool) -> (usize,
 
 /// Whether a byte is part of a scalar value token. Whitespace and the structural
 /// delimiters bound the token, so it stays within one value on one line. The
-/// completion separator reads it too: a value byte beside an edit is text the
-/// inserted value would fuse with.
+/// completion separator reads it too. A value byte beside an edit is text the
+/// inserted value would run into.
 pub(crate) fn is_value_byte(byte: u8) -> bool {
     !byte.is_ascii_whitespace() && !matches!(byte, b'=' | b'{' | b'}' | b'[' | b']' | b',')
 }

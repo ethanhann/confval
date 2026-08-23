@@ -8,7 +8,7 @@
 //! initialization, updates the document store on open and change
 //! notifications, and answers the completion, hover, and diagnostic requests
 //! by calling the handlers. [`serve`] binds one root spec and one frontend
-//! over the same router, for a single shape consumer.
+//! over the same router, for a configuration of one document shape.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -44,12 +44,12 @@ use crate::handlers;
 
 /// The error the entry points and [`Router`] return.
 ///
-/// It wraps whatever failed underneath, transport, protocol, or the empty
-/// binding refusal, and renders through `Display`. The wrapper is opaque so a
-/// later release can add structure, such as a kind a host branches on,
-/// without changing any signature. It does not implement the `Error` trait,
-/// which lets the blanket conversion accept every error type through the
-/// question mark.
+/// It wraps whatever failed underneath, whether transport, protocol, or the
+/// refusal of an empty binding list, and renders it through `Display`. Every
+/// error type converts into it, so `?` works inside a function returning it.
+/// It does not implement `std::error::Error`, so a `main` returning
+/// `anyhow::Result<()>` or `Result<(), Box<dyn Error>>` does not accept it
+/// directly.
 pub struct LspError(Box<dyn std::error::Error + Send + Sync>);
 
 impl fmt::Display for LspError {

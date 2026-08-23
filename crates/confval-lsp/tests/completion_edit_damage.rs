@@ -1,7 +1,6 @@
-//! Applied-edit tests for value completion: each case accepts an item the way
-//! an editor would, applies the replace edit to the buffer, and checks the
-//! result, so an edit that fuses with or deletes neighboring text cannot ship
-//! unnoticed. The range-level suites pin where an edit lands, and this suite
+//! Applied-edit tests for value completion. Each case accepts an item the
+//! way an editor would, applies the replace edit to the buffer, and checks
+//! the result. The range-level suites pin where an edit lands. This suite
 //! pins what the buffer holds afterward.
 #![cfg(feature = "hcl")]
 

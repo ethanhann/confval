@@ -37,9 +37,9 @@ use core::ops::ControlFlow;
 /// `validate_all` also runs the recorded constraint checks through
 /// [`validate_recorded`](ValidateNested::validate_recorded), so a field
 /// that declares `#[confval(range = ...)]` or `#[confval(keywords = ...)]` is
-/// checked without a line in `validate`, a keyword list included. `validate`
-/// then holds only the rules an attribute cannot express, such as a
-/// cross-field rule or a non-emptiness check.
+/// checked without a line in `validate`. This covers a string list carrying a
+/// keyword set. `validate` then holds only the rules an attribute cannot
+/// express, such as a cross-field rule or a non-emptiness check.
 ///
 /// ```ignore
 /// // The range is recorded on the field, so the derive checks it and the

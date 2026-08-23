@@ -199,14 +199,14 @@ fn value_of_expr(expr: &Expression, text: &str, source: SourceId, report: &mut R
 
 /// Converts a parsed number into a value kind. hcl-edit collapses a
 /// whole-valued float literal into an integer with a saturating cast, and it
-/// saturates an integer literal past the `i64` range instead of refusing it,
-/// which silently changes the number the author wrote. The literal's own text
-/// is the authority: a literal written as a float, with a dot or an exponent,
-/// is re-read from the source, and an integer literal is re-read the same
-/// way, so a value the text cannot hold reports as an oversized integer, the
-/// diagnostic the other frontends produce for the same input. A negation may
-/// carry whitespace between the sign and the digits, which the standard
-/// parsers do not accept, so the literal is compacted first.
+/// saturates an integer literal past the `i64` range instead of refusing it.
+/// Either case silently changes the number the author wrote, so the literal's
+/// own text decides the kind instead. A literal with a dot or an exponent is
+/// re-read as a float, and every other literal is re-read as an integer, so a
+/// value `i64` cannot hold reports as an oversized integer, matching the
+/// JSON, KDL, and YAML frontends. A negation may carry whitespace between the
+/// sign and the digits, which the standard parsers do not accept, so the
+/// literal is compacted first.
 fn scalar_of_number(number: &hcl_edit::Number, span: Span, text: &str) -> ValueKind {
     let compact: String = text
         .get(span.start as usize..span.end as usize)

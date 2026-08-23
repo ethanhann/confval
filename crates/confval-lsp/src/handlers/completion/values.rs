@@ -39,8 +39,8 @@ pub(super) fn value_items<F: Frontend + ?Sized>(
     // element or its punctuation. The formats that separate values with
     // punctuation have no separator to write there, so an accepted item
     // would fuse with its neighbor or leave the next element without its
-    // comma, and offering nothing beats writing text the format cannot read.
-    // The whitespace format writes its separator instead, in `separated`.
+    // comma. Nothing is offered at such a position. The whitespace format
+    // writes its separator instead, in `separated`.
     let separator = frontend.value_separator();
     if cx.ctx.token.0 == cx.ctx.token.1
         && separator != ValueSeparator::Whitespace
@@ -198,11 +198,12 @@ fn separated(separator: ValueSeparator, cx: &Cx, value: String) -> String {
     result
 }
 
-/// Whether a zero-width insertion would fuse. It stands alone only when the
-/// left neighbor is an opening edge, a separator, whitespace, or the buffer
-/// start, and the right neighbor is a closing edge, whitespace, or the buffer
-/// end, so the inserted element neither runs into existing text nor leaves a
-/// following element without its comma.
+/// Whether a zero-width insertion at `at` would run into the text beside it.
+///
+/// It does not when the left neighbor is an opening bracket, a separator,
+/// whitespace, or the buffer start, and the right neighbor is a closing
+/// bracket, whitespace, or the buffer end. Anywhere else the inserted element
+/// runs into existing text, or leaves the element after it without its comma.
 fn insertion_fuses(bytes: &[u8], at: usize) -> bool {
     let left_clear = match at.checked_sub(1).and_then(|index| bytes.get(index)) {
         None => true,

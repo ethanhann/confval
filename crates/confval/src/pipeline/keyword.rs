@@ -77,12 +77,12 @@ impl<'a> KeywordSet<'a> {
     /// Reports `unknown value in {field}: {value}` for every disallowed
     /// element, each at its own span.
     ///
-    /// The message names the list, which reads correctly
-    /// whatever the field is called. A list field is conventionally plural, so
-    /// `check_each` would report `unknown modes: nope` for a field named
-    /// `modes`. Use [`check_each`](KeywordSet::check_each) instead when you have
-    /// a singular noun for one element, because `unknown mode: nope` is the
-    /// shorter sentence.
+    /// The message names the list rather than one element, so it reads
+    /// correctly whatever the field is called. A list field is conventionally
+    /// plural, so `check_each` would report `unknown modes: nope` for a field
+    /// named `modes`. Use [`check_each`](KeywordSet::check_each) instead when
+    /// you have a singular noun for one element, because `unknown mode: nope`
+    /// is the shorter sentence.
     ///
     /// This is the form `#[confval(keywords = ...)]` generates for a list, where
     /// the derive knows the field name and not the name of one element.

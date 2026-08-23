@@ -189,10 +189,11 @@ pub enum ScalarType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Constraint {
-    /// The allowed strings of a `keyword_enum!`, in declaration order. The
-    /// variant stays open, because a `#[non_exhaustive]` tuple variant cannot
-    /// be matched outside this crate, and a reader has to bind the set. A
-    /// richer keyword constraint arrives as a new variant instead.
+    /// The allowed strings of a `keyword_enum!`, in declaration order. This
+    /// variant is not `#[non_exhaustive]`. A `#[non_exhaustive]` tuple
+    /// variant cannot be matched outside its crate, and matching is how a
+    /// caller binds the set. A richer keyword constraint arrives as a new
+    /// variant.
     Keywords(&'static [&'static str]),
     /// An inclusive numeric range, with its bounds rendered to text for a
     /// text-facing hover or diagnostic line. `help` carries the constraint's
@@ -221,11 +222,11 @@ pub enum Constraint {
     },
 }
 
+/// The generated walk and a handwritten impl build a constraint through
+/// these constructors. `Range` and `References` are `#[non_exhaustive]`, so a
+/// struct literal for either does not compile outside this crate.
 impl Constraint {
-    /// Builds a keyword-set constraint. The generated walk and a handwritten
-    /// impl call these constructors rather than struct literals, because the
-    /// variants are `#[non_exhaustive]` so a later field lands without a
-    /// break, mirroring the [`SchemaType`] constructors.
+    /// Builds a keyword-set constraint over `words`, in declaration order.
     pub fn keywords(words: &'static [&'static str]) -> Self {
         Self::Keywords(words)
     }

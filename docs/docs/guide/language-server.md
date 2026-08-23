@@ -60,7 +60,8 @@ Bindings are tried in declaration order, and the first match wins.
 
 A matcher must not panic.
 When your rule hits a problem, such as an unreadable file, return `false` so the binding declines and the next one is tried.
-A panic drops the whole open silently, with no warning log, which is why the rule exists.
+A panic in a matcher is caught while the server handles the open, so the document is left unrouted with no diagnostics and no log line naming it.
+In a build with `panic = "abort"` the server process aborts instead.
 
 A document that matches no binding stays open but inert.
 It gets no diagnostics and empty answers, and the server logs a warning naming it, so a mismatch between the editor's file patterns and your bindings is visible rather than silent.
@@ -75,7 +76,7 @@ Sometimes your host already owns an `lsp-server` connection, such as a test harn
 `Router` is the server behind both `serve` functions, and you can run it over your own connection.
 
 ```rust
-use confval_lsp::{Matcher, Router, bind, serve_multi, Hcl};
+use confval_lsp::{Matcher, Router, bind, Hcl};
 
 let router = Router::new(vec![bind::<AppSpec, _>(Matcher::Any, Hcl)])?;
 router.run(&connection)?;

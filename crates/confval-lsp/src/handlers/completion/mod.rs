@@ -34,8 +34,8 @@ use values::value_items;
 
 /// The client's completion switches, read once at initialization: whether the
 /// client expands snippets, and whether it honors a preselected item. The
-/// struct is `#[non_exhaustive]`, because the protocol grows a switch most
-/// revisions, so build one with [`ClientSupport::new`] or through `Default`.
+/// struct is `#[non_exhaustive]`. Build one with [`ClientSupport::new`], or
+/// through `Default` for a client that supports neither.
 #[derive(Debug, Clone, Copy, Default)]
 #[non_exhaustive]
 pub struct ClientSupport {
@@ -98,9 +98,9 @@ pub fn completion<F: Frontend + ?Sized>(
 /// exercise.
 fn raw_items<F: Frontend + ?Sized>(frontend: &F, cx: &Cx) -> Vec<RawItem> {
     if let Some((parent, field)) = string_list_element(cx) {
-        // The scanned token can be the sequence dash itself, which is
-        // structure rather than element text, and an accepted item would
-        // replace the marker and orphan the element beside it.
+        // The scanned token can be the sequence dash, which is structure
+        // rather than element text. Replacing it would delete the marker and
+        // leave the element beside it outside any sequence.
         if cx.ctx.token_text == "-" {
             return Vec::new();
         }

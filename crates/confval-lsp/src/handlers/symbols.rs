@@ -29,8 +29,7 @@ struct RawSymbol {
 
 /// The two answers that shape a symbol response: the frontend's block-span
 /// form and the client's hierarchy support. The struct is
-/// `#[non_exhaustive]`, so a later answer lands without a break, and a caller
-/// builds one with [`SymbolShape::new`].
+/// `#[non_exhaustive]`. Build one with [`SymbolShape::new`].
 #[non_exhaustive]
 pub struct SymbolShape {
     /// The frontend's block-span answer. When a block's span covers only its
