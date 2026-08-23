@@ -1,0 +1,71 @@
+crates/confval/tests/schema.rs
+  s_f3b6a626a0036f::t_5bd330a668c3d7 319
+crates/confval-lsp/src/handlers/completion/mod.rs
+  s_f3b6a626a0036f::t_2c32cd4aec87f6 36-38,40,51-58
+  s_f3b6a626a0036f::t_806f45a50a7092 59-60
+crates/confval-lsp/tests/navigation.rs
+  s_f3b6a626a0036f::t_cdce1be16afa55 271,312,358,442,473,690,720
+  s_f3b6a626a0036f::t_7253c46a5fd971 402,502
+crates/confval-lsp/tests/completion.rs
+  s_f3b6a626a0036f::t_7253c46a5fd971 101
+crates/confval/Cargo.toml
+  s_f3b6a626a0036f::t_31eda86cfdb290 39,198
+crates/confval-lsp/tests/completion_json_toml.rs
+  s_f3b6a626a0036f::t_7253c46a5fd971 337
+crates/confval-lsp/src/handlers/completion/values.rs
+  s_f3b6a626a0036f::t_5bd330a668c3d7 76
+crates/confval/src/pipeline/mod.rs
+  s_f3b6a626a0036f::t_31eda86cfdb290 18-19
+crates/confval/tests/references.rs
+  s_f3b6a626a0036f::t_5bd330a668c3d7 391
+crates/confval-lsp/src/lib.rs
+  s_f3b6a626a0036f::t_aecde693efba6e 49
+crates/confval/src/pipeline/keyword.rs
+  s_f3b6a626a0036f::t_2c32cd4aec87f6 41-42,45-50,55,77-78,80,91-95
+crates/confval-lsp/src/handlers/symbols.rs
+  s_f3b6a626a0036f::t_2c32cd4aec87f6 31-34,46-54
+  s_f3b6a626a0036f::t_d50ab5ffcd1b0f 55-56
+crates/confval-lsp/examples/serve.rs
+  s_f3b6a626a0036f::t_dc689934a7af6e 184
+crates/confval/src/schema.rs
+  s_f3b6a626a0036f::t_b380ec89f32552 200,217,224-251
+  s_f3b6a626a0036f::t_55f78fee6a80f5 192-195
+  s_f3b6a626a0036f::t_1628ebe08c384b 252-253
+crates/confval-lsp/src/handlers/navigation.rs
+  s_f3b6a626a0036f::t_5bd330a668c3d7 102
+crates/confval/src/pipeline/references.rs
+  s_f3b6a626a0036f::t_31eda86cfdb290 72,85
+crates/confval-lsp/tests/server.rs
+  s_f3b6a626a0036f::t_aecde693efba6e 21,24-31,46,243,324,526
+crates/confval-lsp/Cargo.toml
+  s_f3b6a626a0036f::t_31eda86cfdb290 28
+crates/confval-lsp/tests/defaults.rs
+  s_f3b6a626a0036f::t_cfa2a6141e7a14 104
+crates/confval-lsp/src/handlers/hover.rs
+  s_f3b6a626a0036f::t_5bd330a668c3d7 49,270,276,325-331
+crates/confval/examples/handwritten/spec.rs
+  s_f3b6a626a0036f::t_5bd330a668c3d7 230-235
+crates/confval-lsp/tests/serve_multi.rs
+  s_f3b6a626a0036f::t_aecde693efba6e 32,66,68
+crates/confval-lsp/src/server.rs
+  s_f3b6a626a0036f::t_aecde693efba6e 14,45-71
+  s_f3b6a626a0036f::t_eff93415d1baba 10
+crates/confval-derive/src/spec/schema.rs
+  s_f3b6a626a0036f::t_8132365650e9c9 326-331,342,349,353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ea076e9331b4c77a49cf09af6fc819314ba237b5",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
