@@ -1,0 +1,35 @@
+docs/docs/guide/language-server.md
+  s_f3b6a626a0036f::t_e7a503e7187e05 58-59,63-69,72-74,93-94,111-113
+  s_f3b6a626a0036f::t_c017be7ee21dde 51,110,119
+crates/confval-lsp/src/binding.rs
+  s_f3b6a626a0036f::t_c017be7ee21dde 230-231
+dev/sample_configs/multi/middleware.core.cvm
+  s_f3b6a626a0036f::t_c017be7ee21dde 1-3
+dev/sample_configs/multi/middleware.edge.cvm
+  s_f3b6a626a0036f::t_c017be7ee21dde 1-3
+crates/confval-lsp/README.md
+  s_f3b6a626a0036f::t_c017be7ee21dde 33
+docs/releases/v0_9_0.md
+  s_f3b6a626a0036f::t_c017be7ee21dde 30
+  s_f3b6a626a0036f::t_e7a503e7187e05 35
+crates/confval-lsp/examples/serve_multi.rs
+  s_f3b6a626a0036f::t_c017be7ee21dde 7,23-26,39,41-42,44-45,47,56,63,67
+docs/docs/examples.md
+  s_f3b6a626a0036f::t_c017be7ee21dde 151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "fd30d637585ef492ac030ef954f8e492b3dda02e",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
