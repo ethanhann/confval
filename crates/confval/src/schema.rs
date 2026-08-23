@@ -62,9 +62,11 @@ pub struct SchemaField {
     /// not the child struct's doc that the template walk folds in for a docless
     /// block. A block's own documentation is the child level's [`Schema::doc`].
     pub doc: Option<String>,
-    /// Whether an absent field is a parse error. It is `structurally_required
-    /// && !has_default`: false for an `Option` field, false for a zero-or-more
-    /// block list, and false for any field with a `#[confval(default)]`.
+    /// Whether an absent field is a parse error.
+    ///
+    /// The value is `structurally_required && !has_default`. It is false for an
+    /// `Option` field, a zero-or-more block list, and any field with a
+    /// `#[confval(default)]`.
     pub required: bool,
     /// Whether the field declares a `#[confval(default)]`. For an optional
     /// nested block this records the `#[confval(nested, default)]` populate
@@ -72,15 +74,19 @@ pub struct SchemaField {
     /// default, so a hover should not read it as filled when absent.
     pub has_default: bool,
     /// The default value rendered to text, for a scalar leaf that declares one,
-    /// or `None`. The derive evaluates the default expression when `schema()`
-    /// runs and renders it per leaf: a string as its text, an integer and a
-    /// boolean through their display forms, a float in the form the emitters
-    /// write so a whole number keeps its `.0`, and a path through its lossy
-    /// string form. A defaulted list, map, or block carries `None`, because
-    /// there is no single value to render. The reader pairs the text with the
-    /// field's leaf type to know what it holds. The evaluation runs wherever
-    /// `schema()` runs, including inside a long-running language server, so a
-    /// default expression must not panic and must not carry side effects.
+    /// or `None`.
+    ///
+    /// The derive evaluates the default expression when `schema()` runs and
+    /// renders it per leaf: a string as its text, an integer and a boolean
+    /// through their display forms, a float in the form the emitters write
+    /// (a whole number keeps its `.0`), and a path through its lossy string
+    /// form. A defaulted list, map, or block carries `None`, because there is
+    /// no single value to render. The reader pairs the text with the field's
+    /// leaf type to know what it holds.
+    ///
+    /// The evaluation runs wherever `schema()` runs, including inside a
+    /// long-running language server. A default expression must not panic and
+    /// must not carry side effects.
     pub default_text: Option<String>,
     /// The field's declared type.
     pub ty: SchemaType,
