@@ -1,0 +1,19 @@
+docs/releases/v0_9_0.md
+  s_305d8bf077bcda::t_3035689bdddd97 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ceabf4227f30c2b5647b095e4fec53ebcfbda705",
+  "prompts": {},
+  "sessions": {
+    "s_305d8bf077bcda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8298548-5019-4adf-8b7a-e81257c2fb34",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
