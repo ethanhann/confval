@@ -1,0 +1,52 @@
+docs/docusaurus.config.ts
+  h_4fc023ad4863a8 77,80
+docs/versioned_docs/version-0.9.0/agent-skills.md
+  h_4fc023ad4863a8 1-115
+docs/versioned_docs/version-0.9.0/architecture.md
+  h_4fc023ad4863a8 1-347
+docs/versioned_docs/version-0.9.0/contributing.md
+  h_4fc023ad4863a8 1-79
+docs/versioned_docs/version-0.9.0/examples.md
+  h_4fc023ad4863a8 1-140
+docs/versioned_docs/version-0.9.0/getting-started.md
+  h_4fc023ad4863a8 1-245
+docs/versioned_docs/version-0.9.0/guide/diagnostics.md
+  h_4fc023ad4863a8 1-93
+docs/versioned_docs/version-0.9.0/guide/editor-support.md
+  h_4fc023ad4863a8 1-82
+docs/versioned_docs/version-0.9.0/guide/format-limitations.md
+  h_4fc023ad4863a8 1-123
+docs/versioned_docs/version-0.9.0/guide/language-server.md
+  h_4fc023ad4863a8 1-137
+docs/versioned_docs/version-0.9.0/guide/layering.md
+  h_4fc023ad4863a8 1-182
+docs/versioned_docs/version-0.9.0/guide/lowering.md
+  h_4fc023ad4863a8 1-123
+docs/versioned_docs/version-0.9.0/guide/parsing.md
+  h_4fc023ad4863a8 1-568
+docs/versioned_docs/version-0.9.0/guide/representations.md
+  h_4fc023ad4863a8 1-133
+docs/versioned_docs/version-0.9.0/guide/schema-ir.md
+  h_4fc023ad4863a8 1-211
+docs/versioned_docs/version-0.9.0/guide/templates.md
+  h_4fc023ad4863a8 1-315
+docs/versioned_docs/version-0.9.0/guide/validation.md
+  h_4fc023ad4863a8 1-323
+docs/versioned_docs/version-0.9.0/pipeline.md
+  h_4fc023ad4863a8 1-189
+docs/versioned_sidebars/version-0.9.0-sidebars.json
+  h_4fc023ad4863a8 1-64
+docs/versions.json
+  h_4fc023ad4863a8 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "6b1534a85b7ebdb438cd4feabb4248e6c79ef398",
+  "prompts": {},
+  "humans": {
+    "h_4fc023ad4863a8": {
+      "author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
