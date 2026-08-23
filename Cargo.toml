@@ -10,7 +10,7 @@ resolver = "2"
 [workspace.package]
 version = "0.9.0"
 edition = "2024"
-rust-version = "1.86"
+rust-version = "1.95"
 license = "Apache-2.0"
 repository = "https://github.com/ethanhann/confval"
 readme = "README.md"
@@ -46,7 +46,7 @@ missing_docs = "deny"
 serde = { version = "1" }
 serde_json = { version = "1" }
 annotate-snippets = { version = "0.12" }
-hcl-edit = { version = "0.9" }
+hcl-edit = { version = "0.9.7" }
 toml_edit = { version = "0.25" }
 kdl = { version = "6.7", default-features = false, features = ["span"] }
 jsonc-parser = { version = "0.33", default-features = false }
