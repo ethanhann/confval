@@ -5,7 +5,7 @@
 //! below, so it is a testing convenience rather than a real deployment. The real
 //! server names its own root spec and is in the snakeway repository.
 //!
-//! The demo spec mirrors the crate's test fixture, so the sample documents in
+//! The demo spec mirrors the shape of the crate's test fixture, so the sample documents in
 //! `dev/sample_configs/` parse against it.
 
 use std::collections::BTreeMap;
