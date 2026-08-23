@@ -62,7 +62,7 @@ If you add an example or change one's required features, update that page and th
 
 confval is organized into six modules, plus a prelude.
 The dependency direction is strictly downward.
-`format` builds on `pipeline`, which builds on `diagnostic`, which builds
+`pipeline` builds on `format`, which builds on `diagnostic`, which builds
 on `source`.
 `layering` builds on `format`, and `schema` depends on no other module.
 

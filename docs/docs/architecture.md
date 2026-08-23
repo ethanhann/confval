@@ -24,7 +24,7 @@ The binary installs the agent skills, and it parses no configuration.
 
 This map shows the regions, the traits, and the functions that carry each step.
 Inside `confval` the module dependency direction is strictly downward.
-`format` builds on `pipeline`, `pipeline` builds on `diagnostic`, and `diagnostic` builds on `source`.
+`pipeline` builds on `format`, `format` builds on `diagnostic`, and `diagnostic` builds on `source`.
 `layering` builds on `format`, and `schema` depends on no other module.
 
 ```mermaid
@@ -286,7 +286,7 @@ flowchart LR
     ED[/"<b>Editor</b>"/]
 
     subgraph SRV2["confval-lsp server"]
-        STORE[("<b>Document store</b><br/>text + LineIndex")]
+        STORE[("<b>Document store</b><br/>text + parse + binding")]
         PARSE["<b>Frontend::parse</b><br/>frontend → Fields → FromFields"]
         RESOLVE["<b>Frontend::resolve</b>"]
         TREE["<b>resolve_in_tree</b><br/>shared walk over Fields"]

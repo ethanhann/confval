@@ -60,6 +60,7 @@ Bindings are tried in declaration order, and the first match wins.
 
 A matcher must not panic.
 When your rule hits a problem, such as an unreadable file, return `false` so the binding declines and the next one is tried.
+A panic drops the whole open silently, with no warning log, which is why the rule exists.
 
 A document that matches no binding stays open but inert.
 It gets no diagnostics and empty answers, and the server logs a warning naming it, so a mismatch between the editor's file patterns and your bindings is visible rather than silent.
@@ -67,6 +68,21 @@ It gets no diagnostics and empty answers, and the server logs a warning naming i
 The server routes a document once, when the editor opens it.
 If you change the inputs your matchers read, such as an include pattern in the entrypoint, a document that is already open keeps its old schema.
 Reopen the file to route it again.
+
+## Embedding the router
+
+Sometimes your host already owns an `lsp-server` connection, such as a test harness over an in-memory pair or a process that speaks LSP over a socket.
+`Router` is the server behind both `serve` functions, and you can run it over your own connection.
+
+```rust
+use confval_lsp::{Matcher, Router, bind, serve_multi, Hcl};
+
+let router = Router::new(vec![bind::<AppSpec, _>(Matcher::Any, Hcl)])?;
+router.run(&connection)?;
+```
+
+`Router::new` refuses an empty binding list with an error, before any connection exists.
+Both entry points and `Router` return the crate's `LspError`, so a `main` returning `Result<(), confval_lsp::LspError>` propagates everything with the question mark.
 
 ## Trying it against an editor
 
