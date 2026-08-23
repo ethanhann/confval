@@ -131,13 +131,7 @@ mod tests {
     fn a_scalar_writes_a_key_and_a_space() {
         // Arrange, Act
         let insert = Yaml.insert_text(
-            &field(
-                "port",
-                SchemaType::Scalar {
-                    leaf: ScalarType::Int,
-                    constraint: None,
-                },
-            ),
+            &field("port", SchemaType::scalar(ScalarType::Int, None)),
             &[],
         );
 

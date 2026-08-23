@@ -9,12 +9,15 @@
 
 use lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind};
 
+use confval::format::Fields;
 use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, PositionKind};
 use crate::handlers::{Cx, string_list_element};
-use crate::walk::{field_text, label_matches, reference_labels, resolved_level, schema_at};
+use crate::walk::{
+    field_text, fields_at, label_matches, reference_labels, resolved_level, schema_at,
+};
 
 /// Produces the hover for a resolved cursor, or `None` when the cursor is on
 /// no field.
@@ -25,7 +28,13 @@ pub fn hover(cx: &Cx, index: &LineIndex, encoding: PositionEncoding) -> Option<H
     // than a field name. The list is what the hover describes. This runs before
     // the descent below, which cannot enter a list and would answer nothing.
     if let Some((parent, field)) = string_list_element(cx) {
-        return field_hover(parent, field, cx, index, encoding);
+        // The context's path descends into the list, so the set state reads
+        // from the enclosing level, the one that holds the list's own key.
+        let level = ctx.ancestors.last().or_else(|| {
+            cx.fields
+                .and_then(|tree| fields_at(tree, &ctx.path[..ctx.path.len() - 1]))
+        });
+        return field_hover(parent, field, level, cx, index, encoding);
     }
     let enclosing = schema_at(schema, &ctx.path)?;
     // A cursor in a block's label names the block rather than a field.
@@ -53,7 +62,14 @@ pub fn hover(cx: &Cx, index: &LineIndex, encoding: PositionEncoding) -> Option<H
         }
         PositionKind::BlockLabel { .. } => return None,
     };
-    field_hover(enclosing, &name, cx, index, encoding)
+    field_hover(
+        enclosing,
+        &name,
+        resolved_level(ctx, cx.fields),
+        cx,
+        index,
+        encoding,
+    )
 }
 
 /// The hover for one named field of `enclosing`, or `None` when the level has no
@@ -61,16 +77,16 @@ pub fn hover(cx: &Cx, index: &LineIndex, encoding: PositionEncoding) -> Option<H
 fn field_hover(
     enclosing: &Schema,
     name: &str,
+    level: Option<&Fields>,
     cx: &Cx,
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> Option<Hover> {
     let field = enclosing.fields.iter().find(|field| field.name == name)?;
-    // `None` when there is no parse to read the state from, so the state is
-    // unknown rather than "not set". The resolved level addresses the exact
-    // instance of a repeated block, falling back to the first only on the text
-    // recovery path.
-    let set = resolved_level(cx.ctx, cx.fields).map(|level| level.has(name));
+    // `level` is the body whose members the state reads, and `None` when
+    // there is no parse to read it from, so the state is unknown rather than
+    // "not set".
+    let set = level.map(|level| level.has(name));
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent {
             kind: MarkupKind::Markdown,
@@ -283,10 +299,7 @@ mod tests {
     fn type_labels_cover_every_shape() {
         // Arrange, Act, Assert
         assert_eq!(
-            type_label(&SchemaType::Scalar {
-                leaf: ScalarType::Int,
-                constraint: None
-            }),
+            type_label(&SchemaType::scalar(ScalarType::Int, None)),
             "integer"
         );
         assert_eq!(type_label(&SchemaType::string_list(None)), "string list");

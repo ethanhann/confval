@@ -124,13 +124,7 @@ mod tests {
     fn a_member_absorbs_its_typed_opening_quote() {
         // Arrange, Act
         let insert = Json.insert_text(
-            &field(
-                "port",
-                SchemaType::Scalar {
-                    leaf: ScalarType::Int,
-                    constraint: None,
-                },
-            ),
+            &field("port", SchemaType::scalar(ScalarType::Int, None)),
             &[],
         );
 
