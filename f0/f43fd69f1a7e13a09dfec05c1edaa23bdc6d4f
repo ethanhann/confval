@@ -1,0 +1,32 @@
+crates/confval/tests/ui/fail/schema_references_on_optional_wrapped_list.rs
+  s_f3b6a626a0036f::t_cce62de3a98813 1-9
+crates/confval/tests/ui/fail/schema_references_on_nested.stderr
+  s_f3b6a626a0036f::t_9638fea1058250 1-5
+crates/confval/tests/ui/fail/schema_references_on_nested.rs
+  s_f3b6a626a0036f::t_cce62de3a98813 1-3,6-10,12-14
+  s_f3b6a626a0036f::t_9638fea1058250 4-5,11
+crates/confval/tests/ui/fail/schema_references_on_optional_wrapped_list.stderr
+  s_f3b6a626a0036f::t_9638fea1058250 1-5
+crates/confval/Cargo.toml
+  s_f3b6a626a0036f::t_4c5aa48016bdc1 53
+crates/confval/tests/references.rs
+  s_f3b6a626a0036f::t_efed24702e2752 389-392
+crates/confval/tests/schema.rs
+  s_f3b6a626a0036f::t_efed24702e2752 632
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f0f43fd69f1a7e13a09dfec05c1edaa23bdc6d4f",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
