@@ -1,0 +1,25 @@
+crates/confval-lsp/tests/completion_edit_damage.rs
+  s_f3b6a626a0036f::t_9e662402cb35e0 1-65,68-156,158-190,192-193,195-197,199-200,202,204-206,208-209,211-212,216-217,219,221,223-225
+  s_f3b6a626a0036f::t_f82e21d560307f 191,194,198,201,203,222
+  s_f3b6a626a0036f::t_efed24702e2752 66-67
+  s_f3b6a626a0036f::t_6ddf1e2f94a625 157
+  s_f3b6a626a0036f::t_23a21adc4ec97f 207,210,213-215,218,220
+crates/confval-lsp/tests/hover.rs
+  s_f3b6a626a0036f::t_cc60ac83810456 512-528
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d33968830745dfdef34d2767fd02f103a980a67d",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
