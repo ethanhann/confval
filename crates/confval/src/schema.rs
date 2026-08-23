@@ -95,6 +95,7 @@ pub struct SchemaField {
 #[non_exhaustive]
 pub enum SchemaType {
     /// A single scalar leaf, with the constraint it declares, if any.
+    #[non_exhaustive]
     Scalar {
         /// The leaf's config-level type.
         leaf: ScalarType,

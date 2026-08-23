@@ -181,10 +181,7 @@ fn value_of_expr(expr: &Expression, text: &str, source: SourceId, report: &mut R
     } else if let Some(boolean) = expr.as_bool() {
         ValueKind::Scalar(Scalar::Bool(boolean))
     } else if let Some(number) = expr.as_number() {
-        match scalar_of_number(number, span, text) {
-            Some(scalar) => ValueKind::Scalar(scalar),
-            None => ValueKind::Other("number"),
-        }
+        scalar_of_number(number, span, text)
     } else if let Some(array) = expr.as_array() {
         ValueKind::Seq(
             array
@@ -200,26 +197,36 @@ fn value_of_expr(expr: &Expression, text: &str, source: SourceId, report: &mut R
     Value { span, kind }
 }
 
-/// Converts a parsed number into a scalar. hcl-edit collapses a whole-valued
-/// float literal into an integer with a saturating cast, which corrupts a
-/// magnitude of 2^63 or more and drops the float kind everywhere else. The
-/// literal's text says which kind the author wrote, so a literal written as a
-/// float, with a dot or an exponent, is re-read from the source text.
-fn scalar_of_number(number: &hcl_edit::Number, span: Span, text: &str) -> Option<Scalar> {
-    if let Some(literal) = text.get(span.start as usize..span.end as usize)
-        && literal.contains(['.', 'e', 'E'])
-    {
-        // A negation may carry whitespace between the sign and the digits,
-        // which f64's parser does not accept.
-        let compact: String = literal.split_whitespace().collect();
+/// Converts a parsed number into a value kind. hcl-edit collapses a
+/// whole-valued float literal into an integer with a saturating cast, and it
+/// saturates an integer literal past the `i64` range instead of refusing it,
+/// which silently changes the number the author wrote. The literal's own text
+/// is the authority: a literal written as a float, with a dot or an exponent,
+/// is re-read from the source, and an integer literal is re-read the same
+/// way, so a value the text cannot hold reports as an oversized integer, the
+/// diagnostic the other frontends produce for the same input. A negation may
+/// carry whitespace between the sign and the digits, which the standard
+/// parsers do not accept, so the literal is compacted first.
+fn scalar_of_number(number: &hcl_edit::Number, span: Span, text: &str) -> ValueKind {
+    let compact: String = text
+        .get(span.start as usize..span.end as usize)
+        .unwrap_or_default()
+        .split_whitespace()
+        .collect();
+    if compact.contains(['.', 'e', 'E']) {
         if let Ok(float) = compact.parse::<f64>() {
-            return Some(Scalar::Float(float));
+            return ValueKind::Scalar(Scalar::Float(float));
         }
+    } else if !compact.is_empty() {
+        return match compact.parse::<i64>() {
+            Ok(int) => ValueKind::Scalar(Scalar::Int(int)),
+            Err(_) => ValueKind::Other("oversized integer"),
+        };
     }
-    if let Some(int) = number.as_i64() {
-        Some(Scalar::Int(int))
-    } else {
-        number.as_f64().map(Scalar::Float)
+    match (number.as_i64(), number.as_f64()) {
+        (Some(int), _) => ValueKind::Scalar(Scalar::Int(int)),
+        (None, Some(float)) => ValueKind::Scalar(Scalar::Float(float)),
+        (None, None) => ValueKind::Other("number"),
     }
 }
 
@@ -455,6 +462,31 @@ mod tests {
         assert!(report.has_errors());
         assert!(report.issues()[0].message.starts_with("syntax error:"));
         assert!(report.issues()[0].span.is_some());
+    }
+
+    #[test]
+    fn an_oversized_integer_surfaces_as_a_type_mismatch_on_access() {
+        // Arrange
+        // i128 holds these, i64 does not, and hcl-edit saturates rather than
+        // refusing, so the literal's own text is the authority.
+        let input = "offset = -9223372036854775809\nlimit = 9223372036854775808\n";
+
+        // Act
+        let (_, _, fields) = parse(input);
+
+        // Assert
+        let mut report = Report::new();
+        assert!(parse_int_field(fields.get("offset").unwrap(), &mut report).is_none());
+        assert_eq!(
+            report.issues()[0].message,
+            "expected integer, found oversized integer"
+        );
+        let mut report = Report::new();
+        assert!(parse_int_field(fields.get("limit").unwrap(), &mut report).is_none());
+        assert_eq!(
+            report.issues()[0].message,
+            "expected integer, found oversized integer"
+        );
     }
 
     #[test]
