@@ -1,0 +1,22 @@
+crates/confval/src/format/field.rs
+  s_305d8bf077bcda::t_ca998d698f7ec5 13-14
+crates/confval/src/schema.rs
+  s_305d8bf077bcda::t_31394745b7d28c 77-89
+  s_305d8bf077bcda::t_e4cff94a07cfbd 65-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f850f78a23ae02c88eadae7726f922708032acda",
+  "prompts": {},
+  "sessions": {
+    "s_305d8bf077bcda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8298548-5019-4adf-8b7a-e81257c2fb34",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
