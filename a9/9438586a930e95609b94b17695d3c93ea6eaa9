@@ -1,0 +1,30 @@
+README.md
+  s_f3b6a626a0036f::t_8606b4a952e370 28,38-40
+docs/docs/contributing.md
+  s_f3b6a626a0036f::t_c8d2c42893ff3d 65
+docs/releases/v0_9_0.md
+  s_f3b6a626a0036f::t_e4220affe86c17 80-82,101-103,110-115,119-122,125-134
+  s_f3b6a626a0036f::t_8606b4a952e370 104-105
+  s_f3b6a626a0036f::t_2afb9e9b8a4aca 135
+docs/docs/architecture.md
+  s_f3b6a626a0036f::t_8606b4a952e370 27,289
+docs/docs/guide/language-server.md
+  s_f3b6a626a0036f::t_c8d2c42893ff3d 63,72-85
+  s_f3b6a626a0036f::t_d5060542a520f7 86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "a99438586a930e95609b94b17695d3c93ea6eaa9",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
