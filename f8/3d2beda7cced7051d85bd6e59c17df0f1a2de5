@@ -1,0 +1,25 @@
+crates/confval/src/schema.rs
+  s_f3b6a626a0036f::t_2ad3642253eafe 98
+crates/confval/src/format/hcl/mod.rs
+  s_f3b6a626a0036f::t_6c9c86dd1b2b88 184,200-216,218,220-224,226-229
+  s_f3b6a626a0036f::t_39b5f383dfe517 468-489
+  s_f3b6a626a0036f::t_f5cf93b3cbe529 467,490-491
+crates/confval/src/pipeline/validate.rs
+  s_f3b6a626a0036f::t_8606b4a952e370 38,40-42,146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f83d2beda7cced7051d85bd6e59c17df0f1a2de5",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
