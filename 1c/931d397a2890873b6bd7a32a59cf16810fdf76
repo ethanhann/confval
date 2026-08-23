@@ -1,0 +1,50 @@
+crates/confval/src/pipeline/validate.rs
+  s_f3b6a626a0036f::t_e44ed0cb606f09 40-42
+crates/confval-lsp/src/resolve.rs
+  s_f3b6a626a0036f::t_e91809f2522711 434-435
+crates/confval/src/pipeline/keyword.rs
+  s_f3b6a626a0036f::t_e44ed0cb606f09 80-85
+crates/confval-lsp/src/handlers/completion/values.rs
+  s_f3b6a626a0036f::t_e91809f2522711 42-43,201-206
+crates/confval-lsp/src/server.rs
+  s_f3b6a626a0036f::t_e91809f2522711 11,47-52
+crates/confval-lsp/src/handlers/completion/mod.rs
+  s_f3b6a626a0036f::t_e91809f2522711 37-38,101-103
+crates/confval-lsp/src/handlers/hover.rs
+  s_f3b6a626a0036f::t_e91809f2522711 86-87
+crates/confval/src/format/hcl/mod.rs
+  s_f3b6a626a0036f::t_e44ed0cb606f09 202-209
+crates/confval-lsp/src/handlers/symbols.rs
+  s_f3b6a626a0036f::t_e91809f2522711 32
+README.md
+  s_f3b6a626a0036f::t_e44ed0cb606f09 38-39
+docs/docs/guide/language-server.md
+  s_f3b6a626a0036f::t_e44ed0cb606f09 63-64,79
+docs/releases/v0_9_0.md
+  s_f3b6a626a0036f::t_e14514ed7875bf 93,107-108,115-116,119-126
+  s_f3b6a626a0036f::t_d74e2426efbae6 36-37,39,45,70-71,76-77,85-86,98-100,102-103,109-113,117-118,131-136
+  s_f3b6a626a0036f::t_21b1e2ae6cfd70 38,74-75,81-82,94-95,104-106,140-141,145-146,153-154,160
+  s_f3b6a626a0036f::t_cb5dc4a3f31c64 114
+crates/confval/src/schema.rs
+  s_f3b6a626a0036f::t_e44ed0cb606f09 192-196,225-227,229
+crates/confval-lsp/tests/completion_edit_damage.rs
+  s_f3b6a626a0036f::t_e91809f2522711 1-3
+Justfile
+  s_f3b6a626a0036f::t_b0e852527875ca 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "1c931d397a2890873b6bd7a32a59cf16810fdf76",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
