@@ -1,0 +1,22 @@
+crates/confval/examples/handwritten/tls.rs
+  s_f3b6a626a0036f::t_2ad3642253eafe 191,197,202
+  s_f3b6a626a0036f::t_efed24702e2752 208-211
+crates/confval/examples/handwritten/spec.rs
+  s_f3b6a626a0036f::t_2ad3642253eafe 217,228-230,236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8150852e02a439d988b430e8bcf11621ef99008c",
+  "prompts": {},
+  "sessions": {
+    "s_f3b6a626a0036f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2f9cf20-32d7-4d9b-a600-cac1cf0e812d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
