@@ -1,0 +1,24 @@
+docs/docs/guide/templates.md
+  s_305d8bf077bcda::t_7e70f3b7af49ab 47-67
+docs/docs/getting-started.md
+  s_305d8bf077bcda::t_7b227ca1692987 112
+  s_305d8bf077bcda::t_a191d9c490a45d 202
+  s_305d8bf077bcda::t_008fd66c9ee943 193
+  s_305d8bf077bcda::t_2d36b8d6fc24a2 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "0589e5dcdcbfe7015e66e59cd1791c70adc8b139",
+  "prompts": {},
+  "sessions": {
+    "s_305d8bf077bcda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8298548-5019-4adf-8b7a-e81257c2fb34",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
