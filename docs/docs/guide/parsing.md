@@ -4,11 +4,11 @@ sidebar_position: 1
 
 # Parsing
 
-Parsing turns a configuration file into a spec type.
+When you define a configuration for your application, the first step is to parse a file into a spec type.
 A spec type is a plain Rust struct whose fields are the settings you expect.
 
-Spec is short for "specification."
-The collection of spec types is the specification for an application's operator-facing configuration surface.
+"Spec" is short for "specification."
+The collection of spec types is the specification for your application's operator-facing configuration surface.
 
 Parsing checks structure only.
 It determines whether each field is present and has the right type.
@@ -16,7 +16,7 @@ What the values mean is left to [validation](./validation.md).
 
 ## A first parse
 
-You define a spec as a struct, then parse a file into it with the frontend for the format you enabled.
+Define a spec as a struct, then parse a file into it with the frontend for the format you enabled.
 
 ```rust
 use confval::prelude::*;
@@ -38,9 +38,9 @@ let id = sources.add("server.hcl", text);
 let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mut report);
 ```
 
-Every field is wrapped in a `Located<T>`, which pairs the value with its source span, covered next.
-The parse checks structure only.
-It reports a missing field, a wrong type, or an unknown field, each at its span, and leaves what the values mean to [validation](./validation.md).
+Every field is wrapped in a `Located<T>`, which pairs the value with its source span.
+The parse reports a missing field, a wrong type, or an unknown field, each at its span.
+What the values mean is left to [validation](./validation.md).
 
 ## Located values
 
@@ -55,21 +55,16 @@ pub struct Located<T> {
 
 A `Located<T>` contains a span.
 A span is a byte range in the configuration file.
-It gives each field its provenance.
-The span records where the value came from, so a later error can point at the line and column.
+It records where the value came from, so a later error can point at the line and column.
 `Span` and the `SourceMap` that resolves it are covered under [Diagnostics](./diagnostics.md#spans-and-source).
 
-A few behaviors are worth knowing:
-
-- **Value-only equality.**
-  `PartialEq`, `Eq`, and `Hash` ignore the span, so two configs with the same values compare equal regardless of
-  formatting.
-- **`Deref` to `T`.**
-  Method calls pass through to the inner value.
-- **`Located::detached(value)`** produces a value with a sentinel span.
-  Use it to build a spec in code (tests, builders, generated templates) with no source file behind it.
-- **`Default`** is `detached(T::default())`.
-- With the `serde` feature, `Located<T>` serializes transparently as `T` and deserializes detached.
+| Behavior | Detail |
+|----------|--------|
+| Value-only equality | `PartialEq`, `Eq`, and `Hash` ignore the span. Two configs with the same values compare equal regardless of formatting. |
+| `Deref` to `T` | Method calls pass through to the inner value. |
+| `Located::detached(value)` | Produces a value with a sentinel span. Use it to build a spec in code (tests, builders, generated templates) with no source file behind it. |
+| `Default` | `detached(T::default())`. |
+| serde | With the `serde` feature, `Located<T>` serializes transparently as `T` and deserializes detached. |
 
 ## Defining a spec
 
@@ -93,7 +88,6 @@ pub struct ServerSpec {
 ### Field types
 
 A field's type tells the parser how to read it.
-These are the types you can use:
 
 - **Scalars**: `Located<String>`, `Located<i64>`, `Located<f64>`, `Located<bool>`, and `Located<PathBuf>`.
 - **Lists of strings**: `Vec<Located<String>>`, or `Option<Located<Vec<Located<String>>>>` for an optional list.
@@ -105,14 +99,14 @@ These are the types you can use:
 Every field is required by default.
 Leave a required field out of the file and the parser reports a `missing field` error against the block it belongs to.
 
-Two things make a field optional.
+Two things make a field optional:
 
 - `Option<...>` on the type turns an absent field into `None`.
 - `#[confval(default)]` or `#[confval(default = expr)]` fills an absent field instead of reporting it.
 
 A bare `#[confval(default)]` uses the field type's `Default`.
-The `default = expr` form uses `expr` instead, so `#[confval(default = 30)]` gives the field the value `30` when the
-file leaves it out.
+The `default = expr` form uses `expr` instead.
+For example, `#[confval(default = 30)]` gives the field the value `30` when the file leaves it out.
 A filled-in value carries a detached span, because no source text stands behind it.
 
 Which form a field accepts depends on its shape.
@@ -128,8 +122,6 @@ Which form a field accepts depends on its shape.
 | `Vec<Located<S>>` with `#[confval(nested)]`    | compile error         | compile error                |
 | `Option<Located<Vec<Located<String>>>>`        | compile error         | compile error                |
 
-Three rows are worth calling out.
-
 Combining `Option` with a default means the field is never `None` for an absent value.
 The default fills it in.
 Leave the default off when you need the `Option` to report what the source omitted.
@@ -142,9 +134,10 @@ There is no `default = expr` for a list.
 
 :::caution
 The attribute `#[confval(nested, default)]` also exists on the config side, where it means something different.
-On a spec it fills the omitted block during parsing, so the spec itself holds the default.
-On a config it leaves the spec field `None` and lowers `S::default()` in its place, so the spec stays faithful to the
-source and only the runtime value is filled in.
+On a spec it fills the omitted block during parsing.
+The spec itself holds the default.
+On a config it leaves the spec field `None` and lowers `S::default()` in its place.
+The spec stays faithful to the source and only the runtime value is filled in.
 The two are independent.
 One setting can use either, both, or neither.
 See [Lowering](./lowering.md#defining-a-config).
@@ -153,11 +146,12 @@ See [Lowering](./lowering.md#defining-a-config).
 ### Deriving `Default` from the attribute defaults
 
 The attribute default fills a field the file omits.
-When the whole block is omitted, the config side supplies it through `#[confval(nested, default)]`, which lowers `S::default()`, so the spec type needs a `Default` impl.
-Writing that impl by hand repeats the attribute defaults.
-Nothing keeps the two in agreement.
+When the whole block is omitted, the config side supplies it through `#[confval(nested, default)]`, which lowers `S::default()`.
+The spec type therefore needs a `Default` impl.
+Writing that impl by hand repeats the attribute defaults, and nothing keeps the two in agreement.
 
-`#[confval(derive_default)]` on the struct generates the `Default` impl from the attribute defaults, so each default is declared once.
+`#[confval(derive_default)]` on the struct generates the `Default` impl from the attribute defaults.
+Each default is declared once.
 
 ```rust
 #[derive(confval::Spec)]
@@ -170,14 +164,14 @@ struct LimitsSpec {
 }
 ```
 
-This resembles `#[derive(Default)]`.
-The difference is where the values come from.
-The standard derive fills each field with `T::default()`, so a `Located<String>` becomes empty and a `Located<i64>` becomes zero.
+The standard `#[derive(Default)]` fills each field with `T::default()`.
+A `Located<String>` becomes empty and a `Located<i64>` becomes zero.
 `#[confval(derive_default)]` fills each field from its declared `#[confval(default)]` instead.
 It refuses a field that declares no default rather than inventing a value.
 
 Use `#[confval(derive_default)]` rather than `#[derive(Default)]` on a spec.
-The standard derive fills an undeclared field with `T::default()` without reporting it, so the value for an absent block and the value for a field the source omits can drift apart.
+The standard derive fills an undeclared field with `T::default()` without reporting it.
+The value for an absent block and the value for a field the source omits can then drift apart.
 `#[confval(derive_default)]` keeps those two values the same.
 
 The value it generates for a field is the value the parser fills when that field is absent.
@@ -185,7 +179,8 @@ A field the parser would report as missing has no value to derive, so it is a co
 A non-optional `Located<T>` or `Located<S>` with no default, and a `Vec<Located<String>>` with no default, each need a `#[confval(default)]` or a handwritten `impl Default`.
 An `Option` field and a nested list default on their own, because the parser already fills them when they are absent.
 
-The attribute is opt-in and additive, so a type that keeps its handwritten `impl Default` is unaffected.
+The attribute is opt-in and additive.
+A type that keeps its handwritten `impl Default` is unaffected.
 
 ### Nested structs
 
@@ -201,8 +196,9 @@ It works three ways:
 `#[confval(map)]` reads a field as an open-ended, string-keyed map, `BTreeMap<String, Located<String>>`.
 Use it for a setting whose keys are not known ahead of time, such as HTTP request headers or URL templates.
 
-The keys are open, so the parser reports no unknown field inside the map, and a duplicate key is an error.
-Each value keeps its span, so a `Validate` impl reports a bad entry at the entry.
+The keys are open, so the parser reports no unknown field inside the map.
+A duplicate key is an error.
+Each value keeps its span, so a `Validate` impl can report a bad entry at the entry.
 An operator writes the map as a block or as an inline map, and both read the same.
 
 A bare `#[confval(map, default)]` reads an absent map as empty.
@@ -221,17 +217,15 @@ The strict parse reports that setting instead of ignoring it.
 
 ### What the derive does not handle
 
-The derive only handles plain structs.
+The derive handles plain structs only.
 It cannot express an enum.
 
-That is rarely a problem, because a field with a discrete set of values is a `Located<String>` in a spec by convention
-rather than an enum.
-[Writing parsers by hand](#writing-parsers-by-hand) covers that convention, along with the shapes that do need a
-handwritten parser.
+That is rarely a problem, because a field with a discrete set of values is a `Located<String>` in a spec by convention rather than an enum.
+[Writing parsers by hand](#writing-parsers-by-hand) covers that convention, along with the shapes that do need a handwritten parser.
 
 ## Parsing a file
 
-To parse, call the frontend for the format you enabled with the appropriate feature:
+To parse, call the frontend for the format you enabled:
 
 | Entry point                         | Feature | Backed by       |
 |-------------------------------------|---------|-----------------|
@@ -247,12 +241,21 @@ Each takes a `SourceMap`, a `SourceId`, and a `&mut Report`, and returns your sp
 let spec: Option<ServerSpec> = confval::format::hcl::parse_hcl(&sources, id, &mut report);
 ```
 
-The result is the same whichever format you read, so validation and lowering never depend on which frontend ran.
+The result is the same whichever format you read.
+Validation and lowering never depend on which frontend ran.
 
-HCL has two ways to write a nested block, and both parse into the same thing.
-A block, `bind { port = 8080 }`, and an attribute set to an object, `bind = { port = 8080 }`, are equivalent.
-TOML lines up with this: a `[table]` is a block, an inline `{ ... }` is an object, and an array of tables (`[[x]]`) is a
-repeating block, so a `Vec` of nested structs reads from it the same way it reads from an HCL list of objects.
+### Nesting equivalences
+
+Every format has more than one way to write a nested block.
+Both forms parse into the same thing.
+
+| Format | Block form | Object form |
+|--------|-----------|-------------|
+| HCL | `bind { port = 8080 }` | `bind = { port = 8080 }` |
+| TOML | `[bind]` section | `bind = { port = 8080 }` inline table |
+| KDL | `bind { port 8080 }` children block | `bind port=8080` properties on one node |
+| JSON | (one form only) | `"bind": { "port": 8080 }` |
+| YAML | block mapping | flow mapping `bind: { port: 8080 }` |
 
 For example, these two documents fill the same spec:
 
@@ -279,192 +282,92 @@ port = 8080
 let spec: Option<ServerSpec> = confval::format::toml::parse_toml(&sources, id, &mut report);
 ```
 
-Writing the model back out with `confval::format::hcl::emit_hcl` or `confval::format::toml::emit_toml` produces
-canonical text in the same shapes, values before blocks at each level:
+### Writing back to text
+
+Write the model back out with the emitter for the format you want:
 
 ```rust
 let text = confval::format::hcl::emit_hcl(&spec.to_fields())?;
 ```
 
-KDL writes the same shapes with nodes.
-It parses with the KDL 2.0 grammar alone.
-A children block, `bind { port 8080 }`, and properties on one node, `bind port=8080`, are the same nested structure.
-A list is repeated arguments on one node, `allow "a" "b"`, or repeated same-named nodes, and a bare node is an empty
-list, the only form KDL has for one.
+The emitter for each format is named `emit_hcl`, `emit_toml`, `emit_kdl`, `emit_json`, or `emit_yaml`.
 
-For example, this document fills the same spec the HCL and TOML snippets above fill:
-
-```kdl
-hostname "127.0.0.1"
-port 8080
-allow "10.0.0.0/8" "192.168.0.0/16"
-
-bind {
-  port 8080
-}
-```
-
-```rust
-let spec: Option<ServerSpec> = confval::format::kdl::parse_kdl(&sources, id, &mut report);
-```
-
-A repeated node is a list when the field is a list and a `duplicate field` error when it is not.
-A block node's first string argument is its native label, the `upstream "api" { ... }` idiom, and it fills the child field the spec marks with `#[confval(label)]`.
-A non-string label, an argument past the first, and a label on a block whose spec designates none are each reported.
-A bare node where a single value is expected reports `expected string, found array`, because a bare node means an
-empty list.
-
-Writing the model back out with `confval::format::kdl::emit_kdl` produces canonical KDL:
-
-```rust
-let text = confval::format::kdl::emit_kdl(&spec.to_fields())?;
-```
-
-JSON has one way to nest, the object, which the model reads wherever it accepts a block.
-An array is a list.
-Its elements keep their own spans, so a bad entry is reported at that entry.
-The document root must be an object, because a configuration is a set of named fields.
-Any other root reports `expected an object at the document root` and yields no tree.
-An empty document reports the same thing.
-
-For example, this document fills the same spec the snippets above fill:
-
-```json
-{
-  "hostname": "127.0.0.1",
-  "port": 8080,
-  "allow": ["10.0.0.0/8", "192.168.0.0/16"],
-  "bind": {
-    "port": 8080
-  }
-}
-```
-
-```rust
-let spec: Option<ServerSpec> = confval::format::json::parse_json(&sources, id, &mut report);
-```
-
-The frontend accepts strict JSON alone.
-A comment, a trailing comma, an unquoted property name, a missing comma between members, a single-quoted string, a
-hexadecimal number, and a number with a unary plus are each a syntax error.
-A file this frontend accepts carries nothing a strict JSON parser rejects, so a configuration written for confval also
-loads in tooling that does not use it.
-
-The frontend classifies a number by how it is written.
-`1` is an integer, and `1.0` and `1e3` are floats.
-An integer beyond the range of an `i64` becomes an oversized integer, so an `i64` field reports
-`expected integer, found oversized integer`.
-A number whose magnitude no `f64` holds, such as `1e999`, becomes an oversized number, so an `f64` field reports
-`expected number, found oversized number`.
-Each is reported at the value that used it.
-
-A `null` reports `expected string, found null` at the value that used it.
-The model has no null.
-Omit the member when you want an optional setting left unset.
-
-A duplicate key is a list when the field is a list and a `duplicate field` error when it is not.
-
-A scalar where a nested object is expected reports `expected block, found string`.
-The expected side of a mismatch is shared across formats, so the message names a block even though JSON has no blocks.
-
-Writing the model back out with `confval::format::json::emit_json` produces pretty-printed JSON with two-space
-indentation, values before nested objects, and a trailing newline:
-
-```rust
-let text = confval::format::json::emit_json(&spec.to_fields())?;
-```
-
-JSON has no comment syntax, so emitted JSON carries no comments.
-[Templates](./templates.md#generating-a-template) covers what that costs a template.
-
-YAML nests two ways, the block mapping and the flow mapping, and the model reads both wherever it accepts a block.
-The document root must be a mapping, and any other root reports `expected a mapping at the document root`.
-An empty document, a whitespace-only file, and a file holding only comments each parse as a configuration that sets
-nothing, the way an empty TOML or HCL file does.
-A configuration file is one document, so a second one reports `expected a single document` rather than being discarded.
-
-For example, this document fills the same spec the snippets above fill:
-
-```yaml
-hostname: "127.0.0.1"
-port: 8080
-allow: ["10.0.0.0/8", "192.168.0.0/16"]
-
-bind:
-  port: 8080
-```
-
-```rust
-let spec: Option<ServerSpec> = confval::format::yaml::parse_yaml(&sources, id, &mut report);
-```
-
-A plain scalar resolves through the YAML 1.2 core schema, and a quoted, literal, or folded scalar is a string whatever
-its text.
-`port: 8080` is an integer and `port: "8080"` is a string.
-The 1.1 literals `yes`, `no`, `on`, and `off` are not in the 1.2 schema, so `country: no` is the string `no` rather
-than a boolean.
-The same exclusion makes `-.nan`, an uppercase or signed base prefix such as `0X1F` or `-0x10`, and an underscored
-number such as `1_000` strings as well.
-
-A `null`, written `null`, `~`, or as a key with no value, reports `expected string, found null` at the value that used
-it.
-An integer beyond the range of an `i64` reports `expected integer, found oversized integer`.
-A number whose magnitude no `f64` holds reports `expected number, found oversized number`, so `.inf` written by an
-operator is the only infinity the model holds from YAML.
-
-A duplicate key is a list when the field is a list and a `duplicate field` error when it is not.
-
-An alias is not expanded.
-It reports `expected string, found alias` at the alias, so the field that used it says what is wrong rather than
-reporting itself absent.
-An anchor is read through, because the anchored node is ordinary data wherever it stands.
-A merge key, `<<`, is an ordinary key, so a spec that does not declare it reports `unknown field: <<`.
-
-The core schema tags resolve their text, so `!!str 8080` is the string `8080` and the non-specific `!` resolves the
-same way on a scalar.
-Three things report `expected string, found tagged value`: a core scalar tag whose text it cannot read such as
-`!!int foo`, a core tag on the wrong node kind such as `!!int {a: 1}`, and any tag outside the core schema.
-
-A key that is a mapping, a sequence, or an explicit `? *alias` has no field name the model can hold.
-It reports `expected a scalar key` and the entry is skipped, so one exotic key does not hide the errors after it.
-An alias written as a plain key, `*a: 1`, is a syntax error instead, because the parser rejects it before the frontend
-sees it.
-A scalar key reads as its text whatever the schema would resolve it to, so `8080:` names the field `8080`.
-
-A scalar where a nested mapping is expected reports `expected block, found string`, because the expected side of a
-mismatch is shared across formats.
-
-Writing the model back out with `confval::format::yaml::emit_yaml` produces block-style YAML with two-space
-indentation, values before nested mappings, and a trailing newline:
-
-```rust
-let text = confval::format::yaml::emit_yaml(&spec.to_fields())?;
-```
-
-Every string emits double-quoted, so a value the schema would otherwise resolve, `no` or `123` or `null`, reads back as
-the string it was.
+### Single-element list coercion
 
 A list field also accepts a single string as a one-element list, in every format.
-KDL has no array literal, so it writes a one-element list as a single value.
-Every frontend applies the same rule, so one configuration reads the same way whichever frontend parsed it.
+Every frontend applies the same rule.
+One configuration reads the same way whichever frontend parsed it.
+
+### Format-specific behavior
+
+Each frontend handles edge cases according to the rules of its format.
+The tables below collect the behaviors you are most likely to encounter.
+
+#### HCL and TOML
+
+| Behavior | Detail |
+|----------|--------|
+| Duplicate attribute | `hcl-edit` and `toml_edit` reject a duplicate attribute key during parsing. It is a syntax error. |
+| Repeated block | Parses. confval reports it with a related span pointing at the first occurrence. |
+| KDL-style label | HCL supports a native block label: `upstream "api" { ... }`. The label fills the child field the spec marks with `#[confval(label)]`. |
+
+#### KDL
+
+| Behavior | Detail |
+|----------|--------|
+| Grammar | KDL 2.0 only. |
+| List | Repeated arguments on one node (`allow "a" "b"`), or repeated same-named nodes. A bare node is an empty list. |
+| Repeated scalar node | A list when the field is a list. A `duplicate field` error when the field is single-valued. |
+| Block label | A block node's first string argument is its native label (`upstream "api" { ... }`). It fills the child field marked with `#[confval(label)]`. |
+| Non-string label | Reported. An argument past the first is also reported. |
+| Bare node where scalar expected | Reports `expected string, found array`, because a bare node means an empty list. |
+
+#### JSON
+
+| Behavior | Detail |
+|----------|--------|
+| Strict mode | Strict JSON only. Comments, trailing commas, unquoted property names, missing commas, single-quoted strings, hexadecimal numbers, and numbers with a unary plus are each a syntax error. |
+| Document root | Must be an object. Any other root reports `expected an object at the document root`. |
+| Number classification | `1` is an integer. `1.0` and `1e3` are floats. |
+| Oversized integer | An integer beyond `i64` range reports `expected integer, found oversized integer`. |
+| Oversized number | A magnitude beyond `f64` (such as `1e999`) reports `expected number, found oversized number`. |
+| `null` | Reports `expected string, found null`. Omit the member when you want an optional setting left unset. |
+| Duplicate key | A list when the field is a list. A `duplicate field` error when the field is single-valued. |
+| Type mismatch | A scalar where a nested object is expected reports `expected block, found string`. The expected side of a mismatch is shared across formats. |
+| Comments | JSON has no comment syntax. Emitted JSON carries no comments. [Templates](./templates.md#generating-a-template) covers what that means for a template. |
+
+#### YAML
+
+| Behavior | Detail |
+|----------|--------|
+| Document root | Must be a mapping. Any other root reports `expected a mapping at the document root`. |
+| Empty document | An empty file, a whitespace-only file, and a file of comments each parse as a configuration that sets nothing, the way an empty TOML or HCL file does. |
+| Multiple documents | A second document reports `expected a single document`. |
+| Scalar resolution | A plain scalar resolves through the YAML 1.2 core schema. A quoted, literal, or folded scalar is a string whatever its text. `port: 8080` is an integer. `port: "8080"` is a string. |
+| 1.1 literals | `yes`, `no`, `on`, and `off` are not in the 1.2 schema. `country: no` is the string `no`, not a boolean. `-.nan`, uppercase or signed base prefixes (`0X1F`, `-0x10`), and underscored numbers (`1_000`) are also strings. |
+| Oversized integer | An integer beyond `i64` range reports `expected integer, found oversized integer`. |
+| Oversized number | A decimal that overflows `f64` reports `expected number, found oversized number`. `.inf` written by an operator is the only infinity the model holds from YAML. |
+| `null` | `null`, `~`, or a key with no value reports `expected string, found null`. |
+| Duplicate key | A list when the field is a list. A `duplicate field` error when the field is single-valued. |
+| Alias | Not expanded. Reports `expected string, found alias` at the alias. |
+| Anchor | Read through. The anchored node is ordinary data. |
+| Merge key `<<` | An ordinary key. A spec that does not declare it reports `unknown field: <<`. |
+| Core schema tags | `!!str 8080` is the string `8080`. The non-specific `!` resolves the same way on a scalar. A core scalar tag whose text it cannot read (`!!int foo`), a core tag on the wrong node kind (`!!int {a: 1}`), and any tag outside the core schema each report `expected string, found tagged value`. |
+| Non-scalar key | A mapping, sequence, or explicit `? *alias` key reports `expected a scalar key`. The entry is skipped so later errors are not hidden. An alias as a plain key (`*a: 1`) is a syntax error. A scalar key reads as its text whatever the schema would resolve it to. `8080:` names the field `8080`. |
+| Type mismatch | A scalar where a nested mapping is expected reports `expected block, found string`. The expected side of a mismatch is shared across formats. |
+| Emitted style | `emit_yaml` produces block-style YAML with two-space indentation, values before nested mappings, and a trailing newline. Every string emits double-quoted, so a value the schema would otherwise resolve (`no`, `123`, `null`) reads back as the string it was. |
 
 :::note
-`hcl-edit` rejects duplicate attribute keys while parsing, so a repeated attribute is a syntax error, and TOML rejects
-a duplicate key the same way.
+`hcl-edit` rejects duplicate attribute keys while parsing, and TOML rejects a duplicate key the same way.
 A repeated block parses, and confval reports it with a related span pointing at the first occurrence.
-A repeated KDL value node follows the same rule.
-A list field accumulates the occurrences, and a single-value field
-reports the repeat with the related span.
-JSON and YAML both permit the same key twice, so a duplicate key parses and the spec's declared shape decides what it
-means.
+JSON and YAML both permit the same key twice.
+A duplicate key parses and the spec's declared shape decides what it means.
 :::
 
 ## Writing parsers by hand
 
 Sometimes a block's remaining fields depend on the value of a discriminator field.
 The `Spec` derive cannot express that shape, so you write the parser yourself.
-The `Spec` derive covers plain structs, which is nearly everything given the
-confval [pipeline contract](../pipeline.md).
 
 By convention, confval reduces a spec's fields to primitive types wherever it can.
 A spec holds the most broadly typed form of a field.
@@ -477,25 +380,16 @@ Validation checks it against a [KeywordSet](./validation.md#keywordset).
 Lowering converts the string to an enum.
 
 Handwritten parsers cover the shapes that pattern cannot express.
-The clearest case is a block whose remaining fields depend on a discriminator, where the parser reads the discriminator
-first and dispatches on it.
-The same mechanism lets you put an enum directly in a spec.
-That compiles and parses correctly.
-It also abandons the convention above, which is why it is not the recommended shape.
+The clearest case is a block whose remaining fields depend on a discriminator.
+The parser reads the discriminator first and dispatches on it.
 
-A parser is an implementation of confval's `FromFields` trait.
-It is the same trait the derive generates.
+A parser is an implementation of confval's `FromFields` trait:
 
 ```rust
 pub trait FromFields: Sized {
     fn from_fields(fields: &Fields, report: &mut Report) -> Option<Self>;
 }
 ```
-
-A `Fields` built by `to_template` can also hold commented-out entries, fields whose `commented` flag is set.
-Such a field reads as absent.
-`Fields::get` and `Fields::has` skip one for you.
-If you iterate with `Fields::iter`, check the flag and skip the field the way the generated walk does.
 
 An implementation parses every field before deciding what to return.
 Parsing all of them first keeps one bad field from hiding the problems in the others.
@@ -505,71 +399,75 @@ Then return `None` when a field failed and the value cannot be built.
 The `None` itself carries no reason.
 Whatever explains the failure must already be in the report.
 
+A `Fields` built by `to_template` can also hold commented-out entries, fields whose `commented` flag is set.
+Such a field reads as absent.
+`Fields::get` and `Fields::has` skip one for you.
+If you iterate with `Fields::iter`, check the flag and skip the field the way the generated walk does.
+
 ### The field model
 
 A handwritten parser reads `Fields`, confval's format-neutral view of one level of structure.
 A frontend builds it, and from there nothing knows which format the text was.
 
-- **`Fields`** is one level: the named entries of a body, table, or inline object, plus the span a missing-field error
-  points at.
-- **`Field`** is one entry: its name, the span of the name, the span of the whole entry, and a `FieldKind`.
-- **`FieldKind`** is either `Value` for an attribute (`name = value`) or `Block` for a block (`name { ... }` in HCL,
-  `[name]` in TOML).
-  The split lets a diagnostic say "found block" rather than "found object".
-- **`Value`** is a span plus a `ValueKind`: a `Scalar`, a `Seq` (a list), a `Map` (nested fields), or `Other`.
-- **`Scalar`** is `String`, `Int(i64)`, `Float(f64)`, `Bool`, or `Unparsed`.
-  Integers and floats stay distinct so a format that separates them, like TOML's `1` and `1.0`, round-trips faithfully.
-- **`Unparsed(String)`** is the raw text of a value from a source that only carries strings, such as an environment
-  variable or a command line flag.
-  The leaf parsers coerce it to the type they expect, so the field's declared type decides what `"8080"` becomes.
-  No file frontend produces it.
-  A quoted string in a file stays a `String`.
-- **`Other(label)`** is a value that exists in the file but falls outside the model, such as an HCL template or a TOML
-  datetime.
-  It always surfaces as a plain type mismatch named by the label, for example `expected string, found datetime`.
-  [Format Limitations](./format-limitations.md) lists every one of them, for every format.
+| Type | Role |
+|------|------|
+| `Fields` | One level: the named entries of a body, table, or inline object, plus the span a missing-field error points at. |
+| `Field` | One entry: its name, the span of the name, the span of the whole entry, and a `FieldKind`. |
+| `FieldKind` | Either `Value` for an attribute (`name = value`) or `Block` for a block (`name { ... }` in HCL, `[name]` in TOML). The split lets a diagnostic say "found block" rather than "found object". |
+| `Value` | A span plus a `ValueKind`: a `Scalar`, a `Seq` (a list), a `Map` (nested fields), or `Other`. |
+| `Scalar` | `String`, `Int(i64)`, `Float(f64)`, `Bool`, or `Unparsed`. Integers and floats stay distinct so a format that separates them (like TOML's `1` and `1.0`) round-trips faithfully. |
+| `Unparsed(String)` | The raw text of a value from a source that only carries strings, such as an environment variable or a command line flag. The leaf parsers coerce it to the type they expect. No file frontend produces it. A quoted string in a file stays a `String`. |
+| `Other(label)` | A value that exists in the file but falls outside the model, such as an HCL template or a TOML datetime. It surfaces as a type mismatch named by the label. For example, `expected string, found datetime`. [Format Limitations](./format-limitations.md) lists every one. |
 
 ### Helpers
 
-confval ships helpers so a handwritten parser reports exactly like the derive does.
+confval ships helpers so a handwritten parser reports the same way the derive does.
 
-Leaf parsers turn one `Field` into a `Located` value, reporting a typed error on mismatch:
+**Leaf parsers** turn one `Field` into a `Located` value, reporting a typed error on mismatch:
 
-- `parse_string_field`, `parse_int_field` (i64), `parse_float_field`, `parse_bool_field`, `parse_path_field`
-- `parse_string_list_field` for arrays of strings
+| Helper | Parses |
+|--------|--------|
+| `parse_string_field` | a string |
+| `parse_int_field` | an `i64` |
+| `parse_float_field` | an `f64` |
+| `parse_bool_field` | a boolean |
+| `parse_path_field` | a `PathBuf` |
+| `parse_string_list_field` | an array of strings |
 
-Structural parsers recurse through `FromFields`:
+**Structural parsers** recurse through `FromFields`:
 
-- `parse_struct_field`: one nested struct from a block or a map value
-- `parse_single_struct`: like `parse_struct_field`, but reports duplicates when the field appears more than once
-- `parse_struct_list_field`: repeated blocks or a sequence of maps, collected into a `Vec`
+| Helper | Parses |
+|--------|--------|
+| `parse_struct_field` | one nested struct from a block or a map value |
+| `parse_single_struct` | same as `parse_struct_field`, with duplicate reporting |
+| `parse_struct_list_field` | repeated blocks or a sequence of maps, into a `Vec` |
 
-Occurrence helpers decide what a repeated field means:
+**Occurrence helpers** decide what a repeated field means:
 
-- `first_occurrence`: records the first occurrence of a leaf field and reports a later one as a duplicate
-- `parse_single_struct`: the same guard around a nested block
-- `parse_string_list_occurrence`: accumulates a list field's occurrences into one list, in document order
+| Helper | Behavior |
+|--------|----------|
+| `first_occurrence` | Records the first occurrence of a leaf field. Reports a later one as a duplicate. |
+| `parse_single_struct` | The same guard around a nested block. |
+| `parse_string_list_occurrence` | Accumulates a list field's occurrences into one list, in document order. |
 
-The derive wraps every leaf arm it generates in `first_occurrence`, so a derived spec reports a repeated field.
+The derive wraps every leaf arm it generates in `first_occurrence`.
+A derived spec therefore reports a repeated field.
 A handwritten parser that assigns its slot directly takes the last value instead, with no diagnostic.
-KDL delivers a repeated scalar as separate fields, so the difference shows up in a real document.
 
-Reporting helpers keep messages uniform: `report_unknown_field`, `report_missing_field`, `report_duplicate_field`.
+**Reporting helpers** keep messages uniform: `report_unknown_field`, `report_missing_field`, `report_duplicate_field`.
 Unknown fields are always errors.
 There is no lenient mode.
 
 The `handwritten` example calls these helpers against a tagged enum and a handwritten root.
-The test at `crates/confval/tests/handwritten_parity.rs` writes one spec both ways and asserts that the two write walks
-render the same text and agree on every span.
+The test at `crates/confval/tests/handwritten_parity.rs` writes one spec both ways and asserts that the two write walks render the same text and agree on every span.
 
 ## Writing emitters by hand
 
-A type with a handwritten `FromFields` needs a handwritten `ToFields` too, because the derive generates one only for the
-types it parses.
+A type with a handwritten `FromFields` needs a handwritten `ToFields` too, because the derive generates one only for the types it parses.
 `ToFields` has two required walks.
-`to_fields` emits every field with its span detached, which is the populated view and the template.
-`to_source_fields` emits only the fields the source set, keeps their spans, and recurses into children with
-`to_source_fields` rather than `to_fields`.
+`to_fields` emits every field with its span detached.
+This is the populated view and the template.
+`to_source_fields` emits only the fields the source set, keeps their spans, and recurses into children with `to_source_fields` rather than `to_fields`.
 That output is the [source view](./representations.md).
 
 Writing both by hand means writing the field list twice and reproducing that difference on every line.
@@ -611,12 +509,12 @@ Each method takes the `Located` rather than the value inside it, so the builder 
 | `block_opt_default` | fills an absent block from `S::default()` | omits an absent block |
 | `literal_string` | emits detached | emits detached |
 
-`block_opt_default` is the counterpart of `#[confval(nested, default)]`, whose populated walk shows the values the
-program will run with even for a block the operator never wrote.
-Use `block_opt` for an optional block with no default, which both walks omit when it is absent.
+`block_opt_default` is the counterpart of `#[confval(nested, default)]`.
+Its populated walk shows the values the program will run with even for a block the operator never wrote.
+Use `block_opt` for an optional block with no default.
+Both walks omit an absent block.
 
-`leaf` accepts the same types a derived spec field accepts, through the sealed `Leaf` trait: `String`, `i64`, `f64`,
-`bool`, and `PathBuf`.
+`leaf` accepts the same types a derived spec field accepts, through the sealed `Leaf` trait: `String`, `i64`, `f64`, `bool`, and `PathBuf`.
 No crate outside confval implements it, so the list can grow in a minor release.
 A path emits as a string, the one lossy conversion, matching what the derive generates.
 
@@ -638,9 +536,10 @@ match self {
 Both walks emit it, because a source view that dropped the tag would not reparse.
 
 The builder does not cover every shape a spec can hold.
-A string-keyed map has a derive form, `#[confval(map)]`, so it needs no handwritten walk, but the builder has no method for one.
+A string-keyed map has a derive form, `#[confval(map)]`, so it needs no handwritten walk.
+The builder has no method for one.
 Build such a field directly with `Field::detached_value` or `Field::detached_block`.
-Locate it with `at` when it carries a span, then `push` it into the builder where it belongs:
+Locate it with `at` when it carries a span, then `push` it into the builder:
 
 ```rust
 let field = Field::detached_value(name, value).at(span);
@@ -659,15 +558,11 @@ A sequence's elements keep the spans they were built with.
 
 A handwritten spec type also implements `Validate` and `ValidateNested`.
 `Validate` holds its rules.
-`ValidateNested` holds the descent into its children, the traversal the derive would have written from the struct
-definition.
-The `Self: ValidateNested` bound on `validate_all` makes omitting the traversal a compile error rather than a silently
-skipped subtree.
-A type in a required nested slot also needs `Default`, because the generated parser fills an absent block with it before
-reporting the block missing.
+`ValidateNested` holds the descent into its children, the traversal the derive would have written from the struct definition.
+The `Self: ValidateNested` bound on `validate_all` makes omitting the traversal a compile error rather than a silently skipped subtree.
+A type in a required nested slot also needs `Default`, because the generated parser fills an absent block with it before reporting the block missing.
 
 `to_template` defaults to `to_fields` for a handwritten impl.
-That fallback recurses with `to_fields`, so doc comments stop at the first handwritten node and never reach anything
-below it.
+That fallback recurses with `to_fields`, so doc comments stop at the first handwritten node and never reach anything below it.
 A derived block nested under a handwritten one renders without its comments.
 The `handwritten` example prints both sides of that boundary.

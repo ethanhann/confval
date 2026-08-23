@@ -4,7 +4,7 @@ sidebar_position: 8
 
 # Schema IR
 
-Sometimes you need the type of a spec rather than a value of it.
+When you need the type of a spec rather than a value of it, the schema IR provides it.
 An editor writing completions is one example.
 Before an operator writes a value, the editor needs to know which fields are legal, which are required, what kind each one holds, and which values a closed-set field accepts.
 
@@ -32,20 +32,29 @@ for field in &schema.fields {
 A `Schema` is one level of a spec: the type's doc comment and its fields in declaration order.
 Each `SchemaField` carries the field name as it appears in a config file, the field's doc comment, whether it is required, whether it declares a default, and its declared type.
 
-The declared type is a `SchemaType`.
-A scalar leaf carries its `ScalarType` and any constraint it declares.
-A string list is `StringList`, which carries any constraint its elements declare.
-A string-keyed map is `StringMap`.
-A list's constraint describes one element, so an editor offering completion inside the list reads the same set a scalar field would give.
-A nested block is `Block`, which holds the child level's own `Schema` and a `repeated` flag for a zero-or-more block list.
+The declared type is a `SchemaType`:
 
-A leaf reads its `ScalarType` from the Rust type, so `port: Located<i64>` is `Int` and `hostname: Located<String>` is `String`.
+- A scalar leaf carries its `ScalarType` and any constraint it declares.
+- A string list is `StringList`, which carries any constraint its elements declare.
+- A string-keyed map is `StringMap`.
+- A nested block is `Block`, which holds the child level's own `Schema` and a `repeated` flag for a zero-or-more block list.
+
+A list's constraint describes one element.
+An editor offering completion inside the list reads the same set a scalar field would give.
+
+A leaf reads its `ScalarType` from the Rust type.
+`port: Located<i64>` is `Int` and `hostname: Located<String>` is `String`.
 A `PathBuf` leaf reads as `Path`, the name for the path string an operator writes.
 
-A block recurses into the child's own `schema()`, so one call at the root builds the whole tree.
+A block recurses into the child's own `schema()`.
+One call at the root builds the whole tree.
+
+### Default text
 
 The schema carries a scalar leaf's default rendered to text.
-The derive evaluates the default expression when `schema()` runs and stores the result on the field, so `#[confval(default = 4)]` reads back as `"4"`.
+The derive evaluates the default expression when `schema()` runs and stores the result on the field.
+`#[confval(default = 4)]` reads back as `"4"`.
+
 A defaulted list, map, or block carries no text, because there is no single value to render.
 `has_default` still records that one applies.
 A handwritten spec carries a default the same way, through `with_default_text` beside the other builder calls.
@@ -57,24 +66,33 @@ To render a whole document of defaults, use the [template](./templates.md) walk,
 A field is required when its shape needs a value and it declares no default.
 An `Option` field, a zero-or-more block list, and any field with a `#[confval(default)]` are not required.
 
-A defaulted field therefore reports `required` as false and `has_default` as true, whatever its shape.
+A defaulted field reports `required` as false and `has_default` as true, whatever its shape.
 An editor reads `required` to report only the fields the parser would reject as missing.
 
 ## Recording constraints
 
-The derive cannot read a `Validate` body, so a closed-set field looks like a plain `Located<String>` and a numeric range is invisible to the schema.
+The derive cannot read a `Validate` body.
+A closed-set field looks like a plain `Located<String>` and a numeric range is invisible to the schema.
 Three attributes record a constraint so the schema can carry it.
 
-`#[confval(keywords = PATH)]` names a `keyword_enum!` type and takes a `String` leaf or a string list.
+### `#[confval(keywords = PATH)]`
+
+Names a `keyword_enum!` type.
+Takes a `String` leaf or a string list.
 The schema carries its allowed strings as `Constraint::Keywords`.
 On a list the set describes one element, so an editor offers the same words inside the list that it offers on a scalar.
 
-`#[confval(range = PATH)]` names a `RangeConstraint` and requires an `Int` or `Float` leaf.
+### `#[confval(range = PATH)]`
+
+Names a `RangeConstraint`.
+Requires an `Int` or `Float` leaf.
 The schema carries its bounds, units, and help line as `Constraint::Range`.
 A list of numbers is not a field shape confval parses, so a range has nothing to bound on a list.
 
-`#[confval(references = <block>)]` marks a `String` leaf whose value names another block by its label.
-It takes a leaf alone, because the reference pass resolves one value against the labels in scope.
+### `#[confval(references = <block>)]`
+
+Marks a `String` leaf whose value names another block by its label.
+Takes a leaf alone, because the reference pass resolves one value against the labels in scope.
 The `<block>` is the config field name of a labeled block, one that marks a child field with `#[confval(label)]`.
 The schema carries the target as `Constraint::References`.
 
@@ -104,7 +122,7 @@ A reference names its target block by a bare name.
 The name resolves outward from the reference's enclosing block.
 The nearest enclosing scope whose schema declares a labeled block field of that name wins, and the root is searched last.
 Labels are collected within that one scope instance.
-So two sibling instances of the enclosing block may reuse a label, and a reference sees only the labels of its own scope.
+Two sibling instances of the enclosing block may reuse a label, and a reference sees only the labels of its own scope.
 A field of the same name that is not a labeled block does not stop the search, so a reference field may carry its target's name.
 
 For example, a route names one of its own service's upstreams:
@@ -151,7 +169,8 @@ if let Some(fields) = &fields {
 ```
 
 The pass reports an undefined reference, a duplicate label, and an empty label, each at its value's span.
-The language server runs the same pass in its diagnostics, so the editor and your pipeline report the same reference errors.
+The language server runs the same pass in its diagnostics.
+The editor and your pipeline report the same reference errors.
 
 ## Building and reading a schema
 

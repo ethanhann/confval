@@ -5,7 +5,7 @@ sidebar_position: 1
 # Getting Started
 
 confval is a Rust crate for parsing, validating, and lowering configuration files.
-It records a source span for every parsed value, so a validation error can report the line and column in the file the value came from.
+Every parsed value carries its source span, so a validation error can report the line and column in the file the value came from.
 
 Use it to build the configuration layer of an application.
 You define the shape of the config as Rust types, parse a file into those types, run validation, and lower the result into the runtime types the rest of the program uses.
@@ -251,7 +251,7 @@ Each maps to one stage of the [pipeline](pipeline.md) and has its own guide page
 - The config types, `ServerConfig` and `LimitsConfig`, are the runtime form the validated spec lowers into.
   See [Lowering](./guide/lowering.md).
 - The `main` function runs the stages in order: parse, validate, check `has_errors`, then lower.
-  It handles the parse and lower `Option` values rather than unwrapping them, so a bad file is reported and the program exits rather than panicking.
+  It handles the parse and lower `Option` values rather than unwrapping them, so a bad file is reported and the program exits cleanly.
   See [Diagnostics](./guide/diagnostics.md) for how the report renders.
 
 To watch the report work, put some bad values in the input: an empty `hostname`, a `port` of `99999`, an unknown `mode`.

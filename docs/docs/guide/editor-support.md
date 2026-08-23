@@ -4,30 +4,31 @@ sidebar_position: 10
 
 # Editor Support
 
-confval rejects an unknown or invalid field when your program starts, so a mistake in a handwritten configuration stops the program instead of passing silently.
-Editor support moves that feedback to where you write the file.
-It shows which fields are legal, what each one holds, and where the file is wrong, before you run the program.
+You can see configuration errors in your editor before you run the program.
+When your editor is connected to a confval language server, it shows which fields are legal, what each one holds, and where the file is wrong.
 
-You get this by opening your configuration in an editor connected to a confval language server.
 The [Language Server](./language-server.md) page covers how a developer runs one.
 This page describes what the editor does for you once it is running.
 
 ## Diagnostics
 
 The editor underlines the same errors your program would report.
-It runs the real validation rather than an approximation, so an error the editor shows is an error the program would raise.
+It runs the real validation rather than an approximation.
+An error the editor shows is an error the program would raise.
 The checks include an unknown field, an out-of-range value, an undefined reference, a duplicate label, and an empty label.
 
 ## Completion
 
 Completion offers what is legal at the cursor.
 
-On a fresh line inside a block, it offers the field names and block types the schema allows there, and it hides a single-valued field you have already set.
+On a fresh line inside a block, it offers the field names and block types the schema allows there.
+It hides a single-valued field you have already set.
 The list follows the schema's declaration order, so related fields stay together.
 
 On a value, it offers the values the schema allows.
 A field with a fixed set of keywords offers those keywords.
-Inside a list whose elements come from such a set, it offers the same words, and accepting one replaces the element under the cursor rather than the whole list.
+Inside a list whose elements come from such a set, it offers the same words.
+Accepting one replaces the element under the cursor rather than the whole list.
 A field that points at another block offers the labels defined in the scope the reference resolves in.
 These are the labels a reference can resolve to without an error.
 
@@ -74,6 +75,8 @@ An unusual YAML layout, such as a flow collection spread across several lines, c
 
 The editor checks the file you have open on its own.
 When you assemble a configuration from several [layers](./layering.md), a later layer can supply a value the open file leaves out.
-The editor does not see the other layers, so it can report a required field as missing even though a layer supplies it.
+The editor does not see the other layers.
+It can report a required field as missing even though a layer supplies it.
 In a layered setup, treat a missing-field error as a prompt to check the other layers rather than a fault in the open file.
+
 A multi document server holds every file of the configuration in one process, but each open file is still checked on its own.

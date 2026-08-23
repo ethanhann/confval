@@ -4,8 +4,10 @@ sidebar_position: 5
 
 # Layering
 
-When an application reads its configuration, the values may come from more than one place.
-A file holds the defaults that ship with the project, environment variables set the values a deployment needs, and command line flags override a value for a single run.
+When you configure an application, the values may come from more than one place.
+A file holds the defaults that ship with the project.
+Environment variables set the values a deployment needs.
+Command line flags override a value for a single run.
 Layering combines these sources into one configuration, applying them in order so that a value from a later source overrides the same value from an earlier one.
 
 The `layering` feature assembles the sources for you and produces the same spec type you would parse from a single file.
@@ -26,7 +28,8 @@ The feature brings in no external crate.
 ## A first assembly
 
 Each configuration source becomes a layer through a provider function.
-A file uses `parse_hcl_fields`, `parse_toml_fields`, `parse_kdl_fields`, `parse_json_fields`, or `parse_yaml_fields`, the environment uses `env_fields`, and the command line uses `cli_fields`.
+A file uses `parse_hcl_fields`, `parse_toml_fields`, `parse_kdl_fields`, `parse_json_fields`, or `parse_yaml_fields`.
+The environment uses `env_fields`, and the command line uses `cli_fields`.
 You pass the layers to `Assembly` in precedence order and call `assemble` with the spec type you want:
 
 ```rust
@@ -46,7 +49,8 @@ let spec: Option<ServerSpec> = Assembly::new()
 ```
 
 `assemble` merges the layers and runs the spec's parser once on the result.
-The value it returns is the same `ServerSpec` you would get from a single file, so you validate, gate, and lower it exactly as the [pipeline](../pipeline.md) describes.
+The value it returns is the same `ServerSpec` you would get from a single file.
+You validate, gate, and lower it exactly as the [pipeline](../pipeline.md) describes.
 
 ## Building layers
 
@@ -57,7 +61,8 @@ The file providers read a source you have already registered:
 let file_layer = parse_toml_fields(&sources, base, &mut report);
 ```
 
-The environment and command line providers register their own sources as they read, so they take the source map by mutable reference:
+The environment and command line providers register their own sources as they read.
+They take the source map by mutable reference:
 
 ```rust
 let env_layer = env_fields(&mut sources, "APP_", &mut report);
@@ -66,7 +71,8 @@ let cli_layer = cli_fields(&mut sources, std::env::args(), &mut report);
 
 A provider returns `None` when its source fails to parse.
 The error is recorded in the report.
-When any layer is `None`, `assemble` returns `None` before parsing the spec, so check the report for errors after `assemble` as you would after parsing one file.
+When any layer is `None`, `assemble` returns `None` before parsing the spec.
+Check the report for errors after `assemble` as you would after parsing one file.
 `assemble` never returns `None` with an empty report.
 
 ## Precedence
@@ -116,7 +122,8 @@ With the prefix `APP_`, variables map to fields like this:
 - `APP_PORT=8080` sets `port`.
 - `APP_SERVER__MAX_BODY_MB=16` sets `server.max_body_mb`.
 
-Prefix matching is case-sensitive and byte-exact, so `app_port` does not match the prefix `APP_`.
+Prefix matching is case-sensitive and byte-exact.
+`app_port` does not match the prefix `APP_`.
 Write the prefix exactly as the variables begin, including its trailing underscore.
 An empty prefix selects every variable in the process environment.
 
@@ -125,7 +132,7 @@ An empty prefix selects every variable in the process environment.
 `cli_fields` reads flags in the `--key=value` form.
 A dot separates nesting levels, and a segment keeps its underscores.
 Arguments that are not flags are ignored, so you may pass the whole argument list.
-A flag written without its value, such as `--port` for `--port=8080`, is reported as a warning, since the space-separated form sets nothing:
+A flag written without its value, such as `--port` for `--port=8080`, is reported as a warning, because the space-separated form sets nothing:
 
 ```rust
 let cli_layer = cli_fields(&mut sources, std::env::args(), &mut report);
@@ -139,7 +146,8 @@ Flags map to fields like this:
 ## Value types
 
 A value from an environment variable or a command line flag is always text.
-Each value is coerced to the type its field declares, so you write it as a string and the field decides how to read it:
+Each value is coerced to the type its field declares.
+You write it as a string and the field decides how to read it:
 
 - A field of type `i64` reads `"8080"` as the number `8080`.
 - A field of type `String` keeps `"123"` as the text `123`.
@@ -151,7 +159,8 @@ For example, `APP_PORT=high` for an integer field reports `expected integer, fou
 
 An environment variable or a command line flag sets one value at a path.
 Neither can set a list or a repeated block.
-A list keeps whatever the file layers provide, so change a list by editing a file.
+A list keeps whatever the file layers provide.
+Change a list by editing a file.
 
 ## Running the example
 
@@ -161,7 +170,10 @@ The crate ships a `layering` example that assembles one `ServerSpec` from a base
 cargo run -q -p confval --example layering --features derive,color,toml,layering
 ```
 
-The base file provides `hostname` and the `limits` block, the environment sets `port` and `limits.mode`, the command line sets `limits.max_body_mb` and `tls`, and the defaults file fills `workers` through `join`:
+The base file provides `hostname` and the `limits` block.
+The environment sets `port` and `limits.mode`.
+The command line sets `limits.max_body_mb` and `tls`.
+The defaults file fills `workers` through `join`:
 
 ```shell
 listening on 127.0.0.1:9090 with 8 workers

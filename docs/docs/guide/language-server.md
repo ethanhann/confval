@@ -6,7 +6,8 @@ sidebar_position: 11
 
 `confval-lsp` is a language server.
 It gives an editor the completion, hover, diagnostics, and navigation that [Editor Support](./editor-support.md) describes.
-The server works for any confval schema and any format confval parses, so you build one server for your own configuration.
+The server works for any confval schema and any format confval parses.
+You build one server for your own configuration.
 
 This page is for the developer who owns the spec and wants to run a server.
 
@@ -29,12 +30,12 @@ use confval_lsp::{serve, Hcl};
 serve::<ServerSpec, Hcl>(Hcl)
 ```
 
-The derive supplies everything the server needs, so the binding is only your root spec and its frontend.
+The derive supplies everything the server needs.
+The binding is only your root spec and its frontend.
 
 ## Serving a multi document configuration
 
-Sometimes one configuration spans several document shapes.
-An entrypoint file names the top level, and included files carry their own shapes, each with its own root spec.
+When one configuration spans several document shapes, an entrypoint file names the top level, and included files carry their own shapes, each with its own root spec.
 With `serve` alone, each shape needs its own server process and its own editor registration.
 
 `serve_multi` serves every shape from one process.
@@ -62,16 +63,13 @@ The rule can read the same include patterns your loader reads.
 A matcher must not panic.
 When your rule hits a problem, such as an unreadable file, return `false`.
 The binding declines, and the server tries the next one.
-
-If the rule panics instead, the server survives, but the file it was routing gets nothing.
-No diagnostics appear, every request answers empty, and the log carries no warning.
-The file looks ignored, with nothing to say why.
+If the rule panics, the server survives, but the file it was routing receives no diagnostics and answers every request empty.
 A build with `panic = "abort"` stops the whole server instead.
 
 A document that matches no binding stays open but inert.
-It gets no diagnostics, and every request answers empty.
+It receives no diagnostics, and every request answers empty.
 The server logs one warning naming the file.
-A mismatch between the editor's file patterns and your bindings therefore shows up in the log instead of passing silently.
+A mismatch between the editor's file patterns and your bindings therefore shows up in the log.
 
 The server routes a document once, when the editor opens it.
 If you change the inputs your matchers read, such as an include pattern in the entrypoint, a document that is already open keeps its old schema.
@@ -79,8 +77,8 @@ Reopen the file to route it again.
 
 ## Embedding the router
 
-Sometimes your host already owns an `lsp-server` connection, such as a test harness over an in-memory pair or a process that speaks LSP over a socket.
-`Router` is the server behind both `serve` functions, and you can run it over your own connection.
+When your host already owns an `lsp-server` connection, such as a test harness over an in-memory pair or a process that speaks LSP over a socket, you can run the router directly.
+`Router` is the server behind both `serve` functions.
 
 ```rust
 use confval_lsp::{Matcher, Router, bind, Hcl};
@@ -95,15 +93,17 @@ Give your `main` the return type `Result<(), confval_lsp::LspError>`, and the qu
 
 ## Trying it against an editor
 
-The crate ships a `serve` example bound to a demo spec, so you can point an editor at a running server before you write your own.
+The crate ships a `serve` example bound to a demo spec.
+You can point an editor at a running server before you write your own.
 Run it and choose a format:
 
 ```
 cargo run -p confval-lsp --example serve hcl
 ```
 
-The example serves over stdin and stdout, so an editor's LSP client launches the built binary at `target/debug/examples/serve` and speaks to it.
-The demo spec is there to show the feature set, not to deploy.
+The example serves over stdin and stdout.
+An editor's LSP client launches the built binary at `target/debug/examples/serve` and speaks to it.
+The demo spec shows the feature set, not a production configuration.
 Your real server names your own root spec.
 
 A second example, `serve_multi`, shows routing.
@@ -132,5 +132,6 @@ confval-lsp = { version = "0.9.0", default-features = false, features = ["toml"]
 ## Position encoding
 
 An editor addresses text by line and character, and the character count uses UTF-16 code units by default.
-The server negotiates the encoding at initialization and prefers UTF-8 when the client supports it, so a range over a value with non-ASCII characters stays aligned.
+The server negotiates the encoding at initialization and prefers UTF-8 when the client supports it.
+A range over a value with non-ASCII characters stays aligned.
 This is automatic and needs no configuration.

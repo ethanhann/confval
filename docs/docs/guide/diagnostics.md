@@ -63,7 +63,7 @@ error: unknown load_balancing_strategy: failovr
 
 Line and column lookups are O(log n) via a per-source line index.
 Columns count characters, not bytes.
-An issue records only a severity, message, optional span, optional help, and related spans.
+An issue records a severity, message, optional span, optional help, and related spans.
 It never reads source text until render time.
 
 ## Spans and source
@@ -79,8 +79,7 @@ pub struct Span {
 ```
 
 `SourceId` is a lightweight handle issued by the `SourceMap`.
-Spans are plain data.
-Resolving them to line and column numbers happens only at render time.
+Resolving a span to line and column numbers happens only at render time.
 
 The `SourceMap` interns source text.
 Each file (or in-memory string) is registered once and identified by its `SourceId`:
@@ -91,4 +90,4 @@ let id = sources.add("config.hcl", text);
 ```
 
 Reports do not own source text.
-Renderers take `&SourceMap` so the text is stored exactly once no matter how many issues reference it.
+Renderers take `&SourceMap` so the text is stored once no matter how many issues reference it.

@@ -20,7 +20,7 @@ Its behavior is covered by the integration and trybuild tests in the `confval` p
 
 ## Design
 
-confval is built around five design decisions.
+confval follows five design decisions.
 A change that departs from one of these decisions needs a reason in the pull request.
 
 ### Spans travel with values
@@ -62,9 +62,9 @@ If you add an example or change one's required features, update that page and th
 
 confval is organized into six modules, plus a prelude.
 The dependency direction is strictly downward.
-`pipeline` builds on `format`, which builds on `diagnostic`, which builds
-on `source`.
-`layering` builds on `format`, and `schema` depends on no other module.
+`pipeline` builds on `format`, which builds on `diagnostic`, which builds on `source`.
+`layering` builds on `format`.
+`schema` depends on no other module.
 
 | Module                | Holds                                                                                       |
 |-----------------------|---------------------------------------------------------------------------------------------|
@@ -76,5 +76,4 @@ on `source`.
 | `confval::schema`     | `Schema`, `SchemaField`, `SchemaType`, `Constraint`, `ToSchema` (the type-level view)       |
 | `confval::prelude`    | a glob re-export of the common imports across those layers                                  |
 
-`use confval::prelude::*;` pulls the everyday names (`Located`, `Span`, `Report`, `Lower`, `Validate`, `narrow`,
-`RangeConstraint`, `KeywordSet`, and the derives) in one line.
+`use confval::prelude::*;` pulls the everyday names (`Located`, `Span`, `Report`, `Lower`, `Validate`, `narrow`, `RangeConstraint`, `KeywordSet`, and the derives) in one line.

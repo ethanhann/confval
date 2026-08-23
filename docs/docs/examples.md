@@ -138,7 +138,8 @@ cargo run -q -p confval --example handwritten --features derive,color,toml,hcl
 
 ## serve
 
-The serve example runs the language server over stdio against a demo spec, so you can point an editor at a running server before writing your own.
+The serve example runs the language server over stdio against a demo spec.
+You can point an editor at a running server before writing your own.
 Pick a format, then launch an LSP client at the built binary.
 [Language Server](./guide/language-server.md#trying-it-against-an-editor) walks through an editor setup.
 
@@ -148,7 +149,8 @@ cargo run -p confval-lsp --example serve hcl
 
 ## serve_multi
 
-The serve_multi example runs one server over two bindings, an entrypoint spec for `gateway.cvm` and a middleware spec for any `middleware.*` file, so you can watch routing pick a schema per document.
+The serve_multi example runs one server over two bindings, an entrypoint spec for `gateway.cvm` and a middleware spec for any `middleware.*` file.
+You can watch routing pick a schema per document.
 The documents under `dev/sample_configs/multi/` exercise it, including one file no binding matches.
 
 ```shell

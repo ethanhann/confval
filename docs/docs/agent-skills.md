@@ -4,8 +4,7 @@ sidebar_position: 5
 
 # Agent Skills
 
-Setting up a confval pipeline is mechanical and specific to your domain model.
-You write a spec type whose fields carry a span, validation that accumulates into a report, and lowering into runtime types.
+When you start a new project with confval, you need a spec type whose fields carry a span, validation that accumulates into a report, and lowering into runtime types.
 The shape of each depends on the settings you parse.
 confval ships two agent skills that walk an agent through that work, and a `confval` binary whose job is to install them into your project.
 
@@ -27,7 +26,8 @@ cargo install confval
 The skills answer two different questions.
 
 `confval-init` scaffolds a pipeline in a project that does not have one.
-It surveys the project, reads the configuration format, adds the dependency, and writes the spec, validation, and runtime layers, stopping at the boundary where your domain rules begin.
+It surveys the project, reads the configuration format, adds the dependency, and writes the spec, validation, and runtime layers.
+It stops at the boundary where your domain rules begin.
 
 `confval-add-block` keeps the layers in sync when you add a field or block to a project that already has a pipeline.
 A new setting runs through the spec type, the validation, the runtime type, the lowering, and the `Default` impl.
@@ -88,7 +88,8 @@ Each file gets one outcome, decided by comparing the bytes on disk with the byte
 
 The binary writes its own version into the skill text.
 An upgraded binary therefore reports an untouched older file as differing.
-That is the drift signal, and `--force` is how you take the newer text.
+That is the drift signal.
+Pass `--force` to take the newer text.
 The report describes the file as differing from the copy the binary ships rather than as edited, because an older binary's output differs for the same reason.
 
 | Code | Meaning                                                                       |
@@ -101,11 +102,14 @@ The report describes the file as differing from the copy the binary ships rather
 
 ## What you can observe
 
-A first run reports each file `created`.
-A second run reports `unchanged` and leaves the bytes alone.
-A file you edited reports as differing from the copy the binary ships, and it is left alone until you pass `--force`.
-An upgraded binary reports the same way for a file it did not write.
+| Run | Result |
+|-----|--------|
+| First run | Each file reports `created`. |
+| Second run (no changes) | Each file reports `unchanged`. The bytes on disk stay the same. |
+| After you edit a skill file | The file reports as differing from the copy the binary ships. It is left alone until you pass `--force`. |
+| After upgrading the binary | Same behavior as an edited file, because the binary's copy changed. |
 
 Nothing is deleted.
 A reference file a later release stops shipping stays on disk until you remove it.
-A file in a skill directory that the binary does not ship stays in place, and the report does not name it.
+A file in a skill directory that the binary does not ship stays in place.
+The report does not name it.
