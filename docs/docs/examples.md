@@ -5,55 +5,38 @@ sidebar_position: 4
 # Examples
 
 Sixteen runnable examples ship in the repository: fourteen in `crates/confval/examples/` and two runnable language servers in `crates/confval-lsp/examples/`.
+Each section below gives the run command.
+`just examples` runs them all.
+
+## Full pipeline by format
 
 `hcl`, `toml`, `kdl`, `json`, and `yaml` are the same program five times.
 Each renders the diagnostics for a failing variant to stderr, feeds a valid document, prints the lowered config, and emits the populated spec back to canonical text.
 They differ in the source text, its file name, and the two format calls that parse and emit it.
-The rest demonstrate one feature each, except `handwritten`, which runs the whole pipeline over a spec written without the derive.
-Each section below gives the run command.
-`just examples` runs them all.
-
-## hcl
-
-The `hcl` example runs those steps over HCL.
 
 ```shell
 cargo run -q -p confval --example hcl --features derive,color,hcl
-```
-
-## toml
-
-The `toml` example runs those steps over TOML.
-
-```shell
 cargo run -q -p confval --example toml --features derive,color,toml
-```
-
-## kdl
-
-The `kdl` example runs those steps over KDL.
-
-```shell
 cargo run -q -p confval --example kdl --features derive,color,kdl
-```
-
-## json
-
-The `json` example runs those steps over JSON.
-
-```shell
 cargo run -q -p confval --example json --features derive,color,json
-```
-
-## yaml
-
-The `yaml` example runs those steps over YAML.
-
-```shell
 cargo run -q -p confval --example yaml --features derive,color,yaml
 ```
 
-## issue_severity
+### handwritten
+
+The `handwritten` example runs the whole pipeline over a spec written without the derive.
+The spec has a `mode` field that decides which fields the rest of the block has.
+The example mixes both approaches: the root is handwritten, its children are derived, and the `tls` block inside a derived route is handwritten again.
+
+It prints the diagnostics, the runtime config, the populated and source views, and the same model in HCL.
+
+```shell
+cargo run -q -p confval --example handwritten --features derive,color,toml,hcl
+```
+
+## Pipeline stages
+
+### issue_severity
 
 The `issue_severity` example illustrates the difference between an error and a warning.
 
@@ -61,7 +44,7 @@ The `issue_severity` example illustrates the difference between an error and a w
 cargo run -q -p confval --example issue_severity --features derive,color,toml
 ```
 
-## validate_traversal
+### validate_traversal
 
 The `validate_traversal` example shows what `validate_all` reaches.
 
@@ -69,7 +52,17 @@ The `validate_traversal` example shows what `validate_all` reaches.
 cargo run -q -p confval --example validate_traversal --features derive,color,toml
 ```
 
-## layering
+### narrow
+
+The `narrow` example shows the ready-made narrowing helpers that convert spec integers to the widths a runtime type needs.
+It exercises five of them.
+The remaining integer widths and their `opt_` variants share the same shape.
+
+```shell
+cargo run -q -p confval --example narrow --features derive,color,toml
+```
+
+### layering
 
 The `layering` example assembles one config from a base file, a joined defaults file, the environment, and the command line.
 
@@ -79,7 +72,9 @@ cargo run -q -p confval --example layering --features derive,color,toml,layering
 
 See [Layering](./guide/layering.md) for how the sources merge and how environment and command line values are coerced.
 
-## templates
+## Templates and output
+
+### templates
 
 The `templates` example renders a spec back to configuration text.
 
@@ -92,7 +87,7 @@ The unset optional `pid_file` stays out of the plain form and renders in the tem
 
 See [Templates](./guide/templates.md) for how `to_fields`, `to_template`, and the emitters fit together.
 
-## doc_fallback
+### doc_fallback
 
 The `doc_fallback` example shows where a template block's comment comes from.
 
@@ -100,25 +95,7 @@ The `doc_fallback` example shows where a template block's comment comes from.
 cargo run -q -p confval --example doc_fallback --features derive,toml
 ```
 
-## json_diagnostics
-
-The `json_diagnostics` example renders a report as JSON for CI and tooling.
-
-```shell
-cargo run -q -p confval --example json_diagnostics --features derive,serde,toml
-```
-
-## narrow
-
-The `narrow` example shows the ready-made narrowing helpers that convert spec integers to the widths a runtime type needs.
-It exercises five of them.
-The remaining integer widths and their `opt_` variants share the same shape.
-
-```shell
-cargo run -q -p confval --example narrow --features derive,color,toml
-```
-
-## representations
+### representations
 
 The `representations` example prints the three views of one loaded spec: the source view of what was set, the populated view after defaults, and the runtime view of the lowered values.
 
@@ -126,19 +103,19 @@ The `representations` example prints the three views of one loaded spec: the sou
 cargo run -q -p confval --example representations --features derive,serde,toml
 ```
 
-## handwritten
+### json_diagnostics
 
-The handwritten example writes a spec without the derive, for a block whose `mode` field decides which fields the rest of the block has.
-Each level of its tree is written the other way from the level above: the root is handwritten, its children are derived, and the `tls` block inside a derived route is handwritten again.
-It prints the diagnostics, the runtime config, the populated and source views, the comments a handwritten node drops from a template, and the same model in HCL.
+The `json_diagnostics` example renders a report as JSON for CI and tooling.
 
 ```shell
-cargo run -q -p confval --example handwritten --features derive,color,toml,hcl
+cargo run -q -p confval --example json_diagnostics --features derive,serde,toml
 ```
 
-## serve
+## Language server
 
-The serve example runs the language server over stdio against a demo spec.
+### serve
+
+The `serve` example runs the language server over stdio against a demo spec.
 You can point an editor at a running server before writing your own.
 Pick a format, then launch an LSP client at the built binary.
 [Language Server](./guide/language-server.md#trying-it-against-an-editor) walks through an editor setup.
@@ -147,9 +124,9 @@ Pick a format, then launch an LSP client at the built binary.
 cargo run -p confval-lsp --example serve hcl
 ```
 
-## serve_multi
+### serve_multi
 
-The serve_multi example runs one server over two bindings, an entrypoint spec for `gateway.cvm` and a middleware spec for any `middleware.*` file.
+The `serve_multi` example runs one server over two bindings, an entrypoint spec for `gateway.cvm` and a middleware spec for any `middleware.*` file.
 You can watch routing pick a schema per document.
 The documents under `dev/sample_configs/multi/` exercise it, including one file no binding matches.
 
