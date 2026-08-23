@@ -4,7 +4,7 @@
 //! Run it with `cargo run -p confval-lsp --example serve_multi`, then point an
 //! LSP client at the built binary and open the documents under
 //! `dev/sample_configs/multi/`. The first binding serves `gateway.cvm` by file
-//! name. The second serves any file whose name starts with `device.`, through
+//! name. The second serves any file whose name starts with `middleware.`, through
 //! the closure matcher a real host would use. Any other document is held
 //! unmatched, so opening one shows the warning log and the empty answers.
 //! The server routes a document when the editor opens it, so a renamed file
@@ -20,10 +20,10 @@ use confval_lsp::{Hcl, LspError, Matcher, bind, serve_multi};
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 
-keyword_enum!(DeviceKind, {
-    Sensor => "sensor",
-    Switch => "switch",
-    Camera => "camera",
+keyword_enum!(MiddlewareKind, {
+    Auth    => "auth",
+    Cache   => "cache",
+    Logging => "logging",
 });
 
 /// The demo entrypoint, served for `gateway.cvm`.
@@ -36,15 +36,15 @@ struct GatewaySpec {
     port: Located<i64>,
 }
 
-/// A demo device document, served for any `device.*` file.
+/// A demo middleware document, served for any `middleware.*` file.
 #[derive(confval::Spec)]
-struct DeviceSpec {
-    /// The device name.
+struct MiddlewareSpec {
+    /// The middleware name.
     name: Located<String>,
-    /// What the device is.
-    #[confval(keywords = DeviceKind)]
+    /// What the middleware does.
+    #[confval(keywords = MiddlewareKind)]
     kind: Located<String>,
-    /// The TCP port the device answers on.
+    /// The TCP port the middleware answers on.
     #[confval(range = PORT)]
     port: Located<i64>,
 }
@@ -53,18 +53,18 @@ impl Validate for GatewaySpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
-impl Validate for DeviceSpec {
+impl Validate for MiddlewareSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
 fn main() -> Result<(), LspError> {
     serve_multi(vec![
         bind::<GatewaySpec, _>(Matcher::FileName("gateway.cvm".to_string()), Hcl),
-        bind::<DeviceSpec, _>(
+        bind::<MiddlewareSpec, _>(
             Matcher::Fn(Box::new(|path| {
                 path.file_name()
                     .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.starts_with("device."))
+                    .is_some_and(|name| name.starts_with("middleware."))
             })),
             Hcl,
         ),

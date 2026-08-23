@@ -48,23 +48,30 @@ use confval_lsp::{Matcher, bind, serve_multi, Hcl};
 
 serve_multi(vec![
     bind::<AppSpec, _>(Matcher::FileName("app.hcl".into()), Hcl),
-    bind::<DeviceSpec, _>(Matcher::Fn(Box::new(device_matcher)), Hcl),
+    bind::<MiddlewareSpec, _>(Matcher::Fn(Box::new(middleware_matcher)), Hcl),
     bind::<RouteSpec, _>(Matcher::Fn(Box::new(route_matcher)), Hcl),
 ])
 ```
 
 Bindings are tried in declaration order, and the first match wins.
 `Matcher::FileName` compares the document's file name.
-`Matcher::Fn` receives the document's absolute path and answers with your own rule, which can read the same include patterns your loader reads.
+`Matcher::Fn` calls your own rule with the document's absolute path.
+The rule can read the same include patterns your loader reads.
 `Matcher::Any` accepts every document, so an `Any` binding declared last acts as a fallback.
 
 A matcher must not panic.
-When your rule hits a problem, such as an unreadable file, return `false` so the binding declines and the next one is tried.
-A panic in a matcher is caught while the server handles the open, so the document is left unrouted with no diagnostics and no log line naming it.
-In a build with `panic = "abort"` the server process aborts instead.
+When your rule hits a problem, such as an unreadable file, return `false`.
+The binding declines, and the server tries the next one.
+
+If the rule panics instead, the server survives, but the file it was routing gets nothing.
+No diagnostics appear, every request answers empty, and the log carries no warning.
+The file looks ignored, with nothing to say why.
+A build with `panic = "abort"` stops the whole server instead.
 
 A document that matches no binding stays open but inert.
-It gets no diagnostics and empty answers, and the server logs a warning naming it, so a mismatch between the editor's file patterns and your bindings is visible rather than silent.
+It gets no diagnostics, and every request answers empty.
+The server logs one warning naming the file.
+A mismatch between the editor's file patterns and your bindings therefore shows up in the log instead of passing silently.
 
 The server routes a document once, when the editor opens it.
 If you change the inputs your matchers read, such as an include pattern in the entrypoint, a document that is already open keeps its old schema.
@@ -83,7 +90,8 @@ router.run(&connection)?;
 ```
 
 `Router::new` refuses an empty binding list with an error, before any connection exists.
-Both entry points and `Router` return the crate's `LspError`, so a `main` returning `Result<(), confval_lsp::LspError>` propagates everything with the question mark.
+`serve`, `serve_multi`, and `Router` all return the crate's `LspError`.
+Give your `main` the return type `Result<(), confval_lsp::LspError>`, and the question mark propagates everything.
 
 ## Trying it against an editor
 
@@ -99,14 +107,16 @@ The demo spec is there to show the feature set, not to deploy.
 Your real server names your own root spec.
 
 A second example, `serve_multi`, shows routing.
-It binds an entrypoint spec to `gateway.cvm` by file name and a device spec to any `device.*` file through a closure matcher, with no fallback, so any other document shows the unmatched warning.
-The sample documents are plain HCL under the made-up `.cvm` extension, so an IDE registers this server on its own file pattern beside a `.hcl` registration.
+It binds an entrypoint spec to `gateway.cvm` by file name, and a middleware spec to any `middleware.*` file through a closure matcher.
+There is no fallback binding, so any other document shows the unmatched warning.
+The sample documents are plain HCL under the made-up `.cvm` extension.
+The extension lets an IDE register this server on its own file pattern, beside an existing `.hcl` registration.
 
 ```
 cargo run -p confval-lsp --example serve_multi
 ```
 
-The documents under `dev/sample_configs/multi/` exercise it: a valid entrypoint, a valid device, a device with a bad keyword and an out-of-range port, and one file no binding matches.
+The documents under `dev/sample_configs/multi/` exercise it: a valid entrypoint, a valid middleware, a middleware with a bad keyword and an out-of-range port, and one file no binding matches.
 
 ## Choosing a format
 

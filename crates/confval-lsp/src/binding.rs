@@ -227,8 +227,8 @@ mod tests {
         }));
 
         // Act, Assert
-        assert!(matcher.matches(Some(Path::new("/x/device.hcl"))));
-        assert!(!matcher.matches(Some(Path::new("/x/device.yaml"))));
+        assert!(matcher.matches(Some(Path::new("/x/middleware.hcl"))));
+        assert!(!matcher.matches(Some(Path::new("/x/middleware.yaml"))));
         assert!(
             !matcher.matches(None),
             "a closure is never asked without a path"

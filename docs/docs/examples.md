@@ -148,7 +148,7 @@ cargo run -p confval-lsp --example serve hcl
 
 ## serve_multi
 
-The serve_multi example runs one server over two bindings, an entrypoint spec for `gateway.cvm` and a device spec for any `device.*` file, so you can watch routing pick a schema per document.
+The serve_multi example runs one server over two bindings, an entrypoint spec for `gateway.cvm` and a middleware spec for any `middleware.*` file, so you can watch routing pick a schema per document.
 The documents under `dev/sample_configs/multi/` exercise it, including one file no binding matches.
 
 ```shell
