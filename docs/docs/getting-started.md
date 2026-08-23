@@ -90,17 +90,11 @@ struct ServerSpec {
     workers: Located<i64>,
     #[confval(default = false)]
     tls: Located<bool>,
-    // A list field. The bare `default` reads an absent list as empty. Each
-    // element keeps its own span, so a bad entry is reported at that entry.
     #[confval(default)]
     allow: Vec<Located<String>>,
-    // An open-ended, string-keyed map, for keys that are not known ahead of
-    // time, such as header names.
+    // Open-ended map for keys not known ahead of time.
     #[confval(map, default)]
     headers: BTreeMap<String, Located<String>>,
-    // Optional in the source. When the block is omitted, the spec keeps it
-    // `None`, so a spec dump stays source-faithful. The config side fills the
-    // default at lowering time.
     #[confval(nested)]
     limits: Option<Located<LimitsSpec>>,
 }
@@ -115,16 +109,12 @@ struct LimitsSpec {
 }
 
 impl Validate for LimitsSpec {
-    // `max_body_mb` and `mode` record their constraints with `#[confval(range)]`
-    // and `#[confval(keywords)]`, so the derive checks them. Every rule this
-    // block has is recorded, so its `Validate` body is empty.
+    // Constraints are recorded on the fields. No handwritten rules needed.
     fn validate(&self, _report: &mut Report) {}
 }
 
 impl Validate for ServerSpec {
     fn validate(&self, report: &mut Report) {
-        // `port` and `workers` record their ranges, so the derive checks them.
-        // This body holds only the rules an attribute cannot express.
         if self.hostname.value.is_empty() {
             report
                 .error("hostname must not be empty")
@@ -164,13 +154,7 @@ struct ServerConfig {
     tls: bool,
     #[confval(lower(from = allow, with = allow_to_vec))]
     allow: Vec<String>,
-    // Auto-mapped from the spec's `BTreeMap<String, Located<String>>`. The
-    // `LowerAuto` impl drops each value's span and hands back a plain runtime
-    // map.
     headers: HashMap<String, String>,
-    // The spec field is `Option<Located<LimitsSpec>>`. With `default` an absent
-    // block lowers `LimitsSpec::default()` instead of producing a missing-field
-    // error, and the runtime field stays non-optional.
     #[confval(nested, default)]
     limits: LimitsConfig,
 }
@@ -206,9 +190,7 @@ limits {
         spec.validate_all(&mut report);
     }
 
-    // Validation ran, so lower only when the spec parsed and the report is
-    // clean. A syntax error left `spec` as None, and validation may have added
-    // errors.
+    // Lower only when the spec parsed and the report has no errors.
     let config = if report.has_errors() {
         None
     } else {
@@ -217,8 +199,7 @@ limits {
     };
 
     let Some(config) = config else {
-        // Render every problem the report collected, then stop. A bad
-        // configuration file is reported, never a panic.
+        // Render every collected problem and exit.
         let mut out = String::new();
         let _ = report.render_pretty(&sources, &mut out);
         eprint!("{out}");

@@ -44,6 +44,27 @@ mode = "enforce"
 ```
 
 
+## Writing the comments
+
+A field's comment comes from its Rust doc comment.
+You write the documentation once and it serves both the code and the template.
+
+```rust
+#[derive(confval::Spec)]
+struct ServerSpec {
+    /// The port the server listens on.
+    port: Located<i64>,
+    /// Request size and mode limits.
+    #[confval(nested, default)]
+    limits: Option<Located<LimitsSpec>>,
+}
+```
+
+A multi-line doc comment renders as one `#` line per source line.
+A blank line inside the comment renders as a bare `#`.
+When the template text should read differently from the rustdoc, set it on the field with `#[confval(doc = "...")]`.
+That text is used in place of the doc comment.
+
 ## Generating a template
 
 `to_template` produces an annotated template.
@@ -107,27 +128,6 @@ In a TOML template every comment is at column zero.
 Emit writes canonical text rather than rewriting a file a person authored.
 It drops the comments and layout the field model never held.
 A nested struct is written as a `[table]` in TOML, a block in HCL, or a children node in KDL.
-
-## Writing the comments
-
-A field's comment comes from its Rust doc comment.
-You write the documentation once and it serves both the code and the template.
-
-```rust
-#[derive(confval::Spec)]
-struct ServerSpec {
-    /// The port the server listens on.
-    port: Located<i64>,
-    /// Request size and mode limits.
-    #[confval(nested, default)]
-    limits: Option<Located<LimitsSpec>>,
-}
-```
-
-A multi-line doc comment renders as one `#` line per source line.
-A blank line inside the comment renders as a bare `#`.
-When the template text should read differently from the rustdoc, set it on the field with `#[confval(doc = "...")]`.
-That text is used in place of the doc comment.
 
 ## The plain dump
 
