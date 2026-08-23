@@ -1,0 +1,24 @@
+docs/docs/examples.md
+  s_305d8bf077bcda::t_018e13f727caf9 11,13-15,25,34,37-39,47,55-65,75-77,90,98,106,108,111,114-116,118,127,129
+  s_305d8bf077bcda::t_36a34a07f88f30 27-29,31
+  s_305d8bf077bcda::t_882a7c6898719c 22
+  s_305d8bf077bcda::t_5c0f8183779a64 26
+docs/sidebars.ts
+  s_305d8bf077bcda::t_316b5978ddda48 58-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f95ac56d35dbf36ee862ba8793ecace75ddd3367",
+  "prompts": {},
+  "sessions": {
+    "s_305d8bf077bcda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8298548-5019-4adf-8b7a-e81257c2fb34",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
