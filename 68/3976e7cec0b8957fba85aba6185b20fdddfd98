@@ -1,0 +1,23 @@
+docs/docs/guide/validation.md
+  s_305d8bf077bcda::t_e028b23a824df4 10,12-13,16-17,23,25-26,28,30,36,38-40,47,49-50,63-65,73,78,132,134-187,213,216-221,224-225,243-258
+  s_305d8bf077bcda::t_27a3752abaf651 259
+docs/docs/pipeline.md
+  s_305d8bf077bcda::t_bdf7f327031064 27
+  s_305d8bf077bcda::t_4eb4dd368cc5bf 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "683976e7cec0b8957fba85aba6185b20fdddfd98",
+  "prompts": {},
+  "sessions": {
+    "s_305d8bf077bcda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8298548-5019-4adf-8b7a-e81257c2fb34",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
