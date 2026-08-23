@@ -1,0 +1,5 @@
+error: #[confval(references = ...)] requires a String leaf; it cannot apply to a map or a nested block
+  --> tests/ui/fail/schema_references_on_nested.rs:10:36
+   |
+10 |     #[confval(nested, references = upstream)]
+   |                                    ^^^^^^^^

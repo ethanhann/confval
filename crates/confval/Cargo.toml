@@ -50,7 +50,7 @@ saphyr-parser = { workspace = true, optional = true }
 confval-derive = { version = "=0.9.0", path = "../confval-derive", optional = true }
 
 [dev-dependencies]
-hcl-edit = "0.9"
+hcl-edit = "0.9.7"
 trybuild = "1"
 
 [[example]]
