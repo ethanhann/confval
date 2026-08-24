@@ -26,7 +26,7 @@ pub fn document_links(
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> Vec<DocumentLink> {
-    let base_dir = file_path(document_uri).and_then(|p| p.parent().map(|d| d.to_path_buf()));
+    let base_dir = document_dir(document_uri);
     let mut links = Vec::new();
     collect(schema, fields, &base_dir, text, index, encoding, &mut links);
     links
@@ -118,6 +118,11 @@ fn path_to_uri(path: &Path) -> Option<Uri> {
 
     let uri_string = format!("file://{uri_path}");
     Uri::from_str(&uri_string).ok()
+}
+
+fn document_dir(uri: &Uri) -> Option<std::path::PathBuf> {
+    let path = file_path(uri)?;
+    path.parent().map(|d| d.to_path_buf())
 }
 
 fn block_fields(field: &Field) -> Option<&Fields> {
