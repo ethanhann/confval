@@ -26,8 +26,8 @@ use lsp_types::{
     CodeActionOrCommand, CodeActionParams, CompletionParams, CompletionResponse,
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse,
-    GotoDefinitionParams, Hover, HoverParams, InitializeParams, InitializeResult,
-    LogMessageParams, MessageType, PublishDiagnosticsParams, ReferenceParams, Uri,
+    GotoDefinitionParams, Hover, HoverParams, InitializeParams, InitializeResult, LogMessageParams,
+    MessageType, PublishDiagnosticsParams, ReferenceParams, Uri,
 };
 
 use confval::format::{Fields, FromFields};
