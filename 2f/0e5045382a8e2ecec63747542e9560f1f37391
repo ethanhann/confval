@@ -1,0 +1,23 @@
+crates/confval-lsp/examples/serve_multi.rs
+  s_305d8bf077bcda::t_9d4472f22e5453 57-67
+  s_305d8bf077bcda::t_d128230e760017 17-18
+  s_305d8bf077bcda::t_4dd7cef5aa016c 39-40
+dev/sample_configs/multi/gateway.cvm
+  s_305d8bf077bcda::t_64af3c31c42b57 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2f0e5045382a8e2ecec63747542e9560f1f37391",
+  "prompts": {},
+  "sessions": {
+    "s_305d8bf077bcda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8298548-5019-4adf-8b7a-e81257c2fb34",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
