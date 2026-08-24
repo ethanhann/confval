@@ -14,6 +14,8 @@
 //! an IDE registers this server on its own file pattern beside an existing
 //! `.hcl` registration for the `serve` example.
 
+use std::path::PathBuf;
+
 use confval::prelude::*;
 
 use confval_lsp::{Hcl, LspError, Matcher, bind, serve_multi};
@@ -34,6 +36,8 @@ struct GatewaySpec {
     /// The TCP port the gateway listens on.
     #[confval(range = PORT)]
     port: Located<i64>,
+    /// Path to the TLS certificate file.
+    tls_cert: Option<Located<PathBuf>>,
 }
 
 /// A demo middleware document, served for any `middleware.*` file.
@@ -50,7 +54,17 @@ struct MiddlewareSpec {
 }
 
 impl Validate for GatewaySpec {
-    fn validate(&self, _report: &mut Report) {}
+    fn validate(&self, report: &mut Report) {
+        if let Some(cert) = &self.tls_cert {
+            if !cert.value.exists() {
+                report
+                    .error(format!("tls_cert file not found: {}", cert.value.display()))
+                    .at(cert.span)
+                    .help("Set tls_cert to a path that exists on disk.")
+                    .emit();
+            }
+        }
+    }
 }
 
 impl Validate for MiddlewareSpec {
