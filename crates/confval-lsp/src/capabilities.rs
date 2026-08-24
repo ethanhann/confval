@@ -62,6 +62,10 @@ pub(crate) fn server_capabilities(encoding: PositionEncoding) -> ServerCapabilit
         references_provider: Some(OneOf::Left(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
         code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+        document_link_provider: Some(lsp_types::DocumentLinkOptions {
+            resolve_provider: Some(false),
+            work_done_progress_options: Default::default(),
+        }),
         ..ServerCapabilities::default()
     }
 }
@@ -173,6 +177,10 @@ mod tests {
         assert_eq!(
             capabilities.hover_provider,
             Some(HoverProviderCapability::Simple(true))
+        );
+        assert!(
+            capabilities.document_link_provider.is_some(),
+            "document link provider is advertised"
         );
     }
 

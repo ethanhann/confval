@@ -10,6 +10,7 @@
 mod code_action;
 mod completion;
 mod diagnostics;
+mod document_link;
 mod hover;
 mod navigation;
 mod symbols;
@@ -17,6 +18,7 @@ mod symbols;
 pub use code_action::code_action;
 pub use completion::{ClientSupport, completion};
 pub use diagnostics::diagnostics;
+pub use document_link::document_links;
 pub use hover::hover;
 pub use navigation::{definition, references};
 pub use symbols::{SymbolShape, document_symbols};
