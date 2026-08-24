@@ -55,14 +55,14 @@ struct MiddlewareSpec {
 
 impl Validate for GatewaySpec {
     fn validate(&self, report: &mut Report) {
-        if let Some(cert) = &self.tls_cert {
-            if !cert.value.exists() {
-                report
-                    .error(format!("tls_cert file not found: {}", cert.value.display()))
-                    .at(cert.span)
-                    .help("Set tls_cert to a path that exists on disk.")
-                    .emit();
-            }
+        if let Some(cert) = &self.tls_cert
+            && !cert.value.exists()
+        {
+            report
+                .error(format!("tls_cert file not found: {}", cert.value.display()))
+                .at(cert.span)
+                .help("Set tls_cert to a path that exists on disk.")
+                .emit();
         }
     }
 }
