@@ -1,0 +1,20 @@
+crates/confval-lsp/src/handlers/document_link.rs
+  s_305d8bf077bcda::t_e1a94089829d6f 123-127
+  s_305d8bf077bcda::t_da19df059c0f72 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "d32f120d51771be3e673e0b086cc627e98b54b2c",
+  "prompts": {},
+  "sessions": {
+    "s_305d8bf077bcda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8298548-5019-4adf-8b7a-e81257c2fb34",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
