@@ -19,15 +19,15 @@ use lsp_types::notification::{
     Notification as _, PublishDiagnostics,
 };
 use lsp_types::request::{
-    CodeActionRequest, Completion, DocumentSymbolRequest, GotoDefinition, HoverRequest, References,
-    Request as _,
+    CodeActionRequest, Completion, DocumentLinkRequest, DocumentSymbolRequest, GotoDefinition,
+    HoverRequest, References, Request as _,
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionParams, CompletionParams, CompletionResponse,
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, Hover, HoverParams,
-    InitializeParams, InitializeResult, LogMessageParams, MessageType, PublishDiagnosticsParams,
-    ReferenceParams, Uri,
+    DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse,
+    GotoDefinitionParams, Hover, HoverParams, InitializeParams, InitializeResult,
+    LogMessageParams, MessageType, PublishDiagnosticsParams, ReferenceParams, Uri,
 };
 
 use confval::format::{Fields, FromFields};
@@ -183,6 +183,9 @@ impl Router {
             }
             CodeActionRequest::METHOD => {
                 respond(request, method, |params| self.code_action(params))
+            }
+            DocumentLinkRequest::METHOD => {
+                respond(request, method, |params| self.document_links(params))
             }
             _ => Response::new_err(id, METHOD_NOT_FOUND, format!("unhandled method: {method}")),
         };
@@ -422,6 +425,32 @@ impl Router {
         ))
     }
 
+    /// Collects document links for path-typed fields in the parsed tree.
+    fn document_links(&self, params: DocumentLinkParams) -> Vec<DocumentLink> {
+        let uri = &params.text_document.uri;
+        let Some(document) = self.documents.get(uri.as_str()) else {
+            // The editor sent a request for a document the server has not opened.
+            return Vec::new();
+        };
+        let Some(tree) = document.tree.as_ref() else {
+            // The document has a syntax error and produced no parsed tree.
+            return Vec::new();
+        };
+        let Some(binding) = document.binding.and_then(|i| self.bindings.get(i)) else {
+            // The document matched no binding at open, so it has no schema.
+            return Vec::new();
+        };
+        let index = LineIndex::new(&document.text);
+        handlers::document_links(
+            &binding.schema,
+            tree,
+            uri,
+            &document.text,
+            &index,
+            self.encoding,
+        )
+    }
+
     /// Computes the code-action response for a request, resolved at the
     /// request range's start.
     fn code_action(&self, params: CodeActionParams) -> Vec<CodeActionOrCommand> {
@@ -565,6 +594,8 @@ mod tests {
     use super::*;
     use std::str::FromStr;
 
+    use std::path::PathBuf;
+
     use confval::prelude::*;
     use lsp_server::RequestId;
     use lsp_types::{
@@ -576,12 +607,14 @@ mod tests {
 
     range_constraint!(PORT, i64, min: 1, max: 65535);
 
-    /// A minimal root spec: a required host and a ranged, defaulted port.
+    /// A minimal root spec: a required host, a ranged defaulted port, and an
+    /// optional path field for the document-link tests.
     #[derive(confval::Spec)]
     struct TestSpec {
         hostname: Located<String>,
         #[confval(default = 8080, range = PORT)]
         port: Located<i64>,
+        tls_cert: Option<Located<PathBuf>>,
     }
 
     impl Validate for TestSpec {
@@ -980,5 +1013,48 @@ mod tests {
             CompletionResponse::Array(items) => assert!(items.is_empty()),
             other => panic!("expected an empty array, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn document_links_for_an_unknown_document_is_empty() {
+        // Arrange
+        let (router, _server_conn, _client_conn) = setup();
+        let uri = Uri::from_str("file:///absent.hcl").unwrap();
+        let params = DocumentLinkParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+
+        // Act
+        let links = router.document_links(params);
+
+        // Assert
+        assert!(links.is_empty());
+    }
+
+    #[test]
+    fn document_links_returns_a_link_for_a_path_field() {
+        // Arrange
+        let (mut router, server_conn, client_conn) = setup();
+        let uri = Uri::from_str("file:///home/user/server.hcl").unwrap();
+        let text = "hostname = \"api\"\ntls_cert = \"/etc/cert.pem\"\n";
+        router
+            .on_notification(&server_conn, open_notification(&uri, text))
+            .unwrap();
+        let _diagnostics = recv_diagnostics(&client_conn);
+        let params = DocumentLinkParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+
+        // Act
+        let links = router.document_links(params);
+
+        // Assert
+        assert_eq!(links.len(), 1);
+        let target = links[0].target.as_ref().unwrap().as_str();
+        assert!(target.ends_with("/etc/cert.pem"), "got: {target}");
     }
 }
