@@ -692,3 +692,138 @@ fn a_keyword_list_in_a_nested_block_is_reached_through_the_traversal() {
     // descent reaches the child's recorded list check.
     assert_eq!(messages(&report), vec!["unknown value in modes: nope"]);
 }
+
+/// A spec with a `non_empty` recorded field on a string leaf.
+#[derive(confval::Spec)]
+struct NonEmptyLeaf {
+    #[confval(non_empty)]
+    name: Located<String>,
+}
+
+impl Validate for NonEmptyLeaf {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec with `non_empty` on a bare string list.
+#[derive(confval::Spec)]
+struct NonEmptyList {
+    #[confval(non_empty)]
+    tags: Vec<Located<String>>,
+}
+
+impl Validate for NonEmptyList {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec combining `non_empty` with a value constraint on the same field.
+#[derive(confval::Spec)]
+struct NonEmptyWithKeywords {
+    #[confval(non_empty, keywords = Mode)]
+    mode: Located<String>,
+}
+
+impl Validate for NonEmptyWithKeywords {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn non_empty_on_a_leaf_reports_an_empty_string() {
+    // Arrange
+    let spec = NonEmptyLeaf {
+        name: Located::detached(String::new()),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(messages(&report), vec!["name must not be empty"]);
+}
+
+#[test]
+fn non_empty_on_a_leaf_passes_a_non_empty_string() {
+    // Arrange
+    let spec = NonEmptyLeaf {
+        name: Located::detached("api".to_string()),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_errors());
+}
+
+#[test]
+fn non_empty_on_a_list_reports_each_empty_element() {
+    // Arrange
+    let spec = NonEmptyList {
+        tags: vec![
+            Located::detached("good".to_string()),
+            Located::detached(String::new()),
+            Located::detached("  ".to_string()),
+        ],
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec!["tags must not be empty", "tags must not be empty"]
+    );
+}
+
+#[test]
+fn non_empty_on_a_list_passes_when_all_elements_are_non_empty() {
+    // Arrange
+    let spec = NonEmptyList {
+        tags: vec![
+            Located::detached("a".to_string()),
+            Located::detached("b".to_string()),
+        ],
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_errors());
+}
+
+#[test]
+fn non_empty_combines_with_a_value_constraint() {
+    // Arrange
+    let spec = NonEmptyWithKeywords {
+        mode: Located::detached(String::new()),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    let msgs = messages(&report);
+    assert!(
+        msgs.contains(&"mode must not be empty"),
+        "non_empty fires: {msgs:?}"
+    );
+    assert!(
+        msgs.iter().any(|m| m.starts_with("unknown mode:")),
+        "keywords fires: {msgs:?}"
+    );
+}
+
+#[test]
+fn non_empty_and_keywords_both_pass_a_valid_value() {
+    // Arrange
+    let spec = NonEmptyWithKeywords {
+        mode: Located::detached("on".to_string()),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_errors());
+}

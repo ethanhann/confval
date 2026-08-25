@@ -31,6 +31,7 @@ keyword_enum!(LimitMode, {
 /// bodies carry no line for them.
 #[derive(confval::Spec)]
 struct ServerSpec {
+    #[confval(non_empty)]
     hostname: Located<String>,
     #[confval(range = PORT)]
     port: Located<i64>,
@@ -658,4 +659,18 @@ fn a_block_and_a_map_record_no_constraint() {
     // renders one asks every field rather than testing the variant first.
     assert!(block.is_none());
     assert!(map.is_none());
+}
+
+#[test]
+fn a_non_empty_field_carries_the_flag() {
+    // Arrange
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hostname = field(&schema, "hostname");
+    let port = field(&schema, "port");
+
+    // Assert
+    assert!(hostname.non_empty, "hostname is marked non_empty");
+    assert!(!port.non_empty, "port is not marked non_empty");
 }
