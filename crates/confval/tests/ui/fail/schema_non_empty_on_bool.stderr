@@ -1,0 +1,7 @@
+error: #[confval(non_empty)] requires a String leaf or a string list
+ --> tests/ui/fail/schema_non_empty_on_bool.rs:3:10
+  |
+3 | #[derive(confval::Spec)]
+  |          ^^^^^^^^^^^^^
+  |
+  = note: this error originates in the derive macro `confval::Spec` (in Nightly builds, run with -Z macro-backtrace for more info)
