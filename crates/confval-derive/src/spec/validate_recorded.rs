@@ -8,12 +8,17 @@
 //! scalar leaf emits a `check_located` call and a string list emits a
 //! `check_each_in` call, which reports each bad element at its own span.
 //!
-//! The walk decides what to emit from the presence of `options.range` or
-//! `options.keywords` alone. Which shape may carry which attribute is settled in
-//! `spec/schema.rs` when the always-emitted `ToSchema` is generated, so a
-//! misplaced attribute is a compile error before this walk runs. Keeping that
-//! rule in one generator and reading only attribute presence here keeps the two
-//! from drifting on which attribute means what.
+//! `#[confval(non_empty)]` is a separate flag, not a value constraint. It
+//! emits alongside the constraint call. On a string leaf it calls
+//! `NON_EMPTY.check_located`. On a string list it calls both
+//! `NON_EMPTY.check_list` (list-level) and `NON_EMPTY.check_each`
+//! (per-element).
+//!
+//! The walk decides what to emit from the presence of `options.range`,
+//! `options.keywords`, or `options.non_empty`. Which shape may carry which
+//! attribute is settled in `spec/schema.rs` when the always-emitted `ToSchema`
+//! is generated, so a misplaced attribute is a compile error before this walk
+//! runs.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
@@ -22,29 +27,32 @@ use quote::quote;
 use syn::Ident;
 use syn::ext::IdentExt;
 
-/// The check fragment for one field's recorded constraint, or `None` when the
-/// field carries neither a `range` nor a `keywords` attribute.
-///
-/// A required leaf checks `&self.field` directly. An optional leaf checks only
-/// when present, through `if let Some`. The field name is the config-key string,
-/// derived through the same `unraw` form the schema walk uses, so a raw
-/// identifier matches the name the manual call passed.
-///
-/// A field with a default gets one more branch. When the value is the default
-/// itself, recognized by its detached span and its equality with the declared
-/// default, a failed check names the spec's default rather than reporting a
-/// config error the operator cannot locate.
+/// The check fragment for one field's recorded constraint and non_empty flag.
+/// Returns `None` when the field carries no recorded attribute and no
+/// `non_empty` flag.
 pub(crate) fn field_recorded_check(
     ident: &Ident,
     shape: &FieldShape,
     options: &FieldOptions,
 ) -> Option<TokenStream2> {
     let name = ident.unraw().to_string();
+    let constraint = constraint_fragment(ident, shape, options, &name);
+    let non_empty = non_empty_fragment(ident, shape, options, &name);
+    match (constraint, non_empty) {
+        (Some(c), Some(n)) => Some(quote! { #c #n }),
+        (Some(c), None) => Some(c),
+        (None, Some(n)) => Some(n),
+        (None, None) => None,
+    }
+}
 
-    // The `check_located` call, given the `&Located<T>` value expression and
-    // the report expression it writes into. A `range` names a
-    // `RangeConstraint` value, a `keywords` names a `keyword_enum!` type whose
-    // `keyword_set()` yields the check.
+/// The value-constraint fragment: `range` or `keywords`.
+fn constraint_fragment(
+    ident: &Ident,
+    shape: &FieldShape,
+    options: &FieldOptions,
+    name: &str,
+) -> Option<TokenStream2> {
     let call = |value: &TokenStream2, report: &TokenStream2| -> Option<TokenStream2> {
         if let Some(path) = &options.range {
             return Some(quote! { #path.check_located(#value, #name, #report); });
@@ -64,15 +72,6 @@ pub(crate) fn field_recorded_check(
         });
     }
 
-    // A list records the constraint for one element, so the check runs through
-    // `check_each_in`, which reports each bad element at its own span. Only
-    // `keywords` reaches here, because the schema walk refuses `range` and
-    // `references` on a list. The bare form is already a slice. The optional
-    // form keeps the outer `Located`, so the list is reached through its value.
-    //
-    // Neither arm carries the defaulted-value branch a required leaf gets
-    // below. A list default is always the empty list, so there is no declared
-    // value for the constraint to reject.
     let check_each_call = |values: &TokenStream2| -> Option<TokenStream2> {
         let path = options.keywords.as_ref()?;
         Some(quote! { #path::keyword_set().check_each_in(#values, #name, report); })
@@ -88,6 +87,7 @@ pub(crate) fn field_recorded_check(
             }
         });
     }
+
     let direct = call(&quote! { &self.#ident }, &quote! { report })?;
     let Some(default) = default_expr_typed(shape, options) else {
         return Some(direct);
@@ -113,10 +113,52 @@ pub(crate) fn field_recorded_check(
     })
 }
 
+/// The `non_empty` fragment. On a string leaf it calls `check_located`. On a
+/// string list it calls both `check_list` (list-level) and `check_each`
+/// (per-element).
+fn non_empty_fragment(
+    ident: &Ident,
+    shape: &FieldShape,
+    options: &FieldOptions,
+    name: &str,
+) -> Option<TokenStream2> {
+    if !options.non_empty {
+        return None;
+    }
+    match shape {
+        FieldShape::Leaf {
+            leaf: Leaf::String,
+            optional: false,
+            ..
+        } => Some(quote! {
+            ::confval::pipeline::NON_EMPTY.check_located(&self.#ident, #name, report);
+        }),
+        FieldShape::Leaf {
+            leaf: Leaf::String,
+            optional: true,
+            ..
+        } => Some(quote! {
+            if let ::core::option::Option::Some(__value) = &self.#ident {
+                ::confval::pipeline::NON_EMPTY.check_located(__value, #name, report);
+            }
+        }),
+        FieldShape::BareStringList => Some(quote! {
+            ::confval::pipeline::NON_EMPTY.check_each(&self.#ident, #name, report);
+        }),
+        FieldShape::OptionalWrappedStringList => Some(quote! {
+            if let ::core::option::Option::Some(__list) = &self.#ident {
+                ::confval::pipeline::NON_EMPTY.check_list(
+                    &__list.value, #name, __list.span, report,
+                );
+                ::confval::pipeline::NON_EMPTY.check_each(&__list.value, #name, report);
+            }
+        }),
+        _ => None,
+    }
+}
+
 /// The declared default as a typed value expression, or `None` when the field
-/// has no default or is not a required leaf. The typed binding pins the
-/// expression to the leaf's Rust type, the way the schema walk's default text
-/// does.
+/// has no default or is not a required leaf.
 fn default_expr_typed(shape: &FieldShape, options: &FieldOptions) -> Option<TokenStream2> {
     let FieldShape::Leaf {
         leaf,
