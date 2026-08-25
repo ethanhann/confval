@@ -4,9 +4,9 @@ use crate::diagnostic::Report;
 use crate::prelude::Located;
 
 #[derive(Debug, Clone)]
-pub struct NonEmpty;
+pub struct NonEmptyConstraint;
 
-impl NonEmpty {
+impl NonEmptyConstraint {
     pub const fn new() -> Self {
         Self
     }
@@ -48,7 +48,7 @@ mod tests {
     fn should_verify_string_is_empty() {
         // Arrange
         let value = Located::detached("");
-        let subject = NonEmpty::new();
+        let subject = NonEmptyConstraint::new();
         let field = "foo";
         let mut report = Report::new();
 
@@ -64,7 +64,7 @@ mod tests {
     fn should_verify_string_is_not_empty() {
         // Arrange
         let value = Located::detached("something");
-        let subject = NonEmpty::new();
+        let subject = NonEmptyConstraint::new();
         let field = "foo";
         let mut report = Report::new();
 
@@ -79,7 +79,7 @@ mod tests {
     fn should_verify_empty_vec_is_empty() {
         // Arrange
         let value: Located<Vec<String>> = Located::detached(vec![]);
-        let subject = NonEmpty::new();
+        let subject = NonEmptyConstraint::new();
         let field = "bar";
         let mut report = Report::new();
 
@@ -95,7 +95,7 @@ mod tests {
     fn should_verify_vec_is_not_empty() {
         // Arrange
         let value = Located::detached(vec!["item1".to_string(), "item2".to_string()]);
-        let subject = NonEmpty::new();
+        let subject = NonEmptyConstraint::new();
         let field = "bar";
         let mut report = Report::new();
 
