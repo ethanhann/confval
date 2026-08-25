@@ -23,6 +23,7 @@ keyword_enum!(pub LimitMode, {
 #[derive(confval::Spec)]
 pub struct ServerSpec {
     /// The address the server binds.
+    #[confval(non_empty)]
     pub hostname: Located<String>,
     /// The TCP port the server listens on.
     #[confval(range = PORT)]
