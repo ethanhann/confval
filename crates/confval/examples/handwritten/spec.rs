@@ -272,6 +272,7 @@ impl ToSchema for ServiceSpec {
 
 impl Validate for ServiceSpec {
     fn validate(&self, report: &mut Report) {
+        NON_EMPTY.check_located(&self.name, "name", report);
         WORKERS.check_located(&self.workers, "workers", report);
         // A keyword list is checked per element, so a typo is reported under
         // the entry the operator typed.
