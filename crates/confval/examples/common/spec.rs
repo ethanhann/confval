@@ -29,8 +29,8 @@ pub struct ServerSpec {
     pub tls: Located<bool>,
     // A list field. The bare `default` reads an absent list as empty. Each
     // element keeps its own span, so a bad entry is reported at that entry.
-    // Its rule is that an entry must not be empty. `non_empty` cannot sit
-    // beside `default`, so the check stays in the `Validate` body below.
+    // Its rule is that an entry must not be empty. `non_empty` cannot be
+    // combined with `default`, so the check stays in the `Validate` body below.
     #[confval(default)]
     pub allow: Vec<Located<String>>,
     // A list whose entries come from a closed set. `keywords` on a list records

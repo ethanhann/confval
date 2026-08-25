@@ -165,9 +165,9 @@ fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Resul
 /// `non_empty` is valid on a `String` leaf and on a string list. It rejects
 /// `Int`, `Float`, `Bool`, `Path`, `Block`, and `Map`. It combines with
 /// `label` and with the value constraints (`keywords`, `range`,
-/// `references`). A field with both `default` and `non_empty` is rejected,
-/// because the default for a `String` is the empty string, which the check
-/// would refuse.
+/// `references`). A field with both `default` and `non_empty` is rejected.
+/// The default for a `String` is the empty string and for a list is the
+/// empty list. Either one would fail the check.
 fn reject_non_empty_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Result<()> {
     let Some(non_empty) = &options.non_empty else {
         return Ok(());

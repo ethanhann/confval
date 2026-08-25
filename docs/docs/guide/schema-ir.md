@@ -78,7 +78,9 @@ A fourth attribute, `#[confval(non_empty)]`, records a precondition as a separat
 
 ### `#[confval(non_empty)]`
 
-Marks a `String` leaf or a string list as rejecting an empty or whitespace-only value.
+The field is a `String` leaf or a string list.
+It rejects an empty or whitespace-only value.
+On a list it also rejects a list with zero elements.
 The schema carries it as `SchemaField::non_empty`, a `bool` flag separate from the `Constraint` slot.
 A field can carry both `non_empty` and a value constraint.
 

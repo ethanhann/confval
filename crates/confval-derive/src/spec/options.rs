@@ -119,8 +119,8 @@ pub(crate) struct FieldOptions {
     pub(crate) references: Option<Ident>,
     /// The `non_empty` path from `#[confval(non_empty)]`, kept so a misuse
     /// error points at the attribute. The flag rejects an empty string or an
-    /// empty list. It is a precondition rather than a value constraint, so it
-    /// combines with `keywords`, `range`, and `references`.
+    /// empty list. It is a precondition on the value, so it combines with
+    /// `keywords`, `range`, and `references`.
     pub(crate) non_empty: Option<syn::Path>,
     /// The doc comment `to_template` renders above the field, or `None`. Comes
     /// from `#[confval(doc = "...")]` if present, otherwise the field's `///`

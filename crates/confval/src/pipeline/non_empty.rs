@@ -7,8 +7,7 @@
 use crate::diagnostic::Report;
 use crate::source::{Located, Span};
 
-/// The non-empty check. Use the [`NON_EMPTY`] constant rather than
-/// constructing one.
+/// The non-empty check. Use the [`NON_EMPTY`] constant. Do not construct one.
 #[derive(Debug, Clone, Copy)]
 pub struct NonEmptyConstraint;
 

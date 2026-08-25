@@ -8,8 +8,8 @@
 //! validated spec into the runtime types the rest of the program uses.
 //!
 //! A field constraint that the derive can record is checked and carried into
-//! the schema from one attribute: a [`RangeConstraint`], a [`KeywordSet`]
-//! through `keyword_enum!`, or the [`NON_EMPTY`] flag.
+//! the schema from one attribute. The attributes name a [`RangeConstraint`],
+//! a [`KeywordSet`] through `keyword_enum!`, or the [`NON_EMPTY`] flag.
 
 #[cfg(feature = "derive")]
 pub use confval_derive::{Config, Spec};

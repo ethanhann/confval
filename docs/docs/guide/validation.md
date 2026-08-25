@@ -142,7 +142,8 @@ On an `Option<Located<String>>` leaf, the derive checks the value only when the 
 On a list, it also rejects a list with zero elements.
 The wrapped `Option<Located<Vec<Located<String>>>>` keeps the list's own span, so that message points at the brackets.
 The bare `Vec<Located<String>>` holds no span of its own, so that message carries no location.
-`validate_all` runs each recorded check, and the field needs no line in `validate`.
+`validate_all` runs each recorded check.
+The field needs no line in `validate`.
 
 ```rust
 #[derive(confval::Spec)]
@@ -174,7 +175,9 @@ The two cannot disagree.
 
 A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(keywords = ...)]`.
 A field cannot carry `#[confval(non_empty)]` and `#[confval(default)]` together.
-The default for a string is the empty string and the default for a list is the empty list, so the default itself would fail the check.
+The default for a string is the empty string.
+The default for a list is the empty list.
+Either default would fail the check.
 
 ### What recording covers
 
@@ -188,7 +191,7 @@ Call `check_each` by hand when you have a singular noun for one element, because
 
 A cross-field rule has no attribute.
 It stays in the `Validate` body.
-An emptiness rule on a defaulted list stays there too, because `non_empty` cannot sit beside `default`.
+An emptiness rule on a defaulted list also stays in the `Validate` body, because `non_empty` cannot be combined with `default`.
 
 A keyword list checked by hand with `check_each` also stays there.
 If you record other fields and delete that line, the check disappears with no compile error.

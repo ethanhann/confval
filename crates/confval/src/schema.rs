@@ -320,7 +320,7 @@ impl SchemaField {
         self
     }
 
-    /// Marks the field as rejecting an empty value. The derive calls it for a
+    /// Marks the field so it rejects an empty value. The derive calls it for a
     /// `#[confval(non_empty)]` field.
     pub fn with_non_empty(mut self) -> Self {
         self.non_empty = true;
