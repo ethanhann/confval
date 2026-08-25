@@ -674,3 +674,30 @@ fn a_non_empty_field_carries_the_flag() {
     assert!(hostname.non_empty, "hostname is marked non_empty");
     assert!(!port.non_empty, "port is not marked non_empty");
 }
+
+/// A spec with `non_empty` on both list shapes.
+#[derive(confval::Spec)]
+struct NonEmptyLists {
+    #[confval(non_empty)]
+    tags: Vec<Located<String>>,
+    #[confval(non_empty)]
+    events: Option<Located<Vec<Located<String>>>>,
+}
+
+impl Validate for NonEmptyLists {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_non_empty_list_carries_the_flag_in_both_shapes() {
+    // Arrange
+    let schema = NonEmptyLists::schema();
+
+    // Act
+    let tags = field(&schema, "tags");
+    let events = field(&schema, "events");
+
+    // Assert
+    assert!(tags.non_empty, "the bare list is marked non_empty");
+    assert!(events.non_empty, "the wrapped list is marked non_empty");
+}

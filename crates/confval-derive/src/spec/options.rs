@@ -117,10 +117,11 @@ pub(crate) struct FieldOptions {
     /// it is a bare config field name, not a Rust path, stored and emitted as a
     /// string.
     pub(crate) references: Option<Ident>,
-    /// `true` if the field was marked `#[confval(non_empty)]`, rejecting an
-    /// empty string or an empty list. Not a value constraint, so it combines
-    /// with `keywords`, `range`, `references`, and future value constraints.
-    pub(crate) non_empty: bool,
+    /// The `non_empty` path from `#[confval(non_empty)]`, kept so a misuse
+    /// error points at the attribute. The flag rejects an empty string or an
+    /// empty list. It is a precondition rather than a value constraint, so it
+    /// combines with `keywords`, `range`, and `references`.
+    pub(crate) non_empty: Option<syn::Path>,
     /// The doc comment `to_template` renders above the field, or `None`. Comes
     /// from `#[confval(doc = "...")]` if present, otherwise the field's `///`
     /// doc comments joined into one string.
@@ -141,7 +142,7 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
         range: None,
         label: None,
         references: None,
-        non_empty: false,
+        non_empty: None,
         doc: None,
     };
     let mut confval_doc = None;
@@ -198,10 +199,10 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 options.references = Some(meta.value()?.parse()?);
                 Ok(())
             } else if meta.path.is_ident("non_empty") {
-                if options.non_empty {
+                if options.non_empty.is_some() {
                     return Err(meta.error("duplicate confval attribute `non_empty`"));
                 }
-                options.non_empty = true;
+                options.non_empty = Some(meta.path.clone());
                 Ok(())
             } else if meta.path.is_ident("doc") {
                 if confval_doc.is_some() {

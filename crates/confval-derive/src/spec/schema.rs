@@ -71,7 +71,7 @@ pub(crate) fn field_schema(
         let rendered = default_text(leaf, &expr);
         field = quote! { #field.with_default_text(#rendered) };
     }
-    if options.non_empty {
+    if options.non_empty.is_some() {
         reject_non_empty_misuse(shape, options)?;
         field = quote! { #field.with_non_empty() };
     }
@@ -163,34 +163,40 @@ fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Resul
 /// Rejects the misuses of `#[confval(non_empty)]`.
 ///
 /// `non_empty` is valid on a `String` leaf and on a string list. It rejects
-/// `Int`, `Float`, `Bool`, `Path`, `Block`, and `Map`. It combines freely
-/// with `label` and with value constraints (`keywords`, `range`,
+/// `Int`, `Float`, `Bool`, `Path`, `Block`, and `Map`. It combines with
+/// `label` and with the value constraints (`keywords`, `range`,
 /// `references`). A field with both `default` and `non_empty` is rejected,
-/// because the default for a `String` is the empty string.
+/// because the default for a `String` is the empty string, which the check
+/// would refuse.
 fn reject_non_empty_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Result<()> {
+    let Some(non_empty) = &options.non_empty else {
+        return Ok(());
+    };
     match shape {
         FieldShape::Leaf {
             leaf: Leaf::String, ..
         }
         | FieldShape::BareStringList
         | FieldShape::OptionalWrappedStringList => {}
+        // A non-string scalar leaf, such as an integer.
         FieldShape::Leaf { .. } => {
-            return Err(syn::Error::new(
-                proc_macro2::Span::call_site(),
+            return Err(syn::Error::new_spanned(
+                non_empty,
                 "#[confval(non_empty)] requires a String leaf or a string list",
             ));
         }
+        // A map or a nested block.
         _ => {
-            return Err(syn::Error::new(
-                proc_macro2::Span::call_site(),
+            return Err(syn::Error::new_spanned(
+                non_empty,
                 "#[confval(non_empty)] requires a String leaf or a string list; \
                  it cannot apply to a map or a nested block",
             ));
         }
     }
     if options.default.is_some() {
-        return Err(syn::Error::new(
-            proc_macro2::Span::call_site(),
+        return Err(syn::Error::new_spanned(
+            non_empty,
             "#[confval(non_empty)] cannot be combined with #[confval(default)]; \
              the default for a String is the empty string, which fails the check",
         ));

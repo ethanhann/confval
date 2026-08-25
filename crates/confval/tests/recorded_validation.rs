@@ -715,6 +715,28 @@ impl Validate for NonEmptyList {
     fn validate(&self, _report: &mut Report) {}
 }
 
+/// A spec with `non_empty` on an optional string leaf.
+#[derive(confval::Spec)]
+struct NonEmptyOptionalLeaf {
+    #[confval(non_empty)]
+    region: Option<Located<String>>,
+}
+
+impl Validate for NonEmptyOptionalLeaf {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec with `non_empty` on a wrapped optional string list.
+#[derive(confval::Spec)]
+struct NonEmptyWrappedList {
+    #[confval(non_empty)]
+    events: Option<Located<Vec<Located<String>>>>,
+}
+
+impl Validate for NonEmptyWrappedList {
+    fn validate(&self, _report: &mut Report) {}
+}
+
 /// A spec combining `non_empty` with a value constraint on the same field.
 #[derive(confval::Spec)]
 struct NonEmptyWithKeywords {
@@ -826,4 +848,90 @@ fn non_empty_and_keywords_both_pass_a_valid_value() {
 
     // Assert
     assert!(!report.has_errors());
+}
+
+#[test]
+fn non_empty_on_a_bare_list_reports_an_empty_list_without_a_span() {
+    // Arrange
+    let spec = NonEmptyList { tags: vec![] };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(messages(&report), vec!["tags must not be empty"]);
+    assert_eq!(report.issues()[0].span, None);
+}
+
+#[test]
+fn non_empty_on_an_optional_leaf_passes_when_absent() {
+    // Arrange
+    let spec = NonEmptyOptionalLeaf { region: None };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_errors());
+}
+
+#[test]
+fn non_empty_on_an_optional_leaf_reports_a_present_empty_string() {
+    // Arrange
+    let spec = NonEmptyOptionalLeaf {
+        region: Some(Located::detached("  ".to_string())),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(messages(&report), vec!["region must not be empty"]);
+}
+
+#[test]
+fn non_empty_on_a_wrapped_list_passes_when_absent() {
+    // Arrange
+    let spec = NonEmptyWrappedList { events: None };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_errors());
+}
+
+#[test]
+fn non_empty_on_a_wrapped_list_reports_an_empty_list_at_the_list_span() {
+    // Arrange
+    let mut sources = SourceMap::new();
+    let id = sources.add("test.hcl", "events = []");
+    let span = Span::new(id, 9, 11);
+    let spec = NonEmptyWrappedList {
+        events: Some(Located::new(vec![], span)),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(messages(&report), vec!["events must not be empty"]);
+    assert_eq!(report.issues()[0].span, Some(span));
+}
+
+#[test]
+fn non_empty_on_a_wrapped_list_reports_each_empty_element() {
+    // Arrange
+    let spec = NonEmptyWrappedList {
+        events: Some(Located::detached(vec![
+            Located::detached("request".to_string()),
+            Located::detached(String::new()),
+        ])),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(messages(&report), vec!["events must not be empty"]);
 }

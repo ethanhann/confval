@@ -6,6 +6,10 @@
 //! format-neutral field model, a spec type parses out of that model, plain
 //! validation functions check what the values mean, and lowering narrows the
 //! validated spec into the runtime types the rest of the program uses.
+//!
+//! A field constraint that the derive can record is checked and carried into
+//! the schema from one attribute: a [`RangeConstraint`], a [`KeywordSet`]
+//! through `keyword_enum!`, or the [`NON_EMPTY`] flag.
 
 #[cfg(feature = "derive")]
 pub use confval_derive::{Config, Spec};

@@ -138,7 +138,10 @@ The derive then runs the check for you.
 `#[confval(range = PATH)]` on an `Int` or `Float` leaf, and `#[confval(keywords = PATH)]` on a `String` leaf, name the constraint the field must satisfy.
 `#[confval(keywords = PATH)]` also applies to a string list, where it records the set each element must come from.
 `#[confval(non_empty)]` on a `String` leaf or a string list rejects an empty or whitespace-only value.
+On an `Option<Located<String>>` leaf, the derive checks the value only when the source sets it.
 On a list, it also rejects a list with zero elements.
+The wrapped `Option<Located<Vec<Located<String>>>>` keeps the list's own span, so that message points at the brackets.
+The bare `Vec<Located<String>>` holds no span of its own, so that message carries no location.
 `validate_all` runs each recorded check, and the field needs no line in `validate`.
 
 ```rust
@@ -169,9 +172,9 @@ Each attribute is the single source for its field.
 It records the constraint for the [schema IR](./schema-ir.md) and runs the check.
 The two cannot disagree.
 
-`non_empty` is not mutually exclusive with value constraints.
-A field can carry both `#[confval(non_empty)]` and `#[confval(keywords = ...)]` on the same field.
-`non_empty` cannot be combined with `#[confval(default)]`, because the default for a string is the empty string.
+A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(keywords = ...)]`.
+A field cannot carry `#[confval(non_empty)]` and `#[confval(default)]` together.
+The default for a string is the empty string and the default for a list is the empty list, so the default itself would fail the check.
 
 ### What recording covers
 
@@ -185,6 +188,7 @@ Call `check_each` by hand when you have a singular noun for one element, because
 
 A cross-field rule has no attribute.
 It stays in the `Validate` body.
+An emptiness rule on a defaulted list stays there too, because `non_empty` cannot sit beside `default`.
 
 A keyword list checked by hand with `check_each` also stays there.
 If you record other fields and delete that line, the check disappears with no compile error.

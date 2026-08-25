@@ -150,20 +150,14 @@ range_constraint!(PORT, i64, min: 1, max: 65535);
 
 #[derive(confval::Spec)]
 struct ServerSpec {
+    #[confval(non_empty)]
     hostname: Located<String>,
     #[confval(range = PORT)]
     port: Located<i64>,
 }
 
 impl Validate for ServerSpec {
-    fn validate(&self, report: &mut Report) {
-        if self.hostname.value.is_empty() {
-            report
-                .error("hostname must not be empty")
-                .at(self.hostname.span)
-                .emit();
-        }
-    }
+    fn validate(&self, _report: &mut Report) {}
 }
 
 #[derive(confval::Config)]

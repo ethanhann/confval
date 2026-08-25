@@ -1,5 +1,5 @@
 error: #[confval(non_empty)] requires a String leaf or a string list
- --> tests/ui/fail/schema_non_empty_on_int.rs:5:15
+ --> tests/ui/fail/schema_non_empty_on_float.rs:5:15
   |
 5 |     #[confval(non_empty)]
   |               ^^^^^^^^^

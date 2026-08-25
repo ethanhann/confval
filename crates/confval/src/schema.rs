@@ -96,7 +96,9 @@ pub struct SchemaField {
     pub label: bool,
     /// Whether the field rejects an empty value, marked `#[confval(non_empty)]`.
     /// A string field rejects an empty or whitespace-only value.
-    /// A string list rejects both an empty list and an empty element.
+    /// A string list rejects both an empty list and an empty element. The
+    /// derive reports an empty bare `Vec<Located<String>>` without a span,
+    /// because that shape holds none of its own.
     pub non_empty: bool,
 }
 

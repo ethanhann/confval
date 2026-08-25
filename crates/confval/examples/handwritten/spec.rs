@@ -237,7 +237,7 @@ impl ToSchema for ServiceSpec {
         Schema::new(
             None,
             vec![
-                sf("name", true, false, leaf(ScalarType::String)),
+                sf("name", true, false, leaf(ScalarType::String)).with_non_empty(),
                 sf("workers", true, true, workers).with_default_text("4".to_string()),
                 sf("sample_rate", true, true, leaf(ScalarType::Float))
                     .with_default_text("1.0".to_string()),

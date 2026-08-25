@@ -82,15 +82,7 @@ impl Validate for LimitsSpec {
 }
 
 impl Validate for ServerSpec {
-    fn validate(&self, report: &mut Report) {
-        if self.hostname.value.is_empty() {
-            report
-                .error("hostname must not be empty")
-                .at(self.hostname.span)
-                .help("Set hostname to a reachable address, e.g. \"127.0.0.1\".")
-                .emit();
-        }
-    }
+    fn validate(&self, report: &mut Report) {}
 }
 
 /// A mesh-shaped fixture for the scoped reference tests: the labeled

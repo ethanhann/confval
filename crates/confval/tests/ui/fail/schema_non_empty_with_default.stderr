@@ -1,7 +1,5 @@
 error: #[confval(non_empty)] cannot be combined with #[confval(default)]; the default for a String is the empty string, which fails the check
- --> tests/ui/fail/schema_non_empty_with_default.rs:3:10
+ --> tests/ui/fail/schema_non_empty_with_default.rs:5:41
   |
-3 | #[derive(confval::Spec)]
-  |          ^^^^^^^^^^^^^
-  |
-  = note: this error originates in the derive macro `confval::Spec` (in Nightly builds, run with -Z macro-backtrace for more info)
+5 |     #[confval(default = "".to_string(), non_empty)]
+  |                                         ^^^^^^^^^

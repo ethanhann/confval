@@ -436,6 +436,62 @@ fn hover_on_an_unconstrained_list_names_no_set() {
     assert!(!body.contains("One of:"), "body: {body}");
 }
 
+#[test]
+fn hover_on_a_non_empty_field_states_the_rule() {
+    // Arrange
+    let text = "hostname = \"127.0.0.1\"\n";
+    let offset = text.find("hostname").expect("the field is present") + 1;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let body = markdown(hover.expect("a hover is produced"));
+    assert!(body.contains("Must not be empty."), "body: {body}");
+    assert!(
+        body.contains("The address the server binds"),
+        "body: {body}"
+    );
+}
+
+#[test]
+fn hover_on_a_field_without_the_flag_omits_the_rule() {
+    // Arrange
+    let text = "port = 8080\n";
+    let offset = text.find("port").expect("the field is present") + 1;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let body = markdown(hover.expect("a hover is produced"));
+    assert!(!body.contains("Must not be empty."), "body: {body}");
+}
+
 /// The hover body for `name` in YAML text, or `None` when no hover is produced.
 fn yaml_hover_body(text: &str, name: &str) -> Option<String> {
     let offset = text.find(name)? + 1;
