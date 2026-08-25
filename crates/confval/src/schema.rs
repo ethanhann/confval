@@ -94,6 +94,10 @@ pub struct SchemaField {
     /// The reference pass reads a block instance's label from the field flagged
     /// here when the native label slot is empty.
     pub label: bool,
+    /// Whether the field rejects an empty value, marked `#[confval(non_empty)]`.
+    /// A string field rejects an empty or whitespace-only value.
+    /// A string list rejects both an empty list and an empty element.
+    pub non_empty: bool,
 }
 
 /// A field's declared type.
@@ -286,6 +290,7 @@ impl SchemaField {
             default_text: None,
             ty,
             label: false,
+            non_empty: false,
         }
     }
 
@@ -310,6 +315,13 @@ impl SchemaField {
     /// `#[confval(label)]` field.
     pub fn as_label(mut self) -> Self {
         self.label = true;
+        self
+    }
+
+    /// Marks the field as rejecting an empty value. The derive calls it for a
+    /// `#[confval(non_empty)]` field.
+    pub fn with_non_empty(mut self) -> Self {
+        self.non_empty = true;
         self
     }
 
