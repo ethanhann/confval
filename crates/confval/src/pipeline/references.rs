@@ -10,12 +10,14 @@
 //! [`Schema`](crate::schema::Schema), so the pipeline and the language server
 //! run the same check.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::diagnostic::Report;
 use crate::format::field::{Field, FieldKind, Fields, Scalar, ValueKind};
 use crate::schema::{Constraint, Schema, SchemaType};
-use crate::source::{Located, Span};
+#[cfg(feature = "__internal-navigation")]
+use crate::source::Located;
+use crate::source::Span;
 
 /// Checks every reference field against the labels its scope can see.
 ///
@@ -34,12 +36,44 @@ use crate::source::{Located, Span};
 /// child field that duplicates a native label. A caller that wants the whole
 /// label story runs `from_fields` and then this pass.
 pub fn check_references(fields: &Fields, schema: &Schema, report: &mut Report) {
+    let mut defined = LabelCache::new();
     walk_scope(fields, schema, &mut Vec::new(), &mut |event| match event {
         ScopeEvent::Scope(body, scope_schema) => {
             report_scope_label_issues(body, scope_schema, report);
         }
-        ScopeEvent::Reference(site) => check_reference(&site, schema, report),
+        ScopeEvent::Reference(site) => check_reference(&site, schema, report, &mut defined),
     });
+}
+
+/// The labels a scope instance defines for one block, held across the
+/// reference sites that resolve into that scope.
+///
+/// Without it, each reference collects the labels of its declaring scope
+/// again, so a file with many references to many instances costs the product
+/// of the two. The key is the scope instance's address, the same identity
+/// [`Scope::same_instance`] uses, paired with the target block name.
+type LabelCache<'a> = HashMap<(*const Fields, &'static str), DefinedLabels<'a>>;
+
+/// The distinct, non-empty labels of one block within one scope instance.
+struct DefinedLabels<'a> {
+    /// Membership, for the check itself.
+    set: HashSet<&'a str>,
+    /// The same values in first-occurrence order, for the help line.
+    ordered: Vec<&'a str>,
+}
+
+impl<'a> DefinedLabels<'a> {
+    /// Collects the block's labels within one scope instance.
+    fn collect(scope: &'a Fields, schema: &Schema, block: &str) -> Self {
+        let mut set = HashSet::new();
+        let mut ordered = Vec::new();
+        for (label, _) in scope_label_refs(scope, schema, block) {
+            if !label.is_empty() && set.insert(label) {
+                ordered.push(label);
+            }
+        }
+        Self { set, ordered }
+    }
 }
 
 /// One reference occurrence the scope walk visits: the target it names, its
@@ -151,7 +185,12 @@ fn walk_scope<'a>(
 /// Checks one visited reference against its declaring scope's labels. `root`
 /// is the whole schema, read only to tell a scoping failure from a schema
 /// error when no enclosing scope declares the target.
-fn check_reference(site: &ReferenceSite, root: &Schema, report: &mut Report) {
+fn check_reference<'a>(
+    site: &ReferenceSite<'a>,
+    root: &Schema,
+    report: &mut Report,
+    cache: &mut LabelCache<'a>,
+) {
     let block = site.block;
     let Some(Scope {
         schema: scope_schema,
@@ -179,13 +218,14 @@ fn check_reference(site: &ReferenceSite, root: &Schema, report: &mut Report) {
             .emit();
         return;
     };
-    let labels = scope_labels(scope_body, scope_schema, block);
-    let defined = distinct_labels(&labels);
-    if !defined.contains(&site.value.as_str()) {
-        let help = if defined.is_empty() {
+    let defined = cache
+        .entry((std::ptr::from_ref(scope_body), block))
+        .or_insert_with(|| DefinedLabels::collect(scope_body, scope_schema, block));
+    if !defined.set.contains(site.value.as_str()) {
+        let help = if defined.ordered.is_empty() {
             format!("the file defines no {block}")
         } else {
-            format!("defined {block}: {}", defined.join(", "))
+            format!("defined {block}: {}", defined.ordered.join(", "))
         };
         let value = &site.value;
         report
@@ -224,7 +264,18 @@ pub fn declares_labeled_block(schema: &Schema, block: &str) -> bool {
 /// instance, including a duplicate and an empty label, and the function emits
 /// no diagnostics. The pipeline and the language server share it, so the editor
 /// collects labels the way the reference check does.
+#[cfg(feature = "__internal-navigation")]
 pub fn scope_labels(scope: &Fields, schema: &Schema, block: &str) -> Vec<Located<String>> {
+    scope_label_refs(scope, schema, block)
+        .into_iter()
+        .map(|(value, span)| Located::new(value.to_string(), span))
+        .collect()
+}
+
+/// The same labels as [`scope_labels`], borrowed from the tree rather than
+/// copied. Every reader inside this pass takes this form, so the pass copies
+/// no label text.
+fn scope_label_refs<'a>(scope: &'a Fields, schema: &Schema, block: &str) -> Vec<(&'a str, Span)> {
     let Some(label_field) = labeled_child(schema, block) else {
         return Vec::new();
     };
@@ -232,7 +283,7 @@ pub fn scope_labels(scope: &Fields, schema: &Schema, block: &str) -> Vec<Located
     for instance in scope.iter().filter(|field| field.name == block) {
         for body in instance_bodies(instance) {
             if let Some((value, span)) = instance_label(body, label_field) {
-                labels.push(Located::new(value, span));
+                labels.push((value, span));
             }
         }
     }
@@ -263,38 +314,26 @@ fn report_scope_label_issues(body: &Fields, schema: &Schema, report: &mut Report
         if labeled_child(schema, &field.name).is_none() {
             continue;
         }
-        let labels = scope_labels(body, schema, &field.name);
-        let mut first_span: HashMap<String, Span> = HashMap::new();
-        for label in labels {
-            if label.value.is_empty() {
+        let mut first_span: HashMap<&str, Span> = HashMap::new();
+        for (label, span) in scope_label_refs(body, schema, &field.name) {
+            if label.is_empty() {
                 report
                     .error("a block label must not be empty")
-                    .at(label.span)
+                    .at(span)
                     .emit();
                 continue;
             }
-            if let Some(&first) = first_span.get(label.value.as_str()) {
+            if let Some(&first) = first_span.get(label) {
                 report
-                    .error(format!("duplicate {} label {:?}", field.name, label.value))
-                    .at(label.span)
+                    .error(format!("duplicate {} label {label:?}", field.name))
+                    .at(span)
                     .related(first, "first declared here")
                     .emit();
                 continue;
             }
-            first_span.insert(label.value, label.span);
+            first_span.insert(label, span);
         }
     }
-}
-
-/// The distinct, non-empty label values of a block, in first-occurrence order.
-fn distinct_labels(labels: &[Located<String>]) -> Vec<&str> {
-    let mut distinct: Vec<&str> = Vec::new();
-    for label in labels {
-        if !label.value.is_empty() && !distinct.contains(&label.value.as_str()) {
-            distinct.push(label.value.as_str());
-        }
-    }
-    distinct
 }
 
 /// The block bodies of one parsed field. A brace-delimited block is one body, a
@@ -319,20 +358,25 @@ fn instance_bodies(field: &Field) -> Vec<&Fields> {
 
 /// A block instance's label: its native label slot when a frontend read one, and
 /// otherwise the value of the designated label field in the body.
-fn instance_label(body: &Fields, label_field: &str) -> Option<(String, Span)> {
+fn instance_label<'a>(body: &'a Fields, label_field: &str) -> Option<(&'a str, Span)> {
     if let Some(label) = body.label() {
-        return Some((label.value.clone(), label.span));
+        return Some((label.value.as_str(), label.span));
     }
-    body.get(label_field).and_then(field_string)
+    body.get(label_field).and_then(field_str)
 }
 
 /// A field's string scalar value and span, or `None` when it is not a string.
 fn field_string(field: &Field) -> Option<(String, Span)> {
+    field_str(field).map(|(value, span)| (value.to_string(), span))
+}
+
+/// The same as [`field_string`], borrowed from the field.
+fn field_str(field: &Field) -> Option<(&str, Span)> {
     let FieldKind::Value(value) = &field.kind else {
         return None;
     };
     match &value.kind {
-        ValueKind::Scalar(Scalar::String(string)) => Some((string.clone(), value.span)),
+        ValueKind::Scalar(Scalar::String(string)) => Some((string.as_str(), value.span)),
         _ => None,
     }
 }
