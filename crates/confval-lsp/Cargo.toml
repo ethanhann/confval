@@ -46,3 +46,7 @@ required-features = ["hcl", "toml", "kdl", "json", "yaml"]
 [[example]]
 name = "serve_multi"
 required-features = ["hcl"]
+
+[[example]]
+name = "profile_router"
+required-features = ["hcl"]

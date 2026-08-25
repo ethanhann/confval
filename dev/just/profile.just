@@ -32,6 +32,18 @@ profile-release example="toml":
 profile-json example="toml":
     HOTPATH_OUTPUT_FORMAT=json just profile-run {{ example }} "" "--release"
 
+# Profile the language server router: a scripted LSP session over an in-memory connection
+profile-lsp:
+    cargo run -q -p confval-lsp --example profile_router --features hcl,hotpath
+
+# Profile the language server router with allocation counts
+profile-lsp-alloc:
+    cargo run -q -p confval-lsp --example profile_router --features hcl,hotpath,hotpath-alloc
+
+# Profile the language server router in an optimized build
+profile-lsp-release:
+    cargo run -q --release -p confval-lsp --example profile_router --features hcl,hotpath
+
 # Attach the live hotpath TUI to a running profiled process (port 6770)
 profile-console:
     #!/usr/bin/env bash
@@ -44,5 +56,6 @@ profile-console:
 
 # Confirm profiling stays optional: build with the feature off, then on
 profile-check:
-    cargo check -p confval --all-targets --all-features
+    cargo check --workspace --all-targets
     cargo check -p confval --all-targets --features derive,color,toml,hcl,kdl,json,yaml,layering,serde,hotpath
+    cargo check -p confval-lsp --all-targets --features hotpath
