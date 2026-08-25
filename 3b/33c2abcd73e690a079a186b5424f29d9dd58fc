@@ -1,0 +1,24 @@
+Justfile
+  h_4fc023ad4863a8 3-5,7-8,10,12-16
+dev/just/code_quality.just
+  h_4fc023ad4863a8 1-51
+dev/just/docs.just
+  h_4fc023ad4863a8 1-65
+dev/just/examples.just
+  h_4fc023ad4863a8 1-17
+dev/just/publish.just
+  h_4fc023ad4863a8 1-5
+dev/just/test.just
+  h_4fc023ad4863a8 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "3b33c2abcd73e690a079a186b5424f29d9dd58fc",
+  "prompts": {},
+  "humans": {
+    "h_4fc023ad4863a8": {
+      "author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
