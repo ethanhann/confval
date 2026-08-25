@@ -5,7 +5,7 @@
 //! cases, reported at the value's span.
 
 use crate::diagnostic::Report;
-use crate::source::Located;
+use crate::source::{Located, Span};
 
 /// The non-empty check. Use the [`NON_EMPTY`] constant rather than
 /// constructing one.
@@ -36,11 +36,20 @@ impl NonEmptyConstraint {
         }
     }
 
-    /// Reports `{field} must not be empty` when the list holds no elements.
-    pub fn check_list(&self, values: &[Located<String>], field: &str, report: &mut Report) {
+    /// Reports `{field} must not be empty` when the list holds no elements,
+    /// at the given span.
+    pub fn check_list(
+        &self,
+        values: &[Located<String>],
+        field: &str,
+        span: Span,
+        report: &mut Report,
+    ) {
         if values.is_empty() {
             report
                 .error(format!("{field} must not be empty"))
+                .at(span)
+                .help(format!("Provide at least one item in {field}."))
                 .emit();
         }
     }
@@ -127,27 +136,30 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_list_reports_an_error() {
+    fn an_empty_list_reports_an_error_at_the_span() {
         // Arrange
         let values: Vec<Located<String>> = vec![];
+        let span = Span::detached();
         let mut report = Report::new();
 
         // Act
-        NON_EMPTY.check_list(&values, "tags", &mut report);
+        NON_EMPTY.check_list(&values, "tags", span, &mut report);
 
         // Assert
         assert!(report.has_errors());
         assert_eq!(report.issues()[0].message, "tags must not be empty");
+        assert_eq!(report.issues()[0].span, Some(span));
     }
 
     #[test]
     fn a_non_empty_list_passes() {
         // Arrange
         let values = vec![Located::detached("a".to_string())];
+        let span = Span::detached();
         let mut report = Report::new();
 
         // Act
-        NON_EMPTY.check_list(&values, "tags", &mut report);
+        NON_EMPTY.check_list(&values, "tags", span, &mut report);
 
         // Assert
         assert!(!report.has_errors());
