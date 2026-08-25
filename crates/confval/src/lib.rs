@@ -74,8 +74,7 @@ pub mod prelude {
     pub use crate::schema::ToSchema;
     pub use crate::source::{Located, SourceMap, Span};
     pub use crate::{
-        KeywordSet, NON_EMPTY, NonEmptyConstraint, RangeConstraint, keyword_enum,
-        range_constraint,
+        KeywordSet, NON_EMPTY, NonEmptyConstraint, RangeConstraint, keyword_enum, range_constraint,
     };
 
     #[cfg(feature = "derive")]
