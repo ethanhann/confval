@@ -3,37 +3,11 @@ import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import Mermaid from '@theme/Mermaid';
+import ThemedImage from '@theme/ThemedImage';
 import styles from './styles.module.css';
 import CodeBlock from "@theme/CodeBlock";
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-
-const diagram = (direction: string, nodeSpacing: number) => `%%{ init: { "flowchart": { "curve": "basis", "nodeSpacing": ${nodeSpacing} } } }%%
-flowchart ${direction}
-    file[/"<b>Config file</b><br/>TOML, HCL, KDL, JSON, or YAML"/]
-    parse["parse"]
-    validate["validate"]
-    gate{"errors?"}
-    lower["lower"]
-    stop(["<b>Stop</b><br/>render diagnostics"])
-    config(["<b>Config types</b><br/>runtime form"])
-
-    file --> parse --> validate --> gate
-    gate -- yes --> stop
-    gate -- no --> lower --> config
-
-    classDef io stroke:#928374,stroke-width:1.5px;
-    classDef step stroke:#5aa469,stroke-width:1.5px;
-    classDef decide stroke:#d79921,stroke-width:1.5px;
-    classDef bad stroke:#cc4b37,stroke-width:1.5px;
-
-    class file io;
-    class parse,validate,lower,config step;
-    class gate decide;
-    class stop bad;`;
-
-const PIPELINE_WIDE = diagram('LR', 100);
-const PIPELINE_TALL = diagram('TD', 50);
 
 const layering = (direction: string, nodeSpacing: number) => `%%{ init: { "flowchart": { "curve": "basis", "nodeSpacing": ${nodeSpacing} } } }%%
 flowchart ${direction}
@@ -157,12 +131,23 @@ export default function HomepageFeatures(): ReactNode {
                 <p className={styles.lead}>
                     confval turns a configuration file into runtime types using a compiler-like architecture.
                 </p>
-                <div className={clsx(styles.diagram, wide ? styles.wide : styles.tall)}>
-                    <Mermaid value={wide ? PIPELINE_WIDE : PIPELINE_TALL}/>
+                <div className={clsx(styles.diagram, styles.diagramImg, wide ? styles.wide : styles.tall)}>
+                    <ThemedImage
+                        alt="High level confval architecture"
+                        sources={{
+                            light: useBaseUrl('/img/high_level_architecture.svg'),
+                            dark: useBaseUrl('/img/high_level_architecture_dark.svg'),
+                        }}
+                    />
                 </div>
-                <p className={styles.caption}>
-                    See <Link to="/docs/next/architecture">Architecture</Link> for the full map of confval's internals.
-                </p>
+                <div className={styles.caption}>
+                    <div>
+                        <Link to="/docs/pipeline">The Pipeline Contract</Link> details the high-level confval stages.
+                    </div>
+                    <div>
+                        See <Link to="/docs/architecture">Architecture</Link> for the full map of confval's internals.
+                    </div>
+                </div>
             </section>
 
             <section className={clsx(styles.features, styles.altBgSection)}>
@@ -259,7 +244,8 @@ export default function HomepageFeatures(): ReactNode {
                     </div>
                 </div>
                 <p className={styles.caption}>
-                    <strong>port</strong> narrows an i64 to a u16, and <strong>mode</strong> lowers a validated string into an enum.
+                    <strong>port</strong> narrows an i64 to a u16, and <strong>mode</strong> lowers a validated string
+                    into an enum.
                 </p>
             </section>
 

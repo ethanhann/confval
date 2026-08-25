@@ -29,31 +29,40 @@
 }
 
 /*
- * On wide screens the horizontal diagram fills the pane. Mermaid stamps an
- * inline max-width on the svg at its compact natural width, so override it and
- * let the svg scale up to the pane instead of sitting small and centered.
+ * A ThemedImage swaps in a light or dark variant of the SVG with the theme
+ * toggle, so the pane needs no backdrop of its own.
+ */
+.diagramImg :global(img) {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: auto;
+}
+
+/*
+ * On wide screens the horizontal diagram fills the pane. Let the image scale
+ * up to the pane instead of sitting small and centered.
  */
 .wide {
     width: 100%;
     max-width: min(78rem, 92vw);
 }
 
-.wide :global(svg) {
+.wide :global(img) {
     width: 100% !important;
     max-width: 100% !important;
 }
 
 /*
- * On smaller screens the vertical diagram scales up to fill the pane rather
- * than sitting at Mermaid's compact natural width, capped so it stays sensible
- * on tablets.
+ * On smaller screens the vertical diagram scales up to fill the pane, capped so
+ * it stays sensible on tablets.
  */
 .tall {
     width: 100%;
     max-width: 34rem;
 }
 
-.tall :global(svg) {
+.tall :global(img) {
     width: 100% !important;
     max-width: 100% !important;
 }

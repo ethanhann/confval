@@ -163,3 +163,18 @@ publish:
 
 docs:
     cd docs && npm run start
+
+# Regenerate the dark variant of an architecture SVG from its light source, recoloring text, connectors, and fills for dark mode.
+docs-diagram-dark name="high_level_architecture":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd docs/static/img
+    cp "{{name}}.svg" "{{name}}_dark.svg"
+    perl -0777 -pi \
+      -e 's/<svg /<svg fill="#c6d3c6" /;' \
+      -e 's/"#3a414a"/"#c6d3c6"/g;' \
+      -e 's/"#333"/"#c6d3c6"/g;' \
+      -e 's/"#010000"/"#c6d3c6"/g;' \
+      -e 's/"#fff"/"#10160f"/g;' \
+      -e 's/"#f2f3f5"/"#131c15"/g;' \
+      "{{name}}_dark.svg"
