@@ -83,6 +83,7 @@ keyword_enum!(pub LimitMode, {
 
 #[derive(confval::Spec)]
 struct ServerSpec {
+    #[confval(non_empty)]
     hostname: Located<String>,
     #[confval(range = PORT)]
     port: Located<i64>,
