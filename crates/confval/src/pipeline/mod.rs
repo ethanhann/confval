@@ -11,6 +11,7 @@ pub mod narrow;
 pub mod range;
 mod references;
 mod validate;
+mod non_empty;
 
 pub use lower::{Lower, LowerAuto};
 
