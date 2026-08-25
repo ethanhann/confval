@@ -7,13 +7,15 @@ pub mod keyword;
 mod lower;
 pub mod narrow;
 
+/// The non-empty constraint and the `NON_EMPTY` constant.
+pub mod non_empty;
 /// Numeric range constraints and the `range_constraint!` macro.
 pub mod range;
 mod references;
 mod validate;
-mod non_empty;
 
 pub use lower::{Lower, LowerAuto};
+pub use non_empty::{NON_EMPTY, NonEmptyConstraint};
 
 pub use references::check_references;
 #[cfg(feature = "__internal-navigation")]

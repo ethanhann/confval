@@ -1,40 +1,46 @@
-//! The non_empty constraint, `#[confval(non_empty)]`.
+//! The non-empty constraint, `#[confval(non_empty)]`.
+//!
+//! A string is empty when `value.trim().is_empty()`. A list is empty when it
+//! holds no elements. The message is `{field} must not be empty` in both
+//! cases, reported at the value's span.
 
 use crate::diagnostic::Report;
-use crate::prelude::Located;
+use crate::source::Located;
 
-#[derive(Debug, Clone)]
+/// The non-empty check. Use the [`NON_EMPTY`] constant rather than
+/// constructing one.
+#[derive(Debug, Clone, Copy)]
 pub struct NonEmptyConstraint;
 
-impl NonEmptyConstraint {
-    pub const fn new() -> Self {
-        Self
-    }
+/// The single instance a caller or the derive names in a check call.
+pub const NON_EMPTY: NonEmptyConstraint = NonEmptyConstraint;
 
-    pub fn check_located_str(&self, value: &Located<&str>, field: &'static str, report: &mut Report)
-    {
-        if value.value.is_empty() {
+impl NonEmptyConstraint {
+    /// Reports `{field} must not be empty` when the string is empty or
+    /// whitespace-only.
+    pub fn check_located(&self, value: &Located<String>, field: &str, report: &mut Report) {
+        if value.value.trim().is_empty() {
             report
                 .error(format!("{field} must not be empty"))
                 .at(value.span)
-                .help(format!("Provide a non-empty value for {field}"))
+                .help(format!("Provide a non-empty value for {field}."))
                 .emit();
         }
     }
 
-    pub fn check_located_vec<T>(
-        &self,
-        value: &Located<Vec<T>>,
-        field: &'static str,
-        report: &mut Report,
-    ) where
-        T: AsRef<str>,
-    {
-        if value.value.is_empty() {
+    /// Reports `{field} must not be empty` for each empty or whitespace-only
+    /// element, at that element's span.
+    pub fn check_each(&self, values: &[Located<String>], field: &str, report: &mut Report) {
+        for value in values {
+            self.check_located(value, field, report);
+        }
+    }
+
+    /// Reports `{field} must not be empty` when the list holds no elements.
+    pub fn check_list(&self, values: &[Located<String>], field: &str, report: &mut Report) {
+        if values.is_empty() {
             report
                 .error(format!("{field} must not be empty"))
-                .at(value.span)
-                .help(format!("Provide at least one item in {field}"))
                 .emit();
         }
     }
@@ -45,62 +51,103 @@ mod tests {
     use super::*;
 
     #[test]
-    fn should_verify_string_is_empty() {
+    fn a_non_empty_string_passes() {
         // Arrange
-        let value = Located::detached("");
-        let subject = NonEmptyConstraint::new();
-        let field = "foo";
+        let value = Located::detached("hello".to_string());
         let mut report = Report::new();
 
         // Act
-        subject.check_located_str(&value, field, &mut report);
-
-        // Assert
-        assert!(report.has_errors());
-        assert_eq!(report.issues()[0].message, String::from("foo must not be empty"));
-    }
-
-    #[test]
-    fn should_verify_string_is_not_empty() {
-        // Arrange
-        let value = Located::detached("something");
-        let subject = NonEmptyConstraint::new();
-        let field = "foo";
-        let mut report = Report::new();
-
-        // Act
-        subject.check_located_str(&value, field, &mut report);
+        NON_EMPTY.check_located(&value, "name", &mut report);
 
         // Assert
         assert!(!report.has_errors());
     }
 
     #[test]
-    fn should_verify_empty_vec_is_empty() {
+    fn an_empty_string_reports_an_error() {
         // Arrange
-        let value: Located<Vec<String>> = Located::detached(vec![]);
-        let subject = NonEmptyConstraint::new();
-        let field = "bar";
+        let value = Located::detached(String::new());
         let mut report = Report::new();
 
         // Act
-        subject.check_located_vec(&value, field, &mut report);
+        NON_EMPTY.check_located(&value, "name", &mut report);
 
         // Assert
         assert!(report.has_errors());
-        assert_eq!(report.issues()[0].message, String::from("bar must not be empty"));
+        assert_eq!(report.issues()[0].message, "name must not be empty");
     }
 
     #[test]
-    fn should_verify_vec_is_not_empty() {
+    fn a_whitespace_only_string_reports_an_error() {
         // Arrange
-        let value = Located::detached(vec!["item1".to_string(), "item2".to_string()]);
-        let subject = NonEmptyConstraint::new();
-        let field = "bar";
+        let value = Located::detached("  \t\n  ".to_string());
         let mut report = Report::new();
 
         // Act
-        subject.check_located_vec(&value, field, &mut report);
+        NON_EMPTY.check_located(&value, "hostname", &mut report);
+
+        // Assert
+        assert!(report.has_errors());
+        assert_eq!(report.issues()[0].message, "hostname must not be empty");
+    }
+
+    #[test]
+    fn check_each_reports_each_empty_element() {
+        // Arrange
+        let values = vec![
+            Located::detached("good".to_string()),
+            Located::detached(String::new()),
+            Located::detached("  ".to_string()),
+        ];
+        let mut report = Report::new();
+
+        // Act
+        NON_EMPTY.check_each(&values, "tag", &mut report);
+
+        // Assert
+        assert_eq!(report.issues().len(), 2);
+        assert_eq!(report.issues()[0].message, "tag must not be empty");
+        assert_eq!(report.issues()[1].message, "tag must not be empty");
+    }
+
+    #[test]
+    fn check_each_passes_when_all_elements_are_non_empty() {
+        // Arrange
+        let values = vec![
+            Located::detached("a".to_string()),
+            Located::detached("b".to_string()),
+        ];
+        let mut report = Report::new();
+
+        // Act
+        NON_EMPTY.check_each(&values, "tag", &mut report);
+
+        // Assert
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn an_empty_list_reports_an_error() {
+        // Arrange
+        let values: Vec<Located<String>> = vec![];
+        let mut report = Report::new();
+
+        // Act
+        NON_EMPTY.check_list(&values, "tags", &mut report);
+
+        // Assert
+        assert!(report.has_errors());
+        assert_eq!(report.issues()[0].message, "tags must not be empty");
+    }
+
+    #[test]
+    fn a_non_empty_list_passes() {
+        // Arrange
+        let values = vec![Located::detached("a".to_string())];
+        let mut report = Report::new();
+
+        // Act
+        NON_EMPTY.check_list(&values, "tags", &mut report);
 
         // Assert
         assert!(!report.has_errors());
