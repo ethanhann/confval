@@ -199,6 +199,10 @@ name = "recorded_validation"
 required-features = ["derive"]
 
 [[test]]
+name = "reference_scaling"
+required-features = ["derive", "hcl"]
+
+[[test]]
 name = "references"
 required-features = ["derive", "hcl", "toml", "kdl", "json", "yaml", "__internal-navigation"]
 
