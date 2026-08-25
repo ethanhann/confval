@@ -139,7 +139,9 @@ mod tests {
     fn an_empty_list_reports_an_error_at_the_span() {
         // Arrange
         let values: Vec<Located<String>> = vec![];
-        let span = Span::detached();
+        let mut sources = crate::source::SourceMap::new();
+        let id = sources.add("test.hcl", "tags = []");
+        let span = crate::source::Span::new(id, 0, 9);
         let mut report = Report::new();
 
         // Act
@@ -155,7 +157,9 @@ mod tests {
     fn a_non_empty_list_passes() {
         // Arrange
         let values = vec![Located::detached("a".to_string())];
-        let span = Span::detached();
+        let mut sources = crate::source::SourceMap::new();
+        let id = sources.add("test.hcl", "tags = [\"a\"]");
+        let span = crate::source::Span::new(id, 0, 12);
         let mut report = Report::new();
 
         // Act
