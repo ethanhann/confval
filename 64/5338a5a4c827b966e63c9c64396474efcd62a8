@@ -1,0 +1,16 @@
+crates/confval/src/pipeline/mod.rs
+  h_4fc023ad4863a8 14
+crates/confval/src/pipeline/non_empty.rs
+  h_4fc023ad4863a8 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "645338a5a4c827b966e63c9c64396474efcd62a8",
+  "prompts": {},
+  "humans": {
+    "h_4fc023ad4863a8": {
+      "author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
