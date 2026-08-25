@@ -82,7 +82,7 @@ impl Validate for LimitsSpec {
 }
 
 impl Validate for ServerSpec {
-    fn validate(&self, report: &mut Report) {}
+    fn validate(&self, _report: &mut Report) {}
 }
 
 /// A mesh-shaped fixture for the scoped reference tests: the labeled
