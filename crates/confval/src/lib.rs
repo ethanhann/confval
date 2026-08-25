@@ -23,6 +23,7 @@ pub mod schema;
 pub mod source;
 
 pub use pipeline::keyword::KeywordSet;
+pub use pipeline::non_empty::{NON_EMPTY, NonEmptyConstraint};
 pub use pipeline::range::RangeConstraint;
 
 /// Implementation detail for the crate's macros. Not part of the public API,
@@ -72,7 +73,10 @@ pub mod prelude {
     pub use crate::pipeline::{Lower, Validate, ValidateNested, narrow};
     pub use crate::schema::ToSchema;
     pub use crate::source::{Located, SourceMap, Span};
-    pub use crate::{KeywordSet, RangeConstraint, keyword_enum, range_constraint};
+    pub use crate::{
+        KeywordSet, NON_EMPTY, NonEmptyConstraint, RangeConstraint, keyword_enum,
+        range_constraint,
+    };
 
     #[cfg(feature = "derive")]
     pub use crate::{Config, Spec};
