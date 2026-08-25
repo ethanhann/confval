@@ -191,6 +191,9 @@ fn render(field: &SchemaField, set: Option<bool>) -> String {
         out.push_str(doc);
         out.push_str("\n\n");
     }
+    if field.non_empty {
+        out.push_str("Must not be empty.\n\n");
+    }
     if let Some(constraint) = constraint_of(&field.ty) {
         out.push_str(&constraint_label(constraint));
         out.push_str("\n\n");

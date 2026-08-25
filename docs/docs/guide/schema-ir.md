@@ -73,7 +73,16 @@ An editor reads `required` to report only the fields the parser would reject as 
 
 The derive cannot read a `Validate` body.
 A closed-set field looks like a plain `Located<String>` and a numeric range is invisible to the schema.
-Three attributes record a constraint so the schema can carry it.
+Three attributes record a value constraint so the schema can carry it.
+A fourth attribute, `#[confval(non_empty)]`, records a precondition as a separate flag.
+
+### `#[confval(non_empty)]`
+
+The field is a `String` leaf or a string list.
+It rejects an empty or whitespace-only value.
+On a list it also rejects a list with zero elements.
+The schema carries it as `SchemaField::non_empty`, a `bool` flag separate from the `Constraint` slot.
+A field can carry both `non_empty` and a value constraint.
 
 ### `#[confval(keywords = PATH)]`
 

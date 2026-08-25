@@ -8,12 +8,18 @@
 //! scalar leaf emits a `check_located` call and a string list emits a
 //! `check_each_in` call, which reports each bad element at its own span.
 //!
-//! The walk decides what to emit from the presence of `options.range` or
-//! `options.keywords` alone. Which shape may carry which attribute is settled in
-//! `spec/schema.rs` when the always-emitted `ToSchema` is generated, so a
-//! misplaced attribute is a compile error before this walk runs. Keeping that
-//! rule in one generator and reading only attribute presence here keeps the two
-//! from drifting on which attribute means what.
+//! `#[confval(non_empty)]` is a flag rather than a value constraint, so its
+//! fragment is emitted alongside the constraint fragment. A string leaf calls
+//! `NON_EMPTY.check_located`. A string list calls `NON_EMPTY.check_list` for
+//! the list and `NON_EMPTY.check_each` for its elements.
+//!
+//! The walk decides what to emit from the presence of `options.range`,
+//! `options.keywords`, or `options.non_empty` alone. Which shape may carry
+//! which attribute is settled in `spec/schema.rs` when the always-emitted
+//! `ToSchema` is generated, so a misplaced attribute is a compile error before
+//! this walk runs. Keeping that rule in one generator and reading only
+//! attribute presence here keeps the two from drifting on which attribute
+//! means what.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
@@ -22,25 +28,43 @@ use quote::quote;
 use syn::Ident;
 use syn::ext::IdentExt;
 
-/// The check fragment for one field's recorded constraint, or `None` when the
-/// field carries neither a `range` nor a `keywords` attribute.
+/// The check fragment for one field, or `None` when the field carries neither
+/// a value constraint nor the `non_empty` flag.
 ///
-/// A required leaf checks `&self.field` directly. An optional leaf checks only
-/// when present, through `if let Some`. The field name is the config-key string,
-/// derived through the same `unraw` form the schema walk uses, so a raw
-/// identifier matches the name the manual call passed.
-///
-/// A field with a default gets one more branch. When the value is the default
-/// itself, recognized by its detached span and its equality with the declared
-/// default, a failed check names the spec's default rather than reporting a
-/// config error the operator cannot locate.
+/// The field name is the config-key string, derived through the same `unraw`
+/// form the schema walk uses, so a raw identifier matches the name the manual
+/// call passed.
 pub(crate) fn field_recorded_check(
     ident: &Ident,
     shape: &FieldShape,
     options: &FieldOptions,
 ) -> Option<TokenStream2> {
     let name = ident.unraw().to_string();
+    let constraint = constraint_fragment(ident, shape, options, &name);
+    let non_empty = non_empty_fragment(ident, shape, options, &name);
+    match (constraint, non_empty) {
+        (Some(c), Some(n)) => Some(quote! { #c #n }),
+        (Some(c), None) => Some(c),
+        (None, Some(n)) => Some(n),
+        (None, None) => None,
+    }
+}
 
+/// The value-constraint fragment for a `range` or a `keywords` attribute.
+///
+/// A required leaf checks `&self.field` directly. An optional leaf checks only
+/// when present, through `if let Some`.
+///
+/// A required leaf with a default gets one more branch. When the value is the
+/// default itself, recognized by its detached span and its equality with the
+/// declared default, a failed check names the spec's default rather than
+/// reporting a config error the operator cannot locate.
+fn constraint_fragment(
+    ident: &Ident,
+    shape: &FieldShape,
+    options: &FieldOptions,
+    name: &str,
+) -> Option<TokenStream2> {
     // The `check_located` call, given the `&Located<T>` value expression and
     // the report expression it writes into. A `range` names a
     // `RangeConstraint` value, a `keywords` names a `keyword_enum!` type whose
@@ -111,6 +135,58 @@ pub(crate) fn field_recorded_check(
             #direct
         }
     })
+}
+
+/// The `non_empty` fragment, or `None` when the field is not marked.
+///
+/// A string leaf calls `check_located`, under `if let Some` when optional. A
+/// string list calls `check_list` for the list and `check_each` for its
+/// elements. The wrapped list keeps its own span, so the list-level message
+/// points at the brackets. The bare `Vec<Located<String>>` holds no span of
+/// its own, so its list-level message is reported detached.
+fn non_empty_fragment(
+    ident: &Ident,
+    shape: &FieldShape,
+    options: &FieldOptions,
+    name: &str,
+) -> Option<TokenStream2> {
+    options.non_empty.as_ref()?;
+    let fragment = match shape {
+        FieldShape::Leaf {
+            leaf: Leaf::String,
+            optional: false,
+            ..
+        } => quote! {
+            ::confval::pipeline::NON_EMPTY.check_located(&self.#ident, #name, report);
+        },
+        FieldShape::Leaf {
+            leaf: Leaf::String,
+            optional: true,
+            ..
+        } => quote! {
+            if let ::core::option::Option::Some(__value) = &self.#ident {
+                ::confval::pipeline::NON_EMPTY.check_located(__value, #name, report);
+            }
+        },
+        FieldShape::BareStringList => quote! {
+            ::confval::pipeline::NON_EMPTY.check_list(
+                &self.#ident, #name, ::confval::source::Span::detached(), report,
+            );
+            ::confval::pipeline::NON_EMPTY.check_each(&self.#ident, #name, report);
+        },
+        FieldShape::OptionalWrappedStringList => quote! {
+            if let ::core::option::Option::Some(__list) = &self.#ident {
+                ::confval::pipeline::NON_EMPTY.check_list(
+                    &__list.value, #name, __list.span, report,
+                );
+                ::confval::pipeline::NON_EMPTY.check_each(&__list.value, #name, report);
+            }
+        },
+        // `field_schema` runs before this walk and rejects every other shape,
+        // so a marked field that reaches here is a `String` leaf or a list.
+        _ => unreachable!("the schema walk rejects non_empty on this shape"),
+    };
+    Some(fragment)
 }
 
 /// The declared default as a typed value expression, or `None` when the field

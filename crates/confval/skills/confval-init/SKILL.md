@@ -104,6 +104,7 @@ The `Validate` body carries no line for the field.
 ```rust
 #[derive(confval::Spec)]
 struct ServerSpec {
+    #[confval(non_empty)]
     hostname: Located<String>,
     #[confval(range = PORT)]
     port: Located<i64>,
@@ -143,9 +144,9 @@ Report at the offending field's span.
 ```rust
 impl Validate for ServerSpec {
     fn validate(&self, report: &mut Report) {
-        if self.hostname.value.is_empty() {
+        if self.hostname.value == "0.0.0.0" {
             report
-                .error("hostname must not be empty")
+                .warning("hostname set to listen on every available network device")
                 .at(self.hostname.span)
                 .emit();
         }

@@ -19,6 +19,7 @@ keyword_enum!(pub LogEvent, {
 
 #[derive(confval::Spec)]
 pub struct ServerSpec {
+    #[confval(non_empty)]
     pub hostname: Located<String>,
     #[confval(range = PORT)]
     pub port: Located<i64>,
@@ -28,8 +29,8 @@ pub struct ServerSpec {
     pub tls: Located<bool>,
     // A list field. The bare `default` reads an absent list as empty. Each
     // element keeps its own span, so a bad entry is reported at that entry.
-    // Its rule is that an entry must not be empty, which no attribute states,
-    // so the check stays in the `Validate` body below.
+    // Its rule is that an entry must not be empty. `non_empty` cannot be
+    // combined with `default`, so the check stays in the `Validate` body below.
     #[confval(default)]
     pub allow: Vec<Located<String>>,
     // A list whose entries come from a closed set. `keywords` on a list records
@@ -69,16 +70,6 @@ impl Validate for LimitsSpec {
 
 impl Validate for ServerSpec {
     fn validate(&self, report: &mut Report) {
-        // `port` and `workers` record their ranges, so the derive checks them.
-        // This body holds only the rules an attribute cannot express.
-        if self.hostname.value.is_empty() {
-            report
-                .error("hostname must not be empty")
-                .at(self.hostname.span)
-                .help("Set hostname to a reachable address, e.g. \"127.0.0.1\".")
-                .emit();
-        }
-
         if self.hostname.value == "0.0.0.0" {
             report
                 .warning("hostname set to listen on every available network device")

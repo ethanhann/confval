@@ -6,6 +6,10 @@
 //! format-neutral field model, a spec type parses out of that model, plain
 //! validation functions check what the values mean, and lowering narrows the
 //! validated spec into the runtime types the rest of the program uses.
+//!
+//! A field constraint that the derive can record is checked and carried into
+//! the schema from one attribute. The attributes name a [`RangeConstraint`],
+//! a [`KeywordSet`] through `keyword_enum!`, or the [`NON_EMPTY`] flag.
 
 #[cfg(feature = "derive")]
 pub use confval_derive::{Config, Spec};
@@ -23,6 +27,7 @@ pub mod schema;
 pub mod source;
 
 pub use pipeline::keyword::KeywordSet;
+pub use pipeline::non_empty::{NON_EMPTY, NonEmptyConstraint};
 pub use pipeline::range::RangeConstraint;
 
 /// Implementation detail for the crate's macros. Not part of the public API,
@@ -72,7 +77,9 @@ pub mod prelude {
     pub use crate::pipeline::{Lower, Validate, ValidateNested, narrow};
     pub use crate::schema::ToSchema;
     pub use crate::source::{Located, SourceMap, Span};
-    pub use crate::{KeywordSet, RangeConstraint, keyword_enum, range_constraint};
+    pub use crate::{
+        KeywordSet, NON_EMPTY, NonEmptyConstraint, RangeConstraint, keyword_enum, range_constraint,
+    };
 
     #[cfg(feature = "derive")]
     pub use crate::{Config, Spec};

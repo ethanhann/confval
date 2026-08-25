@@ -34,7 +34,12 @@ Mark a string field that points at one of those names with `#[confval(references
 
 ### 2. The validation
 
-Declare a numeric range with `#[confval(range = ...)]` and a closed set with `#[confval(keywords = ...)]` on the field.
+Declare a recorded constraint on the field.
+
+- A numeric range with `#[confval(range = ...)]`.
+- A closed set with `#[confval(keywords = ...)]`.
+- A non-empty check with `#[confval(non_empty)]`.
+
 The derive runs a recorded constraint during validation, so the `Validate` impl carries no line for it.
 A recorded constraint expands where the spec struct is declared, so put the `range_constraint!` const and the keyword enum in that module.
 A project that holds its constraints elsewhere will not compile until they move, and the compiler names the missing const rather than the reason.

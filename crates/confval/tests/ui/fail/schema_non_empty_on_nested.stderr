@@ -1,0 +1,5 @@
+error: #[confval(non_empty)] requires a String leaf or a string list; it cannot apply to a map or a nested block
+ --> tests/ui/fail/schema_non_empty_on_nested.rs:5:23
+  |
+5 |     #[confval(nested, non_empty)]
+  |                       ^^^^^^^^^
