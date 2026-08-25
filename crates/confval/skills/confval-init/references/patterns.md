@@ -34,6 +34,31 @@ const STRATEGIES: [&str; 2] = ["round_robin", "least_conn"];
 KeywordSet::new(&STRATEGIES).check_located(&strategy, "strategy", &mut report);
 ```
 
+## A non-empty string or list
+
+When a field must not be empty, such as a service name or a list of allowed networks, record it on the field with `#[confval(non_empty)]`.
+The derive rejects an empty or whitespace-only string, and on a list it rejects each empty element.
+
+```rust
+#[derive(confval::Spec)]
+struct ServiceSpec {
+    #[confval(non_empty)]
+    name: Located<String>,
+}
+```
+
+`non_empty` combines with value constraints.
+A field can carry both `#[confval(non_empty)]` and `#[confval(keywords = ...)]`.
+`non_empty` cannot be combined with `#[confval(default)]`.
+
+For a handwritten spec, call the checker directly:
+
+```rust
+use confval::prelude::{NON_EMPTY, Located, Report};
+
+NON_EMPTY.check_located(&name, "name", &mut report);
+```
+
 ## A default declared once
 
 When a field has a default, the parser fills it when the source omits the field.
