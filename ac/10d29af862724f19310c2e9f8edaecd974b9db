@@ -1,0 +1,35 @@
+docs/src/components/HomepageFeatures/styles.module.css
+  s_94673c10ad6fdb::t_14c36f619e5fe4 32-33,35-39
+  s_94673c10ad6fdb::t_fb3a7448530c00 34
+  s_94673c10ad6fdb::t_27240901326dde 43-44,51,57-58,65
+  s_94673c10ad6fdb::t_4dff3ff42cef75 40-42
+docs/src/components/HomepageFeatures/index.tsx
+  s_94673c10ad6fdb::t_03f33246073f93 143
+  s_94673c10ad6fdb::t_0bad643bcafdf3 6
+  s_94673c10ad6fdb::t_5486429c9707ad 135-140
+  s_94673c10ad6fdb::t_1819dfcd59c9bf 134
+  s_94673c10ad6fdb::t_f57cf1f085a32b 141-142
+  s_94673c10ad6fdb::t_82f547e741b5ca 144-146
+  s_94673c10ad6fdb::t_95d2ed01129c02 147-149,247-248
+docs/static/img/high_level_architecture_dark.svg
+  s_94673c10ad6fdb::t_1f274b2a78259b 3-1421
+  s_94673c10ad6fdb::t_9b3d94bd3ab0f7 1-2
+Justfile
+  s_94673c10ad6fdb::t_aa741641eb3397 166-180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "ac10d29af862724f19310c2e9f8edaecd974b9db",
+  "prompts": {},
+  "sessions": {
+    "s_94673c10ad6fdb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b449c62b-acf7-43ef-b748-db82d0b63385",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Ethan Hann <ethanhann@gmail.com>"
+    }
+  }
+}
