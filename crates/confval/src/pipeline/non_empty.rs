@@ -40,3 +40,69 @@ impl NonEmpty {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_verify_string_is_empty() {
+        // Arrange
+        let value = Located::detached("");
+        let subject = NonEmpty::new();
+        let field = "foo";
+        let mut report = Report::new();
+
+        // Act
+        subject.check_located_str(&value, field, &mut report);
+
+        // Assert
+        assert!(report.has_errors());
+        assert_eq!(report.issues()[0].message, String::from("foo must not be empty"));
+    }
+
+    #[test]
+    fn should_verify_string_is_not_empty() {
+        // Arrange
+        let value = Located::detached("something");
+        let subject = NonEmpty::new();
+        let field = "foo";
+        let mut report = Report::new();
+
+        // Act
+        subject.check_located_str(&value, field, &mut report);
+
+        // Assert
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn should_verify_empty_vec_is_empty() {
+        // Arrange
+        let value: Located<Vec<String>> = Located::detached(vec![]);
+        let subject = NonEmpty::new();
+        let field = "bar";
+        let mut report = Report::new();
+
+        // Act
+        subject.check_located_vec(&value, field, &mut report);
+
+        // Assert
+        assert!(report.has_errors());
+        assert_eq!(report.issues()[0].message, String::from("bar must not be empty"));
+    }
+
+    #[test]
+    fn should_verify_vec_is_not_empty() {
+        // Arrange
+        let value = Located::detached(vec!["item1".to_string(), "item2".to_string()]);
+        let subject = NonEmpty::new();
+        let field = "bar";
+        let mut report = Report::new();
+
+        // Act
+        subject.check_located_vec(&value, field, &mut report);
+
+        // Assert
+        assert!(!report.has_errors());
+    }
+}
