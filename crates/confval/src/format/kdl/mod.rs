@@ -51,6 +51,7 @@ pub use emit::emit_kdl;
 /// reported and returns `None`, one issue per kdl-rs diagnostic. Field-level
 /// problems are reported but do not stop the parse, so a tree that parsed
 /// still reaches validation.
+#[hotpath::measure]
 pub fn parse_kdl_fields(sources: &SourceMap, id: SourceId, report: &mut Report) -> Option<Fields> {
     let Some(source) = sources.get(id) else {
         report

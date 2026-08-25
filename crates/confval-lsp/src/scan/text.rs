@@ -31,6 +31,7 @@ pub(crate) enum TextRecovery {
 /// selects how a value position is detected. `comments` is the format's
 /// line-comment vocabulary, read to skip a comment while scanning blocks and
 /// to refuse a value position inside one.
+#[hotpath::measure]
 pub(crate) fn resolve_in_text(
     text: &str,
     offset: usize,

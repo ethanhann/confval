@@ -71,6 +71,7 @@ impl Validate for MiddlewareSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
+#[hotpath::main]
 fn main() -> Result<(), LspError> {
     serve_multi(vec![
         bind::<GatewaySpec, _>(Matcher::FileName("gateway.cvm".to_string()), Hcl),

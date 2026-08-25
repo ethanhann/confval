@@ -41,6 +41,7 @@ pub use emit::emit_hcl;
 /// merged result. A syntax error, the only failure that yields no tree, is
 /// reported and returns `None`. Field-level problems are reported but do not
 /// stop the parse, so a tree that parsed still reaches validation.
+#[hotpath::measure]
 pub fn parse_hcl_fields(sources: &SourceMap, id: SourceId, report: &mut Report) -> Option<Fields> {
     let Some(source) = sources.get(id) else {
         report

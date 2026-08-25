@@ -12,6 +12,7 @@ default: list
 import "dev/just/code_quality.just"
 import "dev/just/docs.just"
 import "dev/just/examples.just"
+import "dev/just/profile.just"
 import "dev/just/publish.just"
 import "dev/just/test.just"
 

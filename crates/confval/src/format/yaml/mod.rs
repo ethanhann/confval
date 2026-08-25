@@ -75,6 +75,7 @@ const MAX_DEPTH: u32 = 128;
 /// document are the three failures that yield no tree. Each is reported and
 /// returns `None`. Field-level problems are reported but do not stop the parse,
 /// so a tree that parsed still reaches validation.
+#[hotpath::measure]
 pub fn parse_yaml_fields(sources: &SourceMap, id: SourceId, report: &mut Report) -> Option<Fields> {
     let Some(source) = sources.get(id) else {
         report

@@ -26,6 +26,7 @@ use crate::source::{SourceMap, Span};
 /// A variable that is not valid UTF-8 cannot be read as text. One whose name
 /// carries the prefix is reported as an error, and one outside the prefix is
 /// skipped.
+#[hotpath::measure]
 pub fn env_fields(sources: &mut SourceMap, prefix: &str, report: &mut Report) -> Option<Fields> {
     from_os_vars(sources, prefix, std::env::vars_os(), report)
 }

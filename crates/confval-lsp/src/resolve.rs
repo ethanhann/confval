@@ -16,6 +16,7 @@ use crate::frontend::CursorContext;
 use crate::scan::is_identifier;
 
 /// Resolves `offset` against the parsed tree.
+#[hotpath::measure]
 pub(crate) fn resolve_in_tree(
     tree: &Fields,
     text: &str,

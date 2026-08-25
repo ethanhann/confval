@@ -23,6 +23,9 @@ toml = ["confval/toml"]
 kdl = ["confval/kdl"]
 json = ["confval/json"]
 yaml = ["confval/yaml"]
+# Opt-in profiling, which also turns on the instrumentation inside confval.
+hotpath = ["hotpath/hotpath", "confval/hotpath"]
+hotpath-alloc = ["hotpath/hotpath-alloc", "confval/hotpath-alloc"]
 
 [dependencies]
 confval = { version = "=0.9.0", path = "../confval", features = ["__internal-navigation"] }
@@ -31,6 +34,7 @@ lsp-server = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 line-index = { workspace = true }
+hotpath = { workspace = true }
 
 [dev-dependencies]
 confval = { path = "../confval", features = ["hcl", "toml", "kdl", "json", "yaml", "derive"] }

@@ -103,10 +103,12 @@ pub struct Router {
     documents: HashMap<String, Document>,
 }
 
+#[hotpath::measure_all]
 impl Router {
     /// A router over the given bindings. An empty list is refused, because a
     /// server that can answer for no document is a construction mistake that
     /// should surface before the handshake.
+    #[hotpath::skip]
     pub fn new(bindings: Vec<Binding>) -> Result<Self, LspError> {
         if bindings.is_empty() {
             return Err("at least one binding is required".into());
@@ -116,6 +118,7 @@ impl Router {
 
     /// A router over a non-empty binding list. The encoding defaults to
     /// UTF-16, the LSP default, until initialization negotiates it.
+    #[hotpath::skip]
     fn over(bindings: Vec<Binding>) -> Self {
         Self {
             bindings,
@@ -127,6 +130,7 @@ impl Router {
     }
 
     /// Runs the initialize handshake and the request loop over a connection.
+    #[hotpath::skip]
     pub fn run(mut self, connection: &Connection) -> Result<(), LspError> {
         let (id, params) = connection.initialize_start()?;
         let params: InitializeParams = serde_json::from_value(params)?;
@@ -142,6 +146,7 @@ impl Router {
     }
 
     /// The message loop. It returns when the client sends a shutdown and exit.
+    #[hotpath::skip]
     fn main_loop(&mut self, connection: &Connection) -> Result<(), LspError> {
         for message in &connection.receiver {
             match message {
@@ -269,6 +274,7 @@ impl Router {
     }
 
     /// The matched index paired with its binding, for the routing log.
+    #[hotpath::skip]
     fn matched(&self, index: Option<usize>) -> Option<(usize, &Binding)> {
         index.and_then(|index| self.bindings.get(index).map(|binding| (index, binding)))
     }
@@ -496,6 +502,7 @@ fn cx<'a>(
 /// Parses with the matched binding's frontend. An unmatched document is held
 /// as text with no tree and an empty report, so resolution recovers nothing
 /// and every answer stays empty.
+#[hotpath::measure]
 fn parse_with(
     bindings: &[Binding],
     matched: Option<usize>,

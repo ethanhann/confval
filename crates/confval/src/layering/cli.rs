@@ -21,6 +21,7 @@ use crate::source::{SourceMap, Span};
 ///
 /// The provider has no syntax-error failure mode, so it returns `Some` and
 /// never `None`.
+#[hotpath::measure]
 pub fn cli_fields(
     sources: &mut SourceMap,
     args: impl IntoIterator<Item = String>,

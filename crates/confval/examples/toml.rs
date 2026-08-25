@@ -55,6 +55,7 @@ mode = "yolo"
     Ok(())
 }
 
+#[hotpath::main]
 fn main() -> Result<(), String> {
     show_failing_variant()?;
 

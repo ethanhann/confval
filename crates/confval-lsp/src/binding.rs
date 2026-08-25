@@ -77,6 +77,7 @@ impl Validator {
     }
 
     /// Runs the pass over a parsed document.
+    #[hotpath::measure]
     pub(crate) fn run(&self, fields: &Fields, report: &mut Report) {
         (self.0)(fields, report);
     }

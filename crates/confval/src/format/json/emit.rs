@@ -36,6 +36,7 @@ use crate::format::field::{FieldKind, Fields, Scalar, Value, ValueKind};
 /// consumers collapse to one member. Every name is representable, because any
 /// key writes as a JSON string, so [`EmitError::UnrepresentableName`] never
 /// arises. Emit of a populated spec fails only for a non-finite float default.
+#[hotpath::measure]
 pub fn emit_json(fields: &Fields) -> Result<String, EmitError> {
     let mut out = String::new();
     write_object(&mut out, fields, 0, "")?;

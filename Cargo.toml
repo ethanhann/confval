@@ -57,3 +57,4 @@ line-index = { version = "0.1" }
 proc-macro2 = { version = "1" }
 quote = { version = "1" }
 syn = { version = "3" }
+hotpath = { version = "0.24" }

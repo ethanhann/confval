@@ -47,6 +47,7 @@ use crate::format::field::{Fields, Value, ValueKind};
 /// whose only YAML form is a duplicate key. Emit of a populated spec never
 /// fails, because populate produces identifier names, ordinary scalars with
 /// every float writable, no `Other`, and no repetition.
+#[hotpath::measure]
 pub fn emit_yaml(fields: &Fields) -> Result<String, EmitError> {
     let mut out = String::new();
     write_level(&mut out, fields, 0, "")?;

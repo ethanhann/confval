@@ -28,6 +28,7 @@ use kdl::{KdlDocument, KdlDocumentFormat, KdlNode, KdlNodeFormat};
 /// [`EmitError::UnrepresentableName`] nor [`EmitError::ConflictingName`] can
 /// arise. Emit of a populated spec never fails, because populate produces
 /// none of the failing shapes.
+#[hotpath::measure]
 pub fn emit_kdl(fields: &Fields) -> Result<String, EmitError> {
     let mut document = emit_document(fields, 0, "")?;
     document.set_format(KdlDocumentFormat::default());

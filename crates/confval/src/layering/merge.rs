@@ -25,6 +25,7 @@ pub(crate) enum Verb {
 
 /// Combines `incoming` into `base`, keeping `base`'s source and enclosing span.
 /// Both levels are taken by value, so a kept field moves rather than clones.
+#[hotpath::measure]
 pub(crate) fn combine(base: Fields, incoming: Fields, verb: Verb, report: &mut Report) -> Fields {
     let source = base.source();
     let enclosing = base.enclosing();

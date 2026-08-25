@@ -33,6 +33,7 @@ use crate::source::{Located, Span};
 /// `FromFields`, which reports a native label a block does not designate and a
 /// child field that duplicates a native label. A caller that wants the whole
 /// label story runs `from_fields` and then this pass.
+#[hotpath::measure]
 pub fn check_references(fields: &Fields, schema: &Schema, report: &mut Report) {
     walk_scope(fields, schema, &mut Vec::new(), &mut |event| match event {
         ScopeEvent::Scope(body, scope_schema) => {
@@ -224,6 +225,7 @@ pub fn declares_labeled_block(schema: &Schema, block: &str) -> bool {
 /// instance, including a duplicate and an empty label, and the function emits
 /// no diagnostics. The pipeline and the language server share it, so the editor
 /// collects labels the way the reference check does.
+#[hotpath::measure]
 pub fn scope_labels(scope: &Fields, schema: &Schema, block: &str) -> Vec<Located<String>> {
     let Some(label_field) = labeled_child(schema, block) else {
         return Vec::new();

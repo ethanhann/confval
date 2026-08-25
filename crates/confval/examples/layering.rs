@@ -21,6 +21,7 @@ use confval::format::toml::parse_toml_fields;
 use confval::layering::{Assembly, cli_fields, env_fields};
 use confval::prelude::*;
 
+#[hotpath::main]
 fn main() -> Result<(), String> {
     let base_text = r#"hostname = "127.0.0.1"
 port = 8080

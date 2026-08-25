@@ -30,6 +30,7 @@ enum Node {
 /// Container levels carry the `root` source, so a missing-field error inside a
 /// synthesized block points at the provider rather than at a value. Each leaf
 /// carries its own value source.
+#[hotpath::measure]
 pub(crate) fn build(root: SourceId, leaves: Vec<Leaf>, report: &mut Report) -> Fields {
     let mut tree: BTreeMap<String, Node> = BTreeMap::new();
     for leaf in leaves {

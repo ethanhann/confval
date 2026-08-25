@@ -66,6 +66,7 @@ const ROOT_MUST_BE_AN_OBJECT: &str = "expected an object at the document root";
 /// failures that yield no tree. Each is reported and returns `None`. Field-level
 /// problems are reported but do not stop the parse, so a tree that parsed still
 /// reaches validation.
+#[hotpath::measure]
 pub fn parse_json_fields(sources: &SourceMap, id: SourceId, report: &mut Report) -> Option<Fields> {
     let Some(source) = sources.get(id) else {
         report

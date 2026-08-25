@@ -25,6 +25,7 @@ use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Val
 /// value next to a same-named block, two same-named values, or any repetition
 /// inside an inline table. Populate produces none of these, so they arise only
 /// for a parsed or hand-built `Fields`.
+#[hotpath::measure]
 pub fn emit_toml(fields: &Fields) -> Result<String, EmitError> {
     let mut document = DocumentMut::new();
     let pending = emit_table(fields, document.as_table_mut(), "", "")?;
