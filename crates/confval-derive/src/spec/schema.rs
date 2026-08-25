@@ -71,6 +71,10 @@ pub(crate) fn field_schema(
         let rendered = default_text(leaf, &expr);
         field = quote! { #field.with_default_text(#rendered) };
     }
+    if options.non_empty {
+        reject_non_empty_misuse(shape, options)?;
+        field = quote! { #field.with_non_empty() };
+    }
     if options.label.is_some() {
         Ok(quote! { #field.as_label() })
     } else {
@@ -151,6 +155,44 @@ fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Resul
         return Err(syn::Error::new_spanned(
             label,
             "#[confval(label)] cannot take a default",
+        ));
+    }
+    Ok(())
+}
+
+/// Rejects the misuses of `#[confval(non_empty)]`.
+///
+/// `non_empty` is valid on a `String` leaf and on a string list. It rejects
+/// `Int`, `Float`, `Bool`, `Path`, `Block`, and `Map`. It combines freely
+/// with `label` and with value constraints (`keywords`, `range`,
+/// `references`). A field with both `default` and `non_empty` is rejected,
+/// because the default for a `String` is the empty string.
+fn reject_non_empty_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Result<()> {
+    match shape {
+        FieldShape::Leaf {
+            leaf: Leaf::String, ..
+        }
+        | FieldShape::BareStringList
+        | FieldShape::OptionalWrappedStringList => {}
+        FieldShape::Leaf { .. } => {
+            return Err(syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "#[confval(non_empty)] requires a String leaf or a string list",
+            ));
+        }
+        _ => {
+            return Err(syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "#[confval(non_empty)] requires a String leaf or a string list; \
+                 it cannot apply to a map or a nested block",
+            ));
+        }
+    }
+    if options.default.is_some() {
+        return Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "#[confval(non_empty)] cannot be combined with #[confval(default)]; \
+             the default for a String is the empty string, which fails the check",
         ));
     }
     Ok(())
