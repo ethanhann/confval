@@ -2,8 +2,8 @@
 //!
 //! `check_references` runs on every parse, and `confval-lsp` runs it on every
 //! keystroke through its diagnostics handler. A pass whose cost grows faster
-//! than the file makes a large configuration unusable in an editor, so the
-//! growth rate is a behavior worth pinning.
+//! than the file makes a large configuration unusable in an editor. This test
+//! therefore asserts the growth rate.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 

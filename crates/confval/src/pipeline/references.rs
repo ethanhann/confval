@@ -10,14 +10,18 @@
 //! [`Schema`](crate::schema::Schema), so the pipeline and the language server
 //! run the same check.
 
+mod labels;
+
 use std::collections::{HashMap, HashSet};
 
 use crate::diagnostic::Report;
-use crate::format::field::{Field, FieldKind, Fields, Scalar, ValueKind};
+use crate::format::field::Fields;
 use crate::schema::{Constraint, Schema, SchemaType};
-#[cfg(feature = "__internal-navigation")]
-use crate::source::Located;
 use crate::source::Span;
+
+#[cfg(feature = "__internal-navigation")]
+pub use labels::scope_labels;
+use labels::{field_string, instance_bodies, labeled_child, scope_label_refs};
 
 /// Checks every reference field against the labels its scope can see.
 ///
@@ -49,10 +53,25 @@ pub fn check_references(fields: &Fields, schema: &Schema, report: &mut Report) {
 /// reference sites that resolve into that scope.
 ///
 /// Without it, each reference collects the labels of its declaring scope
-/// again, so a file with many references to many instances costs the product
-/// of the two. The key is the scope instance's address, the same identity
-/// [`Scope::same_instance`] uses, paired with the target block name.
-type LabelCache<'a> = HashMap<(*const Fields, &'static str), DefinedLabels<'a>>;
+/// again. A file with many references to many instances then costs the
+/// product of the two. The key is the scope instance's identity paired with
+/// the target block name.
+type LabelCache<'a> = HashMap<(InstanceKey, &'static str), DefinedLabels<'a>>;
+
+/// The identity of one scope instance body.
+///
+/// Identity is by instance rather than by value, so two equal bodies from
+/// different instances have different keys. The key is the body's address,
+/// which is stable for as long as the parsed tree is borrowed.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct InstanceKey(*const Fields);
+
+impl InstanceKey {
+    /// The key of `body`.
+    fn of(body: &Fields) -> Self {
+        Self(std::ptr::from_ref(body))
+    }
+}
 
 /// The distinct, non-empty labels of one block within one scope instance.
 struct DefinedLabels<'a> {
@@ -105,7 +124,7 @@ impl Scope<'_> {
     /// instances do not match.
     #[cfg(feature = "__internal-navigation")]
     pub fn same_instance(&self, body: &Fields) -> bool {
-        std::ptr::eq(self.body, body)
+        InstanceKey::of(self.body) == InstanceKey::of(body)
     }
 }
 
@@ -219,7 +238,7 @@ fn check_reference<'a>(
         return;
     };
     let defined = cache
-        .entry((std::ptr::from_ref(scope_body), block))
+        .entry((InstanceKey::of(scope_body), block))
         .or_insert_with(|| DefinedLabels::collect(scope_body, scope_schema, block));
     if !defined.set.contains(site.value.as_str()) {
         let help = if defined.ordered.is_empty() {
@@ -258,51 +277,6 @@ pub fn declares_labeled_block(schema: &Schema, block: &str) -> bool {
     })
 }
 
-/// The labels the `block` field defines within one scope instance.
-///
-/// Each label carries its span, in document order. The list keeps every
-/// instance, including a duplicate and an empty label, and the function emits
-/// no diagnostics. The pipeline and the language server share it, so the editor
-/// collects labels the way the reference check does.
-#[cfg(feature = "__internal-navigation")]
-pub fn scope_labels(scope: &Fields, schema: &Schema, block: &str) -> Vec<Located<String>> {
-    scope_label_refs(scope, schema, block)
-        .into_iter()
-        .map(|(value, span)| Located::new(value.to_string(), span))
-        .collect()
-}
-
-/// The same labels as [`scope_labels`], borrowed from the tree rather than
-/// copied. Every reader inside this pass takes this form, so the pass copies
-/// no label text.
-fn scope_label_refs<'a>(scope: &'a Fields, schema: &Schema, block: &str) -> Vec<(&'a str, Span)> {
-    let Some(label_field) = labeled_child(schema, block) else {
-        return Vec::new();
-    };
-    let mut labels = Vec::new();
-    for instance in scope.iter().filter(|field| field.name == block) {
-        for body in instance_bodies(instance) {
-            if let Some((value, span)) = instance_label(body, label_field) {
-                labels.push((value, span));
-            }
-        }
-    }
-    labels
-}
-
-/// The name of the designated label field of the `block` child, or `None` when
-/// `schema` does not declare `block` as a labeled block.
-fn labeled_child<'a>(schema: &'a Schema, block: &str) -> Option<&'a str> {
-    schema.fields.iter().find_map(|field| match &field.ty {
-        SchemaType::Block { schema: inner, .. } if field.name == block => inner
-            .fields
-            .iter()
-            .find(|child| child.label)
-            .map(|child| child.name.as_str()),
-        _ => None,
-    })
-}
-
 /// Reports a duplicate label and an empty label within one scope instance.
 ///
 /// The checks are scope-local: two sibling instances of the enclosing block may
@@ -333,50 +307,5 @@ fn report_scope_label_issues(body: &Fields, schema: &Schema, report: &mut Report
             }
             first_span.insert(label, span);
         }
-    }
-}
-
-/// The block bodies of one parsed field. A brace-delimited block is one body, a
-/// map value is one body, and an array-of-tables value is one body per element,
-/// so a repeated block reads the same in every format.
-fn instance_bodies(field: &Field) -> Vec<&Fields> {
-    match &field.kind {
-        FieldKind::Block(body) => vec![body],
-        FieldKind::Value(value) => match &value.kind {
-            ValueKind::Map(body) => vec![body],
-            ValueKind::Seq(elements) => elements
-                .iter()
-                .filter_map(|element| match &element.kind {
-                    ValueKind::Map(body) => Some(body),
-                    _ => None,
-                })
-                .collect(),
-            _ => Vec::new(),
-        },
-    }
-}
-
-/// A block instance's label: its native label slot when a frontend read one, and
-/// otherwise the value of the designated label field in the body.
-fn instance_label<'a>(body: &'a Fields, label_field: &str) -> Option<(&'a str, Span)> {
-    if let Some(label) = body.label() {
-        return Some((label.value.as_str(), label.span));
-    }
-    body.get(label_field).and_then(field_str)
-}
-
-/// A field's string scalar value and span, or `None` when it is not a string.
-fn field_string(field: &Field) -> Option<(String, Span)> {
-    field_str(field).map(|(value, span)| (value.to_string(), span))
-}
-
-/// The same as [`field_string`], borrowed from the field.
-fn field_str(field: &Field) -> Option<(&str, Span)> {
-    let FieldKind::Value(value) = &field.kind else {
-        return None;
-    };
-    match &value.kind {
-        ValueKind::Scalar(Scalar::String(string)) => Some((string.as_str(), value.span)),
-        _ => None,
     }
 }
