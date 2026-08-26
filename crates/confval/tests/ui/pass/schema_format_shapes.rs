@@ -4,6 +4,10 @@
 //! shapes as legal carriers of `#[confval(format = ...)]`, and pins the
 //! attribute beside `default`, beside `non_empty`, and beside `label`. The
 //! fail cases alone do not prove the legal forms compile.
+//!
+//! The `non_empty` pairing compiles although the guide advises against it
+//! for a built-in format, because a consumer format may accept the empty
+//! string and the derive cannot tell the two apart.
 
 use confval::diagnostic::Report;
 use confval::pipeline::Validate;

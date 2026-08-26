@@ -1152,7 +1152,7 @@ fn format_on_a_leaf_reports_a_value_that_does_not_parse() {
     // Assert
     assert_eq!(
         messages(&report),
-        vec!["bind is not a valid IPv4 address: 300.1.1.1"]
+        vec!["bind is not a valid IPv4 address: \"300.1.1.1\""]
     );
 }
 
@@ -1185,7 +1185,7 @@ fn format_on_an_optional_leaf_checks_only_a_present_value() {
     // Assert
     assert_eq!(
         messages(&report),
-        vec!["peer is not a valid IP address: localhost"]
+        vec!["peer is not a valid IP address: \"localhost\""]
     );
 }
 
@@ -1208,8 +1208,8 @@ fn format_on_a_bare_list_reports_each_bad_element() {
     assert_eq!(
         messages(&report),
         vec![
-            "allow is not a valid IP address: nope",
-            "allow is not a valid IP address: "
+            "invalid IP address in allow: \"nope\"",
+            "invalid IP address in allow: \"\""
         ]
     );
 }
@@ -1236,7 +1236,7 @@ fn format_on_a_wrapped_list_reports_each_bad_element_and_passes_when_absent() {
     // Assert
     assert_eq!(
         messages(&present_report),
-        vec!["roots is not a valid absolute path: relative"]
+        vec!["invalid absolute path in roots: \"relative\""]
     );
     assert!(!absent_report.has_errors());
 }
@@ -1255,7 +1255,7 @@ fn format_names_the_default_when_the_default_fails_its_format() {
     assert_eq!(
         messages(&report),
         vec![
-            "the default for `bind` fails its recorded constraint: bind is not a valid IPv4 address: nope"
+            "the default for `bind` fails its recorded constraint: bind is not a valid IPv4 address: \"nope\""
         ]
     );
 }
@@ -1273,6 +1273,38 @@ fn a_consumer_format_is_recorded_and_checked() {
     // Assert
     assert_eq!(
         messages(&report),
-        vec!["count is not a valid even number: 5"]
+        vec!["count is not a valid even number: \"5\""]
+    );
+}
+
+/// A spec that pairs `non_empty` with `format`, which the guide advises
+/// against for a built-in format, so the double report is pinned.
+#[derive(confval::Spec)]
+struct NonEmptyWithFormat {
+    #[confval(non_empty, format = Ip)]
+    bind: Located<String>,
+}
+
+impl Validate for NonEmptyWithFormat {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn non_empty_and_format_both_fire_on_an_empty_value() {
+    // Arrange
+    let spec = NonEmptyWithFormat {
+        bind: Located::detached(String::new()),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "bind is not a valid IP address: \"\"",
+            "bind must not be empty"
+        ]
     );
 }
