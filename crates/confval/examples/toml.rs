@@ -10,10 +10,11 @@
 //!
 //! A failing variant renders its diagnostics to stderr first, and the valid
 //! config then shows the lowered output and the write path. The failing report
-//! includes an error at a single list element from a recorded format, a
-//! repeated element from a recorded `unique` flag, the same
-//! from a recorded keyword set, an unknown keyword in a nested block, and a
-//! cross-field warning whose related span points at the setting that caused it.
+//! includes five kinds of diagnostic: a list element that fails a recorded
+//! format, a list element that repeats an earlier one under a recorded unique
+//! flag, a list element outside a recorded keyword set, an unknown keyword in
+//! a nested block, and a cross-field warning whose related span points at the
+//! setting that caused it.
 //!
 //! The valid config omits the `limits` table, so the lowered output shows the
 //! config-side `#[confval(nested, default)]` filling `LimitsSpec::default()`

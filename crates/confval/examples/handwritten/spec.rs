@@ -288,6 +288,8 @@ impl Validate for ServiceSpec {
         // A keyword list is checked per element, so a typo is reported under
         // the entry the operator typed.
         LogEvent::keyword_set().check_each(&self.events, "event", report);
+        // The whole-list check names the list, so the two calls on one field
+        // pass different names on purpose.
         UNIQUE.check_list(&self.events, "events", report);
         if let Some(phases) = &self.phases {
             Phase::keyword_set().check_each(&phases.value, "phase", report);
