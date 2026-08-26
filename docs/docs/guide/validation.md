@@ -23,7 +23,7 @@ spec.validate_all(&mut report);
 ## Declaring constraints
 
 confval ships five domain-agnostic checks.
-`RangeConstraint` bounds a number, `LengthConstraint` bounds the character count of a string, `KeywordSet` checks a closed string set, `check_format` parses a string as a named format, and `NON_EMPTY` rejects an empty value.
+`RangeConstraint` bounds a number, `LengthConstraint` bounds the character count of a string, `check_format` parses a string as a named format, `KeywordSet` checks a closed string set, and `NON_EMPTY` rejects an empty value.
 Each one reports at the value's span with a help line.
 
 ### RangeConstraint
@@ -68,7 +68,7 @@ HOSTNAME_LEN.check_located(&spec.hostname, "hostname", report);
 The message is "hostname must be at most 253 characters" or "hostname must be at least 1 character".
 When you provide **help**, it replaces the generated suggestion.
 
-### Format
+### check_format
 
 A format is a type that implements the `Format` trait.
 The trait has a `NAME` the message uses and a `check` function that says whether a string parses.
@@ -87,7 +87,9 @@ impl Format for Cidr {
         let Some((address, prefix)) = value.split_once('/') else {
             return false;
         };
+        let digits = !prefix.is_empty() && prefix.bytes().all(|b| b.is_ascii_digit());
         address.parse::<std::net::Ipv4Addr>().is_ok()
+            && digits
             && prefix.parse::<u8>().is_ok_and(|bits| bits <= 32)
     }
 }
@@ -100,8 +102,10 @@ check_format::<Ip>(&spec.hostname, "hostname", report);
 check_each_format::<Cidr>(&spec.allow, "allow", report);
 ```
 
-The message is "hostname is not a valid IP address: localhost".
-The help line is "Set hostname to a valid IP address."
+The message is `hostname is not a valid IP address: "localhost"`.
+The help line is "Set hostname to a valid IP address".
+On a list the message is `invalid CIDR block in allow: "10.0.0.0/33"`, which names the list rather than one element.
+The value is quoted, so an empty entry reads as `""`.
 `check` takes no `self`, so a format carries no configuration.
 A format that needs a parameter, such as a maximum URL length, is a later extension.
 
@@ -246,8 +250,9 @@ Pair `non_empty` with a length bound that uses `max:` alone.
 The two constraints then report different conditions.
 `length` and `format` combine with `default`.
 When the default itself fails the check, the message names the spec's default rather than the configuration.
-A format rejects the empty string, so a field that carries `format` and `non_empty` reports an empty value twice.
+Each built-in format rejects the empty string, so a field that carries a built-in `format` and `non_empty` reports an empty value twice.
 Record `format` alone on such a field.
+The pair still compiles, because a consumer format may accept the empty string.
 A field cannot carry `#[confval(non_empty)]` and `#[confval(default)]` together.
 The default for a string is the empty string.
 The default for a list is the empty list.
@@ -255,10 +260,10 @@ Either default would fail the check.
 
 ### What recording covers
 
-A recorded list runs `check_each_in`.
+A recorded list runs `check_each_in` for a keyword set or `check_each_format` for a format.
 Each bad element is reported at its own span.
 The bare `Vec<Located<String>>` and the wrapped `Option<Located<Vec<Located<String>>>>` both work.
-The message is `unknown value in <field>: <value>`, which reads correctly whatever the list is called.
+The message is `unknown value in <field>: <value>` or `invalid <format> in <field>: "<value>"`, and each one reads correctly whatever the list is called.
 Call `check_each` by hand when you have a singular noun for one element, because `unknown mode: shout` is the shorter sentence.
 
 ### What stays in the Validate body
@@ -274,7 +279,6 @@ Record the set on the field instead, and the schema IR and the check come from o
 A list of numbers has no field shape in confval.
 `range` has nothing to bound on a list.
 Record it on an `Int` or `Float` leaf.
-`format` on a list applies to each element, the way `keywords` does.
 `length` bounds one string, so it takes a `String` leaf alone.
 A per-element bound on a string list is not recorded in this release.
 `references` resolves one value against the labels in scope.
