@@ -376,7 +376,7 @@ mod tests {
     #[test]
     fn constraint_labels_render_formats() {
         // Arrange
-        let format = Constraint::format("IPv4 address", |_| true);
+        let format = confval::pipeline::format_constraint::<confval::Ipv4>();
 
         // Act, Assert
         assert_eq!(constraint_label(&format), "Format: IPv4 address.");

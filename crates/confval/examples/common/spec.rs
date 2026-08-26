@@ -12,6 +12,12 @@ keyword_enum!(pub LimitMode, {
     Off     => "off",
 });
 
+keyword_enum!(pub LogEvent, {
+    Request  => "request",
+    Response => "response",
+    Error    => "error",
+});
+
 /// An IPv4 network in CIDR notation, such as `10.0.0.0/8`. A domain format
 /// is a consumer type that implements `Format`, the way the built-in `Ip`
 /// does, so the derive records and checks it through one attribute.
@@ -24,16 +30,12 @@ impl Format for Cidr {
         let Some((address, prefix)) = value.split_once('/') else {
             return false;
         };
+        let digits = !prefix.is_empty() && prefix.bytes().all(|b| b.is_ascii_digit());
         address.parse::<std::net::Ipv4Addr>().is_ok()
+            && digits
             && prefix.parse::<u8>().is_ok_and(|bits| bits <= 32)
     }
 }
-
-keyword_enum!(pub LogEvent, {
-    Request  => "request",
-    Response => "response",
-    Error    => "error",
-});
 
 #[derive(confval::Spec)]
 pub struct ServerSpec {
