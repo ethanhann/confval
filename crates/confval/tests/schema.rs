@@ -773,11 +773,12 @@ impl Validate for UniqueLists {
 fn a_unique_list_carries_the_flag_in_both_shapes_beside_a_constraint() {
     // Arrange
     let schema = UniqueLists::schema();
+    let server = ServerSpec::schema();
 
     // Act
     let tags = field(&schema, "tags");
     let modes = field(&schema, "modes");
-    let port = field(&ServerSpec::schema(), "port");
+    let port = field(&server, "port");
 
     // Assert
     assert!(tags.unique, "the bare list is marked unique");
