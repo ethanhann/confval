@@ -12,6 +12,23 @@ keyword_enum!(pub LimitMode, {
     Off     => "off",
 });
 
+/// An IPv4 network in CIDR notation, such as `10.0.0.0/8`. A domain format
+/// is a consumer type that implements `Format`, the way the built-in `Ip`
+/// does, so the derive records and checks it through one attribute.
+pub struct Cidr;
+
+impl Format for Cidr {
+    const NAME: &'static str = "CIDR block";
+
+    fn check(value: &str) -> bool {
+        let Some((address, prefix)) = value.split_once('/') else {
+            return false;
+        };
+        address.parse::<std::net::Ipv4Addr>().is_ok()
+            && prefix.parse::<u8>().is_ok_and(|bits| bits <= 32)
+    }
+}
+
 keyword_enum!(pub LogEvent, {
     Request  => "request",
     Response => "response",
@@ -30,9 +47,9 @@ pub struct ServerSpec {
     pub tls: Located<bool>,
     // A list field. The bare `default` reads an absent list as empty. Each
     // element keeps its own span, so a bad entry is reported at that entry.
-    // Its rule is that an entry must not be empty. `non_empty` cannot be
-    // combined with `default`, so the check stays in the `Validate` body below.
-    #[confval(default)]
+    // `format` on a list records the format each element must parse as, so
+    // the derive checks every entry and an empty entry fails with the rest.
+    #[confval(default, format = Cidr)]
     pub allow: Vec<Located<String>>,
     // A list whose entries come from a closed set. `keywords` on a list records
     // the set each element must come from, so the derive checks every entry and
@@ -77,16 +94,6 @@ impl Validate for ServerSpec {
                 .at(self.hostname.span)
                 .help("This might be undesired.")
                 .emit();
-        }
-
-        for entry in &self.allow {
-            if entry.value.is_empty() {
-                report
-                    .error("allow entries must not be empty")
-                    .at(entry.span)
-                    .help("Remove the entry or set it to a network, e.g. \"10.0.0.0/8\".")
-                    .emit();
-            }
         }
 
         // A per-entry rule over the map. Each value keeps its span, so an empty
