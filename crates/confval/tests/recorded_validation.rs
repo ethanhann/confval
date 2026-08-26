@@ -1351,7 +1351,7 @@ fn unique_on_a_bare_list_reports_each_repeat_at_its_own_span() {
     let report = validate(&spec);
 
     // Assert
-    assert_eq!(messages(&report), vec!["duplicate value in tags: a"]);
+    assert_eq!(messages(&report), vec!["duplicate value in tags: \"a\""]);
     assert_eq!(report.issues()[0].span, Some(repeat));
 }
 
@@ -1395,7 +1395,7 @@ fn unique_on_a_wrapped_list_reports_a_repeat_and_passes_when_absent() {
     // Assert
     assert_eq!(
         messages(&present_report),
-        vec!["duplicate value in labels: x"]
+        vec!["duplicate value in labels: \"x\""]
     );
     assert!(!absent_report.has_errors());
 }
@@ -1419,7 +1419,77 @@ fn unique_and_keywords_both_fire_on_a_repeated_unknown_value() {
         vec![
             "unknown value in modes: nope",
             "unknown value in modes: nope",
-            "duplicate value in modes: nope"
+            "duplicate value in modes: \"nope\""
+        ]
+    );
+}
+
+/// A spec that pairs `unique` with `non_empty` on one list.
+#[derive(confval::Spec)]
+struct UniqueWithNonEmpty {
+    #[confval(non_empty, unique)]
+    names: Vec<Located<String>>,
+}
+
+impl Validate for UniqueWithNonEmpty {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec that pairs `unique` with a format on one list.
+#[derive(confval::Spec)]
+struct UniqueWithFormat {
+    #[confval(unique, format = Ip)]
+    peers: Vec<Located<String>>,
+}
+
+impl Validate for UniqueWithFormat {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn unique_and_non_empty_both_fire_on_a_repeated_empty_entry() {
+    // Arrange
+    let spec = UniqueWithNonEmpty {
+        names: vec![
+            Located::detached(String::new()),
+            Located::detached(String::new()),
+        ],
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "names must not be empty",
+            "names must not be empty",
+            "duplicate value in names: \"\""
+        ]
+    );
+}
+
+#[test]
+fn unique_and_format_both_fire_on_a_repeated_invalid_entry() {
+    // Arrange
+    let spec = UniqueWithFormat {
+        peers: vec![
+            Located::detached("nope".to_string()),
+            Located::detached("nope".to_string()),
+        ],
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "invalid IP address in peers: \"nope\"",
+            "invalid IP address in peers: \"nope\"",
+            "duplicate value in peers: \"nope\""
         ]
     );
 }

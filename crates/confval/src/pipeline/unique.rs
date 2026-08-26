@@ -1,13 +1,15 @@
 //! The unique constraint, `#[confval(unique)]`.
 //!
 //! A list is unique when no element repeats an earlier one, compared as the
-//! exact string. The message is `duplicate value in {field}: {value}`,
-//! reported at the repeated element's span, so the first occurrence stays
-//! where the operator wrote it and each later copy is named.
+//! exact string. The message is `duplicate value in {field}: "{value}"`,
+//! reported at the repeated element's span with a related label at the
+//! first occurrence. The first occurrence itself is not reported. Each
+//! repeat carries its own span, so `check_list` takes no list-level span
+//! where `NON_EMPTY.check_list` does.
 
 use crate::diagnostic::Report;
-use crate::source::Located;
-use std::collections::HashSet;
+use crate::source::{Located, Span};
+use std::collections::HashMap;
 
 /// The unique check. Use the [`UNIQUE`] constant. Do not construct one.
 #[derive(Debug, Clone, Copy)]
@@ -17,17 +19,21 @@ pub struct UniqueConstraint;
 pub const UNIQUE: UniqueConstraint = UniqueConstraint;
 
 impl UniqueConstraint {
-    /// Reports `duplicate value in {field}: {value}` for each element that
-    /// repeats an earlier one, at that element's span.
+    /// Reports `duplicate value in {field}: "{value}"` for each element that
+    /// repeats an earlier one, at that element's span, with the first
+    /// occurrence as a related span. The value is quoted so an empty or
+    /// whitespace-only repeat is visible in the message.
     pub fn check_list(&self, values: &[Located<String>], field: &str, report: &mut Report) {
-        let mut seen = HashSet::new();
+        let mut first_span: HashMap<&str, Span> = HashMap::new();
         for value in values {
-            if seen.insert(value.value.as_str()) {
+            let Some(&first) = first_span.get(value.value.as_str()) else {
+                first_span.insert(value.value.as_str(), value.span);
                 continue;
-            }
+            };
             report
-                .error(format!("duplicate value in {field}: {}", value.value))
+                .error(format!("duplicate value in {field}: \"{}\"", value.value))
                 .at(value.span)
+                .related(first, "first declared here")
                 .help(format!("Remove the repeated entry from {field}"))
                 .emit();
         }
@@ -37,7 +43,7 @@ impl UniqueConstraint {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source::{SourceMap, Span};
+    use crate::source::SourceMap;
 
     #[test]
     fn a_list_with_no_repeat_passes() {
@@ -76,8 +82,13 @@ mod tests {
 
         // Assert
         assert_eq!(report.issues().len(), 2);
-        assert_eq!(report.issues()[0].message, "duplicate value in tags: a");
+        assert_eq!(report.issues()[0].message, "duplicate value in tags: \"a\"");
         assert_eq!(report.issues()[0].span, Some(second));
+        assert_eq!(
+            report.issues()[0].related.as_ref().map(|(span, _)| *span),
+            Some(first),
+            "the repeat points back at the first occurrence"
+        );
         assert_eq!(
             report.issues()[0].help.as_deref(),
             Some("Remove the repeated entry from tags")
@@ -103,6 +114,22 @@ mod tests {
             !report.has_issues(),
             "case and whitespace distinguish entries"
         );
+    }
+
+    #[test]
+    fn a_repeated_empty_entry_is_quoted_in_the_message() {
+        // Arrange
+        let values = vec![
+            Located::detached(String::new()),
+            Located::detached(String::new()),
+        ];
+        let mut report = Report::new();
+
+        // Act
+        UNIQUE.check_list(&values, "tags", &mut report);
+
+        // Assert
+        assert_eq!(report.issues()[0].message, "duplicate value in tags: \"\"");
     }
 
     #[test]

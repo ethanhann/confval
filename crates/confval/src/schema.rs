@@ -123,8 +123,8 @@ pub enum SchemaType {
     /// The constraint describes one element rather than the list, so a closed
     /// set means every entry must be one of those words. Only
     /// [`Keywords`](Constraint::Keywords) is meaningful here, because the derive
-    /// records nothing else on a list. A constraint that bounds the list itself,
-    /// such as a length, would need its own slot rather than this one.
+    /// records nothing else on a list. A rule about the list itself, such as
+    /// `unique`, is a flag on [`SchemaField`] rather than a constraint here.
     #[non_exhaustive]
     StringList {
         /// The mechanical constraint each element records, or `None`.

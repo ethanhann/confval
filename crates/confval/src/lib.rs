@@ -59,9 +59,9 @@ pub mod __private {
 /// [`length_constraint!`] macro, the [`Format`] trait with its built-in
 /// types and the [`check_format`](pipeline::check_format) and
 /// [`check_each_format`](pipeline::check_each_format) calls, and the
-/// [`NON_EMPTY`] and [`UNIQUE`] flags), and, with the `derive` feature, the [`Spec`] and
-/// [`Config`] derives. Each validator is exported with its declaration form,
-/// so each validated pattern works from one import.
+/// [`NON_EMPTY`] and [`UNIQUE`] flags), and, with the `derive` feature, the
+/// [`Spec`] and [`Config`] derives. Each validator is exported with its
+/// declaration form, so each validated pattern works from one import.
 ///
 /// The write-path trait [`ToFields`](format::ToFields) is in the prelude,
 /// because you call `spec.to_fields()` as a method and the trait must be in
