@@ -80,8 +80,8 @@ pub mod prelude {
 
     pub use crate::diagnostic::Report;
     pub use crate::format::ToFields;
-    pub use crate::pipeline::{check_each_format, check_format};
     pub use crate::pipeline::{Lower, Validate, ValidateNested, narrow};
+    pub use crate::pipeline::{check_each_format, check_format};
     pub use crate::schema::ToSchema;
     pub use crate::source::{Located, SourceMap, Span};
     pub use crate::{

@@ -216,7 +216,10 @@ mod tests {
             Some("Set each entry in allow to a valid IP address")
         );
         assert_eq!(report.issues()[0].span, Some(bad));
-        assert_eq!(report.issues()[1].message, "invalid IP address in allow: \"\"");
+        assert_eq!(
+            report.issues()[1].message,
+            "invalid IP address in allow: \"\""
+        );
         assert_eq!(report.issues()[1].span, Some(empty));
     }
 
