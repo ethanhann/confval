@@ -300,6 +300,7 @@ fn constraint_tokens(shape: &FieldShape, options: &FieldOptions) -> syn::Result<
         FieldShape::BareStringList | FieldShape::OptionalWrappedStringList => match recorded {
             Recorded::Keywords(path) => Ok(keywords_tokens(path)),
             Recorded::Range(path) => Err(refused(path, RANGE_REQUIRES, "a list")),
+            Recorded::Length(path) => Err(refused(path, LENGTH_REQUIRES, "a list")),
             Recorded::References(block) => Err(refused(block, REFERENCES_REQUIRES, "a list")),
         },
         FieldShape::Nested { .. } | FieldShape::NestedList { .. } | FieldShape::Map => {
@@ -307,6 +308,7 @@ fn constraint_tokens(shape: &FieldShape, options: &FieldOptions) -> syn::Result<
             match recorded {
                 Recorded::Keywords(path) => Err(refused(path, KEYWORDS_REQUIRES, where_not)),
                 Recorded::Range(path) => Err(refused(path, RANGE_REQUIRES, where_not)),
+                Recorded::Length(path) => Err(refused(path, LENGTH_REQUIRES, where_not)),
                 Recorded::References(block) => Err(refused(block, REFERENCES_REQUIRES, where_not)),
             }
         }
@@ -316,12 +318,14 @@ fn constraint_tokens(shape: &FieldShape, options: &FieldOptions) -> syn::Result<
 const KEYWORDS_REQUIRES: &str =
     "#[confval(keywords = ...)] requires a String leaf or a string list";
 const RANGE_REQUIRES: &str = "#[confval(range = ...)] requires an Int or Float leaf";
+const LENGTH_REQUIRES: &str = "#[confval(length = ...)] requires a String leaf";
 const REFERENCES_REQUIRES: &str = "#[confval(references = ...)] requires a String leaf";
 
 /// The one recording attribute a field declares.
 enum Recorded<'a> {
     Keywords(&'a Path),
     Range(&'a Path),
+    Length(&'a Path),
     References(&'a Ident),
 }
 
@@ -331,16 +335,27 @@ enum Recorded<'a> {
 /// shape carries two constraints.
 fn one_recording_attribute(options: &FieldOptions) -> syn::Result<Option<Recorded<'_>>> {
     let too_many = "a field takes at most one of #[confval(keywords = ...)], \
-                    #[confval(range = ...)], or #[confval(references = ...)]";
-    match (&options.keywords, &options.range, &options.references) {
-        (Some(_), Some(range), _) => Err(syn::Error::new_spanned(range, too_many)),
-        (Some(_), _, Some(references)) => Err(syn::Error::new_spanned(references, too_many)),
-        (_, Some(_), Some(references)) => Err(syn::Error::new_spanned(references, too_many)),
-        (Some(path), None, None) => Ok(Some(Recorded::Keywords(path))),
-        (None, Some(path), None) => Ok(Some(Recorded::Range(path))),
-        (None, None, Some(block)) => Ok(Some(Recorded::References(block))),
-        (None, None, None) => Ok(None),
+                    #[confval(range = ...)], #[confval(length = ...)], or \
+                    #[confval(references = ...)]";
+    let mut found: Vec<(Recorded<'_>, &dyn quote::ToTokens)> = Vec::new();
+    if let Some(path) = &options.keywords {
+        found.push((Recorded::Keywords(path), path));
     }
+    if let Some(path) = &options.range {
+        found.push((Recorded::Range(path), path));
+    }
+    if let Some(path) = &options.length {
+        found.push((Recorded::Length(path), path));
+    }
+    if let Some(block) = &options.references {
+        found.push((Recorded::References(block), block));
+    }
+    // The list reads `keywords`, `range`, `length`, then `references`, so the
+    // error points at the later attribute in that order.
+    if let Some((_, second)) = found.get(1) {
+        return Err(syn::Error::new_spanned(second, too_many));
+    }
+    Ok(found.into_iter().next().map(|(recorded, _)| recorded))
 }
 
 /// The constraint a scalar leaf records, paired against its leaf type.
@@ -375,6 +390,20 @@ fn leaf_constraint(leaf: &Leaf, recorded: Recorded<'_>) -> syn::Result<TokenStre
                         #min,
                         #max,
                         #path.units,
+                        #path.help,
+                    ),
+                )
+            })
+        }
+        Recorded::Length(path) => {
+            if !matches!(leaf, Leaf::String) {
+                return Err(syn::Error::new_spanned(path, LENGTH_REQUIRES));
+            }
+            Ok(quote! {
+                ::core::option::Option::Some(
+                    ::confval::schema::Constraint::length(
+                        ::std::string::ToString::to_string(&#path.min),
+                        ::std::string::ToString::to_string(&#path.max),
                         #path.help,
                     ),
                 )

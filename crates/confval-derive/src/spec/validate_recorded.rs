@@ -2,7 +2,8 @@
 //! generated `ValidateNested::validate_recorded`.
 //!
 //! Where the schema walk in [`schema`](super::schema) records a field's
-//! `#[confval(range = ...)]` or `#[confval(keywords = ...)]` constraint for the
+//! `#[confval(range = ...)]`, `#[confval(length = ...)]`, or
+//! `#[confval(keywords = ...)]` constraint for the
 //! IR, this walk runs the same constraint during validation, so the attribute is
 //! the single source and the author's `Validate` body carries no line for it. A
 //! scalar leaf emits a `check_located` call and a string list emits a
@@ -14,7 +15,7 @@
 //! the list and `NON_EMPTY.check_each` for its elements.
 //!
 //! The walk decides what to emit from the presence of `options.range`,
-//! `options.keywords`, or `options.non_empty` alone. Which shape may carry
+//! `options.length`, `options.keywords`, or `options.non_empty` alone. Which shape may carry
 //! which attribute is settled in `spec/schema.rs` when the always-emitted
 //! `ToSchema` is generated, so a misplaced attribute is a compile error before
 //! this walk runs. Keeping that rule in one generator and reading only
@@ -50,7 +51,8 @@ pub(crate) fn field_recorded_check(
     }
 }
 
-/// The value-constraint fragment for a `range` or a `keywords` attribute.
+/// The value-constraint fragment for a `range`, a `length`, or a `keywords`
+/// attribute.
 ///
 /// A required leaf checks `&self.field` directly. An optional leaf checks only
 /// when present, through `if let Some`.
@@ -67,10 +69,11 @@ fn constraint_fragment(
 ) -> Option<TokenStream2> {
     // The `check_located` call, given the `&Located<T>` value expression and
     // the report expression it writes into. A `range` names a
-    // `RangeConstraint` value, a `keywords` names a `keyword_enum!` type whose
-    // `keyword_set()` yields the check.
+    // `RangeConstraint` value, a `length` names a `LengthConstraint` value,
+    // and a `keywords` names a `keyword_enum!` type whose `keyword_set()`
+    // yields the check.
     let call = |value: &TokenStream2, report: &TokenStream2| -> Option<TokenStream2> {
-        if let Some(path) = &options.range {
+        if let Some(path) = options.range.as_ref().or(options.length.as_ref()) {
             return Some(quote! { #path.check_located(#value, #name, #report); });
         }
         options
@@ -90,8 +93,8 @@ fn constraint_fragment(
 
     // A list records the constraint for one element, so the check runs through
     // `check_each_in`, which reports each bad element at its own span. Only
-    // `keywords` reaches here, because the schema walk refuses `range` and
-    // `references` on a list. The bare form is already a slice. The optional
+    // `keywords` reaches here, because the schema walk refuses `range`,
+    // `length`, and `references` on a list. The bare form is already a slice. The optional
     // form keeps the outer `Located`, so the list is reached through its value.
     //
     // Neither arm carries the defaulted-value branch a required leaf gets

@@ -106,6 +106,10 @@ pub(crate) struct FieldOptions {
     /// whose bounds the schema walk renders. The leaf-type pairing is checked in
     /// `spec/schema.rs`.
     pub(crate) range: Option<Path>,
+    /// The path a `#[confval(length = PATH)]` names, or `None`. It records a
+    /// `LengthConstraint` const the same way `range` records a
+    /// `RangeConstraint`.
+    pub(crate) length: Option<Path>,
     /// `Some` if the field was marked `#[confval(label)]`, i.e. its value is the
     /// enclosing block's label. HCL and KDL carry the label in the block syntax,
     /// and the other formats carry it as this field. The `String` leaf pairing is
@@ -140,6 +144,7 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
         default: None,
         keywords: None,
         range: None,
+        length: None,
         label: None,
         references: None,
         non_empty: None,
@@ -186,6 +191,12 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 }
                 options.range = Some(meta.value()?.parse()?);
                 Ok(())
+            } else if meta.path.is_ident("length") {
+                if options.length.is_some() {
+                    return Err(meta.error("duplicate confval attribute `length`"));
+                }
+                options.length = Some(meta.value()?.parse()?);
+                Ok(())
             } else if meta.path.is_ident("label") {
                 if options.label.is_some() {
                     return Err(meta.error("duplicate confval attribute `label`"));
@@ -214,7 +225,8 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
             } else {
                 Err(meta.error(
                     "unknown confval attribute; expected `nested`, `map`, `default`, \
-                     `keywords`, `range`, `label`, `references`, `non_empty`, or `doc`",
+                     `keywords`, `range`, `length`, `label`, `references`, `non_empty`, \
+                     or `doc`",
                 ))
             }
         })?;
