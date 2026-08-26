@@ -74,6 +74,22 @@ A domain format is a unit struct that implements `Format` with a `NAME` and a `c
 Declare it in a module the spec module can import from, because `format = ...` names a type.
 Do not pair a built-in `format` with `non_empty`, because each built-in format rejects the empty string on its own.
 
+## A list with no repeated entry
+
+When a list must not repeat an entry, such as a list of route paths or of allowed networks, record it on the field with `#[confval(unique)]`.
+The derive reports each repeat at its own span and leaves the first occurrence alone.
+
+```rust
+#[derive(confval::Spec)]
+struct ServiceSpec {
+    #[confval(default, unique, format = Ip)]
+    peers: Vec<Located<String>>,
+}
+```
+
+`unique` is a flag on the list, so it combines with `default`, `non_empty`, and one value constraint.
+A duplicate check that spans blocks, such as a service name unique across files, compares labels and stays in the `Validate` body.
+
 ## A non-empty string or list
 
 When a field must not be empty, such as a service name or a list of allowed networks, record it on the field with `#[confval(non_empty)]`.
