@@ -7,6 +7,8 @@ pub mod keyword;
 mod lower;
 pub mod narrow;
 
+/// Character length constraints and the `length_constraint!` macro.
+pub mod length;
 /// The non-empty constraint and the `NON_EMPTY` constant.
 pub mod non_empty;
 /// Numeric range constraints and the `range_constraint!` macro.
@@ -14,6 +16,7 @@ pub mod range;
 mod references;
 mod validate;
 
+pub use length::LengthConstraint;
 pub use lower::{Lower, LowerAuto};
 pub use non_empty::{NON_EMPTY, NonEmptyConstraint};
 

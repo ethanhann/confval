@@ -9,7 +9,8 @@
 //!
 //! A field constraint that the derive can record is checked and carried into
 //! the schema from one attribute. The attributes name a [`RangeConstraint`],
-//! a [`KeywordSet`] through `keyword_enum!`, or the [`NON_EMPTY`] flag.
+//! a [`LengthConstraint`], a [`KeywordSet`] through `keyword_enum!`, or the
+//! [`NON_EMPTY`] flag.
 
 #[cfg(feature = "derive")]
 pub use confval_derive::{Config, Spec};
@@ -27,6 +28,7 @@ pub mod schema;
 pub mod source;
 
 pub use pipeline::keyword::KeywordSet;
+pub use pipeline::length::LengthConstraint;
 pub use pipeline::non_empty::{NON_EMPTY, NonEmptyConstraint};
 pub use pipeline::range::RangeConstraint;
 
@@ -51,7 +53,9 @@ pub mod __private {
 /// [`ControlFlow`](core::ops::ControlFlow) a `descend` override returns, and
 /// the [`narrow`](pipeline::narrow) helpers), the constraint validators
 /// ([`KeywordSet`] and its [`keyword_enum!`] macro, [`RangeConstraint`] and its
-/// [`range_constraint!`] macro), and, with the `derive` feature, the [`Spec`]
+/// [`range_constraint!`] macro, [`LengthConstraint`] and its
+/// [`length_constraint!`] macro, and the [`NON_EMPTY`] flag), and, with the
+/// `derive` feature, the [`Spec`]
 /// and [`Config`] derives.
 /// Each validator is exported with its macro, so the validated-range and
 /// keyword patterns each work from one import.
@@ -78,7 +82,8 @@ pub mod prelude {
     pub use crate::schema::ToSchema;
     pub use crate::source::{Located, SourceMap, Span};
     pub use crate::{
-        KeywordSet, NON_EMPTY, NonEmptyConstraint, RangeConstraint, keyword_enum, range_constraint,
+        KeywordSet, LengthConstraint, NON_EMPTY, NonEmptyConstraint, RangeConstraint, keyword_enum,
+        length_constraint, range_constraint,
     };
 
     #[cfg(feature = "derive")]
