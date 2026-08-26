@@ -33,12 +33,17 @@ impl LengthConstraint {
         } else {
             return;
         };
+        let noun = if limit == 1 {
+            "character"
+        } else {
+            "characters"
+        };
         let help = self
             .help
             .map(String::from)
-            .unwrap_or_else(|| format!("Set {field} to {kind} {limit} characters"));
+            .unwrap_or_else(|| format!("Set {field} to {kind} {limit} {noun}"));
         report
-            .error(format!("{field} must be {kind} {limit} characters"))
+            .error(format!("{field} must be {kind} {limit} {noun}"))
             .at(value.span)
             .help(help)
             .emit();
@@ -47,10 +52,15 @@ impl LengthConstraint {
 
 /// Define a named length constraint as a const.
 ///
-/// ```rust
-/// use confval::{LengthConstraint, length_constraint};
+/// A bound with `max:` alone starts at zero, so it pairs with
+/// `#[confval(non_empty)]` without the two constraints reporting the same
+/// empty value. A `min:` above `max:` is a compile error.
 ///
-/// length_constraint!(HOSTNAME_LEN, min: 1, max: 253);
+/// ```rust
+/// use confval::length_constraint;
+///
+/// length_constraint!(HOSTNAME_LEN, max: 253);
+/// length_constraint!(PORT_NAME_LEN, min: 1, max: 15);
 /// length_constraint!(LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 63 characters.");
 /// ```
 #[macro_export]
@@ -61,13 +71,24 @@ macro_rules! length_constraint {
             max: $max,
             help: Some($help),
         };
+        const _: () = assert!($min <= $max, "length_constraint! min is above max");
     };
     ($name:ident, min: $min:expr, max: $max:expr) => {
+        length_constraint!($name, min: $min, max: $max, help: None);
+    };
+    ($name:ident, max: $max:expr, help: $help:literal) => {
+        length_constraint!($name, min: 0, max: $max, help: $help);
+    };
+    ($name:ident, max: $max:expr) => {
+        length_constraint!($name, min: 0, max: $max, help: None);
+    };
+    ($name:ident, min: $min:expr, max: $max:expr, help: None) => {
         const $name: $crate::LengthConstraint = $crate::LengthConstraint {
             min: $min,
             max: $max,
             help: None,
         };
+        const _: () = assert!($min <= $max, "length_constraint! min is above max");
     };
 }
 
@@ -77,6 +98,7 @@ mod tests {
 
     length_constraint!(HOSTNAME_LEN, min: 1, max: 253);
     length_constraint!(LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 63 characters.");
+    length_constraint!(CAPPED, max: 4);
 
     fn check(constraint: &LengthConstraint, value: &str, field: &str) -> Report {
         let mut report = Report::new();
@@ -110,11 +132,11 @@ mod tests {
         // Assert
         assert_eq!(
             report.issues()[0].message,
-            "hostname must be at least 1 characters"
+            "hostname must be at least 1 character"
         );
         assert_eq!(
             report.issues()[0].help.as_deref(),
-            Some("Set hostname to at least 1 characters")
+            Some("Set hostname to at least 1 character")
         );
     }
 
@@ -134,6 +156,24 @@ mod tests {
         assert_eq!(
             report.issues()[0].help.as_deref(),
             Some("Set hostname to at most 253 characters")
+        );
+    }
+
+    #[test]
+    fn a_max_only_bound_starts_at_zero() {
+        // Arrange
+        let empty = "";
+        let long = "abcde";
+
+        // Act
+        let empty_report = check(&CAPPED, empty, "tag");
+        let long_report = check(&CAPPED, long, "tag");
+
+        // Assert
+        assert!(!empty_report.has_issues());
+        assert_eq!(
+            long_report.issues()[0].message,
+            "tag must be at most 4 characters"
         );
     }
 
