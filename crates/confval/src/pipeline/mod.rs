@@ -16,7 +16,6 @@ pub mod range;
 mod references;
 mod validate;
 
-pub use length::LengthConstraint;
 pub use lower::{Lower, LowerAuto};
 pub use non_empty::{NON_EMPTY, NonEmptyConstraint};
 
