@@ -258,7 +258,8 @@ impl ToSchema for ServiceSpec {
                     true,
                     true,
                     SchemaType::string_list(Some(Constraint::Keywords(&LogEvent::KEYWORDS))),
-                ),
+                )
+                .with_unique(),
                 sf(
                     "phases",
                     false,
@@ -287,6 +288,7 @@ impl Validate for ServiceSpec {
         // A keyword list is checked per element, so a typo is reported under
         // the entry the operator typed.
         LogEvent::keyword_set().check_each(&self.events, "event", report);
+        UNIQUE.check_list(&self.events, "events", report);
         if let Some(phases) = &self.phases {
             Phase::keyword_set().check_each(&phases.value, "phase", report);
         }

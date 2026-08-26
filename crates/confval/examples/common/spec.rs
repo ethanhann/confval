@@ -51,7 +51,8 @@ pub struct ServerSpec {
     // element keeps its own span, so a bad entry is reported at that entry.
     // `format` on a list records the format each element must parse as, so
     // the derive checks every entry and an empty entry fails with the rest.
-    #[confval(default, format = Cidr)]
+    // `unique` rejects a repeated entry at the repeat's own span.
+    #[confval(default, unique, format = Cidr)]
     pub allow: Vec<Located<String>>,
     // A list whose entries come from a closed set. `keywords` on a list records
     // the set each element must come from, so the derive checks every entry and

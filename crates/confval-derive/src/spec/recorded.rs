@@ -1,7 +1,7 @@
 //! The legality rules for `#[derive(Spec)]`'s recording attributes. They
 //! decide which field shape may carry `keywords`, `range`, `length`,
-//! `format`, `references`, `label`, and `non_empty`, and what a legal pair
-//! records in the schema.
+//! `format`, `references`, `label`, `non_empty`, and `unique`, and what a
+//! legal pair records in the schema.
 //!
 //! The rules live here rather than in `options.rs`, because `options.rs`
 //! reads the attribute tokens and never classifies the field type. The schema
@@ -110,6 +110,30 @@ pub(crate) fn reject_non_empty_misuse(
         ));
     }
     Ok(())
+}
+
+/// Rejects the misuses of `#[confval(unique)]`.
+///
+/// `unique` is valid on the two string list shapes alone. A scalar leaf has
+/// one value, so nothing can repeat, and a map's keys are unique already. It
+/// combines with `keywords`, `format`, `non_empty`, and `default`, because
+/// the default list is empty and so unique.
+pub(crate) fn reject_unique_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Result<()> {
+    let Some(unique) = &options.unique else {
+        return Ok(());
+    };
+    match shape {
+        FieldShape::BareStringList | FieldShape::OptionalWrappedStringList => Ok(()),
+        FieldShape::Leaf { .. } => Err(syn::Error::new_spanned(
+            unique,
+            "#[confval(unique)] requires a string list",
+        )),
+        _ => Err(syn::Error::new_spanned(
+            unique,
+            "#[confval(unique)] requires a string list; \
+             it cannot apply to a map or a nested block",
+        )),
+    }
 }
 
 /// The `Option<Constraint>` expression a field records, and the one place a

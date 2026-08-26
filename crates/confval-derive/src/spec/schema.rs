@@ -10,7 +10,9 @@
 //! misplaced attribute is a compile error before the validation walk runs.
 
 use super::options::FieldOptions;
-use super::recorded::{constraint_tokens, reject_label_misuse, reject_non_empty_misuse};
+use super::recorded::{
+    constraint_tokens, reject_label_misuse, reject_non_empty_misuse, reject_unique_misuse,
+};
 use super::shape::{FieldShape, Leaf};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -73,6 +75,10 @@ pub(crate) fn field_schema(
     if options.non_empty.is_some() {
         reject_non_empty_misuse(shape, options)?;
         field = quote! { #field.with_non_empty() };
+    }
+    if options.unique.is_some() {
+        reject_unique_misuse(shape, options)?;
+        field = quote! { #field.with_unique() };
     }
     if options.label.is_some() {
         Ok(quote! { #field.as_label() })

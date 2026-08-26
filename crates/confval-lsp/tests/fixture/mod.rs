@@ -36,7 +36,7 @@ pub struct ServerSpec {
     #[confval(default = false)]
     pub tls: Located<bool>,
     /// The networks allowed to connect.
-    #[confval(default)]
+    #[confval(default, unique)]
     pub allow: Vec<Located<String>>,
     /// How each limit breach is handled. A constrained list in the bare shape.
     #[confval(default, keywords = LimitMode)]

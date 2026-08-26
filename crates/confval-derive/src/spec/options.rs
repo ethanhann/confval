@@ -131,6 +131,11 @@ pub(crate) struct FieldOptions {
     /// empty list. It is a precondition on the value, so it combines with any
     /// one value constraint.
     pub(crate) non_empty: Option<syn::Path>,
+    /// The `unique` path from `#[confval(unique)]`, kept so a misuse error
+    /// points at the attribute. The flag rejects a repeated element in a
+    /// string list. It is a precondition on the list, so it combines with
+    /// `keywords`, `format`, `non_empty`, and `default`.
+    pub(crate) unique: Option<syn::Path>,
     /// The doc comment `to_template` renders above the field, or `None`. Comes
     /// from `#[confval(doc = "...")]` if present, otherwise the field's `///`
     /// doc comments joined into one string.
@@ -167,6 +172,7 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
         label: None,
         references: None,
         non_empty: None,
+        unique: None,
         doc: None,
     };
     let mut confval_doc = None;
@@ -220,6 +226,12 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 }
                 options.non_empty = Some(meta.path.clone());
                 Ok(())
+            } else if meta.path.is_ident("unique") {
+                if options.unique.is_some() {
+                    return Err(meta.error("duplicate confval attribute `unique`"));
+                }
+                options.unique = Some(meta.path.clone());
+                Ok(())
             } else if meta.path.is_ident("doc") {
                 if confval_doc.is_some() {
                     return Err(meta.error("duplicate confval attribute `doc`"));
@@ -231,7 +243,7 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 Err(meta.error(
                     "unknown confval attribute; expected `nested`, `map`, `default`, \
                      `keywords`, `range`, `length`, `format`, `label`, `references`, \
-                     `non_empty`, or `doc`",
+                     `non_empty`, `unique`, or `doc`",
                 ))
             }
         })?;
