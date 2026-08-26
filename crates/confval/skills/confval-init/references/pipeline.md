@@ -155,7 +155,7 @@ struct ServerSpec {
     hostname: Located<String>,
     #[confval(range = PORT)]
     port: Located<i64>,
-    #[confval(default, format = Ip)]
+    #[confval(default, unique, format = Ip)]
     peers: Vec<Located<String>>,
 }
 

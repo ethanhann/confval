@@ -81,13 +81,13 @@ The derive reports each repeat at its own span and leaves the first occurrence a
 
 ```rust
 #[derive(confval::Spec)]
-struct ServiceSpec {
+struct ServerSpec {
     #[confval(default, unique, format = Ip)]
     peers: Vec<Located<String>>,
 }
 ```
 
-`unique` is a flag on the list, so it combines with `default`, `non_empty`, and one value constraint.
+`unique` combines with `keywords`, `format`, `non_empty`, and `default`, because the default list is empty and so unique.
 A duplicate check that spans blocks, such as a service name unique across files, compares labels and stays in the `Validate` body.
 
 ## A non-empty string or list

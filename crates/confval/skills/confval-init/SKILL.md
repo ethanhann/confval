@@ -116,7 +116,7 @@ struct ServerSpec {
     hostname: Located<String>,
     #[confval(range = PORT)]
     port: Located<i64>,
-    #[confval(default, format = Ip)]
+    #[confval(default, unique, format = Ip)]
     peers: Vec<Located<String>>,
 }
 ```
@@ -136,7 +136,7 @@ A `Located<T>` takes one, and so does an `Option<Located<T>>`, which the derive 
 `format` takes a string list the same way, where each element must parse.
 `unique` takes a string list alone, and reports each repeated entry at its own span.
 `range` takes a scalar leaf alone, because there is no numeric list shape for it to apply to.
-A map and a nested block take neither.
+A map and a nested block take none of these.
 The derive rejects an attribute on a shape that cannot carry it, so a misplaced attribute fails the build rather than being skipped in silence.
 
 Write the check in `Validate` in three cases.
