@@ -26,7 +26,8 @@ keyword_enum!(LimitMode, {
     Off     => "off",
 });
 
-/// The `common` fixture, mirrored here with its recording attributes so the
+/// The `common` fixture, mirrored here with its recording attributes, except
+/// `allow`, which stays bare so a list with no attribute is pinned, so the
 /// IR is pinned against a representative Spec rather than only its first
 /// consumer. The recording attributes drive the checks, so the `Validate`
 /// bodies carry no line for them.
@@ -40,7 +41,7 @@ struct ServerSpec {
     workers: Located<i64>,
     #[confval(default = false)]
     tls: Located<bool>,
-    #[confval(default, format = Ip)]
+    #[confval(default)]
     allow: Vec<Located<String>>,
     #[confval(default, keywords = LimitMode)]
     modes: Vec<Located<String>>,
