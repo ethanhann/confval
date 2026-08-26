@@ -22,8 +22,8 @@ spec.validate_all(&mut report);
 
 ## Declaring constraints
 
-confval ships four domain-agnostic checks.
-`RangeConstraint` bounds a number, `LengthConstraint` bounds the character count of a string, `KeywordSet` checks a closed string set, and `NON_EMPTY` rejects an empty value.
+confval ships five domain-agnostic checks.
+`RangeConstraint` bounds a number, `LengthConstraint` bounds the character count of a string, `KeywordSet` checks a closed string set, `check_format` parses a string as a named format, and `NON_EMPTY` rejects an empty value.
 Each one reports at the value's span with a help line.
 
 ### RangeConstraint
@@ -67,6 +67,43 @@ HOSTNAME_LEN.check_located(&spec.hostname, "hostname", report);
 
 The message is "hostname must be at most 253 characters" or "hostname must be at least 1 character".
 When you provide **help**, it replaces the generated suggestion.
+
+### Format
+
+A format is a type that implements the `Format` trait.
+The trait has a `NAME` the message uses and a `check` function that says whether a string parses.
+confval ships `Ipv4`, `Ipv6`, `Ip`, and `AbsolutePath`, the formats that need nothing beyond `std`.
+
+A domain format, such as a CIDR block or a URL, is a type you write.
+For example, a CIDR block:
+
+```rust
+pub struct Cidr;
+
+impl Format for Cidr {
+    const NAME: &'static str = "CIDR block";
+
+    fn check(value: &str) -> bool {
+        let Some((address, prefix)) = value.split_once('/') else {
+            return false;
+        };
+        address.parse::<std::net::Ipv4Addr>().is_ok()
+            && prefix.parse::<u8>().is_ok_and(|bits| bits <= 32)
+    }
+}
+```
+
+`check_format` emits an error at the value's span when the value does not parse, and `check_each_format` does the same for each element of a list:
+
+```rust
+check_format::<Ip>(&spec.hostname, "hostname", report);
+check_each_format::<Cidr>(&spec.allow, "allow", report);
+```
+
+The message is "hostname is not a valid IP address: localhost".
+The help line is "Set hostname to a valid IP address."
+`check` takes no `self`, so a format carries no configuration.
+A format that needs a parameter, such as a maximum URL length, is a later extension.
 
 ### KeywordSet
 
@@ -161,6 +198,8 @@ The derive then runs the check for you.
 
 `#[confval(range = PATH)]` on an `Int` or `Float` leaf, and `#[confval(keywords = PATH)]` on a `String` leaf, name the constraint the field must satisfy.
 `#[confval(length = PATH)]` on a `String` leaf names a `length_constraint!` bound.
+`#[confval(format = PATH)]` on a `String` leaf or a string list names a type that implements `Format`.
+On a list, every element must parse.
 `#[confval(keywords = PATH)]` also applies to a string list, where it records the set each element must come from.
 `#[confval(non_empty)]` on a `String` leaf or a string list rejects an empty or whitespace-only value.
 On an `Option<Located<String>>` leaf, the derive checks the value only when the source sets it.
@@ -199,14 +238,16 @@ It records the constraint for the [schema IR](./schema-ir.md) and runs the check
 The two cannot disagree.
 
 A field carries at most one value constraint.
-`keywords`, `range`, `length`, and `references` are the value constraints.
+`keywords`, `range`, `length`, `format`, and `references` are the value constraints.
 Two of them on one field is a compile error.
 A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(length = ...)]`.
 Pair `non_empty` with a length bound that uses `max:` alone.
 `non_empty` rejects a whitespace-only value, which no length bound can express.
 The two constraints then report different conditions.
-`length` combines with `default`.
-When the default itself is outside the bound, the message names the spec's default rather than the configuration.
+`length` and `format` combine with `default`.
+When the default itself fails the check, the message names the spec's default rather than the configuration.
+A format rejects the empty string, so a field that carries `format` and `non_empty` reports an empty value twice.
+Record `format` alone on such a field.
 A field cannot carry `#[confval(non_empty)]` and `#[confval(default)]` together.
 The default for a string is the empty string.
 The default for a list is the empty list.
@@ -233,6 +274,7 @@ Record the set on the field instead, and the schema IR and the check come from o
 A list of numbers has no field shape in confval.
 `range` has nothing to bound on a list.
 Record it on an `Int` or `Float` leaf.
+`format` on a list applies to each element, the way `keywords` does.
 `length` bounds one string, so it takes a `String` leaf alone.
 A per-element bound on a string list is not recorded in this release.
 `references` resolves one value against the labels in scope.
