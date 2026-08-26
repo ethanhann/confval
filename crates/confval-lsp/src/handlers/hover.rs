@@ -288,6 +288,7 @@ fn constraint_label(constraint: &Constraint) -> String {
             };
             with_help(label, *help)
         }
+        Constraint::Format { name, .. } => format!("Format: {name}."),
         _ => String::new(),
     }
 }
@@ -370,5 +371,14 @@ mod tests {
         );
         assert_eq!(constraint_label(&bare), "Between 1 and 253 characters.");
         assert_eq!(constraint_label(&capped), "At most 253 characters.");
+    }
+
+    #[test]
+    fn constraint_labels_render_formats() {
+        // Arrange
+        let format = Constraint::format("IPv4 address", |_| true);
+
+        // Act, Assert
+        assert_eq!(constraint_label(&format), "Format: IPv4 address.");
     }
 }
