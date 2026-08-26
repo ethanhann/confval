@@ -13,7 +13,7 @@ use lsp_types::{
 use confval::format::{FieldKind, Scalar, ValueKind};
 use confval::pipeline::range::RangeConstraint;
 use confval::prelude::{Located, Report, Validate};
-use confval::range_constraint;
+use confval::{length_constraint, range_constraint};
 use confval::schema::ToSchema;
 use confval_lsp::handlers::{ClientSupport, Cx, code_action, completion, diagnostics, hover};
 use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
