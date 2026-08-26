@@ -1,3 +1,6 @@
 name = "auth-front"
 kind = "auth"
 port = 9100
+after = ["logging"]
+paths = ["/auth", "/login"]
+notes = ["owned by the platform team"]
