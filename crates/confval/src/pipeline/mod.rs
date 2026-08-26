@@ -7,6 +7,8 @@ pub mod keyword;
 mod lower;
 pub mod narrow;
 
+/// The `Format` trait, the built-in formats, and the `check_format` calls.
+pub mod format;
 /// Character length constraints and the `length_constraint!` macro.
 pub mod length;
 /// The non-empty constraint and the `NON_EMPTY` constant.
