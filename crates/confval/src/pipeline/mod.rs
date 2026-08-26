@@ -18,6 +18,7 @@ pub mod range;
 mod references;
 mod validate;
 
+pub use format::{check_each_format, check_format, constraint as format_constraint};
 pub use lower::{Lower, LowerAuto};
 pub use non_empty::{NON_EMPTY, NonEmptyConstraint};
 
