@@ -2,8 +2,9 @@
 //! generated `ValidateNested::validate_recorded`.
 //!
 //! Where the schema walk in [`schema`](super::schema) records a field's
-//! `#[confval(range = ...)]`, `#[confval(length = ...)]`, or
-//! `#[confval(keywords = ...)]` constraint for the IR, this walk runs the same
+//! `#[confval(range = ...)]`, `#[confval(length = ...)]`,
+//! `#[confval(format = ...)]`, or `#[confval(keywords = ...)]` constraint for
+//! the IR, this walk runs the same
 //! constraint during validation, so the attribute is the single source and the
 //! author's `Validate` body carries no line for it. A scalar leaf emits a
 //! `check_located` call and a string list emits a `check_each_in` call, which
@@ -15,7 +16,8 @@
 //! the list and `NON_EMPTY.check_each` for its elements.
 //!
 //! The walk decides what to emit from the presence of `options.range`,
-//! `options.length`, `options.keywords`, or `options.non_empty` alone. Which
+//! `options.length`, `options.format`, `options.keywords`, or
+//! `options.non_empty` alone. Which
 //! shape may carry which attribute is settled in `spec/recorded.rs` when the
 //! always-emitted `ToSchema` is generated. So is the rule that a field
 //! carries at most one value constraint. A misplaced or doubled attribute is
@@ -52,8 +54,8 @@ pub(crate) fn field_recorded_check(
     }
 }
 
-/// The value-constraint fragment for a `range`, a `length`, or a `keywords`
-/// attribute.
+/// The value-constraint fragment for a `range`, a `length`, a `format`, or a
+/// `keywords` attribute.
 ///
 /// A required leaf checks `&self.field` directly. An optional leaf checks only
 /// when present, through `if let Some`.
@@ -71,14 +73,20 @@ fn constraint_fragment(
     // The `check_located` call, given the `&Located<T>` value expression and
     // the report expression it writes into. A `range` names a
     // `RangeConstraint` value, a `length` names a `LengthConstraint` value,
-    // and a `keywords` names a `keyword_enum!` type whose `keyword_set()`
-    // yields the check.
+    // a `format` names a type the free function takes as a parameter, and a
+    // `keywords` names a `keyword_enum!` type whose `keyword_set()` yields
+    // the check.
     let call = |value: &TokenStream2, report: &TokenStream2| -> Option<TokenStream2> {
         if let Some(path) = &options.range {
             return Some(quote! { #path.check_located(#value, #name, #report); });
         }
         if let Some(path) = &options.length {
             return Some(quote! { #path.check_located(#value, #name, #report); });
+        }
+        if let Some(path) = &options.format {
+            return Some(quote! {
+                ::confval::pipeline::format::check_format::<#path>(#value, #name, #report);
+            });
         }
         options
             .keywords
@@ -96,16 +104,21 @@ fn constraint_fragment(
     }
 
     // A list records the constraint for one element, so the check runs through
-    // `check_each_in`, which reports each bad element at its own span. Only
-    // `keywords` reaches here, because the schema walk refuses `range`,
-    // `length`, and `references` on a list. The bare form is already a slice.
-    // The optional form keeps the outer `Located`, so the list is reached
-    // through its value.
+    // `check_each_in` or `check_each_format`, which report each bad element
+    // at its own span. Only `keywords` and `format` reach here, because the
+    // schema walk refuses `range`, `length`, and `references` on a list. The
+    // bare form is already a slice. The optional form keeps the outer
+    // `Located`, so the list is reached through its value.
     //
     // Neither arm carries the defaulted-value branch a required leaf gets
     // below. A list default is always the empty list, so there is no declared
     // value for the constraint to reject.
     let check_each_call = |values: &TokenStream2| -> Option<TokenStream2> {
+        if let Some(path) = &options.format {
+            return Some(quote! {
+                ::confval::pipeline::format::check_each_format::<#path>(#values, #name, report);
+            });
+        }
         let path = options.keywords.as_ref()?;
         Some(quote! { #path::keyword_set().check_each_in(#values, #name, report); })
     };

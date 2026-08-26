@@ -110,6 +110,10 @@ pub(crate) struct FieldOptions {
     /// `LengthConstraint` const the same way `range` records a
     /// `RangeConstraint`.
     pub(crate) length: Option<Path>,
+    /// The path a `#[confval(format = PATH)]` names, or `None`. It names a
+    /// type that implements `Format`, which the derive calls through a
+    /// turbofish rather than a value.
+    pub(crate) format: Option<Path>,
     /// `Some` if the field was marked `#[confval(label)]`, i.e. its value is the
     /// enclosing block's label. HCL and KDL carry the label in the block syntax,
     /// and the other formats carry it as this field. The `String` leaf pairing is
@@ -145,6 +149,7 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
         keywords: None,
         range: None,
         length: None,
+        format: None,
         label: None,
         references: None,
         non_empty: None,
@@ -197,6 +202,12 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 }
                 options.length = Some(meta.value()?.parse()?);
                 Ok(())
+            } else if meta.path.is_ident("format") {
+                if options.format.is_some() {
+                    return Err(meta.error("duplicate confval attribute `format`"));
+                }
+                options.format = Some(meta.value()?.parse()?);
+                Ok(())
             } else if meta.path.is_ident("label") {
                 if options.label.is_some() {
                     return Err(meta.error("duplicate confval attribute `label`"));
@@ -225,8 +236,8 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
             } else {
                 Err(meta.error(
                     "unknown confval attribute; expected `nested`, `map`, `default`, \
-                     `keywords`, `range`, `length`, `label`, `references`, `non_empty`, \
-                     or `doc`",
+                     `keywords`, `range`, `length`, `format`, `label`, `references`, \
+                     `non_empty`, or `doc`",
                 ))
             }
         })?;

@@ -1,7 +1,7 @@
 //! The legality rules for `#[derive(Spec)]`'s recording attributes. They
 //! decide which field shape may carry `keywords`, `range`, `length`,
-//! `references`, `label`, and `non_empty`, and what a legal pair records in
-//! the schema.
+//! `format`, `references`, `label`, and `non_empty`, and what a legal pair
+//! records in the schema.
 //!
 //! The rules live here rather than in `options.rs`, because `options.rs`
 //! reads the attribute tokens and never classifies the field type. The schema
@@ -118,9 +118,9 @@ pub(crate) fn reject_non_empty_misuse(
 /// The mutual-exclusion check runs first for every shape, so a field carrying
 /// two recording attributes reads that mistake rather than a pairing message
 /// about one of them. What each shape can then carry differs. A scalar leaf
-/// records any of the four against its leaf type. A string list records `keywords`
-/// alone, for the set each element must come from. A map and a nested block
-/// record nothing.
+/// records any of the five against its leaf type. A string list records
+/// `keywords` or `format`, each applied to every element. A map and a nested
+/// block record nothing.
 pub(crate) fn constraint_tokens(
     shape: &FieldShape,
     options: &FieldOptions,
@@ -132,6 +132,7 @@ pub(crate) fn constraint_tokens(
         FieldShape::Leaf { leaf, .. } => leaf_constraint(leaf, recorded),
         FieldShape::BareStringList | FieldShape::OptionalWrappedStringList => match recorded {
             Recorded::Keywords(path) => Ok(keywords_tokens(path)),
+            Recorded::Format(path) => Ok(format_tokens(path)),
             Recorded::Range(path) => Err(refused(path, RANGE_REQUIRES, "a list")),
             Recorded::Length(path) => Err(refused(path, LENGTH_REQUIRES, "a list")),
             Recorded::References(block) => Err(refused(block, REFERENCES_REQUIRES, "a list")),
@@ -142,6 +143,7 @@ pub(crate) fn constraint_tokens(
                 Recorded::Keywords(path) => Err(refused(path, KEYWORDS_REQUIRES, where_not)),
                 Recorded::Range(path) => Err(refused(path, RANGE_REQUIRES, where_not)),
                 Recorded::Length(path) => Err(refused(path, LENGTH_REQUIRES, where_not)),
+                Recorded::Format(path) => Err(refused(path, FORMAT_REQUIRES, where_not)),
                 Recorded::References(block) => Err(refused(block, REFERENCES_REQUIRES, where_not)),
             }
         }
@@ -152,6 +154,7 @@ const KEYWORDS_REQUIRES: &str =
     "#[confval(keywords = ...)] requires a String leaf or a string list";
 const RANGE_REQUIRES: &str = "#[confval(range = ...)] requires an Int or Float leaf";
 const LENGTH_REQUIRES: &str = "#[confval(length = ...)] requires a String leaf";
+const FORMAT_REQUIRES: &str = "#[confval(format = ...)] requires a String leaf or a string list";
 const REFERENCES_REQUIRES: &str = "#[confval(references = ...)] requires a String leaf";
 
 /// The one recording attribute a field declares.
@@ -159,6 +162,7 @@ enum Recorded<'a> {
     Keywords(&'a Path),
     Range(&'a Path),
     Length(&'a Path),
+    Format(&'a Path),
     References(&'a Ident),
 }
 
@@ -166,7 +170,10 @@ impl Recorded<'_> {
     /// The attribute's own token, the place an error about it points at.
     fn tokens(&self) -> &dyn ToTokens {
         match self {
-            Recorded::Keywords(path) | Recorded::Range(path) | Recorded::Length(path) => path,
+            Recorded::Keywords(path)
+            | Recorded::Range(path)
+            | Recorded::Length(path)
+            | Recorded::Format(path) => path,
             Recorded::References(block) => block,
         }
     }
@@ -178,8 +185,8 @@ impl Recorded<'_> {
 /// shape carries two constraints.
 fn one_recording_attribute(options: &FieldOptions) -> syn::Result<Option<Recorded<'_>>> {
     let too_many = "a field takes at most one of #[confval(keywords = ...)], \
-                    #[confval(range = ...)], #[confval(length = ...)], or \
-                    #[confval(references = ...)]";
+                    #[confval(range = ...)], #[confval(length = ...)], \
+                    #[confval(format = ...)], or #[confval(references = ...)]";
     let mut found: Vec<Recorded<'_>> = Vec::new();
     if let Some(path) = &options.keywords {
         found.push(Recorded::Keywords(path));
@@ -189,6 +196,9 @@ fn one_recording_attribute(options: &FieldOptions) -> syn::Result<Option<Recorde
     }
     if let Some(path) = &options.length {
         found.push(Recorded::Length(path));
+    }
+    if let Some(path) = &options.format {
+        found.push(Recorded::Format(path));
     }
     if let Some(block) = &options.references {
         found.push(Recorded::References(block));
@@ -255,6 +265,12 @@ fn leaf_constraint(leaf: &Leaf, recorded: Recorded<'_>) -> syn::Result<TokenStre
                 )
             })
         }
+        Recorded::Format(path) => {
+            if !matches!(leaf, Leaf::String) {
+                return Err(syn::Error::new_spanned(path, FORMAT_REQUIRES));
+            }
+            Ok(format_tokens(path))
+        }
         Recorded::References(block) => {
             if !matches!(leaf, Leaf::String) {
                 return Err(syn::Error::new_spanned(block, REFERENCES_REQUIRES));
@@ -274,6 +290,19 @@ fn keywords_tokens(path: &Path) -> TokenStream2 {
     quote! {
         ::core::option::Option::Some(
             ::confval::schema::Constraint::keywords(&#path::KEYWORDS),
+        )
+    }
+}
+
+/// The `Constraint::format` expression reading a `Format` type's name and
+/// check through the trait, so the schema tests a value without the type.
+fn format_tokens(path: &Path) -> TokenStream2 {
+    quote! {
+        ::core::option::Option::Some(
+            ::confval::schema::Constraint::format(
+                <#path as ::confval::pipeline::format::Format>::NAME,
+                <#path as ::confval::pipeline::format::Format>::check,
+            ),
         )
     }
 }
