@@ -1,6 +1,6 @@
 # Enforce the workspace line-coverage floor
 check-coverage:
-    cargo llvm-cov nextest --workspace --exclude confval-derive --all-features --ignore-filename-regex 'tests/|examples/|confval-derive/' --fail-under-lines 95
+    cargo llvm-cov nextest --workspace --exclude confval-derive --all-features -E 'not binary(compile_fail)' --ignore-filename-regex 'tests/|examples/|confval-derive/' --fail-under-lines 95
 
 format:
     cargo fmt

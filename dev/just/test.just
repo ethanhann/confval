@@ -5,7 +5,7 @@ test:
 
 # Run unit tests with coverage, and output HTML
 test-with-coverage:
-    cargo llvm-cov nextest --workspace --exclude confval-derive --all-features --html --ignore-filename-regex 'tests/|examples/'
+    cargo llvm-cov nextest --workspace --exclude confval-derive --all-features -E 'not binary(compile_fail)' --html --ignore-filename-regex 'tests/|examples/'
     open target/llvm-cov/html/index.html
 
 # Fast mutant test args: skip the trybuild `compile_fail` case, which costs ~10s per run
