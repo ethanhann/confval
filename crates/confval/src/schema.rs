@@ -236,7 +236,7 @@ pub enum Constraint {
     },
     /// The value parses as a named format, such as an IP address. `check` is
     /// the format type's own function, carried so a quick fix can test a
-    /// value without knowing the type.
+    /// value without the type.
     #[non_exhaustive]
     Format {
         /// The format's name, such as "IPv4 address".

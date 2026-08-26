@@ -96,7 +96,13 @@ See the complete documentation for the handwritten path.
 ### 4. Write validation
 
 Declare a mechanical constraint on the field that carries it.
-`#[confval(range = PORT)]` records a `range_constraint!`, `#[confval(length = HOSTNAME_LEN)]` records a `length_constraint!`, `#[confval(format = Ip)]` records a `Format` type, and `#[confval(keywords = LimitMode)]` records a `keyword_enum!` set.
+Each recording attribute names its declaration.
+
+- `#[confval(range = PORT)]` records a `range_constraint!`.
+- `#[confval(length = HOSTNAME_LEN)]` records a `length_constraint!`.
+- `#[confval(format = Ip)]` records a `Format` type.
+- `#[confval(keywords = LimitMode)]` records a `keyword_enum!` set.
+
 The derive runs a recorded constraint during validation and records it in the schema.
 An editor's hover and completion read that same rule.
 The `Validate` body carries no line for the field.

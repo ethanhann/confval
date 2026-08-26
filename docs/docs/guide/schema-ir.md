@@ -110,7 +110,8 @@ The bounds are character counts.
 Names a type that implements `Format`.
 Takes a `String` leaf or a string list.
 The schema carries the format's name and its check as `Constraint::Format`.
-An editor reads the name for the hover and calls the check before it offers a default as a fix.
+An editor reads the name for the hover.
+It calls the check before it offers a default as a fix.
 
 ### `#[confval(references = <block>)]`
 

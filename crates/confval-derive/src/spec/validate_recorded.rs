@@ -79,10 +79,11 @@ fn constraint_fragment(
     // `RangeConstraint` value, a `length` names a `LengthConstraint` value,
     // a `format` names a type the free function takes as a parameter, and a
     // `keywords` names a `keyword_enum!` type whose `keyword_set()` yields
-    // the check. A `references` is resolved by the reference pass, which
-    // holds the labels in scope, so it emits nothing here. The match is
-    // exhaustive so a constraint added to the schema walk and forgotten here
-    // is a compile error rather than a recorded but unchecked field.
+    // the check. The reference pass resolves a `references`, because it
+    // holds the labels in scope, so this walk emits nothing for one. The
+    // match is exhaustive. A constraint added to the schema walk and
+    // forgotten here is then a compile error rather than a recorded but
+    // unchecked field.
     let call = |value: &TokenStream2, report: &TokenStream2| -> Option<TokenStream2> {
         match recorded {
             Recorded::Range(path) | Recorded::Length(path) => {

@@ -95,7 +95,8 @@ impl Format for Cidr {
 }
 ```
 
-`check_format` emits an error at the value's span when the value does not parse, and `check_each_format` does the same for each element of a list:
+`check_format` emits an error at the value's span when the value does not parse.
+`check_each_format` does the same for each element of a list:
 
 ```rust
 check_format::<Ip>(&spec.hostname, "hostname", report);
@@ -263,7 +264,8 @@ Either default would fail the check.
 A recorded list runs `check_each_in` for a keyword set or `check_each_format` for a format.
 Each bad element is reported at its own span.
 The bare `Vec<Located<String>>` and the wrapped `Option<Located<Vec<Located<String>>>>` both work.
-The message is `unknown value in <field>: <value>` or `invalid <format> in <field>: "<value>"`, and each one reads correctly whatever the list is called.
+The message is `unknown value in <field>: <value>` or `invalid <format> in <field>: "<value>"`.
+Each one reads correctly whatever the list is called.
 Call `check_each` by hand when you have a singular noun for one element, because `unknown mode: shout` is the shorter sentence.
 
 ### What stays in the Validate body

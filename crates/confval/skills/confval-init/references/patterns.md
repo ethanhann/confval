@@ -72,7 +72,7 @@ struct ServerSpec {
 
 A domain format is a unit struct that implements `Format` with a `NAME` and a `check` function.
 Declare it in a module the spec module can import from, because `format = ...` names a type.
-Do not pair `format` with `non_empty`, because a format rejects the empty string on its own.
+Do not pair a built-in `format` with `non_empty`, because each built-in format rejects the empty string on its own.
 
 ## A non-empty string or list
 

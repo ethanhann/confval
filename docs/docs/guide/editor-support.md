@@ -46,7 +46,8 @@ On a value position, the default is offered as a preselected item.
 Hover on a field reads its documentation.
 It shows the field's doc comment, its type, its constraint, and whether it has a default.
 A field marked `#[confval(non_empty)]` reads "Must not be empty."
-A field with a length bound reads `Between {min} and {max} characters.`, or `At most {max} characters.` when the bound starts at zero.
+A field with a length bound reads `Between {min} and {max} characters.`
+A bound that starts at zero reads `At most {max} characters.`
 A field with a format reads "Format: IPv4 address."
 It also states whether the configuration sets the field or leaves it to the default.
 For example, hover on `workers` reads "Defaults to 4."
