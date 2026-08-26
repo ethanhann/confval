@@ -491,6 +491,33 @@ fn hover_on_a_field_without_the_flag_omits_the_rule() {
     let body = markdown(hover.expect("a hover is produced"));
     assert!(!body.contains("Must not be empty."), "body: {body}");
     assert!(!body.contains("characters."), "body: {body}");
+    assert!(!body.contains("Format:"), "body: {body}");
+}
+
+#[test]
+fn hover_on_a_format_field_names_the_format() {
+    // Arrange
+    let text = "rules {\n  prefix = \"/api\"\n}\n";
+    let offset = text.find("prefix").expect("the field is present") + 1;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let body = markdown(hover.expect("a hover is produced"));
+    assert!(body.contains("Format: absolute path."), "body: {body}");
 }
 
 #[test]

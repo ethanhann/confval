@@ -1,5 +1,5 @@
 error: a field takes at most one of #[confval(keywords = ...)], #[confval(range = ...)], #[confval(length = ...)], #[confval(format = ...)], or #[confval(references = ...)]
- --> tests/ui/fail/schema_length_and_keywords.rs:5:46
+ --> tests/ui/fail/schema_format_and_range.rs:5:38
   |
-5 |     #[confval(keywords = LimitMode, length = NAME_LEN)]
-  |                                              ^^^^^^^^
+5 |     #[confval(range = PORT, format = Ipv4)]
+  |                                      ^^^^

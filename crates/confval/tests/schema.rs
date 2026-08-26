@@ -26,9 +26,10 @@ keyword_enum!(LimitMode, {
     Off     => "off",
 });
 
-/// The `common` fixture, mirrored here with the two recording attributes so the
+/// The `common` fixture, mirrored here with its recording attributes so the
 /// IR is pinned against a representative Spec rather than only its first
-/// consumer. The recording attributes drive the checks, so the `Validate`
+/// consumer. `allow` stays bare, so a list with no attribute is pinned too.
+/// The recording attributes drive the checks, so the `Validate`
 /// bodies carry no line for them.
 #[derive(confval::Spec)]
 struct ServerSpec {
@@ -719,4 +720,38 @@ fn a_length_field_carries_its_bounds_and_help() {
         field(&schema, "hostname").non_empty,
         "the flag sits beside the bound"
     );
+}
+
+/// A spec with `format` on a leaf and on a list.
+#[derive(confval::Spec)]
+struct FormatFields {
+    #[confval(format = Ipv4)]
+    bind: Located<String>,
+    #[confval(format = AbsolutePath)]
+    roots: Vec<Located<String>>,
+}
+
+impl Validate for FormatFields {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_format_field_carries_its_name_and_check() {
+    // Act
+    let schema = FormatFields::schema();
+
+    // Assert
+    let Some(Constraint::Format { name, check, .. }) = constraint(&schema, "bind") else {
+        panic!("bind should carry a format");
+    };
+    assert_eq!(*name, "IPv4 address");
+    assert!(check.call("127.0.0.1"));
+    assert!(!check.call("nope"));
+    let SchemaType::StringList { constraint, .. } = &field(&schema, "roots").ty else {
+        panic!("roots should be a list");
+    };
+    let Some(Constraint::Format { name, .. }) = constraint else {
+        panic!("roots should carry a format");
+    };
+    assert_eq!(*name, "absolute path");
 }

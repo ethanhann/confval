@@ -1,0 +1,5 @@
+error: #[confval(format = ...)] requires a String leaf or a string list; it cannot apply to a map or a nested block
+ --> tests/ui/fail/schema_format_on_nested.rs:5:32
+  |
+5 |     #[confval(nested, format = Ipv4)]
+  |                                ^^^^

@@ -38,11 +38,13 @@ Declare a recorded constraint on the field.
 
 - A numeric range with `#[confval(range = ...)]`.
 - A character length bound with `#[confval(length = ...)]`.
+- A parse as a named format with `#[confval(format = ...)]`.
 - A closed set with `#[confval(keywords = ...)]`.
 - A non-empty check with `#[confval(non_empty)]`.
 
 The derive runs a recorded constraint during validation, so the `Validate` impl carries no line for it.
-A recorded constraint expands where the spec struct is declared, so put the `range_constraint!` const, the `length_constraint!` const, and the keyword enum in that module.
+A recorded constraint expands where the spec struct is declared, so put the `range_constraint!` const and the `length_constraint!` const in that module.
+The keyword enum and a `Format` type may be anywhere that module can import from.
 A project that holds its constraints elsewhere will not compile until they move, and the compiler names the missing const rather than the reason.
 Add a rule an attribute cannot express to the spec type's `Validate` impl.
 A new block needs its own `Validate` impl, which `validate_all` reaches on its own through the generated traversal, so you do not call it by hand.

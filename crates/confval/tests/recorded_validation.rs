@@ -1,5 +1,6 @@
 //! Attribute-driven validation. A `#[confval(range = ...)]`,
-//! `#[confval(length = ...)]`, `#[confval(non_empty)]`, or
+//! `#[confval(length = ...)]`, `#[confval(format = ...)]`,
+//! `#[confval(non_empty)]`, or
 //! `#[confval(keywords = ...)]` on a scalar field is checked by the generated
 //! `ValidateNested::validate_recorded`, so the attribute alone enforces the
 //! constraint and the `Validate` body carries no line for it.
@@ -1074,6 +1075,236 @@ fn non_empty_and_length_both_fire_on_a_blank_value() {
         vec![
             "name must be at least 2 characters",
             "name must not be empty"
+        ]
+    );
+}
+
+/// A spec with a `format` recorded field on a required and an optional leaf.
+#[derive(confval::Spec)]
+struct FormatLeaf {
+    #[confval(format = Ipv4)]
+    bind: Located<String>,
+    #[confval(format = Ip)]
+    peer: Option<Located<String>>,
+}
+
+impl Validate for FormatLeaf {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec with `format` on both list shapes.
+#[derive(confval::Spec)]
+struct FormatLists {
+    #[confval(format = Ip)]
+    allow: Vec<Located<String>>,
+    #[confval(format = AbsolutePath)]
+    roots: Option<Located<Vec<Located<String>>>>,
+}
+
+impl Validate for FormatLists {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec whose defaulted leaf has a default that fails its own format.
+#[derive(confval::Spec)]
+struct FormatBadDefault {
+    #[confval(default = "nope".to_string(), format = Ipv4)]
+    bind: Located<String>,
+}
+
+impl Validate for FormatBadDefault {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A consumer format, the way a domain type implements the trait.
+struct Even;
+
+impl Format for Even {
+    const NAME: &'static str = "even number";
+
+    fn check(value: &str) -> bool {
+        value.parse::<u32>().is_ok_and(|n| n % 2 == 0)
+    }
+}
+
+/// A spec that records a consumer format.
+#[derive(confval::Spec)]
+struct ConsumerFormat {
+    #[confval(format = Even)]
+    count: Located<String>,
+}
+
+impl Validate for ConsumerFormat {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn format_on_a_leaf_reports_a_value_that_does_not_parse() {
+    // Arrange
+    let spec = FormatLeaf {
+        bind: Located::detached("300.1.1.1".to_string()),
+        peer: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec!["bind is not a valid IPv4 address: \"300.1.1.1\""]
+    );
+}
+
+#[test]
+fn format_on_a_leaf_passes_a_value_that_parses() {
+    // Arrange
+    let spec = FormatLeaf {
+        bind: Located::detached("127.0.0.1".to_string()),
+        peer: Some(Located::detached("::1".to_string())),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_errors());
+}
+
+#[test]
+fn format_on_an_optional_leaf_checks_only_a_present_value() {
+    // Arrange
+    let spec = FormatLeaf {
+        bind: Located::detached("127.0.0.1".to_string()),
+        peer: Some(Located::detached("localhost".to_string())),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec!["peer is not a valid IP address: \"localhost\""]
+    );
+}
+
+#[test]
+fn format_on_a_bare_list_reports_each_bad_element() {
+    // Arrange
+    let spec = FormatLists {
+        allow: vec![
+            Located::detached("10.0.0.1".to_string()),
+            Located::detached("nope".to_string()),
+            Located::detached(String::new()),
+        ],
+        roots: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "invalid IP address in allow: \"nope\"",
+            "invalid IP address in allow: \"\""
+        ]
+    );
+}
+
+#[test]
+fn format_on_a_wrapped_list_reports_each_bad_element_and_passes_when_absent() {
+    // Arrange
+    let present = FormatLists {
+        allow: vec![],
+        roots: Some(Located::detached(vec![
+            Located::detached("/var".to_string()),
+            Located::detached("relative".to_string()),
+        ])),
+    };
+    let absent = FormatLists {
+        allow: vec![],
+        roots: None,
+    };
+
+    // Act
+    let present_report = validate(&present);
+    let absent_report = validate(&absent);
+
+    // Assert
+    assert_eq!(
+        messages(&present_report),
+        vec!["invalid absolute path in roots: \"relative\""]
+    );
+    assert!(!absent_report.has_errors());
+}
+
+#[test]
+fn format_names_the_default_when_the_default_fails_its_format() {
+    // Arrange
+    let spec = FormatBadDefault {
+        bind: Located::detached("nope".to_string()),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "the default for `bind` fails its recorded constraint: bind is not a valid IPv4 address: \"nope\""
+        ]
+    );
+}
+
+#[test]
+fn a_consumer_format_is_recorded_and_checked() {
+    // Arrange
+    let spec = ConsumerFormat {
+        count: Located::detached("5".to_string()),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec!["count is not a valid even number: \"5\""]
+    );
+}
+
+/// A spec that pairs `non_empty` with `format`, which the guide advises
+/// against for a built-in format, so the double report is pinned.
+#[derive(confval::Spec)]
+struct NonEmptyWithFormat {
+    #[confval(non_empty, format = Ip)]
+    bind: Located<String>,
+}
+
+impl Validate for NonEmptyWithFormat {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn non_empty_and_format_both_fire_on_an_empty_value() {
+    // Arrange
+    let spec = NonEmptyWithFormat {
+        bind: Located::detached(String::new()),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "bind is not a valid IP address: \"\"",
+            "bind must not be empty"
         ]
     );
 }

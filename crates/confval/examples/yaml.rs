@@ -10,7 +10,7 @@
 //!
 //! A failing variant renders its diagnostics to stderr first, and the valid
 //! config then shows the lowered output and the write path. The failing report
-//! includes an error at a single list element from a handwritten rule, the same
+//! includes an error at a single list element from a recorded format, the same
 //! from a recorded keyword set, an unknown keyword in a nested
 //! object, and a cross-field warning whose related span points at the setting
 //! that caused it.

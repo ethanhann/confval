@@ -9,8 +9,8 @@
 //!
 //! A field constraint that the derive can record is checked and carried into
 //! the schema from one attribute. The attributes name a [`RangeConstraint`],
-//! a [`LengthConstraint`], a [`KeywordSet`] through `keyword_enum!`, or the
-//! [`NON_EMPTY`] flag.
+//! a [`LengthConstraint`], a [`KeywordSet`] through `keyword_enum!`, a type
+//! that implements [`Format`], or the [`NON_EMPTY`] flag.
 
 #[cfg(feature = "derive")]
 pub use confval_derive::{Config, Spec};
@@ -27,6 +27,7 @@ pub mod schema;
 /// [`Span`](source::Span), and [`Located`](source::Located).
 pub mod source;
 
+pub use pipeline::format::{AbsolutePath, Format, Ip, Ipv4, Ipv6};
 pub use pipeline::keyword::KeywordSet;
 pub use pipeline::length::LengthConstraint;
 pub use pipeline::non_empty::{NON_EMPTY, NonEmptyConstraint};
@@ -54,11 +55,12 @@ pub mod __private {
 /// the [`narrow`](pipeline::narrow) helpers), the constraint validators
 /// ([`KeywordSet`] and its [`keyword_enum!`] macro, [`RangeConstraint`] and its
 /// [`range_constraint!`] macro, [`LengthConstraint`] and its
-/// [`length_constraint!`] macro, and the [`NON_EMPTY`] flag), and, with the
-/// `derive` feature, the [`Spec`]
-/// and [`Config`] derives.
-/// Each validator is exported with its macro, so each validated pattern works
-/// from one import.
+/// [`length_constraint!`] macro, the [`Format`] trait with its built-in
+/// types and the [`check_format`](pipeline::check_format) and
+/// [`check_each_format`](pipeline::check_each_format) calls, and the
+/// [`NON_EMPTY`] flag), and, with the `derive` feature, the [`Spec`] and
+/// [`Config`] derives. Each validator is exported with its declaration form,
+/// so each validated pattern works from one import.
 ///
 /// The write-path trait [`ToFields`](format::ToFields) is in the prelude,
 /// because you call `spec.to_fields()` as a method and the trait must be in
@@ -79,11 +81,12 @@ pub mod prelude {
     pub use crate::diagnostic::Report;
     pub use crate::format::ToFields;
     pub use crate::pipeline::{Lower, Validate, ValidateNested, narrow};
+    pub use crate::pipeline::{check_each_format, check_format};
     pub use crate::schema::ToSchema;
     pub use crate::source::{Located, SourceMap, Span};
     pub use crate::{
-        KeywordSet, LengthConstraint, NON_EMPTY, NonEmptyConstraint, RangeConstraint, keyword_enum,
-        length_constraint, range_constraint,
+        AbsolutePath, Format, Ip, Ipv4, Ipv6, KeywordSet, LengthConstraint, NON_EMPTY,
+        NonEmptyConstraint, RangeConstraint, keyword_enum, length_constraint, range_constraint,
     };
 
     #[cfg(feature = "derive")]

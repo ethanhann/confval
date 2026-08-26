@@ -21,7 +21,7 @@ use confval::prelude::*;
 use confval_lsp::{Hcl, LspError, Matcher, bind, serve_multi};
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
-length_constraint!(HOSTNAME_LEN, min: 1, max: 253);
+length_constraint!(NAME_LEN, max: 63);
 
 keyword_enum!(MiddlewareKind, {
     Auth    => "auth",
@@ -33,7 +33,7 @@ keyword_enum!(MiddlewareKind, {
 #[derive(confval::Spec)]
 struct GatewaySpec {
     /// The address the gateway binds.
-    #[confval(length = HOSTNAME_LEN)]
+    #[confval(format = Ip)]
     hostname: Located<String>,
     /// The TCP port the gateway listens on.
     #[confval(range = PORT)]
@@ -46,7 +46,7 @@ struct GatewaySpec {
 #[derive(confval::Spec)]
 struct MiddlewareSpec {
     /// The middleware name.
-    #[confval(non_empty)]
+    #[confval(non_empty, length = NAME_LEN)]
     name: Located<String>,
     /// What the middleware does.
     #[confval(keywords = MiddlewareKind)]

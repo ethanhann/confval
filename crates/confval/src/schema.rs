@@ -234,6 +234,16 @@ pub enum Constraint {
         /// The constraint's custom help line for the hover, or `None`.
         help: Option<&'static str>,
     },
+    /// The value parses as a named format, such as an IP address. `check` is
+    /// the format type's own function, carried so a quick fix can test a
+    /// value without the type.
+    #[non_exhaustive]
+    Format {
+        /// The format's name, such as "IPv4 address".
+        name: &'static str,
+        /// Whether a value parses as the format.
+        check: FormatCheck,
+    },
     /// The value references the labels of a block its scope can see. The block
     /// is named by its config field name, the `<block>` of
     /// `#[confval(references = <block>)]`. The reference pass resolves the name
@@ -247,8 +257,39 @@ pub enum Constraint {
     },
 }
 
+/// The check of a [`Constraint::Format`], wrapped so the constraint stays
+/// comparable. Two checks compare equal and hash alike, because the format's
+/// name identifies the constraint and a function address does not.
+#[derive(Clone, Copy)]
+pub struct FormatCheck(fn(&str) -> bool);
+
+impl FormatCheck {
+    /// Whether the value parses as the format.
+    pub fn call(&self, value: &str) -> bool {
+        (self.0)(value)
+    }
+}
+
+impl PartialEq for FormatCheck {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for FormatCheck {}
+
+impl std::hash::Hash for FormatCheck {
+    fn hash<H: std::hash::Hasher>(&self, _state: &mut H) {}
+}
+
+impl std::fmt::Debug for FormatCheck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("FormatCheck")
+    }
+}
+
 /// The generated walk and a handwritten impl build a constraint through
-/// these constructors. `Range`, `Length`, and `References` are
+/// these constructors. `Range`, `Length`, `Format`, and `References` are
 /// `#[non_exhaustive]`, so a struct literal for any of them does not compile
 /// outside this crate.
 impl Constraint {
@@ -275,6 +316,14 @@ impl Constraint {
     /// Builds an inclusive character length bound.
     pub fn length(min: usize, max: usize, help: Option<&'static str>) -> Self {
         Self::Length { min, max, help }
+    }
+
+    /// Builds a format constraint from the format type's name and check.
+    pub fn format(name: &'static str, check: fn(&str) -> bool) -> Self {
+        Self::Format {
+            name,
+            check: FormatCheck(check),
+        }
     }
 
     /// Builds a reference to the labels of the named block field.
@@ -353,5 +402,53 @@ impl SchemaField {
     pub fn with_default_text(mut self, text: String) -> Self {
         self.default_text = Some(text);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    fn accept(_: &str) -> bool {
+        true
+    }
+
+    fn reject(_: &str) -> bool {
+        false
+    }
+
+    #[test]
+    fn two_format_checks_compare_equal_and_hash_alike_by_design() {
+        // Arrange
+        let a = Constraint::format("IP address", accept);
+        let b = Constraint::format("IP address", reject);
+        let other = Constraint::format("absolute path", accept);
+        let mut set = HashSet::new();
+
+        // Act
+        set.insert(a.clone());
+        set.insert(b.clone());
+        set.insert(other.clone());
+
+        // Assert
+        assert_eq!(a, b, "the name identifies the constraint, not the check");
+        assert_ne!(a, other);
+        assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn a_format_check_prints_no_address() {
+        // Arrange
+        let constraint = Constraint::format("IP address", accept);
+
+        // Act
+        let rendered = format!("{constraint:?}");
+
+        // Assert
+        assert_eq!(
+            rendered,
+            "Format { name: \"IP address\", check: FormatCheck }"
+        );
     }
 }

@@ -98,22 +98,27 @@ pub(crate) struct FieldOptions {
     /// The path a `#[confval(keywords = PATH)]` names, or `None`. It records the
     /// association from a `String` leaf or a string list to a `keyword_enum!`
     /// type, whose `KEYWORDS` const the schema walk reads. Which shapes may
-    /// carry it is not checked here. It is checked in `spec/schema.rs`, where
+    /// carry it is not checked here. It is checked in `spec/recorded.rs`, where
     /// the classified shape is available.
     pub(crate) keywords: Option<Path>,
     /// The path a `#[confval(range = PATH)]` names, or `None`. It records the
     /// association from an `Int` or `Float` leaf to a `RangeConstraint` value,
     /// whose bounds the schema walk renders. The leaf-type pairing is checked in
-    /// `spec/schema.rs`.
+    /// `spec/recorded.rs`.
     pub(crate) range: Option<Path>,
     /// The path a `#[confval(length = PATH)]` names, or `None`. It records a
     /// `LengthConstraint` const the same way `range` records a
     /// `RangeConstraint`.
     pub(crate) length: Option<Path>,
+    /// The path a `#[confval(format = PATH)]` names, or `None`. It names a
+    /// type that implements `Format`, which the derive calls through a
+    /// turbofish rather than a value. Which shape may carry it is checked in
+    /// `spec/recorded.rs`.
+    pub(crate) format: Option<Path>,
     /// `Some` if the field was marked `#[confval(label)]`, i.e. its value is the
     /// enclosing block's label. HCL and KDL carry the label in the block syntax,
     /// and the other formats carry it as this field. The `String` leaf pairing is
-    /// checked in `spec/schema.rs`.
+    /// checked in `spec/recorded.rs`.
     pub(crate) label: Option<syn::Path>,
     /// The block field name a `#[confval(references = <block>)]` names, or `None`.
     /// The value references the labels of that block, resolved outward to the
@@ -123,8 +128,8 @@ pub(crate) struct FieldOptions {
     pub(crate) references: Option<Ident>,
     /// The `non_empty` path from `#[confval(non_empty)]`, kept so a misuse
     /// error points at the attribute. The flag rejects an empty string or an
-    /// empty list. It is a precondition on the value, so it combines with
-    /// `keywords`, `range`, and `references`.
+    /// empty list. It is a precondition on the value, so it combines with any
+    /// one value constraint.
     pub(crate) non_empty: Option<syn::Path>,
     /// The doc comment `to_template` renders above the field, or `None`. Comes
     /// from `#[confval(doc = "...")]` if present, otherwise the field's `///`
@@ -137,6 +142,19 @@ pub(crate) struct FieldOptions {
 /// Walks every `#[confval(...)]` attribute on the field and records the keys it
 /// recognizes. An unrecognized key is a compile error, so a typo like
 /// `#[confval(nestd)]` is caught rather than silently ignored.
+/// Stores the path a `key = PATH` attribute names, or rejects a second one.
+fn set_path<T: syn::parse::Parse>(
+    slot: &mut Option<T>,
+    meta: &syn::meta::ParseNestedMeta<'_>,
+    key: &str,
+) -> syn::Result<()> {
+    if slot.is_some() {
+        return Err(meta.error(format!("duplicate confval attribute `{key}`")));
+    }
+    *slot = Some(meta.value()?.parse()?);
+    Ok(())
+}
+
 pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
     let mut options = FieldOptions {
         nested: false,
@@ -145,6 +163,7 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
         keywords: None,
         range: None,
         length: None,
+        format: None,
         label: None,
         references: None,
         non_empty: None,
@@ -180,23 +199,13 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 }
                 Ok(())
             } else if meta.path.is_ident("keywords") {
-                if options.keywords.is_some() {
-                    return Err(meta.error("duplicate confval attribute `keywords`"));
-                }
-                options.keywords = Some(meta.value()?.parse()?);
-                Ok(())
+                set_path(&mut options.keywords, &meta, "keywords")
             } else if meta.path.is_ident("range") {
-                if options.range.is_some() {
-                    return Err(meta.error("duplicate confval attribute `range`"));
-                }
-                options.range = Some(meta.value()?.parse()?);
-                Ok(())
+                set_path(&mut options.range, &meta, "range")
             } else if meta.path.is_ident("length") {
-                if options.length.is_some() {
-                    return Err(meta.error("duplicate confval attribute `length`"));
-                }
-                options.length = Some(meta.value()?.parse()?);
-                Ok(())
+                set_path(&mut options.length, &meta, "length")
+            } else if meta.path.is_ident("format") {
+                set_path(&mut options.format, &meta, "format")
             } else if meta.path.is_ident("label") {
                 if options.label.is_some() {
                     return Err(meta.error("duplicate confval attribute `label`"));
@@ -204,11 +213,7 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                 options.label = Some(meta.path.clone());
                 Ok(())
             } else if meta.path.is_ident("references") {
-                if options.references.is_some() {
-                    return Err(meta.error("duplicate confval attribute `references`"));
-                }
-                options.references = Some(meta.value()?.parse()?);
-                Ok(())
+                set_path(&mut options.references, &meta, "references")
             } else if meta.path.is_ident("non_empty") {
                 if options.non_empty.is_some() {
                     return Err(meta.error("duplicate confval attribute `non_empty`"));
@@ -225,8 +230,8 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
             } else {
                 Err(meta.error(
                     "unknown confval attribute; expected `nested`, `map`, `default`, \
-                     `keywords`, `range`, `length`, `label`, `references`, `non_empty`, \
-                     or `doc`",
+                     `keywords`, `range`, `length`, `format`, `label`, `references`, \
+                     `non_empty`, or `doc`",
                 ))
             }
         })?;
@@ -346,7 +351,7 @@ mod tests {
     #[test]
     fn keywords_and_range_are_both_recorded_here() {
         // The reader records both keys. The leaf-type pairing that rejects the
-        // combination runs later, in `spec/schema.rs`, where the leaf is known.
+        // combination runs later, in `spec/recorded.rs`, where the leaf is known.
         // Arrange
         let field = first_field(parse_quote! {
             struct Cfg {
