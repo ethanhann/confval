@@ -147,6 +147,20 @@ pub(crate) struct FieldOptions {
 /// Walks every `#[confval(...)]` attribute on the field and records the keys it
 /// recognizes. An unrecognized key is a compile error, so a typo like
 /// `#[confval(nestd)]` is caught rather than silently ignored.
+/// Stores a bare flag's own path, kept so a misuse error points at the
+/// attribute, or rejects a second one.
+fn set_flag(
+    slot: &mut Option<syn::Path>,
+    meta: &syn::meta::ParseNestedMeta<'_>,
+    key: &str,
+) -> syn::Result<()> {
+    if slot.is_some() {
+        return Err(meta.error(format!("duplicate confval attribute `{key}`")));
+    }
+    *slot = Some(meta.path.clone());
+    Ok(())
+}
+
 /// Stores the path a `key = PATH` attribute names, or rejects a second one.
 fn set_path<T: syn::parse::Parse>(
     slot: &mut Option<T>,
@@ -213,25 +227,13 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
             } else if meta.path.is_ident("format") {
                 set_path(&mut options.format, &meta, "format")
             } else if meta.path.is_ident("label") {
-                if options.label.is_some() {
-                    return Err(meta.error("duplicate confval attribute `label`"));
-                }
-                options.label = Some(meta.path.clone());
-                Ok(())
+                set_flag(&mut options.label, &meta, "label")
             } else if meta.path.is_ident("references") {
                 set_path(&mut options.references, &meta, "references")
             } else if meta.path.is_ident("non_empty") {
-                if options.non_empty.is_some() {
-                    return Err(meta.error("duplicate confval attribute `non_empty`"));
-                }
-                options.non_empty = Some(meta.path.clone());
-                Ok(())
+                set_flag(&mut options.non_empty, &meta, "non_empty")
             } else if meta.path.is_ident("unique") {
-                if options.unique.is_some() {
-                    return Err(meta.error("duplicate confval attribute `unique`"));
-                }
-                options.unique = Some(meta.path.clone());
-                Ok(())
+                set_flag(&mut options.unique, &meta, "unique")
             } else if meta.path.is_ident("doc") {
                 if confval_doc.is_some() {
                     return Err(meta.error("duplicate confval attribute `doc`"));
