@@ -221,15 +221,16 @@ pub enum Constraint {
         /// The constraint's custom help line for the hover, or `None`.
         help: Option<&'static str>,
     },
-    /// An inclusive bound on the character count of a string, with its
-    /// bounds rendered to text for a hover or diagnostic line. `help` carries
-    /// the constraint's custom help line for the hover, or `None`.
+    /// An inclusive bound on the character count of a string. The bounds stay
+    /// numeric, unlike `Range`, because a character count has one type.
+    /// `help` carries the constraint's custom help line for the hover, or
+    /// `None`.
     #[non_exhaustive]
     Length {
-        /// The smallest allowed character count, rendered to text.
-        min: String,
-        /// The largest allowed character count, rendered to text.
-        max: String,
+        /// The smallest allowed character count.
+        min: usize,
+        /// The largest allowed character count.
+        max: usize,
         /// The constraint's custom help line for the hover, or `None`.
         help: Option<&'static str>,
     },
@@ -271,8 +272,8 @@ impl Constraint {
         }
     }
 
-    /// Builds an inclusive character length bound with its rendered bounds.
-    pub fn length(min: String, max: String, help: Option<&'static str>) -> Self {
+    /// Builds an inclusive character length bound.
+    pub fn length(min: usize, max: usize, help: Option<&'static str>) -> Self {
         Self::Length { min, max, help }
     }
 

@@ -57,8 +57,8 @@ pub mod __private {
 /// [`length_constraint!`] macro, and the [`NON_EMPTY`] flag), and, with the
 /// `derive` feature, the [`Spec`]
 /// and [`Config`] derives.
-/// Each validator is exported with its macro, so the validated-range and
-/// keyword patterns each work from one import.
+/// Each validator is exported with its macro, so each validated pattern works
+/// from one import.
 ///
 /// The write-path trait [`ToFields`](format::ToFields) is in the prelude,
 /// because you call `spec.to_fields()` as a method and the trait must be in
