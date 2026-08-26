@@ -1,9 +1,9 @@
 //! `#[confval(length = ...)]` pass test over every legal carrier.
 //!
-//! This pins the required and the optional `String` leaf as legal, and pins
-//! the constraint beside `default`, beside `non_empty`, and beside `label`,
-//! so the spelling stays compilable rather than resting on the fail cases
-//! alone.
+//! This pins the required and the optional `String` leaf as legal carriers
+//! of `#[confval(length = ...)]`, and pins the attribute beside `default`,
+//! beside `non_empty`, and beside `label`. The fail cases alone do not prove
+//! the legal forms compile.
 
 use confval::diagnostic::Report;
 use confval::length_constraint;

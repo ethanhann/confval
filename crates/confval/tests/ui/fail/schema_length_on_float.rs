@@ -2,8 +2,8 @@ use confval::source::Located;
 
 #[derive(confval::Spec)]
 struct Cfg {
-    #[confval(keywords = LimitMode, length = NAME_LEN)]
-    mode: Located<String>,
+    #[confval(length = NAME_LEN)]
+    ratio: Located<f64>,
 }
 
 fn main() {}

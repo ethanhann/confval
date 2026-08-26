@@ -15,10 +15,10 @@ use std::path::PathBuf;
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
 range_constraint!(MAX_BODY_MB, i64, min: 1, max: 1024);
-length_constraint!(HOSTNAME_LEN, min: 1, max: 253, help: "A hostname is at most 253 characters.");
 range_constraint!(RATIO, f64, min: 0.0, max: 1.0);
 range_constraint!(HUGE, i64, min: 1, max: i64::MAX);
 range_constraint!(TIMEOUT, i64, min: 1, max: 300, units: "seconds", help: "Keep this under 5 minutes.");
+length_constraint!(HOSTNAME_LEN, max: 253, help: "A hostname is at most 253 characters.");
 
 keyword_enum!(LimitMode, {
     Enforce => "enforce",
@@ -704,7 +704,7 @@ fn a_non_empty_list_carries_the_flag_in_both_shapes() {
 }
 
 #[test]
-fn a_length_field_renders_its_bounds_and_help() {
+fn a_length_field_carries_its_bounds_and_help() {
     // Act
     let schema = ServerSpec::schema();
 
@@ -712,8 +712,8 @@ fn a_length_field_renders_its_bounds_and_help() {
     let Some(Constraint::Length { min, max, help, .. }) = constraint(&schema, "hostname") else {
         panic!("hostname should carry a length bound");
     };
-    assert_eq!(min.as_str(), "1");
-    assert_eq!(max.as_str(), "253");
+    assert_eq!(*min, 0);
+    assert_eq!(*max, 253);
     assert_eq!(*help, Some("A hostname is at most 253 characters."));
     assert!(
         field(&schema, "hostname").non_empty,

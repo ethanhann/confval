@@ -1,5 +1,5 @@
 error: a field takes at most one of #[confval(keywords = ...)], #[confval(range = ...)], #[confval(length = ...)], or #[confval(references = ...)]
- --> tests/ui/fail/schema_length_and_references.rs:7:47
+ --> tests/ui/fail/schema_length_and_references.rs:5:47
   |
-7 |     #[confval(length = NAME_LEN, references = upstreams)]
+5 |     #[confval(length = NAME_LEN, references = upstreams)]
   |                                               ^^^^^^^^^

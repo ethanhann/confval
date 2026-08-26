@@ -1,4 +1,5 @@
-//! Attribute-driven validation. A `#[confval(range = ...)]` or
+//! Attribute-driven validation. A `#[confval(range = ...)]`,
+//! `#[confval(length = ...)]`, `#[confval(non_empty)]`, or
 //! `#[confval(keywords = ...)]` on a scalar field is checked by the generated
 //! `ValidateNested::validate_recorded`, so the attribute alone enforces the
 //! constraint and the `Validate` body carries no line for it.
@@ -937,8 +938,7 @@ fn non_empty_on_a_wrapped_list_reports_each_empty_element() {
     assert_eq!(messages(&report), vec!["events must not be empty"]);
 }
 
-/// A spec with a `length` recorded field on a required and an optional leaf,
-/// and a defaulted leaf whose default fails its own bound.
+/// A spec with a `length` recorded field on a required and an optional leaf.
 #[derive(confval::Spec)]
 struct LengthLeaf {
     #[confval(length = NAME_LEN)]
@@ -951,6 +951,7 @@ impl Validate for LengthLeaf {
     fn validate(&self, _report: &mut Report) {}
 }
 
+/// A spec whose defaulted leaf has a default that fails its own bound.
 #[derive(confval::Spec)]
 struct LengthBadDefault {
     #[confval(default = "x".to_string(), length = NAME_LEN)]

@@ -1,6 +1,4 @@
-use confval::prelude::*;
-
-length_constraint!(NAME_LEN, min: 1, max: 63);
+use confval::source::Located;
 
 #[derive(confval::Spec)]
 struct Cfg {
