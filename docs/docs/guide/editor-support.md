@@ -46,7 +46,7 @@ On a value position, the default is offered as a preselected item.
 Hover on a field reads its documentation.
 It shows the field's doc comment, its type, its constraint, and whether it has a default.
 A field marked `#[confval(non_empty)]` reads "Must not be empty."
-A field with a length bound reads "Between 1 and 253 characters."
+A field with a length bound reads "Between 1 and 63 characters.", or "At most 253 characters." when the bound starts at zero.
 It also states whether the configuration sets the field or leaves it to the default.
 For example, hover on `workers` reads "Defaults to 4."
 A default the editor cannot print as a value, such as a list, states only that a default applies.
