@@ -41,6 +41,7 @@ Declare a recorded constraint on the field.
 - A parse as a named format with `#[confval(format = ...)]`.
 - A closed set with `#[confval(keywords = ...)]`.
 - A non-empty check with `#[confval(non_empty)]`.
+- A list with no repeated entry, `#[confval(unique)]`.
 
 The derive runs a recorded constraint during validation, so the `Validate` impl carries no line for it.
 A recorded constraint expands where the spec struct is declared, so put the `range_constraint!` const and the `length_constraint!` const in that module.

@@ -40,6 +40,14 @@ struct GatewaySpec {
     port: Located<i64>,
     /// Path to the TLS certificate file.
     tls_cert: Option<Located<PathBuf>>,
+    /// The peer addresses allowed to connect. A bare list with a default,
+    /// a `unique` flag, and a format on each entry.
+    #[confval(default, unique, format = Ip)]
+    allow: Vec<Located<String>>,
+    /// Free-form tags. A wrapped optional list with both flags and no
+    /// value constraint.
+    #[confval(non_empty, unique)]
+    tags: Option<Located<Vec<Located<String>>>>,
 }
 
 /// A demo middleware document, served for any `middleware.*` file.
@@ -54,6 +62,17 @@ struct MiddlewareSpec {
     /// The TCP port the middleware answers on.
     #[confval(range = PORT)]
     port: Located<i64>,
+    /// The middleware kinds that must run before this one. A required bare
+    /// list with a `unique` flag and a keyword set.
+    #[confval(unique, keywords = MiddlewareKind)]
+    after: Vec<Located<String>>,
+    /// The path prefixes that this middleware handles. A wrapped optional list
+    /// with a `unique` flag and a format.
+    #[confval(unique, format = AbsolutePath)]
+    paths: Option<Located<Vec<Located<String>>>>,
+    /// Operator notes. A bare list with a default and no other rule.
+    #[confval(default)]
+    notes: Vec<Located<String>>,
 }
 
 impl Validate for GatewaySpec {

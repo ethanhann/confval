@@ -9,8 +9,9 @@
 //! [`recorded`](super::recorded), which this walk calls for every field, so a
 //! misplaced attribute is a compile error before the validation walk runs.
 
+use super::flags::{reject_label_misuse, reject_non_empty_misuse, reject_unique_misuse};
 use super::options::FieldOptions;
-use super::recorded::{constraint_tokens, reject_label_misuse, reject_non_empty_misuse};
+use super::recorded::constraint_tokens;
 use super::shape::{FieldShape, Leaf};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -57,6 +58,8 @@ pub(crate) fn field_schema(
     let doc = option_string(&options.doc);
     let ty = schema_type(shape, options)?;
     reject_label_misuse(shape, options)?;
+    reject_non_empty_misuse(shape, options)?;
+    reject_unique_misuse(shape, options)?;
     let mut field = quote! {
         ::confval::schema::SchemaField::new(#name.to_string(), #doc, #ty)
     };
@@ -71,8 +74,10 @@ pub(crate) fn field_schema(
         field = quote! { #field.with_default_text(#rendered) };
     }
     if options.non_empty.is_some() {
-        reject_non_empty_misuse(shape, options)?;
         field = quote! { #field.with_non_empty() };
+    }
+    if options.unique.is_some() {
+        field = quote! { #field.with_unique() };
     }
     if options.label.is_some() {
         Ok(quote! { #field.as_label() })

@@ -10,19 +10,24 @@
 //! emits a `check_each_in` call for a keyword set or a `check_each_format`
 //! call for a format, and both report each bad element at its own span.
 //!
-//! `#[confval(non_empty)]` is a flag rather than a value constraint, so its
-//! fragment is emitted alongside the constraint fragment. A string leaf calls
-//! `NON_EMPTY.check_located`. A string list calls `NON_EMPTY.check_list` for
-//! the list and `NON_EMPTY.check_each` for its elements.
+//! `#[confval(non_empty)]` and `#[confval(unique)]` are flags rather than
+//! value constraints, so each has its own fragment emitted after the
+//! constraint fragment. For `non_empty`, a string leaf calls
+//! `NON_EMPTY.check_located`, and a string list calls `NON_EMPTY.check_list`
+//! for the list and `NON_EMPTY.check_each` for its elements. For `unique`, a
+//! string list calls `UNIQUE.check_list`, which reports each repeat at its
+//! own span. The fragments run in that order, constraint, then `non_empty`,
+//! then `unique`, and the renderer keeps that order within one source, so an
+//! operator reads a value error before a flag error on the same field.
 //!
 //! The walk decides what to emit from the one recorded attribute a field
 //! carries, read through the same `Recorded` classification the schema walk
-//! uses, plus the `non_empty` flag. Which shape may carry which attribute is
-//! settled in `spec/recorded.rs` when the always-emitted `ToSchema` is
-//! generated. So is the rule that a field carries at most one value
-//! constraint. A misplaced or doubled attribute is therefore a compile error
-//! before this walk runs. Sharing the classification keeps the two walks from
-//! drifting on which attribute means what.
+//! uses, plus the two flags. Which shape may carry which attribute is settled
+//! in `spec/recorded.rs` and `spec/flags.rs` when the always-emitted
+//! `ToSchema` is generated. So is the rule that a field carries at most one
+//! value constraint. A misplaced or doubled attribute is therefore a compile
+//! error before this walk runs. Sharing the classification keeps the two
+//! walks from drifting on which attribute means what.
 
 use super::options::FieldOptions;
 use super::recorded::{Recorded, one_recording_attribute};
@@ -32,8 +37,8 @@ use quote::quote;
 use syn::Ident;
 use syn::ext::IdentExt;
 
-/// The check fragment for one field, or `None` when the field carries neither
-/// a value constraint nor the `non_empty` flag.
+/// The check fragment for one field, or `None` when the field carries none
+/// of a value constraint, a `non_empty` flag, or a `unique` flag.
 ///
 /// The field name is the config-key string, derived through the same `unraw`
 /// form the schema walk uses, so a raw identifier matches the name the manual
@@ -44,14 +49,15 @@ pub(crate) fn field_recorded_check(
     options: &FieldOptions,
 ) -> Option<TokenStream2> {
     let name = ident.unraw().to_string();
-    let constraint = constraint_fragment(ident, shape, options, &name);
-    let non_empty = non_empty_fragment(ident, shape, options, &name);
-    match (constraint, non_empty) {
-        (Some(c), Some(n)) => Some(quote! { #c #n }),
-        (Some(c), None) => Some(c),
-        (None, Some(n)) => Some(n),
-        (None, None) => None,
-    }
+    let fragments: TokenStream2 = [
+        constraint_fragment(ident, shape, options, &name),
+        non_empty_fragment(ident, shape, options, &name),
+        unique_fragment(ident, shape, options, &name),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    (!fragments.is_empty()).then_some(fragments)
 }
 
 /// The value-constraint fragment for a `range`, a `length`, a `format`, or a
@@ -213,6 +219,34 @@ fn non_empty_fragment(
         // `field_schema` runs before this walk and rejects every other shape,
         // so a marked field that reaches here is a `String` leaf or a list.
         _ => unreachable!("the schema walk rejects non_empty on this shape"),
+    };
+    Some(fragment)
+}
+
+/// The `unique` fragment, or `None` when the field is not marked.
+///
+/// The bare list is a slice already. The wrapped list is reached through its
+/// value under `if let Some`. Each repeat is reported at its own span, so no
+/// list-level span is needed.
+fn unique_fragment(
+    ident: &Ident,
+    shape: &FieldShape,
+    options: &FieldOptions,
+    name: &str,
+) -> Option<TokenStream2> {
+    options.unique.as_ref()?;
+    let fragment = match shape {
+        FieldShape::BareStringList => quote! {
+            ::confval::pipeline::UNIQUE.check_list(&self.#ident, #name, report);
+        },
+        FieldShape::OptionalWrappedStringList => quote! {
+            if let ::core::option::Option::Some(__list) = &self.#ident {
+                ::confval::pipeline::UNIQUE.check_list(&__list.value, #name, report);
+            }
+        },
+        // `field_schema` runs before this walk and rejects every other shape,
+        // so a marked field that reaches here is a string list.
+        _ => unreachable!("the schema walk rejects unique on this shape"),
     };
     Some(fragment)
 }

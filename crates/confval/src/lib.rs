@@ -10,7 +10,7 @@
 //! A field constraint that the derive can record is checked and carried into
 //! the schema from one attribute. The attributes name a [`RangeConstraint`],
 //! a [`LengthConstraint`], a [`KeywordSet`] through `keyword_enum!`, a type
-//! that implements [`Format`], or the [`NON_EMPTY`] flag.
+//! that implements [`Format`], or the [`NON_EMPTY`] and [`UNIQUE`] flags.
 
 #[cfg(feature = "derive")]
 pub use confval_derive::{Config, Spec};
@@ -32,6 +32,7 @@ pub use pipeline::keyword::KeywordSet;
 pub use pipeline::length::LengthConstraint;
 pub use pipeline::non_empty::{NON_EMPTY, NonEmptyConstraint};
 pub use pipeline::range::RangeConstraint;
+pub use pipeline::unique::{UNIQUE, UniqueConstraint};
 
 /// Implementation detail for the crate's macros. Not part of the public API,
 /// and exempt from semver. `keyword_enum!` uses `serde` through this path, so
@@ -58,9 +59,9 @@ pub mod __private {
 /// [`length_constraint!`] macro, the [`Format`] trait with its built-in
 /// types and the [`check_format`](pipeline::check_format) and
 /// [`check_each_format`](pipeline::check_each_format) calls, and the
-/// [`NON_EMPTY`] flag), and, with the `derive` feature, the [`Spec`] and
-/// [`Config`] derives. Each validator is exported with its declaration form,
-/// so each validated pattern works from one import.
+/// [`NON_EMPTY`] and [`UNIQUE`] flags), and, with the `derive` feature, the
+/// [`Spec`] and [`Config`] derives. Each validator is exported with its
+/// declaration form, so each validated pattern works from one import.
 ///
 /// The write-path trait [`ToFields`](format::ToFields) is in the prelude,
 /// because you call `spec.to_fields()` as a method and the trait must be in
@@ -86,7 +87,8 @@ pub mod prelude {
     pub use crate::source::{Located, SourceMap, Span};
     pub use crate::{
         AbsolutePath, Format, Ip, Ipv4, Ipv6, KeywordSet, LengthConstraint, NON_EMPTY,
-        NonEmptyConstraint, RangeConstraint, keyword_enum, length_constraint, range_constraint,
+        NonEmptyConstraint, RangeConstraint, UNIQUE, UniqueConstraint, keyword_enum,
+        length_constraint, range_constraint,
     };
 
     #[cfg(feature = "derive")]

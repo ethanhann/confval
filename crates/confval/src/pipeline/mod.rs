@@ -16,11 +16,14 @@ pub mod non_empty;
 /// Numeric range constraints and the `range_constraint!` macro.
 pub mod range;
 mod references;
+/// The unique constraint and the `UNIQUE` constant.
+pub mod unique;
 mod validate;
 
 pub use format::{check_each_format, check_format, constraint as format_constraint};
 pub use lower::{Lower, LowerAuto};
 pub use non_empty::{NON_EMPTY, NonEmptyConstraint};
+pub use unique::{UNIQUE, UniqueConstraint};
 
 pub use references::check_references;
 #[cfg(feature = "__internal-navigation")]

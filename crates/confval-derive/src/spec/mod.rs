@@ -18,6 +18,7 @@
 //! fragments themselves are emitted by the `parser` module.
 
 mod default;
+mod flags;
 mod options;
 mod parser;
 mod populate;

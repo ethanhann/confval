@@ -1,3 +1,5 @@
 name = "edge-cache"
 kind = "tracing"
 port = 99999
+after = ["auth", "auth", "tracing"]
+paths = ["/api", "/api", "static"]

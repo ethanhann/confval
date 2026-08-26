@@ -100,6 +100,10 @@ pub struct SchemaField {
     /// derive reports an empty bare `Vec<Located<String>>` without a span,
     /// because that shape holds none of its own.
     pub non_empty: bool,
+    /// Whether the list rejects a repeated element, marked `#[confval(unique)]`.
+    /// The comparison is the exact string, and each repeat is reported at its
+    /// own span.
+    pub unique: bool,
 }
 
 /// A field's declared type.
@@ -119,8 +123,8 @@ pub enum SchemaType {
     /// The constraint describes one element rather than the list, so a closed
     /// set means every entry must be one of those words. Only
     /// [`Keywords`](Constraint::Keywords) is meaningful here, because the derive
-    /// records nothing else on a list. A constraint that bounds the list itself,
-    /// such as a length, would need its own slot rather than this one.
+    /// records nothing else on a list. A rule about the list itself, such as
+    /// `unique`, is a flag on [`SchemaField`] rather than a constraint here.
     #[non_exhaustive]
     StringList {
         /// The mechanical constraint each element records, or `None`.
@@ -361,6 +365,7 @@ impl SchemaField {
             ty,
             label: false,
             non_empty: false,
+            unique: false,
         }
     }
 
@@ -392,6 +397,13 @@ impl SchemaField {
     /// `#[confval(non_empty)]` field.
     pub fn with_non_empty(mut self) -> Self {
         self.non_empty = true;
+        self
+    }
+
+    /// Marks the list so it rejects a repeated element. The derive calls it
+    /// for a `#[confval(unique)]` field.
+    pub fn with_unique(mut self) -> Self {
+        self.unique = true;
         self
     }
 

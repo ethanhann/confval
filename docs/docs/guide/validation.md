@@ -22,8 +22,8 @@ spec.validate_all(&mut report);
 
 ## Declaring constraints
 
-confval ships five domain-agnostic checks.
-`RangeConstraint` bounds a number, `LengthConstraint` bounds the character count of a string, `check_format` parses a string as a named format, `KeywordSet` checks a closed string set, and `NON_EMPTY` rejects an empty value.
+confval ships six domain-agnostic checks.
+`RangeConstraint` bounds a number, `LengthConstraint` bounds the character count of a string, `check_format` parses a string as a named format, `KeywordSet` checks a closed string set, `NON_EMPTY` rejects an empty value, and `UNIQUE` rejects a repeated list entry.
 Each one reports at the value's span with a help line.
 
 ### RangeConstraint
@@ -205,6 +205,9 @@ The derive then runs the check for you.
 `#[confval(length = PATH)]` on a `String` leaf names a `length_constraint!` bound.
 `#[confval(format = PATH)]` on a `String` leaf or a string list names a type that implements `Format`.
 On a list, every element must parse.
+`#[confval(unique)]` on a string list rejects an entry that repeats an earlier one.
+The comparison is the exact string.
+Each repeat is reported at its own span, with a related label at the first occurrence.
 `#[confval(keywords = PATH)]` also applies to a string list, where it records the set each element must come from.
 `#[confval(non_empty)]` on a `String` leaf or a string list rejects an empty or whitespace-only value.
 On an `Option<Located<String>>` leaf, the derive checks the value only when the source sets it.
@@ -245,6 +248,8 @@ The two cannot disagree.
 A field carries at most one value constraint.
 `keywords`, `range`, `length`, `format`, and `references` are the value constraints.
 Two of them on one field is a compile error.
+`non_empty` and `unique` are flags rather than value constraints.
+`unique` combines with `keywords`, `format`, `non_empty`, and `default`, because the default list is empty and so unique.
 A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(length = ...)]`.
 Pair `non_empty` with a length bound that uses `max:` alone.
 `non_empty` rejects a whitespace-only value, which no length bound can express.
@@ -261,10 +266,10 @@ Either default would fail the check.
 
 ### What recording covers
 
-A recorded list runs `check_each_in` for a keyword set or `check_each_format` for a format.
+A recorded list runs `check_each_in` for a keyword set, `check_each_format` for a format, or `UNIQUE.check_list` for a `unique` flag.
 Each bad element is reported at its own span.
 The bare `Vec<Located<String>>` and the wrapped `Option<Located<Vec<Located<String>>>>` both work.
-The message is `unknown value in <field>: <value>` or `invalid <format> in <field>: "<value>"`.
+The message is `unknown value in <field>: <value>`, `invalid <format> in <field>: "<value>"`, or `duplicate value in <field>: "<value>"`.
 Each one reads correctly whatever the list is called.
 Call `check_each` by hand when you have a singular noun for one element, because `unknown mode: shout` is the shorter sentence.
 
@@ -272,6 +277,8 @@ Call `check_each` by hand when you have a singular noun for one element, because
 
 A cross-field rule has no attribute.
 It stays in the `Validate` body.
+A duplicate check that spans blocks, such as a service name unique across files, compares labels and stays there too.
+`unique` covers one list.
 An emptiness rule on a defaulted list also stays in the `Validate` body, because `non_empty` cannot be combined with `default`.
 
 A keyword list checked by hand with `check_each` also stays there.

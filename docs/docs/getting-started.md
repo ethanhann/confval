@@ -92,7 +92,7 @@ struct ServerSpec {
     workers: Located<i64>,
     #[confval(default = false)]
     tls: Located<bool>,
-    #[confval(default)]
+    #[confval(default, unique)]
     allow: Vec<Located<String>>,
     // Open-ended map for keys not known ahead of time.
     #[confval(map, default)]

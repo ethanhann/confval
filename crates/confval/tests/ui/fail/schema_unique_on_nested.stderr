@@ -1,0 +1,5 @@
+error: #[confval(unique)] requires a string list; it cannot apply to a map or a nested block
+ --> tests/ui/fail/schema_unique_on_nested.rs:5:23
+  |
+5 |     #[confval(nested, unique)]
+  |                       ^^^^^^

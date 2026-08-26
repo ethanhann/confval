@@ -755,3 +755,43 @@ fn a_format_field_carries_its_name_and_check() {
     };
     assert_eq!(*name, "absolute path");
 }
+
+/// A spec with `unique` on both list shapes, one beside a value constraint.
+#[derive(confval::Spec)]
+struct UniqueLists {
+    #[confval(unique)]
+    tags: Vec<Located<String>>,
+    #[confval(unique, keywords = LimitMode)]
+    modes: Option<Located<Vec<Located<String>>>>,
+}
+
+impl Validate for UniqueLists {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_unique_list_carries_the_flag_in_both_shapes_beside_a_constraint() {
+    // Arrange
+    let schema = UniqueLists::schema();
+    let server = ServerSpec::schema();
+
+    // Act
+    let tags = field(&schema, "tags");
+    let modes = field(&schema, "modes");
+    let port = field(&server, "port");
+
+    // Assert
+    assert!(tags.unique, "the bare list is marked unique");
+    assert!(modes.unique, "the wrapped list is marked unique");
+    assert!(
+        matches!(
+            &modes.ty,
+            SchemaType::StringList {
+                constraint: Some(Constraint::Keywords(_)),
+                ..
+            }
+        ),
+        "the flag sits beside the keyword set"
+    );
+    assert!(!port.unique, "a leaf is not marked unique");
+}
