@@ -155,6 +155,8 @@ struct ServerSpec {
     hostname: Located<String>,
     #[confval(range = PORT)]
     port: Located<i64>,
+    #[confval(default, format = Ip)]
+    peers: Vec<Located<String>>,
 }
 
 impl Validate for ServerSpec {
