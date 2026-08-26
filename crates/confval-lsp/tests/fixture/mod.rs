@@ -59,6 +59,7 @@ pub struct ServerSpec {
 #[derive(confval::Spec)]
 pub struct RuleSpec {
     /// The path prefix this rule matches.
+    #[confval(format = AbsolutePath)]
     pub prefix: Located<String>,
 }
 

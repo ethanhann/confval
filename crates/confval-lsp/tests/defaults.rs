@@ -647,6 +647,9 @@ struct BadDefaultsSpec {
     /// A length default outside its bound.
     #[confval(default = "toolong".to_string(), length = BAD_NAME)]
     name: Located<String>,
+    /// A format default that does not parse.
+    #[confval(default = "nope".to_string(), format = confval::Ipv4)]
+    bind: Located<String>,
 }
 
 range_constraint!(BAD_WORKERS, i64, min: 1, max: 512);
@@ -688,6 +691,7 @@ fn a_default_violating_its_own_constraint_offers_no_fix() {
     let keyword_text = "mode: \"bogus\"\nworkers: 1\n";
     let range_text = "mode: \"enforce\"\nworkers: 70000\n";
     let length_text = "mode: \"enforce\"\nworkers: 1\nname: \"abcdef\"\n";
+    let format_text = "mode: \"enforce\"\nworkers: 1\nbind: \"also-bad\"\n";
     let schema = BadDefaultsSpec::schema();
     let keyword_diagnostics = {
         full_diagnostics::<BadDefaultsSpec, _>(&Yaml, &schema, keyword_text, &doc_uri(), ENCODING)
@@ -697,6 +701,9 @@ fn a_default_violating_its_own_constraint_offers_no_fix() {
     };
     let length_diagnostics = {
         full_diagnostics::<BadDefaultsSpec, _>(&Yaml, &schema, length_text, &doc_uri(), ENCODING)
+    };
+    let format_diagnostics = {
+        full_diagnostics::<BadDefaultsSpec, _>(&Yaml, &schema, format_text, &doc_uri(), ENCODING)
     };
 
     // Act
@@ -724,6 +731,14 @@ fn a_default_violating_its_own_constraint_offers_no_fix() {
         &length_diagnostics,
         None,
     );
+    let format_actions = actions_at(
+        &Yaml,
+        &schema,
+        format_text,
+        format_text.find("also-bad").unwrap(),
+        &format_diagnostics,
+        None,
+    );
 
     // Assert
     assert!(
@@ -737,6 +752,10 @@ fn a_default_violating_its_own_constraint_offers_no_fix() {
     assert!(
         length_actions.is_empty(),
         "a default outside the length bound fixes nothing: {length_actions:?}"
+    );
+    assert!(
+        format_actions.is_empty(),
+        "a default that does not parse fixes nothing: {format_actions:?}"
     );
 }
 
