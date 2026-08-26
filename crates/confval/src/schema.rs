@@ -260,7 +260,7 @@ pub enum Constraint {
 /// The check of a [`Constraint::Format`], wrapped so the constraint stays
 /// comparable. Two checks compare equal and hash alike, because the format's
 /// name identifies the constraint and a function address does not.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct FormatCheck(fn(&str) -> bool);
 
 impl FormatCheck {
@@ -280,12 +280,6 @@ impl Eq for FormatCheck {}
 
 impl std::hash::Hash for FormatCheck {
     fn hash<H: std::hash::Hasher>(&self, _state: &mut H) {}
-}
-
-impl std::fmt::Debug for FormatCheck {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("FormatCheck")
-    }
 }
 
 /// The generated walk and a handwritten impl build a constraint through
