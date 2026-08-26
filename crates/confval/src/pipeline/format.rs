@@ -50,41 +50,41 @@ pub fn check_each_format<T: Format>(values: &[Located<String>], field: &str, rep
     }
 }
 
-/// An IPv4 address, such as `127.0.0.1`.
-#[derive(Debug, Clone, Copy)]
-pub struct Ipv4;
+/// Declares a format whose check is one `std` type's `FromStr`.
+macro_rules! parsed_format {
+    ($(#[$doc:meta])* $name:ident, $parsed:ty, $label:literal) => {
+        $(#[$doc])*
+        #[derive(Debug, Clone, Copy)]
+        pub struct $name;
 
-impl Format for Ipv4 {
-    const NAME: &'static str = "IPv4 address";
+        impl Format for $name {
+            const NAME: &'static str = $label;
 
-    fn check(value: &str) -> bool {
-        Ipv4Addr::from_str(value).is_ok()
-    }
+            fn check(value: &str) -> bool {
+                <$parsed>::from_str(value).is_ok()
+            }
+        }
+    };
 }
 
-/// An IPv6 address, such as `::1`.
-#[derive(Debug, Clone, Copy)]
-pub struct Ipv6;
-
-impl Format for Ipv6 {
-    const NAME: &'static str = "IPv6 address";
-
-    fn check(value: &str) -> bool {
-        Ipv6Addr::from_str(value).is_ok()
-    }
-}
-
-/// An IPv4 or IPv6 address.
-#[derive(Debug, Clone, Copy)]
-pub struct Ip;
-
-impl Format for Ip {
-    const NAME: &'static str = "IP address";
-
-    fn check(value: &str) -> bool {
-        IpAddr::from_str(value).is_ok()
-    }
-}
+parsed_format!(
+    /// An IPv4 address, such as `127.0.0.1`.
+    Ipv4,
+    Ipv4Addr,
+    "IPv4 address"
+);
+parsed_format!(
+    /// An IPv6 address, such as `::1`.
+    Ipv6,
+    Ipv6Addr,
+    "IPv6 address"
+);
+parsed_format!(
+    /// An IPv4 or IPv6 address.
+    Ip,
+    IpAddr,
+    "IP address"
+);
 
 /// A path that starts with `/`.
 #[derive(Debug, Clone, Copy)]
