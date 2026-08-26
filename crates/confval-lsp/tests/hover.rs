@@ -490,6 +490,33 @@ fn hover_on_a_field_without_the_flag_omits_the_rule() {
     // Assert
     let body = markdown(hover.expect("a hover is produced"));
     assert!(!body.contains("Must not be empty."), "body: {body}");
+    assert!(!body.contains("characters."), "body: {body}");
+}
+
+#[test]
+fn hover_on_a_length_field_states_the_bound() {
+    // Arrange
+    let text = "hostname = \"127.0.0.1\"\n";
+    let offset = text.find("hostname").expect("the field is present") + 1;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let body = markdown(hover.expect("a hover is produced"));
+    assert!(body.contains("At most 253 characters."), "body: {body}");
 }
 
 /// The hover body for `name` in YAML text, or `None` when no hover is produced.

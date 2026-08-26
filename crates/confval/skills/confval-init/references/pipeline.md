@@ -147,10 +147,11 @@ Read it once for the shape, then build your own layers around your domain model.
 use confval::prelude::*;
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
+length_constraint!(HOSTNAME_LEN, max: 253);
 
 #[derive(confval::Spec)]
 struct ServerSpec {
-    #[confval(non_empty)]
+    #[confval(non_empty, length = HOSTNAME_LEN)]
     hostname: Located<String>,
     #[confval(range = PORT)]
     port: Located<i64>,

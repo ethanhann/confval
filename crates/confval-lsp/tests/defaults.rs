@@ -13,8 +13,8 @@ use lsp_types::{
 use confval::format::{FieldKind, Scalar, ValueKind};
 use confval::pipeline::range::RangeConstraint;
 use confval::prelude::{Located, Report, Validate};
-use confval::range_constraint;
 use confval::schema::ToSchema;
+use confval::{length_constraint, range_constraint};
 use confval_lsp::handlers::{ClientSupport, Cx, code_action, completion, diagnostics, hover};
 use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
 use std::path::PathBuf;
@@ -644,9 +644,13 @@ struct BadDefaultsSpec {
     /// A range default outside its bounds.
     #[confval(default = 9999, range = BAD_WORKERS)]
     workers: Located<i64>,
+    /// A length default outside its bound.
+    #[confval(default = "toolong".to_string(), length = BAD_NAME)]
+    name: Located<String>,
 }
 
 range_constraint!(BAD_WORKERS, i64, min: 1, max: 512);
+length_constraint!(BAD_NAME, min: 1, max: 3);
 
 impl Validate for BadDefaultsSpec {
     fn validate(&self, _report: &mut Report) {}
@@ -683,12 +687,16 @@ fn a_default_violating_its_own_constraint_offers_no_fix() {
     // Arrange
     let keyword_text = "mode: \"bogus\"\nworkers: 1\n";
     let range_text = "mode: \"enforce\"\nworkers: 70000\n";
+    let length_text = "mode: \"enforce\"\nworkers: 1\nname: \"abcdef\"\n";
     let schema = BadDefaultsSpec::schema();
     let keyword_diagnostics = {
         full_diagnostics::<BadDefaultsSpec, _>(&Yaml, &schema, keyword_text, &doc_uri(), ENCODING)
     };
     let range_diagnostics = {
         full_diagnostics::<BadDefaultsSpec, _>(&Yaml, &schema, range_text, &doc_uri(), ENCODING)
+    };
+    let length_diagnostics = {
+        full_diagnostics::<BadDefaultsSpec, _>(&Yaml, &schema, length_text, &doc_uri(), ENCODING)
     };
 
     // Act
@@ -708,6 +716,14 @@ fn a_default_violating_its_own_constraint_offers_no_fix() {
         &range_diagnostics,
         None,
     );
+    let length_actions = actions_at(
+        &Yaml,
+        &schema,
+        length_text,
+        length_text.find("abcdef").unwrap(),
+        &length_diagnostics,
+        None,
+    );
 
     // Assert
     assert!(
@@ -717,6 +733,10 @@ fn a_default_violating_its_own_constraint_offers_no_fix() {
     assert!(
         range_actions.is_empty(),
         "a default outside the range fixes nothing: {range_actions:?}"
+    );
+    assert!(
+        length_actions.is_empty(),
+        "a default outside the length bound fixes nothing: {length_actions:?}"
     );
 }
 

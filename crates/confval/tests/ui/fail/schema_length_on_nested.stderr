@@ -1,0 +1,5 @@
+error: #[confval(length = ...)] requires a String leaf; it cannot apply to a map or a nested block
+ --> tests/ui/fail/schema_length_on_nested.rs:5:32
+  |
+5 |     #[confval(nested, length = NAME_LEN)]
+  |                                ^^^^^^^^

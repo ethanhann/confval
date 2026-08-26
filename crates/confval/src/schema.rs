@@ -221,6 +221,19 @@ pub enum Constraint {
         /// The constraint's custom help line for the hover, or `None`.
         help: Option<&'static str>,
     },
+    /// An inclusive bound on the character count of a string. The bounds stay
+    /// numeric, unlike `Range`, because a character count has one type.
+    /// `help` carries the constraint's custom help line for the hover, or
+    /// `None`.
+    #[non_exhaustive]
+    Length {
+        /// The smallest allowed character count.
+        min: usize,
+        /// The largest allowed character count.
+        max: usize,
+        /// The constraint's custom help line for the hover, or `None`.
+        help: Option<&'static str>,
+    },
     /// The value references the labels of a block its scope can see. The block
     /// is named by its config field name, the `<block>` of
     /// `#[confval(references = <block>)]`. The reference pass resolves the name
@@ -235,8 +248,9 @@ pub enum Constraint {
 }
 
 /// The generated walk and a handwritten impl build a constraint through
-/// these constructors. `Range` and `References` are `#[non_exhaustive]`, so a
-/// struct literal for either does not compile outside this crate.
+/// these constructors. `Range`, `Length`, and `References` are
+/// `#[non_exhaustive]`, so a struct literal for any of them does not compile
+/// outside this crate.
 impl Constraint {
     /// Builds a keyword-set constraint over `words`, in declaration order.
     pub fn keywords(words: &'static [&'static str]) -> Self {
@@ -256,6 +270,11 @@ impl Constraint {
             units,
             help,
         }
+    }
+
+    /// Builds an inclusive character length bound.
+    pub fn length(min: usize, max: usize, help: Option<&'static str>) -> Self {
+        Self::Length { min, max, help }
     }
 
     /// Builds a reference to the labels of the named block field.

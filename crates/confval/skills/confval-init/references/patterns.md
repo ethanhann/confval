@@ -34,6 +34,26 @@ const STRATEGIES: [&str; 2] = ["round_robin", "least_conn"];
 KeywordSet::new(&STRATEGIES).check_located(&strategy, "strategy", &mut report);
 ```
 
+## A string with a length bound
+
+When a string has a maximum length, such as a hostname or a DNS label, declare the bound with `length_constraint!` and record it on the field with `#[confval(length = ...)]`.
+The count is in characters.
+
+```rust
+length_constraint!(HOSTNAME_LEN, max: 253);
+
+#[derive(confval::Spec)]
+struct ServerSpec {
+    #[confval(non_empty, length = HOSTNAME_LEN)]
+    hostname: Located<String>,
+}
+```
+
+A bound with `max:` alone starts at zero.
+It then pairs with `non_empty`, and the two report different conditions.
+Like `range_constraint!`, the macro generates a private const, so declare it in the module that declares the spec struct.
+The derive rejects `length` on a list, a map, a block, and a non-string leaf.
+
 ## A non-empty string or list
 
 When a field must not be empty, such as a service name or a list of allowed networks, record it on the field with `#[confval(non_empty)]`.

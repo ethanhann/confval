@@ -132,6 +132,10 @@ fn default_satisfies(constraint: &Option<Constraint>, text: &str) -> bool {
                 _ => false,
             }
         }
+        Some(Constraint::Length { min, max, .. }) => {
+            let count = text.chars().count();
+            *min <= count && count <= *max
+        }
         _ => true,
     }
 }

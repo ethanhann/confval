@@ -1,0 +1,5 @@
+error: a field takes at most one of #[confval(keywords = ...)], #[confval(range = ...)], #[confval(length = ...)], or #[confval(references = ...)]
+ --> tests/ui/fail/schema_length_and_keywords.rs:5:46
+  |
+5 |     #[confval(keywords = LimitMode, length = NAME_LEN)]
+  |                                              ^^^^^^^^

@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
 range_constraint!(MAX_BODY_MB, i64, min: 1, max: 1024);
+length_constraint!(HOSTNAME_LEN, max: 253);
 
 keyword_enum!(pub LimitMode, {
     Enforce => "enforce",
@@ -19,7 +20,7 @@ keyword_enum!(pub LogEvent, {
 
 #[derive(confval::Spec)]
 pub struct ServerSpec {
-    #[confval(non_empty)]
+    #[confval(non_empty, length = HOSTNAME_LEN)]
     pub hostname: Located<String>,
     #[confval(range = PORT)]
     pub port: Located<i64>,

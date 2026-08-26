@@ -96,15 +96,17 @@ See the complete documentation for the handwritten path.
 ### 4. Write validation
 
 Declare a mechanical constraint on the field that carries it.
-`#[confval(range = PORT)]` records a `range_constraint!`, and `#[confval(keywords = LimitMode)]` records a `keyword_enum!` set.
+`#[confval(range = PORT)]` records a `range_constraint!`, `#[confval(length = HOSTNAME_LEN)]` records a `length_constraint!`, and `#[confval(keywords = LimitMode)]` records a `keyword_enum!` set.
 The derive runs a recorded constraint during validation and records it in the schema.
 An editor's hover and completion read that same rule.
 The `Validate` body carries no line for the field.
 
 ```rust
+length_constraint!(HOSTNAME_LEN, max: 253);
+
 #[derive(confval::Spec)]
 struct ServerSpec {
-    #[confval(non_empty)]
+    #[confval(non_empty, length = HOSTNAME_LEN)]
     hostname: Located<String>,
     #[confval(range = PORT)]
     port: Located<i64>,
@@ -112,8 +114,9 @@ struct ServerSpec {
 ```
 
 A recorded constraint expands where the spec struct is declared, so what it names must be reachable there.
-The two attributes differ on what that means.
-`range = ...` names a value, and `range_constraint!` generates a private const, so that const must sit in the module that declares the spec struct.
+The three attributes differ on what that means.
+`range = ...` and `length = ...` name a value.
+`range_constraint!` and `length_constraint!` generate a private const, so that const must be in the module that declares the spec struct.
 `keywords = ...` names a type, so the enum may sit anywhere the spec module can import it from.
 Hold every `keyword_enum!` in one vocabulary module and import it.
 A closed set of words belongs to no single stage, because the spec checks it, lowering converts through it, and the runtime type holds it.

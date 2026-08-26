@@ -278,15 +278,27 @@ fn constraint_label(constraint: &Constraint) -> String {
             ..
         } => {
             let unit = units.map(|unit| format!(" {unit}")).unwrap_or_default();
-            let mut label = format!("Between {min} and {max}{unit}.");
-            if let Some(help) = help {
-                label.push(' ');
-                label.push_str(help);
-            }
-            label
+            with_help(format!("Between {min} and {max}{unit}."), *help)
+        }
+        Constraint::Length { min, max, help, .. } => {
+            let label = if *min == 0 {
+                format!("At most {max} characters.")
+            } else {
+                format!("Between {min} and {max} characters.")
+            };
+            with_help(label, *help)
         }
         _ => String::new(),
     }
+}
+
+/// The label followed by the constraint's own help line, when it has one.
+fn with_help(mut label: String, help: Option<&'static str>) -> String {
+    if let Some(help) = help {
+        label.push(' ');
+        label.push_str(help);
+    }
+    label
 }
 
 #[cfg(test)]
@@ -342,5 +354,21 @@ mod tests {
             "Between 1 and 65535 ports. Pick an open port."
         );
         assert_eq!(constraint_label(&bare), "Between 1 and 16.");
+    }
+
+    #[test]
+    fn constraint_labels_render_lengths() {
+        // Arrange
+        let helped = Constraint::length(1, 63, Some("Each DNS label is at most 63 characters."));
+        let bare = Constraint::length(1, 253, None);
+        let capped = Constraint::length(0, 253, None);
+
+        // Act, Assert
+        assert_eq!(
+            constraint_label(&helped),
+            "Between 1 and 63 characters. Each DNS label is at most 63 characters."
+        );
+        assert_eq!(constraint_label(&bare), "Between 1 and 253 characters.");
+        assert_eq!(constraint_label(&capped), "At most 253 characters.");
     }
 }

@@ -21,6 +21,7 @@ mod default;
 mod options;
 mod parser;
 mod populate;
+mod recorded;
 mod schema;
 mod shape;
 mod source_view;

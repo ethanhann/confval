@@ -22,8 +22,9 @@ spec.validate_all(&mut report);
 
 ## Declaring constraints
 
-confval ships two domain-agnostic checks: `RangeConstraint` for numeric bounds and `KeywordSet` for closed string sets.
-Both report at the value's span with a help line.
+confval ships four domain-agnostic checks.
+`RangeConstraint` bounds a number, `LengthConstraint` bounds the character count of a string, `KeywordSet` checks a closed string set, and `NON_EMPTY` rejects an empty value.
+Each one reports at the value's span with a help line.
 
 ### RangeConstraint
 
@@ -43,6 +44,29 @@ PORT.check_located(&spec.port, "port", report);
 
 When you provide **help**, it overrides the auto-generated suggestion.
 Otherwise, confval generates one like "Set port to at least 1".
+
+### LengthConstraint
+
+`length_constraint!` declares an inclusive bound on the character count of a string:
+
+```rust
+length_constraint!(HOSTNAME_LEN, max: 253);
+length_constraint!(LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 63 characters.");
+```
+
+A bound with `max:` alone starts at zero.
+The bound takes `help:` only and has no `units:` arm, because the unit is always characters.
+The count is `value.chars().count()`, the number of Unicode scalar values.
+When you need a byte count, such as a DNS wire limit, write the check in the `Validate` body.
+
+`check_located` emits an error at the value's span when the count falls outside the bound:
+
+```rust
+HOSTNAME_LEN.check_located(&spec.hostname, "hostname", report);
+```
+
+The message is "hostname must be at most 253 characters" or "hostname must be at least 1 character".
+When you provide **help**, it replaces the generated suggestion.
 
 ### KeywordSet
 
@@ -136,6 +160,7 @@ A field on a derived spec can instead record its constraint with an attribute.
 The derive then runs the check for you.
 
 `#[confval(range = PATH)]` on an `Int` or `Float` leaf, and `#[confval(keywords = PATH)]` on a `String` leaf, name the constraint the field must satisfy.
+`#[confval(length = PATH)]` on a `String` leaf names a `length_constraint!` bound.
 `#[confval(keywords = PATH)]` also applies to a string list, where it records the set each element must come from.
 `#[confval(non_empty)]` on a `String` leaf or a string list rejects an empty or whitespace-only value.
 On an `Option<Located<String>>` leaf, the derive checks the value only when the source sets it.
@@ -148,7 +173,7 @@ The field needs no line in `validate`.
 ```rust
 #[derive(confval::Spec)]
 struct ServerSpec {
-    #[confval(non_empty)]
+    #[confval(non_empty, length = HOSTNAME_LEN)]
     hostname: Located<String>,
     #[confval(range = PORT)]
     port: Located<i64>,
@@ -173,7 +198,15 @@ Each attribute is the single source for its field.
 It records the constraint for the [schema IR](./schema-ir.md) and runs the check.
 The two cannot disagree.
 
-A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(keywords = ...)]`.
+A field carries at most one value constraint.
+`keywords`, `range`, `length`, and `references` are the value constraints.
+Two of them on one field is a compile error.
+A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(length = ...)]`.
+Pair `non_empty` with a length bound that uses `max:` alone.
+`non_empty` rejects a whitespace-only value, which no length bound can express.
+The two constraints then report different conditions.
+`length` combines with `default`.
+When the default itself is outside the bound, the message names the spec's default rather than the configuration.
 A field cannot carry `#[confval(non_empty)]` and `#[confval(default)]` together.
 The default for a string is the empty string.
 The default for a list is the empty list.
@@ -200,6 +233,8 @@ Record the set on the field instead, and the schema IR and the check come from o
 A list of numbers has no field shape in confval.
 `range` has nothing to bound on a list.
 Record it on an `Int` or `Float` leaf.
+`length` bounds one string, so it takes a `String` leaf alone.
+A per-element bound on a string list is not recorded in this release.
 `references` resolves one value against the labels in scope.
 It is recorded on a scalar leaf too.
 

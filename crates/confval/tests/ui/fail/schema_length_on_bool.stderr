@@ -1,0 +1,5 @@
+error: #[confval(length = ...)] requires a String leaf
+ --> tests/ui/fail/schema_length_on_bool.rs:5:24
+  |
+5 |     #[confval(length = NAME_LEN)]
+  |                        ^^^^^^^^
