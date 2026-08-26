@@ -1,4 +1,4 @@
-error: a field takes at most one of #[confval(keywords = ...)], #[confval(range = ...)], #[confval(length = ...)], or #[confval(references = ...)]
+error: a field takes at most one of #[confval(keywords = ...)], #[confval(range = ...)], #[confval(length = ...)], #[confval(format = ...)], or #[confval(references = ...)]
  --> tests/ui/fail/schema_references_and_keywords.rs:5:50
   |
 5 |     #[confval(keywords = LimitMode, references = upstream)]
