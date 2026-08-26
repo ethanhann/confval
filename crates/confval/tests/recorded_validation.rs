@@ -1,6 +1,6 @@
 //! Attribute-driven validation. A `#[confval(range = ...)]`,
 //! `#[confval(length = ...)]`, `#[confval(format = ...)]`,
-//! `#[confval(non_empty)]`, or
+//! `#[confval(non_empty)]`, `#[confval(unique)]`, or
 //! `#[confval(keywords = ...)]` on a scalar field is checked by the generated
 //! `ValidateNested::validate_recorded`, so the attribute alone enforces the
 //! constraint and the `Validate` body carries no line for it.
@@ -1305,6 +1305,121 @@ fn non_empty_and_format_both_fire_on_an_empty_value() {
         vec![
             "bind is not a valid IP address: \"\"",
             "bind must not be empty"
+        ]
+    );
+}
+
+/// A spec with `unique` on both list shapes.
+#[derive(confval::Spec)]
+struct UniqueLists {
+    #[confval(unique)]
+    tags: Vec<Located<String>>,
+    #[confval(unique)]
+    labels: Option<Located<Vec<Located<String>>>>,
+}
+
+impl Validate for UniqueLists {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec that pairs `unique` with a keyword set on one list.
+#[derive(confval::Spec)]
+struct UniqueWithKeywords {
+    #[confval(unique, keywords = Mode)]
+    modes: Vec<Located<String>>,
+}
+
+impl Validate for UniqueWithKeywords {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn unique_on_a_bare_list_reports_each_repeat_at_its_own_span() {
+    // Arrange
+    let mut sources = SourceMap::new();
+    let id = sources.add("test.hcl", "tags = [\"a\", \"a\"]");
+    let repeat = Span::new(id, 13, 16);
+    let spec = UniqueLists {
+        tags: vec![
+            Located::detached("a".to_string()),
+            Located::new("a".to_string(), repeat),
+        ],
+        labels: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(messages(&report), vec!["duplicate value in tags: a"]);
+    assert_eq!(report.issues()[0].span, Some(repeat));
+}
+
+#[test]
+fn unique_on_a_bare_list_passes_distinct_entries() {
+    // Arrange
+    let spec = UniqueLists {
+        tags: vec![
+            Located::detached("a".to_string()),
+            Located::detached("b".to_string()),
+        ],
+        labels: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_errors());
+}
+
+#[test]
+fn unique_on_a_wrapped_list_reports_a_repeat_and_passes_when_absent() {
+    // Arrange
+    let present = UniqueLists {
+        tags: vec![],
+        labels: Some(Located::detached(vec![
+            Located::detached("x".to_string()),
+            Located::detached("x".to_string()),
+        ])),
+    };
+    let absent = UniqueLists {
+        tags: vec![],
+        labels: None,
+    };
+
+    // Act
+    let present_report = validate(&present);
+    let absent_report = validate(&absent);
+
+    // Assert
+    assert_eq!(
+        messages(&present_report),
+        vec!["duplicate value in labels: x"]
+    );
+    assert!(!absent_report.has_errors());
+}
+
+#[test]
+fn unique_and_keywords_both_fire_on_a_repeated_unknown_value() {
+    // Arrange
+    let spec = UniqueWithKeywords {
+        modes: vec![
+            Located::detached("nope".to_string()),
+            Located::detached("nope".to_string()),
+        ],
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "unknown value in modes: nope",
+            "unknown value in modes: nope",
+            "duplicate value in modes: nope"
         ]
     );
 }
