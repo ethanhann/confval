@@ -404,3 +404,51 @@ impl SchemaField {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    fn accept(_: &str) -> bool {
+        true
+    }
+
+    fn reject(_: &str) -> bool {
+        false
+    }
+
+    #[test]
+    fn two_format_checks_compare_equal_and_hash_alike_by_design() {
+        // Arrange
+        let a = Constraint::format("IP address", accept);
+        let b = Constraint::format("IP address", reject);
+        let other = Constraint::format("absolute path", accept);
+        let mut set = HashSet::new();
+
+        // Act
+        set.insert(a.clone());
+        set.insert(b.clone());
+        set.insert(other.clone());
+
+        // Assert
+        assert_eq!(a, b, "the name identifies the constraint, not the check");
+        assert_ne!(a, other);
+        assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn a_format_check_prints_no_address() {
+        // Arrange
+        let constraint = Constraint::format("IP address", accept);
+
+        // Act
+        let rendered = format!("{constraint:?}");
+
+        // Assert
+        assert_eq!(
+            rendered,
+            "Format { name: \"IP address\", check: FormatCheck }"
+        );
+    }
+}
