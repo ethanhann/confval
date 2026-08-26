@@ -461,6 +461,10 @@ fn hover_on_a_non_empty_field_states_the_rule() {
     let body = markdown(hover.expect("a hover is produced"));
     assert!(body.contains("Must not be empty."), "body: {body}");
     assert!(
+        body.contains("Between 1 and 253 characters."),
+        "body: {body}"
+    );
+    assert!(
         body.contains("The address the server binds"),
         "body: {body}"
     );

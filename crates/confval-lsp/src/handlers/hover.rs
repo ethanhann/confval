@@ -285,6 +285,14 @@ fn constraint_label(constraint: &Constraint) -> String {
             }
             label
         }
+        Constraint::Length { min, max, help, .. } => {
+            let mut label = format!("Between {min} and {max} characters.");
+            if let Some(help) = help {
+                label.push(' ');
+                label.push_str(help);
+            }
+            label
+        }
         _ => String::new(),
     }
 }
@@ -342,5 +350,23 @@ mod tests {
             "Between 1 and 65535 ports. Pick an open port."
         );
         assert_eq!(constraint_label(&bare), "Between 1 and 16.");
+    }
+
+    #[test]
+    fn constraint_labels_render_lengths() {
+        // Arrange
+        let with_help = Constraint::length(
+            "1".to_string(),
+            "63".to_string(),
+            Some("Each DNS label is at most 63 characters."),
+        );
+        let bare = Constraint::length("1".to_string(), "253".to_string(), None);
+
+        // Act, Assert
+        assert_eq!(
+            constraint_label(&with_help),
+            "Between 1 and 63 characters. Each DNS label is at most 63 characters."
+        );
+        assert_eq!(constraint_label(&bare), "Between 1 and 253 characters.");
     }
 }
