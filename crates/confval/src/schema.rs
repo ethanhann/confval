@@ -100,6 +100,10 @@ pub struct SchemaField {
     /// derive reports an empty bare `Vec<Located<String>>` without a span,
     /// because that shape holds none of its own.
     pub non_empty: bool,
+    /// Whether the list rejects a repeated element, marked `#[confval(unique)]`.
+    /// The comparison is the exact string, and each repeat is reported at its
+    /// own span.
+    pub unique: bool,
 }
 
 /// A field's declared type.
@@ -361,6 +365,7 @@ impl SchemaField {
             ty,
             label: false,
             non_empty: false,
+            unique: false,
         }
     }
 
@@ -392,6 +397,13 @@ impl SchemaField {
     /// `#[confval(non_empty)]` field.
     pub fn with_non_empty(mut self) -> Self {
         self.non_empty = true;
+        self
+    }
+
+    /// Marks the list so it rejects a repeated element. The derive calls it
+    /// for a `#[confval(unique)]` field.
+    pub fn with_unique(mut self) -> Self {
+        self.unique = true;
         self
     }
 
