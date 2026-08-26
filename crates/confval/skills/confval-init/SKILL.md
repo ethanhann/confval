@@ -113,7 +113,7 @@ struct ServerSpec {
 
 A recorded constraint expands where the spec struct is declared, so what it names must be reachable there.
 The two attributes differ on what that means.
-`range = ...` names a value, and `range_constraint!` generates a private const, so that const must sit in the module that declares the spec struct.
+`range = ...` and `length = ...` name a value, and `range_constraint!` and `length_constraint!` generate a private const, so that const must sit in the module that declares the spec struct.
 `keywords = ...` names a type, so the enum may sit anywhere the spec module can import it from.
 Hold every `keyword_enum!` in one vocabulary module and import it.
 A closed set of words belongs to no single stage, because the spec checks it, lowering converts through it, and the runtime type holds it.
