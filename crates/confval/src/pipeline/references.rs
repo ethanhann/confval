@@ -31,7 +31,7 @@ use labels::{field_string, instance_bodies, labeled_child, scope_label_refs};
 /// instance. The pass reads only `fields` and `schema`.
 ///
 /// The pass checks file-source string values. A value carried as
-/// [`Scalar::Unparsed`], from env-var or flag layering, is skipped, so a layered
+/// [`Scalar::Unparsed`](crate::format::field::Scalar::Unparsed), from env-var or flag layering, is skipped, so a layered
 /// reference is not checked here.
 ///
 /// This pass reports a duplicate label, an empty label, and an undefined
