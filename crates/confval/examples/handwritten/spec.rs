@@ -28,7 +28,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 range_constraint!(WORKERS, i64, min: 1, max: 512);
-length_constraint!(NAME_LEN, min: 1, max: 63);
+length_constraint!(NAME_LEN, max: 63);
 
 confval::keyword_enum!(pub LogEvent, {
     Started  => "started",
@@ -238,8 +238,8 @@ impl ToSchema for ServiceSpec {
         let name = SchemaType::scalar(
             ScalarType::String,
             Some(Constraint::length(
-                NAME_LEN.min.to_string(),
-                NAME_LEN.max.to_string(),
+                NAME_LEN.min,
+                NAME_LEN.max,
                 NAME_LEN.help,
             )),
         );
