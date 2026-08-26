@@ -158,7 +158,7 @@ const FORMAT_REQUIRES: &str = "#[confval(format = ...)] requires a String leaf o
 const REFERENCES_REQUIRES: &str = "#[confval(references = ...)] requires a String leaf";
 
 /// The one recording attribute a field declares.
-enum Recorded<'a> {
+pub(crate) enum Recorded<'a> {
     Keywords(&'a Path),
     Range(&'a Path),
     Length(&'a Path),
@@ -183,7 +183,7 @@ impl Recorded<'_> {
 ///
 /// Two of them on one field is an error wherever the field sits, because no
 /// shape carries two constraints.
-fn one_recording_attribute(options: &FieldOptions) -> syn::Result<Option<Recorded<'_>>> {
+pub(crate) fn one_recording_attribute(options: &FieldOptions) -> syn::Result<Option<Recorded<'_>>> {
     let too_many = "a field takes at most one of #[confval(keywords = ...)], \
                     #[confval(range = ...)], #[confval(length = ...)], \
                     #[confval(format = ...)], or #[confval(references = ...)]";
@@ -294,16 +294,11 @@ fn keywords_tokens(path: &Path) -> TokenStream2 {
     }
 }
 
-/// The `Constraint::format` expression reading a `Format` type's name and
-/// check through the trait, so the schema tests a value without the type.
+/// The schema record for a `Format` type, built by the pipeline's own
+/// `format_constraint` so the name and the check come from the one type.
 fn format_tokens(path: &Path) -> TokenStream2 {
     quote! {
-        ::core::option::Option::Some(
-            ::confval::schema::Constraint::format(
-                <#path as ::confval::pipeline::format::Format>::NAME,
-                <#path as ::confval::pipeline::format::Format>::check,
-            ),
-        )
+        ::core::option::Option::Some(::confval::pipeline::format_constraint::<#path>())
     }
 }
 

@@ -4,28 +4,28 @@
 //! Where the schema walk in [`schema`](super::schema) records a field's
 //! `#[confval(range = ...)]`, `#[confval(length = ...)]`,
 //! `#[confval(format = ...)]`, or `#[confval(keywords = ...)]` constraint for
-//! the IR, this walk runs the same
-//! constraint during validation, so the attribute is the single source and the
-//! author's `Validate` body carries no line for it. A scalar leaf emits a
-//! `check_located` call and a string list emits a `check_each_in` call, which
-//! reports each bad element at its own span.
+//! the IR, this walk runs the same constraint during validation, so the
+//! attribute is the single source and the author's `Validate` body carries
+//! no line for it. A scalar leaf emits a `check_located` call. A string list
+//! emits a `check_each_in` call for a keyword set or a `check_each_format`
+//! call for a format, and both report each bad element at its own span.
 //!
 //! `#[confval(non_empty)]` is a flag rather than a value constraint, so its
 //! fragment is emitted alongside the constraint fragment. A string leaf calls
 //! `NON_EMPTY.check_located`. A string list calls `NON_EMPTY.check_list` for
 //! the list and `NON_EMPTY.check_each` for its elements.
 //!
-//! The walk decides what to emit from the presence of `options.range`,
-//! `options.length`, `options.format`, `options.keywords`, or
-//! `options.non_empty` alone. Which
-//! shape may carry which attribute is settled in `spec/recorded.rs` when the
-//! always-emitted `ToSchema` is generated. So is the rule that a field
-//! carries at most one value constraint. A misplaced or doubled attribute is
-//! therefore a compile error before this walk runs. Keeping that rule in one
-//! generator and reading only attribute presence here keeps the two from
+//! The walk decides what to emit from the one recorded attribute a field
+//! carries, read through the same `Recorded` classification the schema walk
+//! uses, plus the `non_empty` flag. Which shape may carry which attribute is
+//! settled in `spec/recorded.rs` when the always-emitted `ToSchema` is
+//! generated. So is the rule that a field carries at most one value
+//! constraint. A misplaced or doubled attribute is therefore a compile error
+//! before this walk runs. Sharing the classification keeps the two walks from
 //! drifting on which attribute means what.
 
 use super::options::FieldOptions;
+use super::recorded::{Recorded, one_recording_attribute};
 use super::shape::{FieldShape, Leaf};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -70,28 +70,32 @@ fn constraint_fragment(
     options: &FieldOptions,
     name: &str,
 ) -> Option<TokenStream2> {
+    // The schema walk has already rejected a doubled attribute, so the error
+    // arm is unreachable here and the walk reads the one it found.
+    let recorded = one_recording_attribute(options).ok().flatten()?;
+
     // The `check_located` call, given the `&Located<T>` value expression and
     // the report expression it writes into. A `range` names a
     // `RangeConstraint` value, a `length` names a `LengthConstraint` value,
     // a `format` names a type the free function takes as a parameter, and a
     // `keywords` names a `keyword_enum!` type whose `keyword_set()` yields
-    // the check.
+    // the check. A `references` is resolved by the reference pass, which
+    // holds the labels in scope, so it emits nothing here. The match is
+    // exhaustive so a constraint added to the schema walk and forgotten here
+    // is a compile error rather than a recorded but unchecked field.
     let call = |value: &TokenStream2, report: &TokenStream2| -> Option<TokenStream2> {
-        if let Some(path) = &options.range {
-            return Some(quote! { #path.check_located(#value, #name, #report); });
+        match recorded {
+            Recorded::Range(path) | Recorded::Length(path) => {
+                Some(quote! { #path.check_located(#value, #name, #report); })
+            }
+            Recorded::Format(path) => Some(quote! {
+                ::confval::pipeline::check_format::<#path>(#value, #name, #report);
+            }),
+            Recorded::Keywords(path) => {
+                Some(quote! { #path::keyword_set().check_located(#value, #name, #report); })
+            }
+            Recorded::References(_) => None,
         }
-        if let Some(path) = &options.length {
-            return Some(quote! { #path.check_located(#value, #name, #report); });
-        }
-        if let Some(path) = &options.format {
-            return Some(quote! {
-                ::confval::pipeline::format::check_format::<#path>(#value, #name, #report);
-            });
-        }
-        options
-            .keywords
-            .as_ref()
-            .map(|path| quote! { #path::keyword_set().check_located(#value, #name, #report); })
     };
 
     if matches!(shape, FieldShape::Leaf { optional: true, .. }) {
@@ -114,13 +118,15 @@ fn constraint_fragment(
     // below. A list default is always the empty list, so there is no declared
     // value for the constraint to reject.
     let check_each_call = |values: &TokenStream2| -> Option<TokenStream2> {
-        if let Some(path) = &options.format {
-            return Some(quote! {
-                ::confval::pipeline::format::check_each_format::<#path>(#values, #name, report);
-            });
+        match recorded {
+            Recorded::Format(path) => Some(quote! {
+                ::confval::pipeline::check_each_format::<#path>(#values, #name, report);
+            }),
+            Recorded::Keywords(path) => {
+                Some(quote! { #path::keyword_set().check_each_in(#values, #name, report); })
+            }
+            Recorded::Range(_) | Recorded::Length(_) | Recorded::References(_) => None,
         }
-        let path = options.keywords.as_ref()?;
-        Some(quote! { #path::keyword_set().check_each_in(#values, #name, report); })
     };
     if matches!(shape, FieldShape::BareStringList) {
         return check_each_call(&quote! { &self.#ident });
