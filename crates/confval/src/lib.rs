@@ -56,11 +56,11 @@ pub mod __private {
 /// ([`KeywordSet`] and its [`keyword_enum!`] macro, [`RangeConstraint`] and its
 /// [`range_constraint!`] macro, [`LengthConstraint`] and its
 /// [`length_constraint!`] macro, the [`Format`] trait with its built-in
-/// types, and the [`NON_EMPTY`] flag), and, with the
-/// `derive` feature, the [`Spec`]
-/// and [`Config`] derives.
-/// Each validator is exported with its macro, so each validated pattern works
-/// from one import.
+/// types and the [`check_format`](pipeline::check_format) and
+/// [`check_each_format`](pipeline::check_each_format) calls, and the
+/// [`NON_EMPTY`] flag), and, with the `derive` feature, the [`Spec`] and
+/// [`Config`] derives. Each validator is exported with its declaration form,
+/// so each validated pattern works from one import.
 ///
 /// The write-path trait [`ToFields`](format::ToFields) is in the prelude,
 /// because you call `spec.to_fields()` as a method and the trait must be in
@@ -80,7 +80,7 @@ pub mod prelude {
 
     pub use crate::diagnostic::Report;
     pub use crate::format::ToFields;
-    pub use crate::pipeline::format::{check_each_format, check_format};
+    pub use crate::pipeline::{check_each_format, check_format};
     pub use crate::pipeline::{Lower, Validate, ValidateNested, narrow};
     pub use crate::schema::ToSchema;
     pub use crate::source::{Located, SourceMap, Span};
