@@ -40,7 +40,7 @@ When a string has a maximum length, such as a hostname or a DNS label, declare t
 The count is in characters.
 
 ```rust
-length_constraint!(HOSTNAME_LEN, min: 1, max: 253);
+length_constraint!(HOSTNAME_LEN, max: 253);
 
 #[derive(confval::Spec)]
 struct ServerSpec {
@@ -49,6 +49,7 @@ struct ServerSpec {
 }
 ```
 
+A bound with `max:` alone starts at zero, so it pairs with `non_empty` without the two reporting the same empty value.
 Like `range_constraint!`, the macro generates a private const, so declare it in the module that declares the spec struct.
 The derive rejects `length` on a list, a map, a block, and a non-string leaf.
 
