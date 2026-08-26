@@ -1,12 +1,13 @@
-//! `#[derive(Spec)]`'s legality rules for the recording attributes: which
-//! field shape may carry `keywords`, `range`, `length`, `references`,
-//! `label`, and `non_empty`, and what a legal pair records in the schema.
+//! The legality rules for `#[derive(Spec)]`'s recording attributes. They
+//! decide which field shape may carry `keywords`, `range`, `length`,
+//! `references`, `label`, and `non_empty`, and what a legal pair records in
+//! the schema.
 //!
 //! The rules live here rather than in `options.rs`, because `options.rs`
 //! reads the attribute tokens and never classifies the field type. The schema
 //! walk calls these functions for every field, so a misplaced attribute is a
-//! compile error before the validation walk runs, and the validation walk
-//! reads attribute presence alone.
+//! compile error before the validation walk runs. The validation walk can
+//! then read attribute presence alone.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
@@ -117,7 +118,7 @@ pub(crate) fn reject_non_empty_misuse(
 /// The mutual-exclusion check runs first for every shape, so a field carrying
 /// two recording attributes reads that mistake rather than a pairing message
 /// about one of them. What each shape can then carry differs. A scalar leaf
-/// records all three against its leaf type. A string list records `keywords`
+/// records any of the four against its leaf type. A string list records `keywords`
 /// alone, for the set each element must come from. A map and a nested block
 /// record nothing.
 pub(crate) fn constraint_tokens(
@@ -194,7 +195,7 @@ fn one_recording_attribute(options: &FieldOptions) -> syn::Result<Option<Recorde
     }
     // `FieldOptions` keeps no source order, so the reported attribute follows
     // this fixed order rather than the order the author wrote. The snapshots
-    // depend on that being deterministic.
+    // depend on a deterministic choice.
     if let Some(second) = found.get(1) {
         return Err(syn::Error::new_spanned(second.tokens(), too_many));
     }

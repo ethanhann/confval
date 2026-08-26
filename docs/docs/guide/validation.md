@@ -199,12 +199,14 @@ It records the constraint for the [schema IR](./schema-ir.md) and runs the check
 The two cannot disagree.
 
 A field carries at most one value constraint.
-`keywords`, `range`, `length`, and `references` are the value constraints, and two of them on one field is a compile error.
+`keywords`, `range`, `length`, and `references` are the value constraints.
+Two of them on one field is a compile error.
 A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(length = ...)]`.
-Pair `non_empty` with a `max:` only length bound.
-`non_empty` rejects a whitespace-only value that no length bound can express, and the two then report different conditions.
+Pair `non_empty` with a length bound that uses `max:` alone.
+`non_empty` rejects a whitespace-only value, which no length bound can express.
+The two constraints then report different conditions.
 `length` combines with `default`.
-A default outside the bound is reported against the spec's default rather than the configuration.
+When the default itself is outside the bound, the message names the spec's default rather than the configuration.
 A field cannot carry `#[confval(non_empty)]` and `#[confval(default)]` together.
 The default for a string is the empty string.
 The default for a list is the empty list.

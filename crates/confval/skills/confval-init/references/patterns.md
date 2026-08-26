@@ -49,7 +49,8 @@ struct ServerSpec {
 }
 ```
 
-A bound with `max:` alone starts at zero, so it pairs with `non_empty` without the two reporting the same empty value.
+A bound with `max:` alone starts at zero.
+It then pairs with `non_empty`, and the two report different conditions.
 Like `range_constraint!`, the macro generates a private const, so declare it in the module that declares the spec struct.
 The derive rejects `length` on a list, a map, a block, and a non-string leaf.
 

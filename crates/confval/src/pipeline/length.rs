@@ -52,9 +52,9 @@ impl LengthConstraint {
 
 /// Define a named length constraint as a const.
 ///
-/// A bound with `max:` alone starts at zero, so it pairs with
-/// `#[confval(non_empty)]` without the two constraints reporting the same
-/// empty value. A `min:` above `max:` is a compile error.
+/// A bound with `max:` alone starts at zero. It then pairs with
+/// `#[confval(non_empty)]`, and the two constraints report different
+/// conditions. A `min:` above `max:` is a compile error.
 ///
 /// ```rust
 /// use confval::length_constraint;

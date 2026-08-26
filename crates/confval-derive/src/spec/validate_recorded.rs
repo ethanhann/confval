@@ -16,12 +16,12 @@
 //!
 //! The walk decides what to emit from the presence of `options.range`,
 //! `options.length`, `options.keywords`, or `options.non_empty` alone. Which
-//! shape may carry which attribute, and that a field carries at most one
-//! value constraint, is settled in `spec/recorded.rs` when the always-emitted
-//! `ToSchema` is generated, so a misplaced or doubled attribute is a compile
-//! error before this walk runs. Keeping that rule in one generator and
-//! reading only attribute presence here keeps the two from drifting on which
-//! attribute means what.
+//! shape may carry which attribute is settled in `spec/recorded.rs` when the
+//! always-emitted `ToSchema` is generated. So is the rule that a field
+//! carries at most one value constraint. A misplaced or doubled attribute is
+//! therefore a compile error before this walk runs. Keeping that rule in one
+//! generator and reading only attribute presence here keeps the two from
+//! drifting on which attribute means what.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
