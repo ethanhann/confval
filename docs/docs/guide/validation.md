@@ -22,8 +22,8 @@ spec.validate_all(&mut report);
 
 ## Declaring constraints
 
-confval ships five domain-agnostic checks.
-`RangeConstraint` bounds a number, `LengthConstraint` bounds the character count of a string, `check_format` parses a string as a named format, `KeywordSet` checks a closed string set, and `NON_EMPTY` rejects an empty value.
+confval ships six domain-agnostic checks.
+`RangeConstraint` bounds a number, `LengthConstraint` bounds the character count of a string, `check_format` parses a string as a named format, `KeywordSet` checks a closed string set, `NON_EMPTY` rejects an empty value, and `UNIQUE` rejects a repeated list entry.
 Each one reports at the value's span with a help line.
 
 ### RangeConstraint
@@ -205,6 +205,8 @@ The derive then runs the check for you.
 `#[confval(length = PATH)]` on a `String` leaf names a `length_constraint!` bound.
 `#[confval(format = PATH)]` on a `String` leaf or a string list names a type that implements `Format`.
 On a list, every element must parse.
+`#[confval(unique)]` on a string list rejects an entry that repeats an earlier one.
+The comparison is the exact string, and each repeat is reported at its own span.
 `#[confval(keywords = PATH)]` also applies to a string list, where it records the set each element must come from.
 `#[confval(non_empty)]` on a `String` leaf or a string list rejects an empty or whitespace-only value.
 On an `Option<Located<String>>` leaf, the derive checks the value only when the source sets it.
@@ -244,6 +246,8 @@ The two cannot disagree.
 
 A field carries at most one value constraint.
 `keywords`, `range`, `length`, `format`, and `references` are the value constraints.
+`non_empty` and `unique` are flags, and a list can carry both beside one value constraint.
+`unique` combines with `default`, because the default list is empty.
 Two of them on one field is a compile error.
 A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(length = ...)]`.
 Pair `non_empty` with a length bound that uses `max:` alone.
