@@ -73,7 +73,7 @@ An editor reads `required` to report only the fields the parser would reject as 
 
 The derive cannot read a `Validate` body.
 A closed-set field looks like a plain `Located<String>` and a numeric range is invisible to the schema.
-Three attributes record a value constraint so the schema can carry it.
+Four attributes record a value constraint so the schema can carry it.
 A fourth attribute, `#[confval(non_empty)]`, records a precondition as a separate flag.
 
 ### `#[confval(non_empty)]`
@@ -97,6 +97,13 @@ Names a `RangeConstraint`.
 Requires an `Int` or `Float` leaf.
 The schema carries its bounds, units, and help line as `Constraint::Range`.
 A list of numbers is not a field shape confval parses, so a range has nothing to bound on a list.
+
+### `#[confval(length = PATH)]`
+
+Names a `LengthConstraint`.
+Requires a `String` leaf.
+The schema carries its bounds and help line as `Constraint::Length`.
+The bounds are character counts rendered to text.
 
 ### `#[confval(references = <block>)]`
 
