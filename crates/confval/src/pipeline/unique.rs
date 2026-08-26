@@ -85,7 +85,7 @@ mod tests {
         assert_eq!(report.issues()[0].message, "duplicate value in tags: \"a\"");
         assert_eq!(report.issues()[0].span, Some(second));
         assert_eq!(
-            report.issues()[0].related.as_ref().map(|(span, _)| *span),
+            report.issues()[0].related.first().map(|(span, _)| *span),
             Some(first),
             "the repeat points back at the first occurrence"
         );
