@@ -169,6 +169,7 @@ struct ServerConfig {
     hostname: String,
     #[confval(lower(from = port, with = narrow::i64_to_u16))]
     port: u16,
+    peers: Vec<String>,
 }
 
 fn main() {
