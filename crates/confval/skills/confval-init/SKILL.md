@@ -96,7 +96,7 @@ See the complete documentation for the handwritten path.
 ### 4. Write validation
 
 Declare a mechanical constraint on the field that carries it.
-`#[confval(range = PORT)]` records a `range_constraint!`, `#[confval(length = HOSTNAME_LEN)]` records a `length_constraint!`, and `#[confval(keywords = LimitMode)]` records a `keyword_enum!` set.
+`#[confval(range = PORT)]` records a `range_constraint!`, `#[confval(length = HOSTNAME_LEN)]` records a `length_constraint!`, `#[confval(format = Ip)]` records a `Format` type, and `#[confval(keywords = LimitMode)]` records a `keyword_enum!` set.
 The derive runs a recorded constraint during validation and records it in the schema.
 An editor's hover and completion read that same rule.
 The `Validate` body carries no line for the field.
@@ -114,10 +114,10 @@ struct ServerSpec {
 ```
 
 A recorded constraint expands where the spec struct is declared, so what it names must be reachable there.
-The three attributes differ on what that means.
+The four attributes differ on what that means.
 `range = ...` and `length = ...` name a value.
 `range_constraint!` and `length_constraint!` generate a private const, so that const must be in the module that declares the spec struct.
-`keywords = ...` names a type, so the enum may sit anywhere the spec module can import it from.
+`keywords = ...` and `format = ...` name a type, so the enum or the format type may be anywhere the spec module can import it from.
 Hold every `keyword_enum!` in one vocabulary module and import it.
 A closed set of words belongs to no single stage, because the spec checks it, lowering converts through it, and the runtime type holds it.
 The `Validate` impl may also live in another module, because a trait impl can be anywhere in the crate.

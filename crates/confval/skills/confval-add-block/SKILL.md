@@ -38,6 +38,7 @@ Declare a recorded constraint on the field.
 
 - A numeric range with `#[confval(range = ...)]`.
 - A character length bound with `#[confval(length = ...)]`.
+- A parse as a named format with `#[confval(format = ...)]`.
 - A closed set with `#[confval(keywords = ...)]`.
 - A non-empty check with `#[confval(non_empty)]`.
 

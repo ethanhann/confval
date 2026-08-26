@@ -54,6 +54,26 @@ It then pairs with `non_empty`, and the two report different conditions.
 Like `range_constraint!`, the macro generates a private const, so declare it in the module that declares the spec struct.
 The derive rejects `length` on a list, a map, a block, and a non-string leaf.
 
+## A string that must parse as a format
+
+When a string must parse as one kind of value, such as an IP address or an absolute path, record the format on the field with `#[confval(format = ...)]`.
+`Ipv4`, `Ipv6`, `Ip`, and `AbsolutePath` ship with the crate.
+On a list the format applies to each element.
+
+```rust
+#[derive(confval::Spec)]
+struct ServerSpec {
+    #[confval(format = Ip)]
+    bind: Located<String>,
+    #[confval(default, format = Ip)]
+    peers: Vec<Located<String>>,
+}
+```
+
+A domain format is a unit struct that implements `Format` with a `NAME` and a `check` function.
+Declare it in a module the spec module can import from, because `format = ...` names a type.
+Do not pair `format` with `non_empty`, because a format rejects the empty string on its own.
+
 ## A non-empty string or list
 
 When a field must not be empty, such as a service name or a list of allowed networks, record it on the field with `#[confval(non_empty)]`.
