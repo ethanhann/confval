@@ -3,11 +3,11 @@
 //!
 //! Where the schema walk in [`schema`](super::schema) records a field's
 //! `#[confval(range = ...)]`, `#[confval(length = ...)]`, or
-//! `#[confval(keywords = ...)]` constraint for the
-//! IR, this walk runs the same constraint during validation, so the attribute is
-//! the single source and the author's `Validate` body carries no line for it. A
-//! scalar leaf emits a `check_located` call and a string list emits a
-//! `check_each_in` call, which reports each bad element at its own span.
+//! `#[confval(keywords = ...)]` constraint for the IR, this walk runs the same
+//! constraint during validation, so the attribute is the single source and the
+//! author's `Validate` body carries no line for it. A scalar leaf emits a
+//! `check_located` call and a string list emits a `check_each_in` call, which
+//! reports each bad element at its own span.
 //!
 //! `#[confval(non_empty)]` is a flag rather than a value constraint, so its
 //! fragment is emitted alongside the constraint fragment. A string leaf calls
@@ -15,12 +15,13 @@
 //! the list and `NON_EMPTY.check_each` for its elements.
 //!
 //! The walk decides what to emit from the presence of `options.range`,
-//! `options.length`, `options.keywords`, or `options.non_empty` alone. Which shape may carry
-//! which attribute is settled in `spec/schema.rs` when the always-emitted
-//! `ToSchema` is generated, so a misplaced attribute is a compile error before
-//! this walk runs. Keeping that rule in one generator and reading only
-//! attribute presence here keeps the two from drifting on which attribute
-//! means what.
+//! `options.length`, `options.keywords`, or `options.non_empty` alone. Which
+//! shape may carry which attribute, and that a field carries at most one
+//! value constraint, is settled in `spec/recorded.rs` when the always-emitted
+//! `ToSchema` is generated, so a misplaced or doubled attribute is a compile
+//! error before this walk runs. Keeping that rule in one generator and
+//! reading only attribute presence here keeps the two from drifting on which
+//! attribute means what.
 
 use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
@@ -73,7 +74,10 @@ fn constraint_fragment(
     // and a `keywords` names a `keyword_enum!` type whose `keyword_set()`
     // yields the check.
     let call = |value: &TokenStream2, report: &TokenStream2| -> Option<TokenStream2> {
-        if let Some(path) = options.range.as_ref().or(options.length.as_ref()) {
+        if let Some(path) = &options.range {
+            return Some(quote! { #path.check_located(#value, #name, #report); });
+        }
+        if let Some(path) = &options.length {
             return Some(quote! { #path.check_located(#value, #name, #report); });
         }
         options
@@ -94,8 +98,9 @@ fn constraint_fragment(
     // A list records the constraint for one element, so the check runs through
     // `check_each_in`, which reports each bad element at its own span. Only
     // `keywords` reaches here, because the schema walk refuses `range`,
-    // `length`, and `references` on a list. The bare form is already a slice. The optional
-    // form keeps the outer `Located`, so the list is reached through its value.
+    // `length`, and `references` on a list. The bare form is already a slice.
+    // The optional form keeps the outer `Located`, so the list is reached
+    // through its value.
     //
     // Neither arm carries the defaulted-value branch a required leaf gets
     // below. A list default is always the empty list, so there is no declared
