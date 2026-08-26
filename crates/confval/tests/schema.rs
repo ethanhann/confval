@@ -15,6 +15,7 @@ use std::path::PathBuf;
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
 range_constraint!(MAX_BODY_MB, i64, min: 1, max: 1024);
+length_constraint!(HOSTNAME_LEN, min: 1, max: 253, help: "A hostname is at most 253 characters.");
 range_constraint!(RATIO, f64, min: 0.0, max: 1.0);
 range_constraint!(HUGE, i64, min: 1, max: i64::MAX);
 range_constraint!(TIMEOUT, i64, min: 1, max: 300, units: "seconds", help: "Keep this under 5 minutes.");
@@ -31,7 +32,7 @@ keyword_enum!(LimitMode, {
 /// bodies carry no line for them.
 #[derive(confval::Spec)]
 struct ServerSpec {
-    #[confval(non_empty)]
+    #[confval(non_empty, length = HOSTNAME_LEN)]
     hostname: Located<String>,
     #[confval(range = PORT)]
     port: Located<i64>,
@@ -700,4 +701,22 @@ fn a_non_empty_list_carries_the_flag_in_both_shapes() {
     // Assert
     assert!(tags.non_empty, "the bare list is marked non_empty");
     assert!(events.non_empty, "the wrapped list is marked non_empty");
+}
+
+#[test]
+fn a_length_field_renders_its_bounds_and_help() {
+    // Act
+    let schema = ServerSpec::schema();
+
+    // Assert
+    let Some(Constraint::Length { min, max, help, .. }) = constraint(&schema, "hostname") else {
+        panic!("hostname should carry a length bound");
+    };
+    assert_eq!(min.as_str(), "1");
+    assert_eq!(max.as_str(), "253");
+    assert_eq!(*help, Some("A hostname is at most 253 characters."));
+    assert!(
+        field(&schema, "hostname").non_empty,
+        "the flag sits beside the bound"
+    );
 }

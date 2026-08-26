@@ -10,6 +10,7 @@ range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(LEVEL, i64, min: 0, max: 10);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
 range_constraint!(MAX_BODY_MB, i64, min: 1, max: 1024);
+length_constraint!(NAME_LEN, min: 2, max: 8);
 
 keyword_enum!(Mode, {
     On  => "on",
@@ -934,4 +935,144 @@ fn non_empty_on_a_wrapped_list_reports_each_empty_element() {
 
     // Assert
     assert_eq!(messages(&report), vec!["events must not be empty"]);
+}
+
+/// A spec with a `length` recorded field on a required and an optional leaf,
+/// and a defaulted leaf whose default fails its own bound.
+#[derive(confval::Spec)]
+struct LengthLeaf {
+    #[confval(length = NAME_LEN)]
+    name: Located<String>,
+    #[confval(length = NAME_LEN)]
+    zone: Option<Located<String>>,
+}
+
+impl Validate for LengthLeaf {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[derive(confval::Spec)]
+struct LengthBadDefault {
+    #[confval(default = "x".to_string(), length = NAME_LEN)]
+    name: Located<String>,
+}
+
+impl Validate for LengthBadDefault {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec combining `non_empty` and `length` on one field.
+#[derive(confval::Spec)]
+struct NonEmptyWithLength {
+    #[confval(non_empty, length = NAME_LEN)]
+    name: Located<String>,
+}
+
+impl Validate for NonEmptyWithLength {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn length_on_a_leaf_reports_a_short_value() {
+    // Arrange
+    let spec = LengthLeaf {
+        name: Located::detached("a".to_string()),
+        zone: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec!["name must be at least 2 characters"]
+    );
+}
+
+#[test]
+fn length_on_a_leaf_reports_a_long_value() {
+    // Arrange
+    let spec = LengthLeaf {
+        name: Located::detached("abcdefghi".to_string()),
+        zone: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(messages(&report), vec!["name must be at most 8 characters"]);
+}
+
+#[test]
+fn length_on_a_leaf_passes_a_value_inside_the_bound() {
+    // Arrange
+    let spec = LengthLeaf {
+        name: Located::detached("abc".to_string()),
+        zone: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_errors());
+}
+
+#[test]
+fn length_on_an_optional_leaf_checks_only_a_present_value() {
+    // Arrange
+    let spec = LengthLeaf {
+        name: Located::detached("abc".to_string()),
+        zone: Some(Located::detached("z".to_string())),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec!["zone must be at least 2 characters"]
+    );
+}
+
+#[test]
+fn length_names_the_default_when_the_default_fails_its_bound() {
+    // Arrange
+    let spec = LengthBadDefault {
+        name: Located::detached("x".to_string()),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "the default for `name` fails its recorded constraint: name must be at least 2 characters"
+        ]
+    );
+}
+
+#[test]
+fn non_empty_and_length_both_fire_on_a_blank_value() {
+    // Arrange
+    let spec = NonEmptyWithLength {
+        name: Located::detached(" ".to_string()),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "name must be at least 2 characters",
+            "name must not be empty"
+        ]
+    );
 }

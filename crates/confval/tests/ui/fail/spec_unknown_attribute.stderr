@@ -1,4 +1,4 @@
-error: unknown confval attribute; expected `nested`, `map`, `default`, `keywords`, `range`, `label`, `references`, `non_empty`, or `doc`
+error: unknown confval attribute; expected `nested`, `map`, `default`, `keywords`, `range`, `length`, `label`, `references`, `non_empty`, or `doc`
  --> tests/ui/fail/spec_unknown_attribute.rs:5:15
   |
 5 |     #[confval(rename = "port")]
