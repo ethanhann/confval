@@ -127,6 +127,8 @@ impl Format for AbsolutePath {
 mod tests {
     use super::*;
 
+    type Check = fn(&str) -> bool;
+
     fn check<T: Format>(value: &str, field: &str) -> Report {
         let mut report = Report::new();
         check_format::<T>(&Located::detached(value.to_string()), field, &mut report);
@@ -136,7 +138,7 @@ mod tests {
     #[test]
     fn a_value_that_parses_passes() {
         // Arrange
-        let cases: [(&str, fn(&str) -> bool); 5] = [
+        let cases: [(&str, Check); 5] = [
             ("127.0.0.1", Ipv4::check),
             ("::1", Ipv6::check),
             ("10.0.0.1", Ip::check),
@@ -173,7 +175,7 @@ mod tests {
     #[test]
     fn each_built_in_rejects_its_own_bad_value() {
         // Arrange
-        let cases: [(&str, fn(&str) -> bool); 5] = [
+        let cases: [(&str, Check); 5] = [
             ("::1", Ipv4::check),
             ("127.0.0.1", Ipv6::check),
             ("localhost", Ip::check),
