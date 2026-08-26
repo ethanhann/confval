@@ -1,0 +1,5 @@
+error: #[confval(unique)] requires a string list
+ --> tests/ui/fail/schema_unique_on_int.rs:5:15
+  |
+5 |     #[confval(unique)]
+  |               ^^^^^^

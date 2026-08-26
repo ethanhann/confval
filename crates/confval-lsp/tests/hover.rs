@@ -492,6 +492,33 @@ fn hover_on_a_field_without_the_flag_omits_the_rule() {
     assert!(!body.contains("Must not be empty."), "body: {body}");
     assert!(!body.contains("characters."), "body: {body}");
     assert!(!body.contains("Format:"), "body: {body}");
+    assert!(!body.contains("Entries must be unique."), "body: {body}");
+}
+
+#[test]
+fn hover_on_a_unique_list_states_the_rule() {
+    // Arrange
+    let text = "allow = [\"10.0.0.0/8\"]\n";
+    let offset = text.find("allow").expect("the field is present") + 1;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let body = markdown(hover.expect("a hover is produced"));
+    assert!(body.contains("Entries must be unique."), "body: {body}");
 }
 
 #[test]
