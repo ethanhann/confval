@@ -55,7 +55,7 @@ fn collect(
             }
             SchemaType::Block { schema: child, .. } => {
                 for field in fields.iter().filter(|f| f.name == schema_field.name) {
-                    if let Some(inner) = block_fields(field) {
+                    for inner in block_bodies(field) {
                         collect(child, inner, base_dir, text, index, encoding, out);
                     }
                 }
@@ -105,19 +105,40 @@ fn resolve_path(
 }
 
 fn path_to_uri(path: &Path) -> Option<Uri> {
-    let absolute = if path.is_absolute() {
-        path.to_string_lossy().into_owned()
-    } else {
+    if !path.is_absolute() {
         return None;
-    };
+    }
+    let raw = path.to_string_lossy();
 
     #[cfg(windows)]
-    let uri_path = absolute.replace('\\', "/");
+    let normalized = raw.replace('\\', "/");
     #[cfg(not(windows))]
-    let uri_path = absolute;
+    let normalized = raw.into_owned();
 
-    let uri_string = format!("file://{uri_path}");
-    Uri::from_str(&uri_string).ok()
+    // A file URI's path is rooted. A POSIX path already starts with a slash. A
+    // Windows drive path does not, so it needs one added.
+    let rooted = if normalized.starts_with('/') {
+        normalized
+    } else {
+        format!("/{normalized}")
+    };
+
+    Uri::from_str(&format!("file://{}", encode_uri_path(&rooted))).ok()
+}
+
+/// Percent-encodes a rooted path for a `file:` URI. The separator `/`, the
+/// drive colon, and the unreserved set pass through, and every other byte
+/// becomes `%XX`, so a space or a non-ASCII character does not drop the link.
+fn encode_uri_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for &byte in path.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b':' | b'-' | b'.' | b'_' | b'~') {
+            out.push(byte as char);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
 }
 
 fn document_dir(uri: &Uri) -> Option<std::path::PathBuf> {
@@ -125,12 +146,22 @@ fn document_dir(uri: &Uri) -> Option<std::path::PathBuf> {
     path.parent().map(|d| d.to_path_buf())
 }
 
-fn block_fields(field: &Field) -> Option<&Fields> {
+/// The block bodies of one parsed field. A brace block is one body, a map value
+/// is one body, and an array of maps is one body per element, so a repeated
+/// block in JSON, TOML, or YAML links the same as a brace block in HCL.
+fn block_bodies(field: &Field) -> Vec<&Fields> {
     match &field.kind {
-        FieldKind::Block(inner) => Some(inner),
+        FieldKind::Block(inner) => vec![inner],
         FieldKind::Value(value) => match &value.kind {
-            ValueKind::Map(inner) => Some(inner),
-            _ => None,
+            ValueKind::Map(inner) => vec![inner],
+            ValueKind::Seq(elements) => elements
+                .iter()
+                .filter_map(|element| match &element.kind {
+                    ValueKind::Map(inner) => Some(inner),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
         },
     }
 }
@@ -165,7 +196,17 @@ mod tests {
         cert: Located<PathBuf>,
     }
 
+    #[derive(confval::Spec)]
+    struct RepeatedPathFixture {
+        #[confval(nested)]
+        server: Vec<Located<TlsFixture>>,
+    }
+
     impl Validate for NestedPathFixture {
+        fn validate(&self, _report: &mut Report) {}
+    }
+
+    impl Validate for RepeatedPathFixture {
         fn validate(&self, _report: &mut Report) {}
     }
 
@@ -265,6 +306,53 @@ mod tests {
         assert_eq!(links.len(), 1, "the cert path inside the map block links");
         let target = links[0].target.as_ref().unwrap().as_str();
         assert!(target.ends_with("/etc/tls/cert.pem"), "got: {target}");
+    }
+
+    #[test]
+    fn a_path_inside_a_repeated_block_produces_a_link_per_instance() {
+        // Arrange
+        // JSON carries a repeated block as an array of maps, so each element is
+        // a separate body the handler must enter.
+        let text =
+            "{ \"server\": [ { \"cert\": \"/a/one.pem\" }, { \"cert\": \"/b/two.pem\" } ] }";
+        let fields = parse_json(text).unwrap();
+        let schema = RepeatedPathFixture::schema();
+        let uri = doc_uri("/home/user/server.json");
+        let index = LineIndex::new(text);
+
+        // Act
+        let links = document_links(&schema, &fields, &uri, text, &index, ENCODING);
+
+        // Assert
+        assert_eq!(links.len(), 2, "each repeated block's cert links");
+        assert!(
+            links[0].target.as_ref().unwrap().as_str().ends_with("/a/one.pem"),
+            "got: {:?}",
+            links[0].target
+        );
+        assert!(
+            links[1].target.as_ref().unwrap().as_str().ends_with("/b/two.pem"),
+            "got: {:?}",
+            links[1].target
+        );
+    }
+
+    #[test]
+    fn a_path_with_a_space_is_percent_encoded_not_dropped() {
+        // Arrange
+        let text = "cert = \"/etc/my certs/cert.pem\"\n";
+        let fields = parse_hcl(text).unwrap();
+        let schema = PathFixture::schema();
+        let uri = doc_uri("/home/user/server.hcl");
+        let index = LineIndex::new(text);
+
+        // Act
+        let links = document_links(&schema, &fields, &uri, text, &index, ENCODING);
+
+        // Assert
+        assert_eq!(links.len(), 1, "a space in the path does not drop the link");
+        let target = links[0].target.as_ref().unwrap().as_str();
+        assert!(target.contains("%20"), "the space is percent-encoded: {target}");
     }
 
     #[test]
