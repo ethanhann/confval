@@ -19,9 +19,9 @@ use syn::{Ident, Path};
 /// The `Option<Constraint>` expression a field records, and the one place a
 /// (shape, attribute) pair is judged legal.
 ///
-/// The mutual-exclusion check runs first for every shape, so a field carrying
-/// two recording attributes reads that mistake rather than a pairing message
-/// about one of them. What each shape can then carry differs. A scalar leaf
+/// The mutual-exclusion check runs first for every shape, so a field with two
+/// recording attributes reports that mistake rather than a pairing message
+/// about one of them. What each shape can then record differs. A scalar leaf
 /// records any of the five against its leaf type. A string list records
 /// `keywords` or `format`, each applied to every element. A map and a nested
 /// block record nothing.
@@ -85,8 +85,8 @@ impl Recorded<'_> {
 
 /// The recording attribute a field declares, or `None` when it declares none.
 ///
-/// Two of them on one field is an error wherever the field sits, because no
-/// shape carries two constraints.
+/// Two of them on one field is an error wherever the field appears, because no
+/// shape has two constraints.
 pub(crate) fn one_recording_attribute(options: &FieldOptions) -> syn::Result<Option<Recorded<'_>>> {
     let too_many = "a field takes at most one of #[confval(keywords = ...)], \
                     #[confval(range = ...)], #[confval(length = ...)], \
@@ -206,7 +206,7 @@ fn format_tokens(path: &Path) -> TokenStream2 {
     }
 }
 
-/// A refusal naming what the attribute needs and the shape it cannot sit on.
+/// A refusal naming what the attribute needs and the shape it cannot apply to.
 fn refused<T: ToTokens>(at: &T, requires: &str, where_not: &str) -> syn::Error {
     syn::Error::new_spanned(at, format!("{requires}; it cannot apply to {where_not}"))
 }

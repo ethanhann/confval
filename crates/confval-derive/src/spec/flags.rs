@@ -1,6 +1,6 @@
 //! The legality rules for `#[derive(Spec)]`'s flag attributes, `label`,
-//! `non_empty`, and `unique`. Each flag has its own set of shapes it may
-//! sit on and its own rule about `default`, so each has its own function.
+//! `non_empty`, and `unique`. Each flag has its own set of shapes it applies
+//! to and its own rule about `default`, so each has its own function.
 //! The value constraints have their rules in [`recorded`](super::recorded).
 //!
 //! The schema walk calls every function here for every field, and each one
