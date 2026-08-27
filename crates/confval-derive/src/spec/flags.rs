@@ -63,8 +63,10 @@ pub(crate) fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) ->
 ///
 /// `non_empty` is valid on a `String` leaf and on a string list. It rejects
 /// `Int`, `Float`, `Bool`, `Path`, `Block`, and `Map`. It combines with
-/// `label` and with the value constraints (`keywords`, `range`,
-/// `references`). A field with both `default` and `non_empty` is rejected.
+/// `label` and with the value constraints valid on a string, which are
+/// `keywords`, `length`, `format`, and `references`. It does not combine with
+/// `range`, because `range` requires an `Int` or `Float` leaf. A field with
+/// both `default` and `non_empty` is rejected.
 /// The default for a `String` is the empty string and for a list is the
 /// empty list. Either one would fail the check.
 pub(crate) fn reject_non_empty_misuse(
