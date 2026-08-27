@@ -57,6 +57,7 @@ length_constraint!(LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 
 A bound with `max:` alone starts at zero.
 The bound takes `help:` only and has no `units:` arm, because the unit is always characters.
 The count is `value.chars().count()`, the number of Unicode scalar values.
+So an emoji built from several scalar values, or an accented letter written as a base plus a combining mark, counts as more than one.
 When you need a byte count, such as a DNS wire limit, write the check in the `Validate` body.
 
 `check_located` emits an error at the value's span when the count falls outside the bound:
@@ -73,6 +74,7 @@ When you provide **help**, it replaces the generated suggestion.
 A format is a type that implements the `Format` trait.
 The trait has a `NAME` the message uses and a `check` function that says whether a string parses.
 confval ships `Ipv4`, `Ipv6`, `Ip`, and `AbsolutePath`, the formats that need nothing beyond `std`.
+`AbsolutePath` checks only that the string starts with `/`, not that the path exists or is canonical.
 
 A domain format, such as a CIDR block or a URL, is a type you write.
 For example, a CIDR block:
@@ -140,6 +142,32 @@ An operator who typos one entry reads `unknown event: reloded` under that entry 
 Both list shapes pass a slice.
 A bare `Vec<Located<String>>` passes itself.
 A wrapped `Option<Located<Vec<Located<String>>>>` passes `&list.value`.
+
+### NON_EMPTY
+
+`NON_EMPTY` rejects an empty value.
+On a `String` leaf it rejects an empty or whitespace-only value.
+
+```rust
+NON_EMPTY.check_located(&spec.name, "name", report);
+NON_EMPTY.check_each(&spec.tags, "tag", report);
+```
+
+`check_located` checks a string leaf.
+`check_each` checks each element of a list at its own span.
+`check_list` takes a list span and reports when the list has no elements.
+The message is `name must not be empty`.
+
+### UNIQUE
+
+`UNIQUE` rejects a string list entry that repeats an earlier one.
+The comparison is the exact string, and each repeat reports at its own span.
+
+```rust
+UNIQUE.check_list(&spec.tags, "tags", report);
+```
+
+The message is `duplicate value in tags: "web"`, with a related label at the first occurrence.
 
 ### keyword_enum!
 
@@ -254,6 +282,11 @@ A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[c
 Pair `non_empty` with a length bound that uses `max:` alone.
 `non_empty` rejects a whitespace-only value, which no length bound can express.
 The two constraints then report different conditions.
+
+On a list, `non_empty` rejects an empty element at that element's span, and it rejects an empty list too.
+A bare `Vec<Located<String>>` has no span of its own, so the empty-list error has no location and sorts to the end of the report.
+When `non_empty` matters on a list, prefer the optional-wrapped shape `Option<Located<Vec<Located<String>>>>`, which reports the empty list at its brackets.
+
 `length` and `format` combine with `default`.
 When the default itself fails the check, the message names the spec's default rather than the configuration.
 Each built-in format rejects the empty string, so a field that carries a built-in `format` and `non_empty` reports an empty value twice.

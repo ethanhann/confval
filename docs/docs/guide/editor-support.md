@@ -15,7 +15,7 @@ This page describes what the editor does for you once it is running.
 The editor underlines the same errors your program would report.
 It runs the real validation rather than an approximation.
 An error the editor shows is an error the program would raise.
-The checks include an unknown field, an out-of-range value, an undefined reference, a duplicate label, and an empty label.
+The checks include an unknown field, an out-of-range value, an empty value, a string outside its length bound, an invalid format, a duplicate list entry, an undefined reference, a duplicate label, and an empty label.
 
 ## Completion
 
@@ -60,6 +60,12 @@ Hover on a reference value names the block it points to and states whether the v
 A value that has a default carries a quick fix.
 The fix sets the field to its default.
 For example, an out-of-range `workers = 9999` becomes `workers = 4` in one step.
+
+## Path links
+
+A field that holds a file path renders as a link you can follow.
+The editor underlines the path, and following the link opens the file.
+A relative path resolves against the directory of the open document, so `certs/server.pem` opens the file next to your configuration.
 
 ## Navigation
 
