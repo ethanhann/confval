@@ -27,15 +27,21 @@ for field in &schema.fields {
 }
 ```
 
-## What a schema carries
+## What a schema holds
 
 A `Schema` is one level of a spec: the type's doc comment and its fields in declaration order.
-Each `SchemaField` carries the field name as it appears in a config file, the field's doc comment, whether it is required, whether it declares a default, and its declared type.
+Each `SchemaField` records:
+
+- The field name as it appears in a config file.
+- The field's doc comment.
+- Whether it is required.
+- Whether it declares a default.
+- Its declared type.
 
 The declared type is a `SchemaType`:
 
-- A scalar leaf carries its `ScalarType` and any constraint it declares.
-- A string list is `StringList`, which carries any constraint its elements declare.
+- A scalar leaf holds its `ScalarType` and any constraint it declares.
+- A string list is `StringList`, which holds any constraint its elements declare.
 - A string-keyed map is `StringMap`.
 - A nested block is `Block`, which holds the child level's own `Schema` and a `repeated` flag for a zero-or-more block list.
 
@@ -51,13 +57,13 @@ One call at the root builds the whole tree.
 
 ### Default text
 
-The schema carries a scalar leaf's default rendered to text.
+The schema records a scalar leaf's default rendered to text.
 The derive evaluates the default expression when `schema()` runs and stores the result on the field.
 `#[confval(default = 4)]` reads back as `"4"`.
 
-A defaulted list, map, or block carries no text, because there is no single value to render.
+A defaulted list, map, or block has no text, because there is no single value to render.
 `has_default` still records that one applies.
-A handwritten spec carries a default the same way, through `with_default_text` beside the other builder calls.
+A handwritten spec records a default the same way, through `with_default_text` beside the other builder calls.
 To render a whole document of defaults, use the [template](./templates.md) walk, `ServerSpec::default().to_template()`.
 
 ## When a field is required
@@ -73,7 +79,7 @@ An editor reads `required` to report only the fields the parser would reject as 
 
 The derive cannot read a `Validate` body.
 A closed-set field looks like a plain `Located<String>` and a numeric range is invisible to the schema.
-Five attributes record a value constraint so the schema can carry it.
+Five attributes record a value constraint so the schema can hold it.
 Two more attributes, `#[confval(non_empty)]` and `#[confval(unique)]`, each record a precondition as its own flag.
 
 ### `#[confval(non_empty)]`
@@ -81,42 +87,42 @@ Two more attributes, `#[confval(non_empty)]` and `#[confval(unique)]`, each reco
 The field is a `String` leaf or a string list.
 It rejects an empty or whitespace-only value.
 On a list it also rejects a list with zero elements.
-The schema carries it as `SchemaField::non_empty`, a `bool` flag separate from the `Constraint` slot.
-A field can carry both `non_empty` and a value constraint.
+The schema records it as `SchemaField::non_empty`, a `bool` flag separate from the `Constraint` slot.
+A field can have both `non_empty` and a value constraint.
 
 ### `#[confval(unique)]`
 
 The field is a string list.
 It rejects an entry that repeats an earlier one.
-The schema carries it as `SchemaField::unique`, a `bool` flag separate from the `Constraint` slot.
+The schema records it as `SchemaField::unique`, a `bool` flag separate from the `Constraint` slot.
 `unique` combines with `keywords`, `format`, `non_empty`, and `default`, because the default list is empty and so unique.
 
 ### `#[confval(keywords = PATH)]`
 
 Names a `keyword_enum!` type.
 Takes a `String` leaf or a string list.
-The schema carries its allowed strings as `Constraint::Keywords`.
+The schema records its allowed strings as `Constraint::Keywords`.
 On a list the set describes one element, so an editor offers the same words inside the list that it offers on a scalar.
 
 ### `#[confval(range = PATH)]`
 
 Names a `RangeConstraint`.
 Requires an `Int` or `Float` leaf.
-The schema carries its bounds, units, and help line as `Constraint::Range`.
+The schema records its bounds, units, and help line as `Constraint::Range`.
 A list of numbers is not a field shape confval parses, so a range has nothing to bound on a list.
 
 ### `#[confval(length = PATH)]`
 
 Names a `LengthConstraint`.
 Requires a `String` leaf.
-The schema carries its bounds and help line as `Constraint::Length`.
+The schema records its bounds and help line as `Constraint::Length`.
 The bounds are character counts.
 
 ### `#[confval(format = PATH)]`
 
 Names a type that implements `Format`.
 Takes a `String` leaf or a string list.
-The schema carries the format's name and its check as `Constraint::Format`.
+The schema records the format's name and its check as `Constraint::Format`.
 An editor reads the name for the hover.
 It calls the check before it offers a default as a fix.
 
@@ -125,7 +131,7 @@ It calls the check before it offers a default as a fix.
 Marks a `String` leaf whose value names another block by its label.
 Takes a leaf alone, because the reference pass resolves one value against the labels in scope.
 The `<block>` is the config field name of a labeled block, one that marks a child field with `#[confval(label)]`.
-The schema carries the target as `Constraint::References`.
+The schema records the target as `Constraint::References`.
 
 For example, attach a range to two integer fields:
 
@@ -144,7 +150,7 @@ An attribute on the wrong leaf, or on a list, a map, or a block, is a compile er
 
 The attribute records the constraint for the schema.
 On a derived spec the derive also runs the check during validation.
-The `Validate` body therefore carries no line for that field.
+The `Validate` body therefore has no line for that field.
 A handwritten spec still calls the check itself, because the derive generates nothing for it.
 
 ## How a reference resolves
@@ -154,7 +160,7 @@ The name resolves outward from the reference's enclosing block.
 The nearest enclosing scope whose schema declares a labeled block field of that name wins, and the root is searched last.
 Labels are collected within that one scope instance.
 Two sibling instances of the enclosing block may reuse a label, and a reference sees only the labels of its own scope.
-A field of the same name that is not a labeled block does not stop the search, so a reference field may carry its target's name.
+A field of the same name that is not a labeled block does not stop the search, so a reference field may share its target's name.
 
 For example, a route names one of its own service's upstreams:
 
