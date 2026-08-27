@@ -605,7 +605,7 @@ mod tests {
     fn emit_yaml_keeps_an_all_commented_element_as_an_element() {
         // Arrange
         // A template renders an element that sets nothing. Its body is comment
-        // text alone, which carries no line the sequence marker can take.
+        // text alone, which has no line the sequence marker can take.
         let block = |inner: Fields| Field::detached_block("svc", inner);
         let fields = Fields::detached(vec![
             block(Fields::detached(vec![scalar("port", Scalar::Int(9))])),
@@ -709,7 +709,7 @@ mod tests {
     #[test]
     fn emit_yaml_rejects_a_native_label_it_cannot_write() {
         // Arrange
-        // A parsed HCL or KDL block carries its label on the inner level, and
+        // A parsed HCL or KDL block keeps its label on the inner level, and
         // YAML has no label syntax and no field name to write it with.
         let inner = Fields::detached(vec![scalar("host", Scalar::String("h".to_string()))])
             .with_label(crate::source::Located::detached("api".to_string()));
@@ -804,7 +804,7 @@ mod tests {
     #[test]
     fn emit_yaml_keeps_the_float_form() {
         // Arrange
-        // The debug form of a finite float always carries a point or an
+        // The debug form of a finite float always has a point or an
         // exponent, so the core schema reads it back as a float.
         let fields = Fields::detached(vec![
             scalar("whole", Scalar::Float(1.0)),
@@ -908,7 +908,7 @@ mod tests {
     #[test]
     fn emit_yaml_writes_an_unparsed_scalar_as_a_string() {
         // Arrange
-        // A layered tree carries unparsed text from an environment variable or
+        // A layered tree holds unparsed text from an environment variable or
         // a flag, whose type was never decided.
         let fields = Fields::detached(vec![scalar("port", Scalar::Unparsed("8080".to_string()))]);
 
@@ -939,7 +939,7 @@ mod tests {
 
         // Assert
         // The blank line goes above the block's comment, and a nested comment
-        // carries its field's indentation.
+        // keeps its field's indentation.
         assert_eq!(
             out,
             "# The port.\nport: 1\n\n# Request limits.\nlimits:\n  # Max body size.\n  max_body_mb: 16\n"

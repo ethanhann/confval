@@ -5,7 +5,7 @@ struct ServerSpec {
     port: Located<i64>,
 }
 
-// No `impl Validate for ServerSpec`. Every generated `Lower` impl carries the
+// No `impl Validate for ServerSpec`. Every generated `Lower` impl has the
 // bound, so the config fails to compile.
 
 #[derive(confval::Config)]

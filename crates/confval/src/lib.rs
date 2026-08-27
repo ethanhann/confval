@@ -7,7 +7,7 @@
 //! validation functions check what the values mean, and lowering narrows the
 //! validated spec into the runtime types the rest of the program uses.
 //!
-//! A field constraint that the derive can record is checked and carried into
+//! A field constraint that the derive can record is checked and taken into
 //! the schema from one attribute. The attributes name a [`RangeConstraint`],
 //! a [`LengthConstraint`], a [`KeywordSet`] through `keyword_enum!`, a type
 //! that implements [`Format`], or the [`NON_EMPTY`] and [`UNIQUE`] flags.

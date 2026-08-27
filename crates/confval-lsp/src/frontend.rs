@@ -76,7 +76,7 @@ pub struct Insert {
     pub text: String,
     /// What the edit absorbs to the left of the replace range.
     pub absorb: Absorb,
-    /// Whether `text` carries snippet markers. The producer declares it, so
+    /// Whether `text` contains snippet markers. The producer declares it, so
     /// the handler never infers snippet-ness from the string.
     pub snippet: bool,
 }
@@ -159,7 +159,7 @@ pub struct CursorContext {
     /// when it is on no token. It is scanned from the current text, so it stays
     /// valid and on the cursor's line even when the buffer does not parse.
     pub token: (usize, usize),
-    /// The text of `token`, carried so the handlers read the typed prefix
+    /// The text of `token`, kept so the handlers read the typed prefix
     /// without holding the buffer.
     pub token_text: String,
     /// Whether a body completion here opens a new element of a repeated block
@@ -172,7 +172,7 @@ pub struct CursorContext {
     /// parsed. The handlers read the already-set state and the hover state from
     /// it, so a repeated block addresses the instance the cursor is in rather
     /// than the first. A pending body, a key whose body the tree does not hold
-    /// yet, carries an empty body, because nothing is set there. It is `None`
+    /// yet, has an empty body, because nothing is set there. It is `None`
     /// only on the text recovery path, which has no parsed instance.
     pub resolved_body: Option<Fields>,
     /// The bodies of the enclosing block instances along `path`, root first,
@@ -358,7 +358,7 @@ pub trait Frontend: std::fmt::Debug {
     /// block as its block form. `path` is the enclosing block path, which a
     /// header-based format (TOML) uses to qualify a nested block header.
     ///
-    /// The returned [`Insert`] carries the edit geometry beside the text: what
+    /// The returned [`Insert`] holds the edit geometry beside the text: what
     /// the edit absorbs to its left. A brace-delimited block insert places a
     /// `$0` where the cursor belongs, inside the body. The completion handler
     /// emits it as a snippet tab stop when the client supports snippets, or
@@ -376,7 +376,7 @@ pub trait Frontend: std::fmt::Debug {
     }
 
     /// Renders a default value as the format's literal text, from the leaf and
-    /// the carried text. The pre-filled insert, the preselected value item,
+    /// the kept text. The pre-filled insert, the preselected value item,
     /// and the code-action edit all go through it, so the editor writes the
     /// value the way the format reads it. The default quotes a string and a
     /// path and passes the rest through. KDL overrides the boolean forms.

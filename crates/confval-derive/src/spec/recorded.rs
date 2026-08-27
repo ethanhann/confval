@@ -1,5 +1,5 @@
 //! The legality rules for `#[derive(Spec)]`'s value constraints. They decide
-//! which field shape may carry `keywords`, `range`, `length`, `format`, and
+//! which field shape may take `keywords`, `range`, `length`, `format`, and
 //! `references`, and what a legal pair records in the schema. The flag
 //! attributes have their rules in [`flags`](super::flags).
 //!

@@ -11,7 +11,7 @@ use super::{ClientSupport, RawItem};
 /// Converts one raw item into the LSP shape: the byte edit becomes a ranged
 /// text edit under the negotiated encoding.
 ///
-/// A block insert carries a `$0` tab stop. When the client supports snippets,
+/// A block insert has a `$0` tab stop. When the client supports snippets,
 /// the edit is a snippet and the client places the cursor at the tab stop. When
 /// it does not, the tab stop is removed so no literal `$0` reaches the buffer.
 pub(super) fn encode_item(

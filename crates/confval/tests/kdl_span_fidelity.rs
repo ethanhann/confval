@@ -150,7 +150,7 @@ fn children_document_spans_sit_inside_the_braces() {
 #[test]
 fn diagnostic_spans_are_byte_offsets() {
     // Arrange
-    // The three-byte euro sign sits before the offending token, so a byte
+    // The three-byte euro sign appears before the offending token, so a byte
     // offset for the `=` is 16 where a char count would say 14. The
     // diagnostic span field's own documentation says chars while the parser
     // emits bytes, and pinning the exact offset makes a kdl upgrade that

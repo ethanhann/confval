@@ -18,7 +18,7 @@
 use crate::format::field::{Scalar, ValueKind};
 use saphyr_parser::{ScalarStyle, Tag};
 
-/// The label every tag the frontend refuses carries.
+/// The label every tag the frontend refuses has.
 pub(super) const TAGGED: &str = "tagged value";
 
 /// What the core schema resolves a plain scalar's text to.
@@ -81,7 +81,7 @@ fn boolean(text: &str) -> Option<Core> {
 /// `[-+]? [0-9]+` in decimal, `0o [0-7]+` in octal, and `0x [0-9a-fA-F]+` in
 /// hexadecimal.
 ///
-/// The two base prefixes carry no sign and are lowercase, so `-0x10` and `0X1F`
+/// The two base prefixes have no sign and are lowercase, so `-0x10` and `0X1F`
 /// are strings. A decimal beyond `i64` is [`Core::OversizedInt`], and so is a
 /// based literal beyond it.
 fn integer(text: &str) -> Option<Core> {
@@ -115,7 +115,7 @@ fn based(digits: &str, radix: u32, allowed: impl Fn(char) -> bool) -> Option<Cor
 /// `[-+]? ( \. [0-9]+ | [0-9]+ ( \. [0-9]* )? ) ( [eE] [-+]? [0-9]+ )?`, plus
 /// `[-+]? ( \.inf | \.Inf | \.INF )` and `\.nan | \.NaN | \.NAN`.
 ///
-/// The infinity pattern carries an optional sign and the not-a-number pattern
+/// The infinity pattern has an optional sign and the not-a-number pattern
 /// does not, so `-.nan` is a string. Each has exactly three case variants, so
 /// `.iNf` is a string too. A decimal whose `f64` value overflows, such as
 /// `1e999`, is [`Core::OversizedFloat`].
@@ -317,7 +317,7 @@ mod tests {
     #[test]
     fn a_signed_or_uppercase_base_prefix_is_a_string() {
         // Arrange
-        // The core patterns carry no sign on a based literal and write the
+        // The core patterns have no sign on a based literal and write the
         // prefix lowercase, so each of these near-misses is text.
         let forms = ["-0x10", "+0x10", "0X1F", "0O17", "0x", "0o", "0xzz"];
 
@@ -443,7 +443,7 @@ mod tests {
     #[test]
     fn a_signed_or_miscased_not_a_number_is_a_string() {
         // Arrange
-        // The core pattern carries no sign and lists three case variants, so
+        // The core pattern has no sign and lists three case variants, so
         // each of these is text.
         let forms = [
             "-.nan", "+.nan", ".Nan", ".nAn", "nan", "NaN", ".iNf", "inf",

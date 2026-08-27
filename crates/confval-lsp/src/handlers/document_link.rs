@@ -1,6 +1,6 @@
 //! The document-link handler provides clickable file paths in the editor.
 //!
-//! A `Located<PathBuf>` field in a spec parses as a string and carries
+//! A `Located<PathBuf>` field in a spec parses as a string and has
 //! `ScalarType::Path` in the schema. This handler walks the parsed field tree
 //! alongside the schema, finds every path-typed value, resolves it to an
 //! absolute URI, and returns a `DocumentLink` the editor renders as a
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn a_path_inside_a_repeated_block_produces_a_link_per_instance() {
         // Arrange
-        // JSON carries a repeated block as an array of maps, so each element is
+        // JSON holds a repeated block as an array of maps, so each element is
         // a separate body the handler must enter.
         let text = "{ \"server\": [ { \"cert\": \"/a/one.pem\" }, { \"cert\": \"/b/two.pem\" } ] }";
         let fields = parse_json(text).unwrap();

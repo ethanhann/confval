@@ -553,7 +553,7 @@ fn a_grouped_duplicate_scalar_key_trades_its_duplicate_report_for_a_mismatch() {
 #[test]
 fn a_template_emits_the_same_text_as_the_populated_model() {
     // Arrange
-    // JSON has no comment syntax, so a template carries nothing the populated
+    // JSON has no comment syntax, so a template has nothing the populated
     // model does not.
     let spec = spec_of(r#"{"hostname": "127.0.0.1", "port": 8080, "daemon": false}"#);
 

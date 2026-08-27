@@ -1,7 +1,7 @@
 //! The document-symbol handler: the outline of the parsed document.
 //!
 //! The tree pairs each parsed field with its schema entry, so a block instance
-//! is a container symbol carrying its label as the detail, and a leaf field is
+//! is a container symbol keeping its label as the detail, and a leaf field is
 //! a leaf symbol. The hierarchical form answers a client that declares support
 //! for it, and the flat form answers the rest. A buffer that does not parse
 //! answers empty, because the outline reads spans only a parse provides.
@@ -297,7 +297,7 @@ fn encode(
     }
 }
 
-/// Flattens the tree into the non-hierarchical form, with each symbol carrying
+/// Flattens the tree into the non-hierarchical form, with each symbol keeping
 /// its container's name.
 fn flatten(
     symbols: Vec<RawSymbol>,

@@ -10,12 +10,12 @@
 //! only for a non-finite float. Emitting a populated spec to KDL or YAML never
 //! fails either, because each has a literal for every value populate produces
 //! and quotes any key. The remaining failures arise when you
-//! emit a `Fields` a frontend parsed or built by hand, which can carry a name
+//! emit a `Fields` a frontend parsed or built by hand, which can have a name
 //! or a value the target format cannot write, or use one name in conflicting
 //! ways at one level, such as a value next to a same-named block in TOML, JSON,
 //! or YAML, or two same-named values in HCL or TOML.
 //!
-//! A layered tree can carry [`Scalar::Unparsed`](super::Scalar) text from an
+//! A layered tree can hold [`Scalar::Unparsed`](super::Scalar) text from an
 //! environment variable or a flag. That text emits as a string literal, since
 //! its type was never decided, so a typed reparse of the emitted file reads
 //! those leaves as strings.
@@ -28,7 +28,7 @@ use std::fmt::{self, Display, Formatter};
 
 /// Why a `Fields` could not be emitted to a format.
 ///
-/// Each variant carries `path`, the dotted field path to the problem, so an error in a large tree names its location. For a name problem
+/// Each variant has `path`, the dotted field path to the problem, so an error in a large tree names its location. For a name problem
 /// the path is the enclosing level, empty at the document root. For a value
 /// problem it is the offending field itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,7 +86,7 @@ fn location(path: &str) -> String {
 
 /// The dotted path of a field under `path`, which is empty at the root.
 /// The refusal for a native label on a level a format cannot write, or `None`
-/// when the level carries no label. The JSON, TOML, and YAML writers call this
+/// when the level has no label. The JSON, TOML, and YAML writers call this
 /// where they refuse a conflicting name.
 #[cfg(any(feature = "toml", feature = "json", feature = "yaml"))]
 pub(crate) fn refuse_label(fields: &Fields, path: &str) -> Option<EmitError> {
@@ -122,7 +122,7 @@ pub(crate) fn child_path(path: &str, name: &str) -> String {
 ///
 /// This yields entries rather than fields, because an emitter renders the
 /// commented ones too and places each in the region its active twin would
-/// occupy.
+/// be in.
 /// Writes one level of indentation for each nesting depth.
 #[cfg(any(feature = "json", feature = "yaml"))]
 pub(crate) fn indent(out: &mut String, level: usize) {
@@ -226,7 +226,7 @@ pub(crate) fn value_beside_block(fields: &Fields) -> Option<&str> {
 }
 
 /// Any name repeated at a level with unique keys, an HCL object or a
-/// TOML inline table, where no syntax carries a repetition.
+/// TOML inline table, where no syntax has a repetition.
 #[cfg(any(feature = "toml", feature = "hcl"))]
 pub(crate) fn repeated_name(fields: &Fields) -> Option<&str> {
     first_conflicting_name(fields, |group| group.len() > 1)
@@ -273,7 +273,7 @@ impl std::error::Error for EmitError {}
 /// so a doc from any source is safe to emit into any of them.
 ///
 /// A `///` comment is already clean, but a `#[confval(doc = "...")]` override or
-/// a hand-built `with_doc` can carry any character. Each line-break variant
+/// a hand-built `with_doc` can contain any character. Each line-break variant
 /// becomes its own line, so a stray carriage return reads as the break it stands
 /// for. A control character other than tab is dropped, because HCL ends a comment
 /// at a bare carriage return, TOML rejects a non-printable one, and KDL bans

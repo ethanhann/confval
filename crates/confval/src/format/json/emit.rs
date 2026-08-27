@@ -522,7 +522,7 @@ mod tests {
     #[test]
     fn emit_json_rejects_a_native_label_it_cannot_write() {
         // Arrange
-        // A parsed HCL or KDL block carries its label on the inner level, and
+        // A parsed HCL or KDL block keeps its label on the inner level, and
         // JSON has no label syntax and no field name to write it with.
         let inner = Fields::detached(vec![scalar("host", Scalar::String("h".to_string()))])
             .with_label(crate::source::Located::detached("api".to_string()));
@@ -716,7 +716,7 @@ mod tests {
     #[test]
     fn emit_json_writes_an_unparsed_scalar_as_a_string() {
         // Arrange
-        // A layered tree carries unparsed text from an environment variable or
+        // A layered tree holds unparsed text from an environment variable or
         // a flag, whose type was never decided.
         let fields = Fields::detached(vec![scalar("port", Scalar::Unparsed("8080".to_string()))]);
 

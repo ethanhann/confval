@@ -17,7 +17,7 @@
 //! values, which a list field reads.
 //!
 //! The frontend accepts no jsonc-parser extension, so the text it reads and the
-//! text it writes carry nothing a strict JSON parser rejects.
+//! text it writes have nothing a strict JSON parser rejects.
 //!
 //! Behavior contract:
 //!
@@ -36,7 +36,7 @@
 //!   such as `1e-999`, underflows to `0.0` the way float parsing does.
 //! - Values outside the neutral model (`null`, an integer beyond `i64`, a
 //!   number whose `f64` value is not finite) become [`ValueKind::Other`]
-//!   carrying a diagnostic label, so they surface as ordinary type mismatches
+//!   with a diagnostic label, so they surface as ordinary type mismatches
 //!   at the field that used them.
 //! - Duplicate keys stay separate fields. The generated walk resolves them by
 //!   the spec's declared shape. A list field accumulates the occurrences in
@@ -637,7 +637,7 @@ mod tests {
     #[test]
     fn spans_past_multibyte_text_are_byte_offsets() {
         // Arrange
-        // The three-byte euro sign sits ahead of the second member, so a char
+        // The three-byte euro sign appears ahead of the second member, so a char
         // count would place its span two bytes early.
         let input = r#"{"cost": "€", "port": 8080}"#;
 

@@ -12,7 +12,7 @@ use crate::source::Span;
 
 /// The labels the `block` field defines within one scope instance.
 ///
-/// Each label carries its span, in document order. The list keeps every
+/// Each label keeps its span, in document order. The list keeps every
 /// instance, including a duplicate and an empty label, and the function emits
 /// no diagnostics. The pipeline and the language server share it, so the editor
 /// collects labels the way the reference check does.

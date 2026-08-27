@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn a_brace_inside_a_line_comment_does_not_change_the_block_path() {
         // Arrange
-        // The `}` sits inside a `//` line comment, so the brace scan must skip the
+        // The `}` is inside a `//` line comment, so the brace scan must skip the
         // comment and leave the `server` block open at `port`. If the comment is
         // not skipped, the `}` pops `server` and the path becomes empty.
         let text = "server {\n  // close } here\n  port = \n}\n";

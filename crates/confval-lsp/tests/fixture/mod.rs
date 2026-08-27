@@ -198,7 +198,7 @@ impl Validate for AdminSpec {
 /// A Gateway-shaped fixture for the label and reference tests.
 ///
 /// It is kept separate from `ServerSpec`, so its label and reference fields do
-/// not churn the other handler tests, and its types carry distinct names so they
+/// not churn the other handler tests, and its types have distinct names so they
 /// do not collide with the `RuleSpec` above. The `upstream` block is labeled and
 /// repeated, and a route references an upstream by its label.
 #[derive(confval::Spec)]

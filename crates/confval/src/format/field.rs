@@ -32,7 +32,7 @@ pub enum Scalar {
     Float(f64),
     /// A boolean value.
     Bool(bool),
-    /// A raw string from a source that carries only strings, such as an
+    /// A raw string from a source that has only strings, such as an
     /// environment variable or a command line flag, before it is parsed to a
     /// type. The leaf parsers coerce it to the type they expect, so the field's
     /// declared type decides rather than a guess from the text. No file
@@ -41,10 +41,10 @@ pub enum Scalar {
     Unparsed(String),
 }
 
-/// The data behind a field, with the span it occupied in source.
+/// The data behind a field, with the span it had in source.
 #[derive(Debug, Clone)]
 pub struct Value {
-    /// The byte range the value occupied in its source.
+    /// The byte range the value had in its source.
     pub span: Span,
     /// What the value is.
     pub kind: ValueKind,
@@ -144,7 +144,7 @@ impl From<Field> for Entry {
 /// Whether a field was written as an attribute (`name = value`) or as a block
 /// (`name { ... }` in HCL, `[name]` / `[[name]]` in TOML).
 ///
-/// Both carry a nested structure when they name one. A block holds its
+/// Both have a nested structure when they name one. A block holds its
 /// [`Fields`] directly. An attribute holds a [`Value`] that may be a
 /// [`Map`](ValueKind::Map). The distinction is kept only so diagnostics can say
 /// "found block" rather than "found object", matching how the operator wrote
@@ -178,7 +178,7 @@ impl Value {
         }
     }
 
-    /// A value carrying its source span. Used by the source-view walk
+    /// A value with its source span. Used by the source-view walk
     /// `#[derive(Spec)]` generates, which preserves each value's location.
     pub fn spanned(span: Span, kind: ValueKind) -> Self {
         Self { span, kind }
@@ -193,7 +193,7 @@ impl Field {
     /// name alone, where an unknown-field error points, and `span` covers the
     /// name and the value together.
     ///
-    /// The doc comment belongs to the write path, so a parsed field carries
+    /// The doc comment belongs to the write path, so a parsed field has
     /// none. Parsing drops a source file's comments.
     pub fn parsed(
         name: impl Into<String>,
@@ -212,7 +212,7 @@ impl Field {
         }
     }
 
-    /// An attribute field with no source location, carrying a populated value.
+    /// An attribute field with no source location, holding a populated value.
     /// The name, name span, and field span are all the detached sentinel.
     pub fn detached_value(name: &str, value: Value) -> Self {
         Self {
@@ -225,7 +225,7 @@ impl Field {
         }
     }
 
-    /// A block field with no source location, carrying a populated nested level.
+    /// A block field with no source location, holding a populated nested level.
     /// The name span and field span are the detached sentinel.
     pub fn detached_block(name: &str, fields: Fields) -> Self {
         Self {
@@ -281,7 +281,7 @@ impl Fields {
         )
     }
 
-    /// A level built from entries, so a template can carry commented ones.
+    /// A level built from entries, so a template can hold commented ones.
     pub fn from_entries(source: SourceId, enclosing: Span, items: Vec<Entry>) -> Self {
         Self {
             source,
@@ -320,9 +320,9 @@ impl Fields {
         self
     }
 
-    /// The native block label this body carries, or `None`.
+    /// The native block label this body has, or `None`.
     ///
-    /// HCL and KDL set it from the block's syntax. The other formats carry the
+    /// HCL and KDL set it from the block's syntax. The other formats keep the
     /// label as an ordinary child field and leave this `None`. The derive reads
     /// this before the child field.
     pub fn label(&self) -> Option<&Located<String>> {
@@ -415,7 +415,7 @@ pub trait ToFields {
 
     /// The source-view field model. It holds only the fields the source set,
     /// with defaults omitted. A field is included when its `Located` span is
-    /// attached, and a filled default, which carries the detached sentinel, is
+    /// attached, and a filled default, which keeps the detached sentinel, is
     /// omitted. Each included value keeps its real source span, so a
     /// location-aware consumer can find where it was written. The name span and
     /// the `Fields` container's own source and enclosing span stay detached,
@@ -437,7 +437,7 @@ pub trait ToFields {
 
     /// The doc comment on the spec type itself, or `None`. A parent's template
     /// walk renders it above a block embedding this spec when the embedding
-    /// field carries no doc of its own, so a spec documented once at its
+    /// field has no doc of its own, so a spec documented once at its
     /// definition annotates every such site. Defaults to `None`, so a
     /// handwritten impl opts in rather than breaks.
     fn spec_doc(&self) -> Option<String> {
@@ -544,7 +544,7 @@ mod tests {
     #[test]
     fn the_spec_doc_defaults_answer_none_for_a_handwritten_impl() {
         // Arrange
-        // `#[derive(Spec)]` overrides both methods whenever the struct carries
+        // `#[derive(Spec)]` overrides both methods whenever the struct has
         // a doc comment, so the defaults are reached only by a handwritten
         // impl. One that declares no documentation must not acquire any, or a
         // parent's template walk would render a comment nobody wrote.

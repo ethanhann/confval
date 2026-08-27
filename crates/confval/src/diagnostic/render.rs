@@ -113,7 +113,7 @@ impl Report {
 }
 
 /// Renders one issue as an `annotate-snippets` group: a severity title, one
-/// snippet per source carrying the primary and the related annotations, and the
+/// snippet per source with the primary and the related annotations, and the
 /// help text. A related span renders whether or not the issue has a primary
 /// span, so a spanless issue still shows its related snippets under its title.
 #[cfg(feature = "color")]
@@ -491,8 +491,8 @@ mod tests {
         let rendered = pretty(&sources, &report);
 
         // Assert
-        // The primary snippet in b.hcl carries the heavy underline, and the
-        // related snippet in a.hcl carries the light underline with its label.
+        // The primary snippet in b.hcl has the heavy underline, and the
+        // related snippet in a.hcl has the light underline with its label.
         assert_eq!(
             rendered,
             "error: duplicate bind address\n  ╭▸ b.hcl:1:8\n  │\n1 │ bind = \"127.0.0.1:80\"\n  │        ━━━━━━━━━━━━━━\n  │\n  ⸬  a.hcl:1:8\n  │\n1 │ bind = \"127.0.0.1:80\"\n  ╰╴       ────────────── first declared here\n"

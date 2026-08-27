@@ -19,7 +19,7 @@
 //! - Syntax errors are pushed to the report with the parser's location and
 //!   parsing returns `None`.
 //! - Values outside the neutral model (HCL templates, null) become
-//!   [`ValueKind::Other`] carrying a diagnostic label, so they surface as
+//!   [`ValueKind::Other`] with a diagnostic label, so they surface as
 //!   ordinary type mismatches at the field that used them.
 //! - Non-identifier, non-string object keys are reported and skipped.
 
@@ -204,7 +204,7 @@ fn value_of_expr(expr: &Expression, text: &str, source: SourceId, report: &mut R
 /// own text decides the kind instead. A literal with a dot or an exponent is
 /// re-read as a float, and every other literal is re-read as an integer, so a
 /// value `i64` cannot hold reports as an oversized integer, matching the
-/// JSON, KDL, and YAML frontends. A negation may carry whitespace between the
+/// JSON, KDL, and YAML frontends. A negation may have whitespace between the
 /// sign and the digits, which the standard parsers do not accept, so the
 /// literal is compacted first.
 fn scalar_of_number(number: &hcl_edit::Number, span: Span, text: &str) -> ValueKind {

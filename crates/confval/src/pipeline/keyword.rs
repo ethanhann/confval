@@ -154,7 +154,7 @@ const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
 /// - `TryFrom<&str>`, accepting exactly the keywords,
 /// - `Display`, printing through `as_str`,
 /// - `serde::Serialize` writing the keyword string, when confval's `serde`
-///   feature is enabled, so a serialized config carries `"log"` exactly as the
+///   feature is enabled, so a serialized config has `"log"` exactly as the
 ///   config file does.
 ///
 /// The macro does not run the check. On a derived spec, record the set on the
@@ -168,7 +168,7 @@ const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
 ///
 /// Attributes before the visibility apply to the enum, and attributes before a
 /// variant apply to that variant, so you can document both and use the macro in
-/// a crate that denies `missing_docs`. The generated items carry their own
+/// a crate that denies `missing_docs`. The generated items have their own
 /// docs.
 ///
 /// ```rust

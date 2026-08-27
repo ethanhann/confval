@@ -39,7 +39,7 @@ pub fn diagnostics(
     let mut report = Report::new();
     // The reference pass runs whenever a tree parsed, even when the validate
     // pass fails on an unrelated structural error, because a reference still
-    // checks against the labels the text carries.
+    // checks against the labels the text contains.
     if let Some(fields) = fields {
         validator.run(fields, &mut report);
         check_references(fields, schema, &mut report);

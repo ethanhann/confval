@@ -28,7 +28,7 @@ pub enum PositionEncoding {
 
 /// Byte-offset to LSP-position conversion for one document's text.
 ///
-/// `confval` carries a per-source line index for rendering, but that index is
+/// `confval` keeps a per-source line index for rendering, but that index is
 /// internal and counts characters. The language server owns this one, because it
 /// converts to and from a negotiated encoding rather than only for display.
 #[derive(Debug)]

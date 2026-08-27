@@ -10,7 +10,7 @@
 use crate::format::emit::indent;
 use crate::format::field::Scalar;
 
-/// Writes a rendered element body with its first content line carrying the `- `
+/// Writes a rendered element body with its first content line holding the `- `
 /// marker, so a mapping element opens on the marker's line.
 ///
 /// A doc comment above that first entry keeps its own indentation and renders

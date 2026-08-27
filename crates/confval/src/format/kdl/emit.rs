@@ -2,7 +2,7 @@
 //!
 //! This is the inverse of [`parse_kdl_fields`](super::parse_kdl_fields). It
 //! builds a kdl-rs document by structure, sets each node's decor by hand, and
-//! renders the doc comments an annotated template carries.
+//! renders the doc comments an annotated template has.
 
 use super::text::{is_plain_name, quoted, scalar_entry};
 use crate::format::EmitError;
@@ -76,7 +76,7 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
             .filter(|other| other.name == field.name && matches!(other.kind, FieldKind::Value(_)))
             .collect();
         // Only one comment can render above the grouped node, so the group
-        // takes the first doc any member carries.
+        // takes the first doc any member has.
         let doc = group.iter().find_map(|member| member.doc.as_deref());
         if group.len() == 1 {
             emit_value_field(&mut nodes, field, doc, level, &indent, &child)?;
@@ -101,7 +101,7 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
             &field.name,
             kdl_block_prefix(field.doc.as_deref(), &indent, !nodes.is_empty()),
         );
-        // A block that carries a native label, read from an HCL or KDL source,
+        // A block that has a native label, read from an HCL or KDL source,
         // renders it as the node's first argument, so a round trip keeps
         // `upstream "api" { ... }`.
         if let Some(label) = inner.label() {
@@ -120,7 +120,7 @@ fn emit_document(fields: &Fields, level: usize, path: &str) -> Result<KdlDocumen
 }
 
 /// Appends the slashdash to each node's leading decor, after its doc comment
-/// and indent, so `/-` sits directly before the name. Uncommenting is
+/// and indent, so `/-` appears directly before the name. Uncommenting is
 /// deleting those two characters.
 fn slashdash(nodes: &mut [KdlNode]) {
     for node in nodes {
@@ -229,7 +229,7 @@ fn classify_sequence<'a>(elements: &'a [Value], path: &str) -> Result<Sequence<'
 }
 
 /// Appends one grouped member's arguments to the shared node. A grouped
-/// repetition writes only scalars, because its one node carries arguments and
+/// repetition writes only scalars, because its one node has arguments and
 /// an argument must be a scalar.
 fn push_grouped_arguments(node: &mut KdlNode, value: &Value, path: &str) -> Result<(), EmitError> {
     match &value.kind {
@@ -698,7 +698,7 @@ mod tests {
         let doc_at = text.find("// A service entry.").expect("the doc renders");
         let first_node = text.find("svc {").expect("the first node renders");
         assert!(doc_at < first_node, "the doc precedes the first element");
-        // The element's own fields sit one level in, and the nested block's
+        // The element's own fields are one level in, and the nested block's
         // contents two, which is what the child document's level decides.
         assert!(text.contains("\n  port 1"), "got:\n{text}");
         assert!(text.contains("\n  retry {"), "got:\n{text}");
@@ -922,7 +922,7 @@ mod tests {
     fn emit_kdl_escapes_a_banned_code_point_in_a_node_name() {
         // Arrange
         // KDL bans the bidi controls from its text entirely, so a name
-        // carrying one must write it as an escape to reparse.
+        // with one must write it as an escape to reparse.
         let fields = Fields::detached(vec![scalar("k\u{202e}ey", Scalar::Int(1))]);
 
         // Act
@@ -991,7 +991,7 @@ mod tests {
 
         // Assert
         // The blank line goes above the block's comment, and the nested
-        // comment carries its field's indentation.
+        // comment keeps its field's indentation.
         assert_eq!(
             text,
             "// The port.\nport 1\n\n// Request limits.\nlimits {\n  // Max body size.\n  max_body_mb 16\n}\n"
@@ -1003,7 +1003,7 @@ mod tests {
     fn emit_kdl_renders_a_doc_comment_once_per_repeated_block() {
         // Arrange
         // The template walk attaches the doc to every element of a nested
-        // list, so each repeated node carries its own comment.
+        // list, so each repeated node keeps its own comment.
         let block = |port: i64| {
             Field::detached_block(
                 "service",

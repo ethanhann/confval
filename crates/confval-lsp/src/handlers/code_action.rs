@@ -1,6 +1,6 @@
 //! The code-action handler: the reset-to-default quick fix.
 //!
-//! A diagnostic contained in the value span of a scalar field that carries a
+//! A diagnostic contained in the value span of a scalar field that has a
 //! rendered default gets one quick fix: set the field to its default. The
 //! default comes from the schema, so the fix resolves a constraint violation
 //! and a type mismatch alike. The diagnostics come from the request's context,

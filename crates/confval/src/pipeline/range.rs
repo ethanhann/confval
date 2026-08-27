@@ -40,7 +40,7 @@ where
         }
     }
 
-    /// Checks a located value, pushing a span-carrying issue to the report
+    /// Checks a located value, pushing an issue with a span to the report
     /// if it is out of range. The error names the field and the bound it
     /// violated. The help line restates that bound, using the configured
     /// `units` and `help` text when present.

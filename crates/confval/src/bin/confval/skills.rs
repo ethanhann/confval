@@ -79,7 +79,7 @@ pub(crate) fn render(file: &SkillFile) -> String {
 }
 
 /// The `description` value from a flat frontmatter block, or `None` when the
-/// block is absent, unterminated, or carries no `description` key.
+/// block is absent, unterminated, or has no `description` key.
 ///
 /// The reader handles the flat `key: value` form and nothing else. Shipped
 /// descriptions are unquoted and contain no colon followed by a space, so no
@@ -247,7 +247,7 @@ mod tests {
 
     /// Whether `name` occurs in `text` as a whole token, not as a run of
     /// characters inside a larger identifier. `Config` must not match inside
-    /// `ServerConfig`. A name ending in `!`, such as `keyword_enum!`, carries
+    /// `ServerConfig`. A name ending in `!`, such as `keyword_enum!`, has
     /// its own trailing boundary.
     fn contains_token(text: &str, name: &str) -> bool {
         let is_ident = |c: char| c.is_alphanumeric() || c == '_';
@@ -306,7 +306,7 @@ mod tests {
     }
 
     // Guard: body links resolve. Every `references/…` link in a `SKILL.md` body
-    // names a file the catalog carries for that same skill.
+    // names a file the catalog has for that same skill.
     #[test]
     fn body_reference_links_resolve_in_the_catalog() {
         for skill in SKILLS {
@@ -391,7 +391,7 @@ mod tests {
         }
     }
 
-    // Guard: a rendered file carries no placeholder.
+    // Guard: a rendered file has no placeholder.
     #[test]
     fn a_rendered_file_carries_no_placeholder() {
         for skill in SKILLS {

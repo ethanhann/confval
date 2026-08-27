@@ -18,7 +18,7 @@ use syn::Ident;
 /// field has no doc.
 ///
 /// A struct with no fields declares the item vector without `mut`, so the
-/// generated impl carries no unused-mut warning under `-D warnings`.
+/// generated impl has no unused-mut warning under `-D warnings`.
 pub(crate) fn to_fields_impl(
     name: &Ident,
     fields_emits: &[TokenStream2],

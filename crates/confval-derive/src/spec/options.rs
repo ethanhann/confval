@@ -98,7 +98,7 @@ pub(crate) struct FieldOptions {
     /// The path a `#[confval(keywords = PATH)]` names, or `None`. It records the
     /// association from a `String` leaf or a string list to a `keyword_enum!`
     /// type, whose `KEYWORDS` const the schema walk reads. Which shapes may
-    /// carry it is not checked here. It is checked in `spec/recorded.rs`, where
+    /// take it is not checked here. It is checked in `spec/recorded.rs`, where
     /// the classified shape is available.
     pub(crate) keywords: Option<Path>,
     /// The path a `#[confval(range = PATH)]` names, or `None`. It records the
@@ -112,12 +112,12 @@ pub(crate) struct FieldOptions {
     pub(crate) length: Option<Path>,
     /// The path a `#[confval(format = PATH)]` names, or `None`. It names a
     /// type that implements `Format`, which the derive calls through a
-    /// turbofish rather than a value. Which shape may carry it is checked in
+    /// turbofish rather than a value. Which shape may take it is checked in
     /// `spec/recorded.rs`.
     pub(crate) format: Option<Path>,
     /// `Some` if the field was marked `#[confval(label)]`, i.e. its value is the
-    /// enclosing block's label. HCL and KDL carry the label in the block syntax,
-    /// and the other formats carry it as this field. The `String` leaf pairing is
+    /// enclosing block's label. HCL and KDL keep the label in the block syntax,
+    /// and the other formats keep it as this field. The `String` leaf pairing is
     /// checked in `spec/recorded.rs`.
     pub(crate) label: Option<syn::Path>,
     /// The block field name a `#[confval(references = <block>)]` names, or `None`.

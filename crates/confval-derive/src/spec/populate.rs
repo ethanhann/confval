@@ -28,7 +28,7 @@ use syn::ext::IdentExt;
 /// or nothing when the field has no value to show.
 ///
 /// A required field always pushes. An optional field pushes only when it is
-/// present, except an optional nested block carrying the populate marker
+/// present, except an optional nested block holding the populate marker
 /// `#[confval(nested, default)]`, which fills an absent block from the inner
 /// type's `Default`.
 pub(crate) fn field_emit(
@@ -41,7 +41,7 @@ pub(crate) fn field_emit(
     // the `r#` before it becomes the emitted key name.
     let name = ident.unraw().to_string();
     // The template walk recurses with `to_template`, so a nested block's own
-    // children carry their comments too. The plain walk recurses with
+    // children keep their comments too. The plain walk recurses with
     // `to_fields`.
     let recurse = if annotate {
         quote! { to_template }

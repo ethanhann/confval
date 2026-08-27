@@ -37,7 +37,7 @@
 //!   literal, or folded scalar is a string whatever its text.
 //! - Values outside the neutral model (`null`, an integer beyond `i64`, a float
 //!   that overflows `f64`, an alias, a tag the frontend refuses) become
-//!   [`ValueKind::Other`] carrying a diagnostic label, so they surface as
+//!   [`ValueKind::Other`] with a diagnostic label, so they surface as
 //!   ordinary type mismatches at the field that used them.
 //! - A non-scalar key has no field name the model can hold. It reports
 //!   `expected a scalar key` and the entry is skipped, so one exotic key does
@@ -59,7 +59,7 @@ pub use emit::emit_yaml;
 
 /// The message a root that cannot hold named fields reports.
 const ROOT_MUST_BE_A_MAPPING: &str = "expected a mapping at the document root";
-/// The message a stream carrying more than one document reports.
+/// The message a stream with more than one document reports.
 const ONE_DOCUMENT: &str = "expected a single document";
 /// The message a key the model has no name for reports.
 const SCALAR_KEY: &str = "expected a scalar key";
@@ -110,8 +110,8 @@ pub fn parse_yaml<T: FromFields>(
 
 /// The byte offset of each character in the source.
 ///
-/// saphyr-parser's `Marker` carries a character index, and a confval [`Span`]
-/// carries a byte offset, so every marker converts through this table. An
+/// saphyr-parser's `Marker` has a character index, and a confval [`Span`]
+/// has a byte offset, so every marker converts through this table. An
 /// all-ASCII source needs none, because the two indices agree there, which is
 /// the common case for a configuration file.
 struct Offsets {
@@ -181,7 +181,7 @@ impl<'input> Reader<'input, '_> {
             }
             // Unreachable for a well-formed stream, which always closes with
             // `StreamEnd`. Reported rather than silent, so a `None` return
-            // always carries an issue.
+            // always has an issue.
             None => {
                 self.report
                     .error("syntax error: unexpected end of input")
@@ -345,7 +345,7 @@ impl<'input> Reader<'input, '_> {
         None
     }
 
-    /// Consumes a collection carrying a tag the frontend refuses, so parsing
+    /// Consumes a collection with a tag the frontend refuses, so parsing
     /// continues past it, and yields the label its field will report. The
     /// opening event has already been taken, so the depth starts at one.
     fn refuse(&mut self, span: YamlSpan) -> Option<Value> {
@@ -730,7 +730,7 @@ mod tests {
     #[test]
     fn a_scalar_key_reads_as_its_text_whatever_it_resolves_to() {
         // Arrange
-        // A name is text, not a typed value, so the schema never touches a key.
+        // A name is text, not a typed value, so the schema never checks a key.
         let input = "8080: \"a\"\ntrue: \"b\"\nnull: \"c\"\n";
 
         // Act
@@ -936,8 +936,8 @@ mod tests {
             );
             let span = report.issues()[0].span.unwrap();
             // The root node opens the document, and its span stays sliceable.
-            // A block sequence carries a zero-width opening marker, so only its
-            // start is meaningful, where a scalar carries its whole extent.
+            // A block sequence has a zero-width opening marker, so only its
+            // start is meaningful, where a scalar keeps its whole extent.
             assert_eq!(span.start, 0, "input: {input:?}");
             assert!(
                 input.get(span.start as usize..span.end as usize).is_some(),

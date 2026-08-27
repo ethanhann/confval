@@ -2,7 +2,7 @@
 //! has one, and the nested spec's struct-level doc otherwise.
 //!
 //! Both sprocket fields below embed the same `SprocketSpec`. The primary field
-//! carries a doc comment, so the template renders that comment above its
+//! has a doc comment, so the template renders that comment above its
 //! block. The secondary field has none, so its block falls back to the struct
 //! doc on `SprocketSpec`. The undocumented `max_weight` leaf renders with no
 //! comment at all.

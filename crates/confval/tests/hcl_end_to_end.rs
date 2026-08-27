@@ -595,7 +595,7 @@ fn syntax_error_reports_location_and_stops() {
 #[test]
 fn syntax_error_at_multibyte_char_renders_without_panicking() {
     // Arrange
-    // `€` is the unexpected token at byte offset 7 and occupies bytes 7..10,
+    // `€` is the unexpected token at byte offset 7 and is in bytes 7..10,
     // so parse_hcl's `offset..offset+1` error span ends at byte 8, inside the
     // character. Rendering must snap to a char boundary rather than panic on
     // the string slice. Exercises every render path because line_column (used

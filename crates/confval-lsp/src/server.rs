@@ -351,7 +351,7 @@ fn parse_with(
 /// Sends the routing outcome for an opened document: the matched binding at
 /// LOG level, or the unmatched document at WARNING, once per open. The
 /// message names the decoded file path when the URI yields one, and the URI
-/// otherwise, and the matched line carries the winning matcher so an operator
+/// otherwise, and the matched line records the winning matcher so an operator
 /// reads which rule fired without counting declarations.
 fn log_routing(
     connection: &Connection,

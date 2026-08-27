@@ -31,7 +31,7 @@ use labels::{field_string, labeled_child, scope_label_refs};
 /// walk also reports a duplicate label and an empty label within each scope
 /// instance. The pass reads only `fields` and `schema`.
 ///
-/// The pass checks file-source string values. A value carried as
+/// The pass checks file-source string values. A value held as
 /// [`Scalar::Unparsed`](crate::format::field::Scalar::Unparsed), from env-var or flag layering, is skipped, so a layered
 /// reference is not checked here.
 ///
@@ -99,7 +99,7 @@ impl<'a> DefinedLabels<'a> {
 /// One reference occurrence the scope walk visits: the target it names, its
 /// parsed value and span, and the declaring scope the outward search found.
 pub struct ReferenceSite<'a> {
-    /// The target block name the constraint carries.
+    /// The target block name the constraint has.
     pub block: &'static str,
     /// The reference's parsed string value.
     pub value: String,
@@ -269,7 +269,7 @@ fn declared_in_tree(schema: &Schema, block: &str) -> bool {
 ///
 /// The outward search stops at the nearest scope for which this holds. A field
 /// of the same name that is not a labeled block does not stop the search, so a
-/// reference field may carry its target's name.
+/// reference field may have its target's name.
 pub fn declares_labeled_block(schema: &Schema, block: &str) -> bool {
     schema.fields.iter().any(|field| {
         field.name == block

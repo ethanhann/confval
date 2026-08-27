@@ -94,7 +94,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     // Two buckets feed the separate `ValidateNested` impl below. `visits` holds
     // one descent per nested field, for `validate_nested`.
     let mut visits = Vec::new();
-    // `recorded_checks` holds one constraint check per field that carries a
+    // `recorded_checks` holds one constraint check per field that has a
     // `range` or `keywords` attribute, for `validate_recorded`.
     let mut recorded_checks = Vec::new();
     // `#[confval(derive_default)]` fills this with one fragment per field, used
@@ -155,7 +155,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         constructors.extend(parsed.constructors);
     }
 
-    // A block that designates no label field must not carry a native label, so a
+    // A block that designates no label field must not have a native label, so a
     // label a source wrote is reported. A struct with a label field consumes the
     // label in that field's reader instead.
     if !has_label {

@@ -84,7 +84,7 @@ fn is_banned_in_text(character: char) -> bool {
 }
 
 /// A float's literal: the shortest round-trip text for a finite value, which
-/// always carries a decimal point or an exponent, and the KDL 2.0 keyword for
+/// always has a decimal point or an exponent, and the KDL 2.0 keyword for
 /// a non-finite one.
 fn float_repr(float: f64) -> String {
     if float == f64::INFINITY {

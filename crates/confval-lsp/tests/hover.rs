@@ -635,7 +635,7 @@ fn yaml_hover_on_a_list_between_other_keys_renders_its_body() {
 #[test]
 fn yaml_hover_on_a_list_element_names_the_list() {
     // Arrange
-    // A YAML element sits on its own line, away from the key, so hovering it is
+    // A YAML element appears on its own line, away from the key, so hovering it is
     // the only way an operator reads the list from that line.
     let text = "modes:\n  - \"enforce\"\n  - \"shout\"\n";
 

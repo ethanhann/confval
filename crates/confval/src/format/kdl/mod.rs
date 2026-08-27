@@ -24,13 +24,13 @@
 //! - Syntax errors are pushed to the report one per kdl-rs diagnostic, each at
 //!   its own span, and parsing returns `None`.
 //! - Values outside the neutral model (`#null`, an integer beyond `i64`)
-//!   become [`ValueKind::Other`] carrying a diagnostic label, so they surface
+//!   become [`ValueKind::Other`] with a diagnostic label, so they surface
 //!   as ordinary type mismatches at the field that used them.
 //! - A block node's first string argument is its native label, the
 //!   `upstream "api" { ... }` idiom, read into the body. A non-string label and
 //!   any argument past the first are reported, because a block takes at most one
 //!   string label. The derive reports a label a spec does not designate.
-//! - Type annotations such as `(u8)123` carry no information the model can
+//! - Type annotations such as `(u8)123` have no information the model can
 //!   hold and are read through.
 
 use crate::diagnostic::Report;
@@ -93,7 +93,7 @@ pub fn parse_kdl<T: FromFields>(
 }
 
 /// Converts a kdl-rs offset and length to a confval [`Span`]. A zero-length
-/// span, which a diagnostic can carry, widens to one byte so it stays visible
+/// span, which a diagnostic can have, widens to one byte so it stays visible
 /// when rendered.
 fn span_from(offset: usize, len: usize, source: SourceId) -> Span {
     let start = offset as u32;
@@ -202,7 +202,7 @@ fn block_label(
     label
 }
 
-/// The value of a node that carries only arguments. A bare node is an empty
+/// The value of a node that has only arguments. A bare node is an empty
 /// sequence, one argument is its scalar, and more are a sequence. The sequence
 /// spans the node, and a single scalar spans its entry.
 fn value_of_arguments(arguments: &[&KdlEntry], node_span: Span, source: SourceId) -> Value {
@@ -226,7 +226,7 @@ fn value_of_arguments(arguments: &[&KdlEntry], node_span: Span, source: SourceId
 
 /// Maps a property entry to a leaf field. The name span is the property name's
 /// identifier and the field span is the whole entry, name and value together,
-/// which is what the other frontends report. The value inside it carries the
+/// which is what the other frontends report. The value inside it keeps the
 /// narrower span [`value_span_of`] computes.
 fn field_of_property(entry: &KdlEntry, source: SourceId) -> Option<Field> {
     let name: &KdlIdentifier = entry.name()?;
@@ -246,12 +246,12 @@ fn field_of_property(entry: &KdlEntry, source: SourceId) -> Option<Field> {
 /// covers `cert="a.pem"` while a diagnostic should underline `"a.pem"`. The
 /// value's own text is the tail of that span, so its length locates the start.
 /// This holds through whitespace around the `=`, a quoted key, an `=` inside
-/// the value, and a type annotation, because each of those sits ahead of the
+/// the value, and a type annotation, because each of those appears ahead of the
 /// value text.
 ///
 /// An argument entry has no name, so its span is already the value alone and
 /// the arithmetic returns it unchanged. An entry built rather than parsed
-/// carries no format to measure, so it keeps the whole span.
+/// has no format to measure, so it keeps the whole span.
 fn value_span_of(entry: &KdlEntry, source: SourceId) -> Span {
     let span = span_of!(entry, source);
     let Some(format) = entry.format() else {

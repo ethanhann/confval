@@ -1,6 +1,6 @@
 //! Integration tests for the `confval` binary. Each test spawns the built
 //! binary with a temporary working directory and `HOME` pointed into a
-//! temporary directory, so no test touches the real home directory or the
+//! temporary directory, so no test modifies the real home directory or the
 //! repository it runs in.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]

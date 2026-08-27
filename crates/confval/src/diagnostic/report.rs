@@ -20,7 +20,7 @@ pub struct Issue {
 
 /// Accumulates issues across parse, validation, and lowering.
 ///
-/// The report is source-free. Spans carry their [`SourceId`](crate::source::SourceId),
+/// The report is source-free. Spans keep their [`SourceId`](crate::source::SourceId),
 /// so reports from different files merge trivially and the
 /// [`SourceMap`](crate::source::SourceMap) is only needed at render time.
 #[derive(Debug, Default)]

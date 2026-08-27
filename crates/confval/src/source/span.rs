@@ -1,6 +1,6 @@
 /// Identifies a source registered in a [`SourceMap`](crate::source::SourceMap).
 ///
-/// Spans carry a `SourceId` so a single report can reference locations in
+/// Spans keep a `SourceId` so a single report can reference locations in
 /// many files, and a single issue can relate spans across files.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SourceId(pub(crate) u32);

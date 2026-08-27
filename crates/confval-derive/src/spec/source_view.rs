@@ -4,7 +4,7 @@
 //! Where the populate walk fills every default and detaches every span, this
 //! walk emits only the fields the source set and keeps their spans. One rule
 //! decides every shape. A value is emitted when its `Located` span is attached.
-//! A filled default carries the detached sentinel and is omitted. Each
+//! A filled default keeps the detached sentinel and is omitted. Each
 //! emitted field is built detached and then located with `Field::at`, so a
 //! location-aware consumer keeps the source positions. The name span and the
 //! level container stay detached, because a spec supplies neither. A bare
@@ -60,7 +60,7 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
                 }
             }
         }
-        // A bare list holds no wrapper span, so its elements carry the only
+        // A bare list holds no wrapper span, so its elements keep the only
         // locations it has. An element whose span is detached was never written
         // by a source, so it is dropped, and a list with nothing left is
         // omitted. The field and the sequence container are detached, because
@@ -108,7 +108,7 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
             }
         }
         // A required or defaulted `Located<S>` block. A source-written block has
-        // an attached span, and a default fill carries the detached sentinel, so
+        // an attached span, and a default fill keeps the detached sentinel, so
         // the same span check decides both. The contents filter recursively, so
         // a block the source wrote with every inner field defaulted emits empty.
         FieldShape::Nested {
@@ -138,7 +138,7 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
                 }
             }
         }
-        // Each element of a nested list carries its own span. An empty list is
+        // Each element of a nested list keeps its own span. An empty list is
         // omitted, and a hand-built element with a detached span is skipped.
         FieldShape::NestedList { .. } => {
             quote! {
@@ -152,7 +152,7 @@ pub(crate) fn field_source_emit(ident: &Ident, shape: &FieldShape) -> TokenStrea
                 }
             }
         }
-        // A map holds no wrapper span, so its entries carry the only locations
+        // A map holds no wrapper span, so its entries keep the only locations
         // it has. An entry whose value span is detached was never written by a
         // source and is dropped, and a map with nothing left is omitted. A
         // source-written empty map is therefore indistinguishable from an

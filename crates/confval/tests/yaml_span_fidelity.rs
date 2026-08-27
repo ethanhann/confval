@@ -1,5 +1,5 @@
 //! Guards the span fidelity the `confval::format::yaml` adapter depends on. The
-//! adapter needs saphyr-parser to carry a position on every event, to count
+//! adapter needs saphyr-parser to have a position on every event, to count
 //! those positions in characters, and to decode a scalar's text before handing
 //! it over. If a saphyr-parser upgrade changes the event API, the offset unit,
 //! or the decoding, error attribution breaks with it.
@@ -137,7 +137,7 @@ fn a_valueless_key_yields_a_zero_width_null() {
 #[test]
 fn scalar_text_arrives_decoded() {
     // Arrange
-    // The span covers the raw text and the value carries the decoded one, so
+    // The span covers the raw text and the value keeps the decoded one, so
     // the frontend can hold both without doing the decoding itself.
     let text = "greeting: \"a\\nb\\u00e9\"\n";
 

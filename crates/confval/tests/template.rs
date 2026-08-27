@@ -71,7 +71,7 @@ fn sample() -> ServerSpec {
 #[test]
 fn a_doc_attribute_wins_over_a_rustdoc_on_the_same_field() {
     // Arrange
-    // `port` carries both forms, so this pins the precedence at
+    // `port` has both forms, so this pins the precedence at
     // `options.rs`, where the attribute is consulted before the harvested
     // rustdoc.
     let spec = sample();
@@ -127,7 +127,7 @@ fn hcl_template_indents_a_nested_comment_and_repeats_a_block_comment() {
     let text = emit_hcl(&spec.to_template()).expect("emit hcl");
 
     // Assert
-    // The nested comment carries the field's one-level indentation.
+    // The nested comment keeps the field's one-level indentation.
     assert!(text.contains("  # Max body size in MB."), "got:\n{text}");
     // HCL annotates every repeated block.
     assert_eq!(
@@ -238,7 +238,7 @@ fn machine() -> MachineSpec {
 #[test]
 fn a_struct_doc_annotates_a_block_whose_field_has_no_doc() {
     // Arrange
-    // `widget` carries no doc of its own, so the block's comment falls back to
+    // `widget` has no doc of its own, so the block's comment falls back to
     // the `///` on `WidgetSpec` itself.
     let spec = machine();
 
@@ -418,7 +418,7 @@ fn the_template_walk_emits_commented_fields_for_every_hidden_shape() {
             "pid_file", "extra", "allow", "ratio", "verbose", "log_path", "tls", "svc"
         ]
     );
-    // Each carries its doc. The empty nested list falls back to the repeated
+    // Each keeps its doc. The empty nested list falls back to the repeated
     // type's own doc.
     let by_name = |name: &str| {
         fields

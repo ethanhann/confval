@@ -13,9 +13,9 @@ use super::shape::{FieldShape, Leaf};
 /// Rejects the misuses of `#[confval(label)]`.
 ///
 /// A block's label is one required string, so the field must be a non-optional
-/// `String` leaf and cannot carry a default. A list, a map, a block, or a
+/// `String` leaf and cannot have a default. A list, a map, a block, or a
 /// non-string scalar cannot be a label. An optional leaf names nothing when the
-/// block carries no label. A default would build a value the reference pass then
+/// block has no label. A default would build a value the reference pass then
 /// reports as undefined.
 pub(crate) fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Result<()> {
     let Some(label) = &options.label else {

@@ -2,7 +2,7 @@
 //!
 //! `#[derive(Config)]` lowers a field whose spec and config types share a name
 //! and inner type through `LowerAuto`, which unwraps the `Located` layers
-//! without a converter. Four of the five impls carry a container: an optional
+//! without a converter. Four of the five impls have a container: an optional
 //! scalar, a bare list, a wrapped list, and an optional wrapped list.
 //!
 //! Asserting only that lowering succeeded would pass for an impl that dropped

@@ -71,7 +71,7 @@ struct RawItem {
     /// Marks the item the client should preselect: the field's default among
     /// its values. Withheld at encode time when the client lacks the support.
     preselect: bool,
-    /// Whether `new_text` carries snippet markers a producer wrote. A value
+    /// Whether `new_text` contains snippet markers a producer wrote. A value
     /// item's text is a literal and never sets it, so user text holding `$` or
     /// `{` is neither expanded by a snippet client nor stripped for a plain
     /// one.

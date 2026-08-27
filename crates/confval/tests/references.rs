@@ -731,7 +731,7 @@ impl Validate for MeshSpec {
 }
 
 /// Parses HCL text and runs the reference pass against the nested mesh schema,
-/// whose labeled blocks sit below the root.
+/// whose labeled blocks appear below the root.
 fn mesh_report(text: &str) -> Report {
     let mut sources = SourceMap::new();
     let id = sources.add("mesh", text);
@@ -750,7 +750,7 @@ const MESH_SIBLINGS: &str = "services {\n  name = \"a\"\n  upstreams \"u1\" {\n 
 #[test]
 fn a_sibling_scoped_reference_resolves_within_its_own_service() {
     // Arrange
-    // Each route names the upstream of its own service. The target block sits
+    // Each route names the upstream of its own service. The target block appears
     // below the root, so a root-level-only model cannot resolve it.
     let text = MESH_SIBLINGS;
 
