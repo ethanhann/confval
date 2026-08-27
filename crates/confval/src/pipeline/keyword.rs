@@ -88,8 +88,8 @@ impl<'a> KeywordSet<'a> {
     /// the derive knows the field name and not the name of one element.
     ///
     /// The value is not quoted here, unlike the `format` and `unique` list
-    /// messages. A keyword value is one of a closed set of barewords, so it is
-    /// never empty and has no whitespace, and a quote would add nothing.
+    /// messages. A keyword value is one of a closed set of barewords. It is
+    /// never empty and never contains whitespace. A quote would add nothing.
     pub fn check_each_in(&self, values: &[Located<String>], field: &str, report: &mut Report) {
         for value in values {
             self.report_unknown(
@@ -366,7 +366,7 @@ mod tests {
 
         // Assert
         // The plural field name reads correctly because the message names the
-        // field it sits in rather than one element of it.
+        // field it is in rather than one element of it.
         assert_eq!(report.issues().len(), 1);
         assert_eq!(
             report.issues()[0].message,

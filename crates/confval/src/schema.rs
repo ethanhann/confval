@@ -80,13 +80,13 @@ pub struct SchemaField {
     /// renders it per leaf: a string as its text, an integer and a boolean
     /// through their display forms, a float in the form the emitters write
     /// (a whole number keeps its `.0`), and a path through its lossy string
-    /// form. A defaulted list, map, or block carries `None`, because there is
+    /// form. A defaulted list, map, or block has `None`, because there is
     /// no single value to render. The reader pairs the text with the field's
     /// leaf type to know what it holds.
     ///
     /// The evaluation runs wherever `schema()` runs, including inside a
     /// long-running language server. A default expression must not panic and
-    /// must not carry side effects.
+    /// must not have side effects.
     pub default_text: Option<String>,
     /// The field's declared type.
     pub ty: SchemaType,
@@ -100,9 +100,9 @@ pub struct SchemaField {
     /// derive reports an empty bare `Vec<Located<String>>` without a span,
     /// because that shape holds none of its own.
     ///
-    /// This is a flag, and `unique` below is another, because neither has data
+    /// `non_empty` is a flag. `unique` below is another flag. Neither has data
     /// of its own. A rule with data of its own, such as a range or a length, is
-    /// in the [`Constraint`] slot on [`SchemaType`] instead.
+    /// recorded in the [`Constraint`] slot on [`SchemaType`] instead.
     pub non_empty: bool,
     /// Whether the list rejects a repeated element, marked `#[confval(unique)]`.
     /// The comparison is the exact string, and each repeat is reported at its
@@ -217,7 +217,7 @@ pub enum Constraint {
     /// variant.
     Keywords(&'static [&'static str]),
     /// An inclusive numeric range, with its bounds rendered to text for a
-    /// text-facing hover or diagnostic line. `help` carries the constraint's
+    /// text-facing hover or diagnostic line. `help` is the constraint's
     /// custom help line for the hover, or `None`.
     #[non_exhaustive]
     Range {
@@ -232,7 +232,7 @@ pub enum Constraint {
     },
     /// An inclusive bound on the character count of a string. The bounds stay
     /// numeric, unlike `Range`, because a character count has one type.
-    /// `help` carries the constraint's custom help line for the hover, or
+    /// `help` is the constraint's custom help line for the hover, or
     /// `None`.
     #[non_exhaustive]
     Length {
@@ -244,7 +244,7 @@ pub enum Constraint {
         help: Option<&'static str>,
     },
     /// The value parses as a named format, such as an IP address. `check` is
-    /// the format type's own function, carried so a quick fix can test a
+    /// the format type's own function, kept so a quick fix can test a
     /// value without the type.
     #[non_exhaustive]
     Format {

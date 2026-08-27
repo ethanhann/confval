@@ -65,9 +65,10 @@ impl LengthConstraint {
 
 /// Define a named length constraint as a const.
 ///
-/// A bound with `max:` alone starts at zero. It then pairs with
-/// `#[confval(non_empty)]`, and the two constraints report different
-/// conditions. A `min:` above `max:` is a compile error.
+/// A bound with `max:` alone starts at zero. Such a bound pairs with
+/// `#[confval(non_empty)]`. The length bound rejects a value that is too short.
+/// `non_empty` rejects a value that is empty or whitespace-only. A `min:` above
+/// `max:` is a compile error.
 ///
 /// ```rust
 /// use confval::length_constraint;
