@@ -12,6 +12,7 @@ use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, Diagnostic, TextEdit, Uri, WorkspaceEdit,
 };
 
+use confval::LengthConstraint;
 use confval::schema::{Constraint, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
@@ -133,8 +134,12 @@ fn default_satisfies(constraint: &Option<Constraint>, text: &str) -> bool {
             }
         }
         Some(Constraint::Length { min, max, .. }) => {
-            let count = text.chars().count();
-            *min <= count && count <= *max
+            LengthConstraint {
+                min: *min,
+                max: *max,
+                help: None,
+            }
+            .admits(text)
         }
         Some(Constraint::Format { check, .. }) => check.call(text),
         _ => true,
