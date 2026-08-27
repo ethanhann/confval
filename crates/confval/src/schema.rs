@@ -99,6 +99,10 @@ pub struct SchemaField {
     /// A string list rejects both an empty list and an empty element. The
     /// derive reports an empty bare `Vec<Located<String>>` without a span,
     /// because that shape holds none of its own.
+    ///
+    /// This is a flag, and `unique` below is another, because neither has data
+    /// of its own. A rule with data of its own, such as a range or a length, is
+    /// in the [`Constraint`] slot on [`SchemaType`] instead.
     pub non_empty: bool,
     /// Whether the list rejects a repeated element, marked `#[confval(unique)]`.
     /// The comparison is the exact string, and each repeat is reported at its
@@ -121,10 +125,11 @@ pub enum SchemaType {
     /// A list of strings, with the constraint each element declares, if any.
     ///
     /// The constraint describes one element rather than the list, so a closed
-    /// set means every entry must be one of those words. Only
-    /// [`Keywords`](Constraint::Keywords) is meaningful here, because the derive
-    /// records nothing else on a list. A rule about the list itself, such as
-    /// `unique`, is a flag on [`SchemaField`] rather than a constraint here.
+    /// set means every entry must be one of those words.
+    /// [`Keywords`](Constraint::Keywords) and [`Format`](Constraint::Format) are
+    /// both valid here, because the derive records either one on a string list. A
+    /// rule about the list itself, such as `unique`, is a flag on [`SchemaField`]
+    /// rather than a constraint here.
     #[non_exhaustive]
     StringList {
         /// The mechanical constraint each element records, or `None`.
