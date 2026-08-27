@@ -917,3 +917,57 @@ fn a_reference_out_of_scope_names_scoping_rather_than_the_target() {
     let span = issue.span.expect("the error carries a span");
     assert_eq!(&text[span.start as usize..span.end as usize], "\"a\"");
 }
+
+#[derive(confval::Spec)]
+struct AlphaBlockSpec {
+    #[confval(label)]
+    alpha_name: Located<String>,
+    value: Located<i64>,
+}
+
+#[derive(confval::Spec)]
+struct BetaBlockSpec {
+    #[confval(label)]
+    beta_name: Located<String>,
+    value: Located<i64>,
+}
+
+#[derive(confval::Spec)]
+struct TwoBlockSpec {
+    #[confval(nested)]
+    alpha: Vec<Located<AlphaBlockSpec>>,
+    #[confval(nested)]
+    beta: Vec<Located<BetaBlockSpec>>,
+}
+
+impl Validate for AlphaBlockSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for BetaBlockSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+impl Validate for TwoBlockSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn scope_labels_reads_the_named_blocks_own_label_field() {
+    // Arrange
+    // alpha is declared before beta, and each block designates a different label
+    // field. Reading beta's labels must use beta_name, not alpha's field.
+    let text = "[[beta]]\nbeta_name = \"b1\"\nvalue = 1\n";
+    let mut sources = SourceMap::new();
+    let id = sources.add("two-block", text);
+    let mut report = Report::new();
+    let fields = toml::parse_toml_fields(&sources, id, &mut report).expect("the source parses");
+    let schema = TwoBlockSpec::schema();
+
+    // Act
+    let labels = scope_labels(&fields, &schema, "beta");
+
+    // Assert
+    assert_eq!(labels.len(), 1, "beta defines one label");
+    assert_eq!(labels[0].value.as_str(), "b1");
+}
