@@ -84,17 +84,20 @@ where
 /// Define a named range constraint as a const.
 ///
 /// ```rust
-/// use confval::{RangeConstraint, range_constraint};
+/// use confval::range_constraint;
 ///
 /// range_constraint!(THREADS, usize, min: 1, max: 1024);
 /// range_constraint!(PORT, u16, min: 1, max: 65535);
 /// range_constraint!(INTERVAL, u64, min: 1, max: 3600, units: "seconds");
 /// range_constraint!(WORKERS, usize, min: 1, max: 128, help: "Match this to your CPU core count.");
+///
+/// // The macro also answers to its full path, and needs no `RangeConstraint` import.
+/// confval::range_constraint!(LIMITS, u32, min: 1, max: 10);
 /// ```
 #[macro_export]
 macro_rules! range_constraint {
     ($name:ident, $T:ty, min: $min:expr, max: $max:expr, help: $help:literal) => {
-        const $name: RangeConstraint<$T> = $crate::RangeConstraint {
+        const $name: $crate::RangeConstraint<$T> = $crate::RangeConstraint {
             min: $min,
             max: $max,
             units: None,
@@ -102,7 +105,7 @@ macro_rules! range_constraint {
         };
     };
     ($name:ident, $T:ty, min: $min:expr, max: $max:expr, units: $units:literal, help: $help:literal) => {
-        const $name: RangeConstraint<$T> = $crate::RangeConstraint {
+        const $name: $crate::RangeConstraint<$T> = $crate::RangeConstraint {
             min: $min,
             max: $max,
             units: Some($units),
@@ -110,10 +113,10 @@ macro_rules! range_constraint {
         };
     };
     ($name:ident, $T:ty, min: $min:expr, max: $max:expr $(, units: $units:literal)?) => {
-        const $name: RangeConstraint<$T> = $crate::RangeConstraint {
+        const $name: $crate::RangeConstraint<$T> = $crate::RangeConstraint {
             min: $min,
             max: $max,
-            units: range_constraint!(@units $($units)?),
+            units: $crate::range_constraint!(@units $($units)?),
             help: None,
         };
     };
