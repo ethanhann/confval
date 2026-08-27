@@ -457,6 +457,27 @@ pub trait ToFields {
     }
 }
 
+/// The block bodies of one parsed field. A brace block is one body, a map value
+/// is one body, and an array of maps is one body per element, so a repeated
+/// block reads the same in every format. The reference pass and the language
+/// server's document links both read a block's bodies through this.
+pub fn block_bodies(field: &Field) -> Vec<&Fields> {
+    match &field.kind {
+        FieldKind::Block(body) => vec![body],
+        FieldKind::Value(value) => match &value.kind {
+            ValueKind::Map(body) => vec![body],
+            ValueKind::Seq(elements) => elements
+                .iter()
+                .filter_map(|element| match &element.kind {
+                    ValueKind::Map(body) => Some(body),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

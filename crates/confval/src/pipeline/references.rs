@@ -19,9 +19,10 @@ use crate::format::field::Fields;
 use crate::schema::{Constraint, Schema, SchemaType};
 use crate::source::Span;
 
+use crate::format::block_bodies;
 #[cfg(feature = "__internal-navigation")]
 pub use labels::scope_labels;
-use labels::{field_string, instance_bodies, labeled_child, scope_label_refs};
+use labels::{field_string, labeled_child, scope_label_refs};
 
 /// Checks every reference field against the labels its scope can see.
 ///
@@ -191,7 +192,7 @@ fn walk_scope<'a>(
                 }
             }
             SchemaType::Block { schema: inner, .. } => {
-                for instance in instance_bodies(field) {
+                for instance in block_bodies(field) {
                     walk_scope(instance, inner, chain, on_event);
                 }
             }
