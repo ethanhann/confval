@@ -22,7 +22,7 @@ impl NonEmptyConstraint {
             report
                 .error(format!("{field} must not be empty"))
                 .at(value.span)
-                .help(format!("Provide a non-empty value for {field}."))
+                .help(format!("Provide a non-empty value for {field}"))
                 .emit();
         }
     }
@@ -48,7 +48,7 @@ impl NonEmptyConstraint {
             report
                 .error(format!("{field} must not be empty"))
                 .at(span)
-                .help(format!("Provide at least one item in {field}."))
+                .help(format!("Provide at least one item in {field}"))
                 .emit();
         }
     }
