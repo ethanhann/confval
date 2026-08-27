@@ -234,4 +234,34 @@ mod tests {
         // Assert
         assert!(contained, "a diagnostic inside the value span is contained");
     }
+
+    #[test]
+    fn a_default_at_or_above_the_length_minimum_satisfies_the_constraint() {
+        // Arrange
+        let constraint = Some(Constraint::length(3, 10, None));
+
+        // Act
+        let satisfied = default_satisfies(&constraint, "abcd");
+
+        // Assert
+        assert!(
+            satisfied,
+            "a four-character default sits inside the 3 to 10 length range"
+        );
+    }
+
+    #[test]
+    fn a_default_below_the_length_minimum_fails_the_constraint() {
+        // Arrange
+        let constraint = Some(Constraint::length(3, 10, None));
+
+        // Act
+        let satisfied = default_satisfies(&constraint, "ab");
+
+        // Assert
+        assert!(
+            !satisfied,
+            "a two-character default is under the length minimum of 3"
+        );
+    }
 }
