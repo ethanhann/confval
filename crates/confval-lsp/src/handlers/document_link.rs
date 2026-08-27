@@ -180,6 +180,13 @@ mod tests {
         confval::format::hcl::parse_hcl_fields(&sources, id, &mut report)
     }
 
+    fn parse_json(text: &str) -> Option<Fields> {
+        let mut sources = confval::source::SourceMap::new();
+        let mut report = Report::new();
+        let id = sources.add("test.json", text);
+        confval::format::json::parse_json_fields(&sources, id, &mut report)
+    }
+
     fn doc_uri(path: &str) -> Uri {
         Uri::from_str(&format!("file://{path}")).unwrap()
     }
@@ -238,6 +245,26 @@ mod tests {
 
         // Assert
         assert!(links.is_empty());
+    }
+
+    #[test]
+    fn a_path_inside_a_map_valued_block_produces_a_link() {
+        // Arrange
+        // JSON parses a nested block as a map value, so the link appears only
+        // when the handler enters a map-valued block.
+        let text = "{ \"tls\": { \"cert\": \"/etc/tls/cert.pem\" } }";
+        let fields = parse_json(text).unwrap();
+        let schema = NestedPathFixture::schema();
+        let uri = doc_uri("/home/user/server.json");
+        let index = LineIndex::new(text);
+
+        // Act
+        let links = document_links(&schema, &fields, &uri, text, &index, ENCODING);
+
+        // Assert
+        assert_eq!(links.len(), 1, "the cert path inside the map block links");
+        let target = links[0].target.as_ref().unwrap().as_str();
+        assert!(target.ends_with("/etc/tls/cert.pem"), "got: {target}");
     }
 
     #[test]
