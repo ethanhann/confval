@@ -133,14 +133,12 @@ fn default_satisfies(constraint: &Option<Constraint>, text: &str) -> bool {
                 _ => false,
             }
         }
-        Some(Constraint::Length { min, max, .. }) => {
-            LengthConstraint {
-                min: *min,
-                max: *max,
-                help: None,
-            }
-            .admits(text)
+        Some(Constraint::Length { min, max, .. }) => LengthConstraint {
+            min: *min,
+            max: *max,
+            help: None,
         }
+        .admits(text),
         Some(Constraint::Format { check, .. }) => check.call(text),
         _ => true,
     }

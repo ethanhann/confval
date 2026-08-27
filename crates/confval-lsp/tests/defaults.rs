@@ -11,7 +11,6 @@ use lsp_types::{
 };
 
 use confval::format::{FieldKind, Scalar, ValueKind};
-use confval::pipeline::range::RangeConstraint;
 use confval::prelude::{Located, Report, Validate};
 use confval::schema::ToSchema;
 use confval::{length_constraint, range_constraint};

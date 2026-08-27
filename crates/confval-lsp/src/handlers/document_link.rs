@@ -11,7 +11,7 @@ use std::str::FromStr;
 
 use lsp_types::{DocumentLink, Uri};
 
-use confval::format::{Field, FieldKind, Fields, Scalar, ValueKind};
+use confval::format::{Field, FieldKind, Fields, Scalar, ValueKind, block_bodies};
 use confval::schema::{ScalarType, Schema, SchemaType};
 
 use crate::binding::file_path;
@@ -144,26 +144,6 @@ fn encode_uri_path(path: &str) -> String {
 fn document_dir(uri: &Uri) -> Option<std::path::PathBuf> {
     let path = file_path(uri)?;
     path.parent().map(|d| d.to_path_buf())
-}
-
-/// The block bodies of one parsed field. A brace block is one body, a map value
-/// is one body, and an array of maps is one body per element, so a repeated
-/// block in JSON, TOML, or YAML links the same as a brace block in HCL.
-fn block_bodies(field: &Field) -> Vec<&Fields> {
-    match &field.kind {
-        FieldKind::Block(inner) => vec![inner],
-        FieldKind::Value(value) => match &value.kind {
-            ValueKind::Map(inner) => vec![inner],
-            ValueKind::Seq(elements) => elements
-                .iter()
-                .filter_map(|element| match &element.kind {
-                    ValueKind::Map(inner) => Some(inner),
-                    _ => None,
-                })
-                .collect(),
-            _ => Vec::new(),
-        },
-    }
 }
 
 #[cfg(test)]
@@ -313,8 +293,7 @@ mod tests {
         // Arrange
         // JSON carries a repeated block as an array of maps, so each element is
         // a separate body the handler must enter.
-        let text =
-            "{ \"server\": [ { \"cert\": \"/a/one.pem\" }, { \"cert\": \"/b/two.pem\" } ] }";
+        let text = "{ \"server\": [ { \"cert\": \"/a/one.pem\" }, { \"cert\": \"/b/two.pem\" } ] }";
         let fields = parse_json(text).unwrap();
         let schema = RepeatedPathFixture::schema();
         let uri = doc_uri("/home/user/server.json");
@@ -326,12 +305,22 @@ mod tests {
         // Assert
         assert_eq!(links.len(), 2, "each repeated block's cert links");
         assert!(
-            links[0].target.as_ref().unwrap().as_str().ends_with("/a/one.pem"),
+            links[0]
+                .target
+                .as_ref()
+                .unwrap()
+                .as_str()
+                .ends_with("/a/one.pem"),
             "got: {:?}",
             links[0].target
         );
         assert!(
-            links[1].target.as_ref().unwrap().as_str().ends_with("/b/two.pem"),
+            links[1]
+                .target
+                .as_ref()
+                .unwrap()
+                .as_str()
+                .ends_with("/b/two.pem"),
             "got: {:?}",
             links[1].target
         );
@@ -352,7 +341,10 @@ mod tests {
         // Assert
         assert_eq!(links.len(), 1, "a space in the path does not drop the link");
         let target = links[0].target.as_ref().unwrap().as_str();
-        assert!(target.contains("%20"), "the space is percent-encoded: {target}");
+        assert!(
+            target.contains("%20"),
+            "the space is percent-encoded: {target}"
+        );
     }
 
     #[test]
