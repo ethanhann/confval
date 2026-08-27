@@ -57,7 +57,7 @@ Hover on a reference value names the block it points to and states whether the v
 
 ## Quick fixes
 
-A value that has a default carries a quick fix.
+A value that has a default gets a quick fix.
 The fix sets the field to its default.
 For example, an out-of-range `workers = 9999` becomes `workers = 4` in one step.
 
@@ -72,7 +72,7 @@ A relative path resolves against the directory of the open document, so `certs/s
 Navigation follows references and labels.
 Go-to-definition jumps from a reference value to the label it names.
 Find-references lists every reference to a label, whether you start from the label or from one of its references.
-The editor's outline and breadcrumbs show the block tree, with each block carrying its label.
+The editor's outline and breadcrumbs show the block tree, and each block appears with its label.
 
 ## Formats
 

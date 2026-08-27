@@ -10,11 +10,10 @@ Validation checks what the values mean: ranges, allowed keywords, and rules that
 Two mechanisms cover the checks:
 
 - A **recorded constraint** on a field, such as `#[confval(range = PORT)]` or `#[confval(keywords = LimitMode)]`, declares a mechanical check the derive automatically runs for you.
-- A **`Validate` impl** is block-scoped. It holds the rules an attribute cannot express, such as a cross-field rule or an emptiness check. 
+- A **`Validate` impl** is block-scoped. It holds the rules an attribute cannot express, such as a cross-field rule or an emptiness check.
 
 You call `validate_all` once on the root spec.
 It runs the recorded constraints, then each type's `Validate` rules, then descends into every nested block.
-It checks constraints and validation rules as the entire configuration tree is traversed.
 
 ```rust
 spec.validate_all(&mut report);
@@ -22,8 +21,15 @@ spec.validate_all(&mut report);
 
 ## Declaring constraints
 
-confval ships six domain-agnostic checks.
-`RangeConstraint` bounds a number, `LengthConstraint` bounds the character count of a string, `check_format` parses a string as a named format, `KeywordSet` checks a closed string set, `NON_EMPTY` rejects an empty value, and `UNIQUE` rejects a repeated list entry.
+confval ships six domain-agnostic checks:
+
+- `RangeConstraint` bounds a number.
+- `LengthConstraint` bounds the character count of a string.
+- `check_format` parses a string as a named format.
+- `KeywordSet` checks a closed string set.
+- `NON_EMPTY` rejects an empty value.
+- `UNIQUE` rejects a repeated list entry.
+
 Each one reports at the value's span with a help line.
 
 ### RangeConstraint
@@ -109,7 +115,7 @@ The message is `hostname is not a valid IP address: "localhost"`.
 The help line is "Set hostname to a valid IP address".
 On a list the message is `invalid CIDR block in allow: "10.0.0.0/33"`, which names the list rather than one element.
 The value is quoted, so an empty entry reads as `""`.
-`check` takes no `self`, so a format carries no configuration.
+`check` takes no `self`, so a format holds no configuration.
 A format that needs a parameter, such as a maximum URL length, is a later extension.
 
 ### KeywordSet
@@ -241,7 +247,7 @@ Each repeat is reported at its own span, with a related label at the first occur
 On an `Option<Located<String>>` leaf, the derive checks the value only when the source sets it.
 On a list, it also rejects a list with zero elements.
 The wrapped `Option<Located<Vec<Located<String>>>>` keeps the list's own span, so that message points at the brackets.
-The bare `Vec<Located<String>>` holds no span of its own, so that message carries no location.
+The bare `Vec<Located<String>>` holds no span of its own, so that message has no location.
 `validate_all` runs each recorded check.
 The field needs no line in `validate`.
 
@@ -273,12 +279,12 @@ Each attribute is the single source for its field.
 It records the constraint for the [schema IR](./schema-ir.md) and runs the check.
 The two cannot disagree.
 
-A field carries at most one value constraint.
+A field has at most one value constraint.
 `keywords`, `range`, `length`, `format`, and `references` are the value constraints.
 Two of them on one field is a compile error.
 `non_empty` and `unique` are flags rather than value constraints.
 `unique` combines with `keywords`, `format`, `non_empty`, and `default`, because the default list is empty and so unique.
-A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(length = ...)]`.
+A field can have `#[confval(non_empty)]` and one value constraint, such as `#[confval(length = ...)]`.
 Pair `non_empty` with a length bound that uses `max:` alone.
 `non_empty` rejects a whitespace-only value, which no length bound can express.
 The two constraints then report different conditions.
@@ -289,10 +295,10 @@ When `non_empty` matters on a list, prefer the optional-wrapped shape `Option<Lo
 
 `length` and `format` combine with `default`.
 When the default itself fails the check, the message names the spec's default rather than the configuration.
-Each built-in format rejects the empty string, so a field that carries a built-in `format` and `non_empty` reports an empty value twice.
+Each built-in format rejects the empty string, so a field that has a built-in `format` and `non_empty` reports an empty value twice.
 Record `format` alone on such a field.
 The pair still compiles, because a consumer format may accept the empty string.
-A field cannot carry `#[confval(non_empty)]` and `#[confval(default)]` together.
+A field cannot have `#[confval(non_empty)]` and `#[confval(default)]` together.
 The default for a string is the empty string.
 The default for a list is the empty list.
 Either default would fail the check.
