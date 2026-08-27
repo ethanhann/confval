@@ -5,7 +5,7 @@
 //! runs the parse backward. The source sets only `hostname` and `port`, so
 //! `to_fields` fills every default the source omitted, the `workers` and `tls`
 //! leaves and the whole `limits` block from `LimitsSpec::default()`. Every value
-//! it produces carries a detached span, because the data comes from the spec
+//! it produces keeps a detached span, because the data comes from the spec
 //! rather than the file.
 //!
 //! `limits` is an optional block, so parsing leaves it `None` and a spec dump

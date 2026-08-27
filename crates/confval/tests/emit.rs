@@ -5,7 +5,7 @@
 //! is by value. The first two tests populate a spec and cover scalars, a filled
 //! optional block, a nested list that groups into an array of tables, and a
 //! string list. Later tests add deep nesting and an emit-alone round trip that
-//! carries a parsed `Map`, a shape populate never produces. The per-shape and
+//! takes a parsed `Map`, a shape populate never produces. The per-shape and
 //! error-path assertions are in the frontend modules' unit tests.
 
 use confval::format::hcl::{emit_hcl, parse_hcl};
@@ -53,7 +53,7 @@ impl Validate for ServerSpec {
 }
 
 /// A source spec whose `limits` is absent, so populate fills it, and which
-/// carries a two-element string list and two nested-list blocks.
+/// has a two-element string list and two nested-list blocks.
 fn sample() -> ServerSpec {
     ServerSpec {
         hostname: Located::detached("127.0.0.1".to_string()),
@@ -298,7 +298,7 @@ fn toml_emit_alone_preserves_a_parsed_map() {
 
 // A spec whose config keys collide with Rust keywords, so the fields must be
 // written as raw identifiers. The config key is `type`, not the `r#type` form
-// the raw identifier carries.
+// the raw identifier has.
 #[derive(confval::Spec, PartialEq, Debug)]
 struct RawIdents {
     r#type: Located<String>,

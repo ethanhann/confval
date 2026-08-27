@@ -30,7 +30,7 @@ pub(crate) fn combine(base: Fields, incoming: Fields, verb: Verb, report: &mut R
     let enclosing = base.enclosing();
     // The base names the instance, so its native label survives the merge the
     // way its source and enclosing span do. An overlay's label fills in only
-    // when the base level carries none.
+    // when the base level has none.
     let label = base.label().cloned().or_else(|| incoming.label().cloned());
     let mut incoming_groups = grouped(incoming);
     let mut items: Vec<Field> = Vec::new();

@@ -84,7 +84,7 @@ impl Source {
     }
 }
 
-/// Interns sources and hands out the [`SourceId`]s that spans carry.
+/// Interns sources and hands out the [`SourceId`]s that spans keep.
 #[derive(Debug, Default)]
 pub struct SourceMap {
     sources: Vec<Source>,
@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn line_column_on_non_char_boundary_does_not_panic() {
-        // "é" occupies bytes 4..6. Byte offset 5 is inside it, the kind of
+        // "é" is in bytes 4..6. Byte offset 5 is inside it, the kind of
         // offset an HCL syntax-error span (offset..offset+1) can produce.
         let source = Source::new("test.hcl", "x = é\n");
         assert!(!source.text.is_char_boundary(5));

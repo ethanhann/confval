@@ -514,7 +514,7 @@ fn an_array_of_tables_lowers_as_a_repeated_block() {
     assert_eq!(fleet.service.len(), 2);
     assert_eq!(fleet.service[0].value.name.value, "api");
     assert_eq!(fleet.service[1].value.name.value, "worker");
-    // Each element carries the span of its own `[[service]]` header.
+    // Each element keeps the span of its own `[[service]]` header.
     let first = fleet.service[0].span;
     let second = fleet.service[1].span;
     assert_eq!(
@@ -580,7 +580,7 @@ impl Validate for ModesSpec {
 fn a_parsed_list_reports_a_bad_element_at_that_element() {
     // Arrange
     // The spans come from the parse rather than from a hand-built `Located`, so
-    // this pins that a real TOML list carries one span per element.
+    // this pins that a real TOML list keeps one span per element.
     let input = "modes = [\"enforce\", \"shout\"]\n";
     let mut sources = SourceMap::new();
     let mut report = Report::new();

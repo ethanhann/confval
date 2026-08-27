@@ -1,5 +1,5 @@
 //! The source view of an assembled spec: a value set only by the environment
-//! carries a real span from its synthetic source, so it appears in the source
+//! keeps a real span from its synthetic source, so it appears in the source
 //! view exactly as a file-set value does.
 //!
 //! `env_fields` iterates the process environment, and `set_var` is unsafe in

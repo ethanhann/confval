@@ -3,7 +3,7 @@
 //! `#[confval(non_empty)]`, `#[confval(unique)]`, or
 //! `#[confval(keywords = ...)]` on a scalar field is checked by the generated
 //! `ValidateNested::validate_recorded`, so the attribute alone enforces the
-//! constraint and the `Validate` body carries no line for it.
+//! constraint and the `Validate` body has no line for it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use confval::prelude::*;
@@ -504,7 +504,7 @@ fn a_default_that_violates_its_recorded_constraint_names_the_spec() {
 #[test]
 fn an_operator_value_keeps_the_ordinary_constraint_message() {
     // Arrange
-    // A value the operator wrote carries a span and fails with the ordinary
+    // A value the operator wrote keeps a span and fails with the ordinary
     // message, even on a field that declares a default.
     let mut sources = SourceMap::new();
     let id = sources.add("server.toml", "port = 70000\n");

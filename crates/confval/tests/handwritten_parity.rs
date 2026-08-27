@@ -213,7 +213,7 @@ fn parse_both() -> (Derived, Handwritten) {
 /// models compare as one list rather than field by field.
 ///
 /// The span itself is recorded rather than whether it is attached. Both models
-/// read one `SourceMap`, so a walk that carried the wrong location would differ
+/// read one `SourceMap`, so a walk that had the wrong location would differ
 /// here while a boolean would not notice.
 fn spans(fields: &Fields) -> Vec<(String, Span)> {
     let mut out = Vec::new();
@@ -229,7 +229,7 @@ fn spans(fields: &Fields) -> Vec<(String, Span)> {
                             out.push((format!("{}[{index}]", field.name), element.span));
                         }
                     }
-                    // A map value's entries carry the only per-key locations it
+                    // A map value's entries hold the only per-key locations it
                     // has, so the parity tests descend into them too.
                     ValueKind::Map(inner) => out.extend(spans(inner)),
                     _ => {}
@@ -317,7 +317,7 @@ fn the_source_walk_omits_what_the_document_left_out() {
 #[test]
 fn a_handwritten_source_walk_keeps_element_spans_the_derive_keeps() {
     // Arrange
-    // `tags` is the bare list shape, whose elements carry the only locations it
+    // `tags` is the bare list shape, whose elements hold the only locations it
     // has, so a walk that dropped them would still render the same text.
     let (derived, handwritten) = parse_both();
     let from_derive = derived.to_source_fields();

@@ -5,7 +5,7 @@
 //! per field, read off the same `FieldShape` and `FieldOptions` the parser and
 //! the populate walk are built from, so the schema cannot drift from them.
 //!
-//! Which shape may carry which attribute is settled in
+//! Which shape may take which attribute is settled in
 //! [`recorded`](super::recorded), which this walk calls for every field, so a
 //! misplaced attribute is a compile error before the validation walk runs.
 

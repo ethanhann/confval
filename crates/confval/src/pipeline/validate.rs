@@ -5,7 +5,7 @@ use core::ops::ControlFlow;
 ///
 /// A `Validate` impl checks what a value can prove about itself from its own
 /// fields: ranges, closed-set keywords, formats, each reported at the span
-/// the offending field already carries. Checks that need an enclosing span,
+/// the offending field already keeps. Checks that need an enclosing span,
 /// cross-field structure, or sibling context do not belong here.
 /// They are in the central validators that hold the surrounding `Located` wrappers.
 ///
@@ -37,13 +37,13 @@ use core::ops::ControlFlow;
 /// `validate_all` also runs the recorded constraint checks through
 /// [`validate_recorded`](ValidateNested::validate_recorded), so a field
 /// that declares `#[confval(range = ...)]` or `#[confval(keywords = ...)]` is
-/// checked without a line in `validate`. This covers a string list carrying a
+/// checked without a line in `validate`. This covers a string list with a
 /// keyword set. `validate` then holds only the rules an attribute cannot
 /// express, such as a cross-field rule or a non-emptiness check.
 ///
 /// ```ignore
 /// // The range is recorded on the field, so the derive checks it and the
-/// // `Validate` body carries no line for it.
+/// // `Validate` body has no line for it.
 /// #[derive(confval::Spec)]
 /// struct LimitsSpec {
 ///     #[confval(range = MAX_BODY_MB)]
@@ -114,7 +114,7 @@ pub trait Validate {
 
 /// The generated traversal of a spec type's `#[confval(nested)]` fields.
 ///
-/// A handwritten `Validate` impl carries two responsibilities: the rules for
+/// A handwritten `Validate` impl has two responsibilities: the rules for
 /// this type's own fields, and a call into every nested child so the children
 /// are checked too.
 /// The second one is invisible when it is missing.
@@ -149,7 +149,7 @@ pub trait ValidateNested {
     /// The default runs nothing, so a handwritten impl keeps its checks in its
     /// own `Validate` body and is unaffected. `#[derive(Spec)]` overrides it for
     /// a spec that has a recorded field, so the attribute alone enforces the
-    /// constraint and the `Validate` body carries no line for it.
+    /// constraint and the `Validate` body has no line for it.
     ///
     /// [`validate_all`](Validate::validate_all) calls this beside `validate`, so
     /// it runs on the type's own fields whether or not `descend` prunes the

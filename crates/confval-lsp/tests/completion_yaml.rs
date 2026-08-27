@@ -350,7 +350,7 @@ fn yaml_keyword_completion_after_a_bare_colon_keeps_the_key_and_adds_a_space() {
 #[test]
 fn a_yaml_value_without_a_closed_set_offers_nothing() {
     // Arrange
-    // The cursor sits inside a written scalar value in a nested sequence: once
+    // The cursor is inside a written scalar value in a nested sequence: once
     // in a label field and once in a plain string field. Neither field has a
     // closed value set, so the server must answer with an empty list rather
     // than field names, and the resolved context must still name the exact
@@ -488,7 +488,7 @@ fn byte_offset(text: &str, position: Position) -> usize {
 }
 
 /// The text a completion at `offset` produces when applied to `text`, or
-/// `None` when the item is absent or carries no replace edit.
+/// `None` when the item is absent or has no replace edit.
 fn applied(text: &str, offset: usize, label: &str) -> Option<String> {
     let (tree, context) = at_with(&Yaml, text, offset);
     let index = LineIndex::new(text);

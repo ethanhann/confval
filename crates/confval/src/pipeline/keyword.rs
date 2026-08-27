@@ -86,6 +86,10 @@ impl<'a> KeywordSet<'a> {
     ///
     /// This is the form `#[confval(keywords = ...)]` generates for a list, where
     /// the derive knows the field name and not the name of one element.
+    ///
+    /// The value is not quoted here, unlike the `format` and `unique` list
+    /// messages. A keyword value is one of a closed set of barewords. It is
+    /// never empty and never contains whitespace. A quote would add nothing.
     pub fn check_each_in(&self, values: &[Located<String>], field: &str, report: &mut Report) {
         for value in values {
             self.report_unknown(
@@ -150,7 +154,7 @@ const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
 /// - `TryFrom<&str>`, accepting exactly the keywords,
 /// - `Display`, printing through `as_str`,
 /// - `serde::Serialize` writing the keyword string, when confval's `serde`
-///   feature is enabled, so a serialized config carries `"log"` exactly as the
+///   feature is enabled, so a serialized config has `"log"` exactly as the
 ///   config file does.
 ///
 /// The macro does not run the check. On a derived spec, record the set on the
@@ -164,7 +168,7 @@ const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
 ///
 /// Attributes before the visibility apply to the enum, and attributes before a
 /// variant apply to that variant, so you can document both and use the macro in
-/// a crate that denies `missing_docs`. The generated items carry their own
+/// a crate that denies `missing_docs`. The generated items have their own
 /// docs.
 ///
 /// ```rust
@@ -362,7 +366,7 @@ mod tests {
 
         // Assert
         // The plural field name reads correctly because the message names the
-        // field it sits in rather than one element of it.
+        // field it is in rather than one element of it.
         assert_eq!(report.issues().len(), 1);
         assert_eq!(
             report.issues()[0].message,

@@ -11,7 +11,6 @@ use lsp_types::{
 };
 
 use confval::format::{FieldKind, Scalar, ValueKind};
-use confval::pipeline::range::RangeConstraint;
 use confval::prelude::{Located, Report, Validate};
 use confval::schema::ToSchema;
 use confval::{length_constraint, range_constraint};
@@ -59,7 +58,7 @@ fn doc_uri() -> Uri {
     }
 }
 
-/// A spec whose string default carries snippet metacharacters.
+/// A spec whose string default contains snippet metacharacters.
 #[derive(confval::Spec)]
 struct BadgeSpec {
     /// A default with `$`, `{`, and `}` in it.
@@ -259,8 +258,8 @@ fn an_adversarial_default_is_snippet_escaped_and_unwraps_clean() {
 #[test]
 fn a_value_position_offers_the_preselected_default_per_constraint_shape() {
     // Arrange
-    // `mode` carries keywords, so the default's item is preselected with no
-    // duplicate. `workers` carries a range, so the rendered default is the one
+    // `mode` has keywords, so the default's item is preselected with no
+    // duplicate. `workers` has a range, so the rendered default is the one
     // offered item.
     let schema = ServerSpec::schema();
     let keyword_text = "limits:\n  mode: \n";
@@ -318,7 +317,7 @@ struct RoundTripSpec {
     /// A path default.
     #[confval(default = PathBuf::from("/etc/app.conf"))]
     config: Located<PathBuf>,
-    /// A default carrying control characters, which must render escaped.
+    /// A default containing control characters, which must render escaped.
     #[confval(default = "a\nb\tc".to_string())]
     banner: Located<String>,
 }
@@ -500,7 +499,7 @@ fn a_keyword_violation_and_a_type_mismatch_get_the_fix() {
 #[test]
 fn a_field_without_a_default_offers_no_fix() {
     // Arrange
-    // `port` carries no default, so its range violation offers nothing.
+    // `port` has no default, so its range violation offers nothing.
     let schema = ServerSpec::schema();
     let text = "hostname: h\nport: 99999\n";
 
@@ -957,7 +956,7 @@ impl Validate for LongDefaultSpec {
 #[test]
 fn a_stale_character_position_past_the_line_offers_no_fix() {
     // Arrange
-    // The diagnostic's line exists, and its characters sit past the line's
+    // The diagnostic's line exists, and its characters are past the line's
     // content, so the clamped offsets must not read as containment.
     let text = "hostname: h\nport: 1\nworkers: 9999\n";
     let schema = ServerSpec::schema();

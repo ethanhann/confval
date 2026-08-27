@@ -43,7 +43,7 @@ fn scalar_insert(text: String, placeholder: &str) -> crate::frontend::Insert {
 }
 
 /// The pre-filled value for a defaulted scalar: the format literal inside a
-/// selected snippet placeholder, or the empty string when the field carries no
+/// selected snippet placeholder, or the empty string when the field has no
 /// rendered default. The literal is snippet-escaped, so a `$`, `}`, or `\` in
 /// a default cannot corrupt the snippet grammar.
 fn value_placeholder<F: Frontend + ?Sized>(frontend: &F, field: &SchemaField) -> String {

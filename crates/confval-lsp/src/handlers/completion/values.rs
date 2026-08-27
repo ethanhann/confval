@@ -20,7 +20,7 @@ use super::{RawItem, sort_key};
 ///
 /// A keyword field offers its allowed strings, read from the enclosing block
 /// schema. A reference field offers the labels of the block it names, collected
-/// from the root schema and the parsed fields, because the target block sits
+/// from the root schema and the parsed fields, because the target block is
 /// elsewhere in the document.
 pub(super) fn value_items<F: Frontend + ?Sized>(
     frontend: &F,
@@ -35,7 +35,7 @@ pub(super) fn value_items<F: Frontend + ?Sized>(
     else {
         return Vec::new();
     };
-    // A zero-width cursor beside existing text sits at the edge of an
+    // A zero-width cursor beside existing text is at the edge of an
     // element or its punctuation. The formats that separate values with
     // punctuation have no separator to write there, so an accepted item
     // would fuse with its neighbor or leave the next element without its
@@ -50,7 +50,7 @@ pub(super) fn value_items<F: Frontend + ?Sized>(
     }
     match &target.ty {
         // A list offers the same set as a scalar, once for each element the
-        // operator writes. A list carries no `default_text`, so no item is
+        // operator writes. A list has no `default_text`, so no item is
         // preselected.
         SchemaType::Scalar {
             constraint: Some(Constraint::Keywords(words)),
@@ -78,7 +78,7 @@ pub(super) fn value_items<F: Frontend + ?Sized>(
         } => reference_items(block, separator, cx),
         // A boolean is its own closed set. A written value offers the literal
         // it could change to, and an empty value offers both, with the
-        // default preselected when the field carries one.
+        // default preselected when the field has one.
         SchemaType::Scalar {
             leaf: ScalarType::Bool,
             constraint: None,
@@ -86,7 +86,7 @@ pub(super) fn value_items<F: Frontend + ?Sized>(
         } => bool_items(frontend, target, field, cx),
         // A number bounded by a `Range` and an unconstrained scalar are typed
         // rather than chosen from a closed set, so they offer only the
-        // rendered default, when the field carries one.
+        // rendered default, when the field has one.
         SchemaType::Scalar { leaf, .. } => default_item(frontend, leaf, target, cx)
             .into_iter()
             .collect(),

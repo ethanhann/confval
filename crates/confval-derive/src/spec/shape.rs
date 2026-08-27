@@ -23,7 +23,7 @@ pub(crate) enum FieldShape {
     BareStringList,
     /// An optional list of strings written as
     /// `Option<Located<Vec<Located<String>>>>`. Unlike the bare form, this
-    /// keeps the outer `Located` so the whole list still carries a location.
+    /// keeps the outer `Located` so the whole list still keeps a location.
     OptionalWrappedStringList,
     /// A single nested sub-struct, `Located<S>` or `Option<Located<S>>`, parsed
     /// by recursing into `S`'s own generated parser. `optional` is true when
@@ -177,7 +177,7 @@ fn classify_plain(ty: &Type, inner: &Type, optional: bool) -> syn::Result<FieldS
 }
 
 /// The leaf scalar kind named by the type inside a `Located` wrapper, or an
-/// error naming the supported scalars. `ty` carries the whole field type, so the
+/// error naming the supported scalars. `ty` holds the whole field type, so the
 /// error points where the other field-type errors do.
 fn leaf_type(located_inner: &Type, ty: &Type) -> syn::Result<Leaf> {
     match last_segment(located_inner).as_deref() {

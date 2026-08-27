@@ -79,7 +79,7 @@ fn block_type_completion_offers_the_nested_block() {
 #[test]
 fn block_completion_places_the_cursor_with_a_snippet_when_supported() {
     // Arrange
-    // A block insert carries a `$0` tab stop. A snippet-capable client receives
+    // A block insert has a `$0` tab stop. A snippet-capable client receives
     // it as a snippet so the cursor lands in the body. A client without snippet
     // support receives the plain text with the tab stop removed.
     let text = "";
@@ -354,7 +354,7 @@ fn a_half_typed_name_completes_over_a_replace_range() {
 fn enum_completion_over_a_value_keeps_the_items_and_replaces_only_the_value() {
     // Arrange
     // The value is one line above a sibling block. The enum members do not
-    // prefix-match `loud`, so each carries a filter text equal to the value, and
+    // prefix-match `loud`, so each has a filter text equal to the value, and
     // the replace edit covers only the value, never reaching into `rules`.
     let text = "limits {\n  mode = \"loud\"\n}\nrules {\n  prefix = \"/a\"\n}\n";
     let offset = text.find("loud").unwrap() + 1;
@@ -571,7 +571,7 @@ fn completion_sorts_by_schema_declaration_order() {
 
 /// The edit range of the first item offered at `offset`, resolved through the
 /// real parse and cursor resolution rather than a synthesized position. `None`
-/// when nothing is offered or the item carries no replace edit.
+/// when nothing is offered or the item has no replace edit.
 fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Option<Range> {
     let (tree, context) = at_with(frontend, text, offset);
     let index = LineIndex::new(text);
@@ -597,7 +597,7 @@ fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Option
 #[test]
 fn a_keyword_inside_a_list_replaces_only_that_element() {
     // Arrange
-    // The cursor sits in the second element. Replacing the whole literal here
+    // The cursor is in the second element. Replacing the whole literal here
     // would delete the brackets and the first element with it.
     let text = "modes = [\"log\", \"enf\"]\n";
     let offset = text.find("\"enf\"").expect("the element is present") + 2;

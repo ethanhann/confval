@@ -25,7 +25,7 @@ json = ["confval/json"]
 yaml = ["confval/yaml"]
 
 [dependencies]
-confval = { version = "=0.9.0", path = "../confval", features = ["__internal-navigation"] }
+confval = { version = "=0.10.0", path = "../confval", features = ["__internal-navigation"] }
 lsp-types = { workspace = true }
 lsp-server = { workspace = true }
 serde = { workspace = true }

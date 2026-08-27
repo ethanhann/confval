@@ -45,7 +45,7 @@ pub(crate) fn repeated_block_at(root: &Schema, path: &[String]) -> bool {
 
 /// The parsed fields of the block a cursor path encloses.
 ///
-/// Returns `None` when the tree does not carry the path, which happens for a
+/// Returns `None` when the tree does not contain the path, which happens for a
 /// buffer that did not parse or a block the operator has not written.
 pub(crate) fn fields_at<'a>(root: &'a Fields, path: &[String]) -> Option<&'a Fields> {
     let mut current = root;
@@ -67,7 +67,7 @@ pub(crate) fn fields_at<'a>(root: &'a Fields, path: &[String]) -> Option<&'a Fie
 /// It is the resolved instance body when the buffer parsed, which addresses the
 /// exact instance of a repeated block and reads a pending body as empty. The
 /// `fields_at` fallback runs only on the text recovery path, whose context
-/// carries no body because nothing parsed. The completion and hover handlers
+/// has no body because nothing parsed. The completion and hover handlers
 /// read the already-set state from it.
 pub(crate) fn resolved_level<'a>(
     ctx: &'a CursorContext,
@@ -95,9 +95,9 @@ pub(crate) fn field_text(field: &Field) -> Option<String> {
 /// It searches outward from the cursor's scope to the nearest enclosing scope
 /// whose schema declares the labeled `block`, the rule `check_references`
 /// applies, reading each scope's instance body from the bodies the context
-/// carries.
+/// keeps.
 /// Returns `None` when no enclosing scope declares the target or when the
-/// buffer did not parse, which leaves no carried bodies.
+/// buffer did not parse, which leaves no kept bodies.
 pub(crate) fn declaring_scope<'a>(
     schema: &'a Schema,
     ctx: &'a CursorContext,

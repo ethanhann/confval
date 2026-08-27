@@ -32,7 +32,7 @@ pub(crate) fn resolve_in_yaml(text: &str, offset: usize) -> CursorContext {
 /// Whether a body completion on a fresh line opens a new sequence element rather
 /// than adding a field to the element the cursor is in.
 ///
-/// A YAML sequence element begins at a dash column, and its fields sit past the
+/// A YAML sequence element begins at a dash column, and its fields appear past the
 /// dash. So a fresh line opens a new element only when it aligns with the nearest
 /// sequence dash at or above the cursor's column. A deeper column adds a field to
 /// that element, and an empty sequence, with no dash above, opens its first
@@ -211,7 +211,7 @@ fn contains_comment(segment: &str) -> bool {
 }
 
 /// The indentation column of a line, counting a `- ` sequence marker as two
-/// columns, so a sequence element's keys sit past it.
+/// columns, so a sequence element's keys appear past it.
 fn line_indent(line: &str) -> usize {
     let trimmed = line.trim_start();
     let spaces = line.len() - trimmed.len();

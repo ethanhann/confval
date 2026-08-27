@@ -5,7 +5,7 @@
 //! `#[confval(range = ...)]`, `#[confval(length = ...)]`,
 //! `#[confval(format = ...)]`, or `#[confval(keywords = ...)]` constraint for
 //! the IR, this walk runs the same constraint during validation, so the
-//! attribute is the single source and the author's `Validate` body carries
+//! attribute is the single source and the author's `Validate` body has
 //! no line for it. A scalar leaf emits a `check_located` call. A string list
 //! emits a `check_each_in` call for a keyword set or a `check_each_format`
 //! call for a format, and both report each bad element at its own span.
@@ -21,10 +21,10 @@
 //! operator reads a value error before a flag error on the same field.
 //!
 //! The walk decides what to emit from the one recorded attribute a field
-//! carries, read through the same `Recorded` classification the schema walk
-//! uses, plus the two flags. Which shape may carry which attribute is settled
+//! has, read through the same `Recorded` classification the schema walk
+//! uses, plus the two flags. Which shape may take which attribute is settled
 //! in `spec/recorded.rs` and `spec/flags.rs` when the always-emitted
-//! `ToSchema` is generated. So is the rule that a field carries at most one
+//! `ToSchema` is generated. So is the rule that a field has at most one
 //! value constraint. A misplaced or doubled attribute is therefore a compile
 //! error before this walk runs. Sharing the classification keeps the two
 //! walks from drifting on which attribute means what.
@@ -37,7 +37,7 @@ use quote::quote;
 use syn::Ident;
 use syn::ext::IdentExt;
 
-/// The check fragment for one field, or `None` when the field carries none
+/// The check fragment for one field, or `None` when the field has none
 /// of a value constraint, a `non_empty` flag, or a `unique` flag.
 ///
 /// The field name is the config-key string, derived through the same `unraw`
@@ -121,7 +121,7 @@ fn constraint_fragment(
     // bare form is already a slice. The optional form keeps the outer
     // `Located`, so the list is reached through its value.
     //
-    // Neither arm carries the defaulted-value branch a required leaf gets
+    // Neither arm has the defaulted-value branch a required leaf gets
     // below. A list default is always the empty list, so there is no declared
     // value for the constraint to reject.
     let check_each_call = |values: &TokenStream2| -> Option<TokenStream2> {

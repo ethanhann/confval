@@ -49,7 +49,7 @@ pub struct Cx<'a> {
 /// The list a cursor inside a sequence element belongs to, and the level that
 /// declares it.
 ///
-/// A sequence element sits on its own line in YAML and inside brackets in the
+/// A sequence element appears on its own line in YAML and inside brackets in the
 /// JSON recovery, so resolution reads the element as a body position under the
 /// list's own key. A list of strings has no body, so that position is really the
 /// value of the list itself. Reading the parent level answers which it is, and

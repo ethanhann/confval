@@ -47,7 +47,7 @@ impl Validate for All {
     fn validate(&self, _report: &mut Report) {}
 }
 
-// A three-level chain of marked blocks, so a filled block that itself carries a
+// A three-level chain of marked blocks, so a filled block that itself has a
 // marked absent block is exercised. This guards the recursion the milestone is
 // built on rather than a one-level fill.
 #[derive(confval::Spec, PartialEq, Debug)]

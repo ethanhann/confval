@@ -429,7 +429,7 @@ fn toml_list_and_map_completion_open_the_container() {
 
 /// The edit range of the first item offered at `offset`, resolved through the
 /// real parse and cursor resolution rather than a synthesized position. `None`
-/// when nothing is offered or the item carries no replace edit.
+/// when nothing is offered or the item has no replace edit.
 fn edit_range_at<F: Frontend>(frontend: &F, text: &str, offset: usize) -> Option<Range> {
     let (tree, context) = at_with(frontend, text, offset);
     let index = LineIndex::new(text);
@@ -550,7 +550,7 @@ fn byte_offset(text: &str, position: Position) -> usize {
 }
 
 /// The text a completion at `offset` produces when applied to `text`, or
-/// `None` when the item is absent or carries no replace edit.
+/// `None` when the item is absent or has no replace edit.
 fn applied<F: Frontend>(frontend: &F, text: &str, offset: usize, label: &str) -> Option<String> {
     let (tree, context) = at_with(frontend, text, offset);
     let index = LineIndex::new(text);

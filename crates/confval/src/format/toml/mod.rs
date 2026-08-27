@@ -29,7 +29,7 @@
 //! - A duplicate key and a duplicate table are errors in TOML's own grammar,
 //!   so each surfaces as a syntax error rather than as duplicate fields.
 //! - A native datetime, which the neutral model has no scalar for, becomes
-//!   [`ValueKind::Other`] carrying a diagnostic label, so it surfaces as an
+//!   [`ValueKind::Other`] with a diagnostic label, so it surfaces as an
 //!   ordinary type mismatch at the field that used it.
 
 use crate::diagnostic::Report;

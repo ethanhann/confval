@@ -1,6 +1,6 @@
 //! The legality rules for `#[derive(Spec)]`'s flag attributes, `label`,
-//! `non_empty`, and `unique`. Each flag has its own set of shapes it may
-//! sit on and its own rule about `default`, so each has its own function.
+//! `non_empty`, and `unique`. Each flag has its own set of shapes it applies
+//! to and its own rule about `default`, so each has its own function.
 //! The value constraints have their rules in [`recorded`](super::recorded).
 //!
 //! The schema walk calls every function here for every field, and each one
@@ -13,9 +13,9 @@ use super::shape::{FieldShape, Leaf};
 /// Rejects the misuses of `#[confval(label)]`.
 ///
 /// A block's label is one required string, so the field must be a non-optional
-/// `String` leaf and cannot carry a default. A list, a map, a block, or a
+/// `String` leaf and cannot have a default. A list, a map, a block, or a
 /// non-string scalar cannot be a label. An optional leaf names nothing when the
-/// block carries no label. A default would build a value the reference pass then
+/// block has no label. A default would build a value the reference pass then
 /// reports as undefined.
 pub(crate) fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Result<()> {
     let Some(label) = &options.label else {
@@ -63,8 +63,10 @@ pub(crate) fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) ->
 ///
 /// `non_empty` is valid on a `String` leaf and on a string list. It rejects
 /// `Int`, `Float`, `Bool`, `Path`, `Block`, and `Map`. It combines with
-/// `label` and with the value constraints (`keywords`, `range`,
-/// `references`). A field with both `default` and `non_empty` is rejected.
+/// `label` and with the value constraints valid on a string, which are
+/// `keywords`, `length`, `format`, and `references`. It does not combine with
+/// `range`, because `range` requires an `Int` or `Float` leaf. A field with
+/// both `default` and `non_empty` is rejected.
 /// The default for a `String` is the empty string and for a list is the
 /// empty list. Either one would fail the check.
 pub(crate) fn reject_non_empty_misuse(

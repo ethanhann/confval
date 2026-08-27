@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn object_path_skips_a_closing_brace_inside_a_quoted_key() {
         // Arrange
-        // The `}` sits inside the quoted key `"k}"`, so it must not close the
+        // The `}` is inside the quoted key `"k}"`, so it must not close the
         // outer object and the enclosing key stays `outer`.
         let text = "{\"outer\": {\"k}\": 1";
 
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn innermost_is_array_skips_brackets_inside_a_string() {
         // Arrange
-        // The two `]` sit inside the quoted value, so neither closes the array
+        // The two `]` are inside the quoted value, so neither closes the array
         // and the cursor is still directly in it.
         let text = "[ \"]]\" ";
 

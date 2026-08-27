@@ -241,7 +241,7 @@ fn an_empty_document_parses_to_no_root_value() {
 #[test]
 fn parse_error_ranges_are_byte_offsets() {
     // Arrange
-    // The euro sign sits before the offending token, so a byte offset for the
+    // The euro sign appears before the offending token, so a byte offset for the
     // missing comma is past it where a char count would fall short.
     let input = "{\"cost\": \"€\" \"port\": 8080}";
 

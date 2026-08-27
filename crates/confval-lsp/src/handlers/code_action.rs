@@ -1,6 +1,6 @@
 //! The code-action handler: the reset-to-default quick fix.
 //!
-//! A diagnostic contained in the value span of a scalar field that carries a
+//! A diagnostic contained in the value span of a scalar field that has a
 //! rendered default gets one quick fix: set the field to its default. The
 //! default comes from the schema, so the fix resolves a constraint violation
 //! and a type mismatch alike. The diagnostics come from the request's context,
@@ -12,6 +12,7 @@ use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, Diagnostic, TextEdit, Uri, WorkspaceEdit,
 };
 
+use confval::LengthConstraint;
 use confval::schema::{Constraint, SchemaType};
 
 use crate::encoding::{LineIndex, PositionEncoding};
@@ -132,10 +133,12 @@ fn default_satisfies(constraint: &Option<Constraint>, text: &str) -> bool {
                 _ => false,
             }
         }
-        Some(Constraint::Length { min, max, .. }) => {
-            let count = text.chars().count();
-            *min <= count && count <= *max
+        Some(Constraint::Length { min, max, .. }) => LengthConstraint {
+            min: *min,
+            max: *max,
+            help: None,
         }
+        .admits(text),
         Some(Constraint::Format { check, .. }) => check.call(text),
         _ => true,
     }
@@ -233,5 +236,35 @@ mod tests {
 
         // Assert
         assert!(contained, "a diagnostic inside the value span is contained");
+    }
+
+    #[test]
+    fn a_default_at_or_above_the_length_minimum_satisfies_the_constraint() {
+        // Arrange
+        let constraint = Some(Constraint::length(3, 10, None));
+
+        // Act
+        let satisfied = default_satisfies(&constraint, "abcd");
+
+        // Assert
+        assert!(
+            satisfied,
+            "a four-character default sits inside the 3 to 10 length range"
+        );
+    }
+
+    #[test]
+    fn a_default_below_the_length_minimum_fails_the_constraint() {
+        // Arrange
+        let constraint = Some(Constraint::length(3, 10, None));
+
+        // Act
+        let satisfied = default_satisfies(&constraint, "ab");
+
+        // Assert
+        assert!(
+            !satisfied,
+            "a two-character default is under the length minimum of 3"
+        );
     }
 }

@@ -473,6 +473,22 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
     client
         .sender
         .send(Message::Request(Request::new(
+            RequestId::from(7),
+            lsp_types::request::DocumentLinkRequest::METHOD.to_string(),
+            lsp_types::DocumentLinkParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            },
+        )))
+        .unwrap();
+    let document_link: Response = recv_until(&client, |message| match message {
+        Message::Response(response) if response.id == RequestId::from(7) => Some(response.clone()),
+        _ => None,
+    });
+    client
+        .sender
+        .send(Message::Request(Request::new(
             RequestId::from(9),
             Shutdown::METHOD.to_string(),
             (),
@@ -511,6 +527,10 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
     assert!(
         action.response_result.is_ok(),
         "the code action routes: {action:?}"
+    );
+    assert!(
+        document_link.response_result.is_ok(),
+        "the document-link request routes: {document_link:?}"
     );
     assert_eq!(
         ghost_references.response_result.expect("an empty list"),

@@ -75,7 +75,7 @@ fn source_names(spec: &Server) -> Vec<String> {
 fn source_view_omits_defaults_and_absent_fields() {
     // Arrange
     // Only the required leaf and the required block are set. Every optional and
-    // defaulted field is left out, so a filled default carries the detached
+    // defaulted field is left out, so a filled default keeps the detached
     // sentinel and the source view drops it.
     let spec = parse("hostname = \"h\"\n\n[required_block]\n");
 
@@ -151,7 +151,7 @@ fn source_view_emits_a_source_written_block_with_defaulted_contents_as_empty() {
 
 /// A spec built by hand rather than parsed, so every span is the detached
 /// sentinel. `tags` varies, because the bare list is the one shape whose
-/// elements carry the only spans it has.
+/// elements keep the only spans it has.
 fn detached_server(tags: Vec<Located<String>>) -> Server {
     Server {
         hostname: Located::detached("h".to_string()),

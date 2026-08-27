@@ -32,7 +32,7 @@ pub(super) enum Shape {
     Block,
 }
 
-/// One member ready to render, with the annotation a template carries.
+/// One member ready to render, with the annotation a template has.
 pub(super) struct Rendered<'a> {
     pub(super) name: &'a str,
     pub(super) doc: Option<&'a str>,
@@ -88,7 +88,7 @@ pub(super) fn members_of(fields: &Fields) -> Vec<Rendered<'_>> {
         members.push(Rendered {
             name: &field.name,
             // Only one comment renders above the grouped member, so the group
-            // takes the first doc any of its fields carries.
+            // takes the first doc any of its fields has.
             doc: group.iter().find_map(|other| other.doc.as_deref()),
             commented: false,
             member,

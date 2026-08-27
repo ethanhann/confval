@@ -2,7 +2,7 @@
 //!
 //! This is the inverse of [`parse_hcl_fields`](super::parse_hcl_fields). It
 //! builds an `hcl-edit` `Body` by structure, indents each nesting level, and
-//! renders the doc comments an annotated template carries.
+//! renders the doc comments an annotated template has.
 
 use super::commented::commented_text;
 use crate::format::EmitError;
@@ -36,7 +36,7 @@ pub fn emit_hcl(fields: &Fields) -> Result<String, EmitError> {
         body.decor_mut().set_suffix(pending);
     }
     let text = body.to_string();
-    // A commented block that opens the document carries a blank line for the
+    // A commented block that opens the document has a blank line for the
     // structure it would follow. At the top nothing precedes it.
     match text.strip_prefix('\n') {
         Some(stripped) => Ok(stripped.to_string()),
@@ -47,7 +47,7 @@ pub fn emit_hcl(fields: &Fields) -> Result<String, EmitError> {
 /// Builds a `Body` indented for the given nesting level.
 ///
 /// Each structure is prefixed with `level` steps of two spaces. A block's inner
-/// body carries a suffix of the block's own indent, which `hcl-edit` writes just
+/// body has a suffix of the block's own indent, which `hcl-edit` writes just
 /// before the closing brace, so the brace lines up with the opener. Without the
 /// suffix the brace would be at column zero.
 ///
@@ -83,7 +83,7 @@ pub(super) fn emit_body(
             pending.push_str(&commented_text(field, level, path)?);
             continue;
         }
-        // The prefix carries any pending commented text, then the field's doc
+        // The prefix holds any pending commented text, then the field's doc
         // comment above its indentation, so the comment aligns with the field
         // it documents.
         let pending_text = std::mem::take(&mut pending);
@@ -101,7 +101,7 @@ pub(super) fn emit_body(
             FieldKind::Block(inner) => {
                 let child = child_path(path, &field.name);
                 let mut block = Block::new(ident_of(&field.name, path)?);
-                // A block that carries a native label, read from an HCL or KDL
+                // A block that has a native label, read from an HCL or KDL
                 // source, renders it between the type and the body, so a round
                 // trip keeps `upstream "api" { ... }`.
                 if let Some(label) = inner.label() {
@@ -598,7 +598,7 @@ mod tests {
         let text = emit_hcl(&fields).unwrap();
 
         // Assert
-        // The blank line carries no indentation, and the nested block keeps its
+        // The blank line has no indentation, and the nested block keeps its
         // own indent after it.
         assert_eq!(
             text,

@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 // Dead code analysis does not count a `Debug` print as a read of a field, so
-// each runtime type carries `#[allow(dead_code)]`.
+// each runtime type has `#[allow(dead_code)]`.
 #[allow(dead_code)]
 #[derive(confval::Config, Debug)]
 #[confval(lower_from = ServiceSpec)]

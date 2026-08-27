@@ -53,7 +53,7 @@ workers = 8
     // `merge` calls set precedence: the file is the base, the environment
     // (prefix `APP_`) overrides it, and the command line overrides that. `join`
     // adds the defaults file last, filling only what is still missing, so it
-    // supplies `workers` but does not touch the `port` the environment set.
+    // supplies `workers` but does not modify the `port` the environment set.
     // Environment and command line values are strings, and each is coerced to
     // the field's declared type.
     let spec: Option<ServerSpec> = Assembly::new()

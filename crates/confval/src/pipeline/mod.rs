@@ -1,4 +1,4 @@
-//! Validation and lowering of a parsed spec. Every parsed value carries its
+//! Validation and lowering of a parsed spec. Every parsed value keeps its
 //! exact location in the source text, so a diagnostic points at the offending
 //! value rather than at the enclosing section.
 

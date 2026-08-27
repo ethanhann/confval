@@ -1,7 +1,7 @@
 //! Base resolution, the plan and apply pair, and the error type.
 //!
 //! `plan` decides an outcome for one file without writing to the file
-//! system, and `apply` carries it out. Splitting the two lets the
+//! system, and `apply` performs it. Splitting the two lets the
 //! outcome table be unit tested without a spawned process.
 
 use std::fmt;
@@ -50,7 +50,7 @@ impl Outcome {
     }
 }
 
-/// Everything that can go wrong, carrying its own exit code.
+/// Everything that can go wrong, with its own exit code.
 #[derive(Debug)]
 pub(crate) enum CliError {
     /// A usage error, including an unknown flag, agent, or scope.
@@ -130,7 +130,7 @@ fn base_with_home(scope: Scope, cwd: &Path, home: Option<PathBuf>) -> Result<Pat
 /// The nearest ancestor of `cwd` that contains a `.git` entry, or `cwd` itself
 /// when no ancestor has one.
 ///
-/// A `.git` file, which a worktree or submodule carries, is treated the same as
+/// A `.git` file, which a worktree or submodule has, is treated the same as
 /// a `.git` directory, because `Path::exists` follows both.
 fn project_base(cwd: &Path) -> PathBuf {
     for dir in cwd.ancestors() {

@@ -70,7 +70,7 @@ fn diagnostics_report_the_pipeline_issues_at_their_ranges() {
         messages.iter().any(|m| m.contains("mode")),
         "expected a keyword diagnostic, got: {messages:?}"
     );
-    // Each diagnostic carries the exact range the pipeline produced, start
+    // Each diagnostic has the exact range the pipeline produced, start
     // and end, so a wrong span in any of the three would fail here. `bogus`
     // is the whole name on the third line, `99999` the port value on the
     // second, and `"nope"` the quoted keyword inside the block.
@@ -108,7 +108,7 @@ fn diagnostics_report_the_pipeline_issues_at_their_ranges() {
             },
         }
     );
-    // The keyword help is carried as related information, not appended to the
+    // The keyword help is held as related information, not appended to the
     // message, so the message stays a single clean line.
     let mode = found
         .iter()
@@ -148,7 +148,7 @@ fn diagnostics_report_the_pipeline_issues_at_their_ranges() {
 fn a_spanless_warning_maps_to_the_first_line_with_related_information() {
     // Arrange
     // A handwritten validator emits a warning with no primary span but a related
-    // span. The diagnostic points at the first line, carries the Warning
+    // span. The diagnostic points at the first line, has the Warning
     // severity, and keeps the related note.
     #[derive(confval::Spec)]
     struct PlainSpec {

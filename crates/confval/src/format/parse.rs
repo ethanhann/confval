@@ -178,7 +178,7 @@ pub fn parse_string_list_field(
 
 /// Parses a nested structure via the inner type's [`FromFields`] impl. Accepts
 /// both forms: a block, or an attribute whose value is a map. The returned
-/// `Located` carries the whole structure's span.
+/// `Located` keeps the whole structure's span.
 pub fn parse_struct_field<S: FromFields>(field: &Field, report: &mut Report) -> Option<Located<S>> {
     match &field.kind {
         FieldKind::Block(fields) => {
@@ -248,7 +248,7 @@ pub fn parse_struct_list_field<S: FromFields>(
 /// pointing back at the first, so a map never silently overwrites an entry. A
 /// non-string entry is a type mismatch at its value. Every invalid entry is
 /// reported, and if any entry is invalid the function returns `None` with the
-/// error already in the report. The returned `Located` carries the whole
+/// error already in the report. The returned `Located` keeps the whole
 /// field's span.
 pub fn parse_string_map_field(
     field: &Field,
@@ -379,7 +379,7 @@ mod tests {
         Span::new(SOURCE, start, end)
     }
 
-    /// An attribute field carrying a scalar value.
+    /// An attribute field with a scalar value.
     fn scalar_field(name: &str, scalar: Scalar) -> Field {
         Field {
             name: name.to_string(),

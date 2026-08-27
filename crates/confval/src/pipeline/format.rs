@@ -6,8 +6,8 @@
 //! The derive and a handwritten spec both call
 //! [`check_format`](crate::pipeline::check_format) or
 //! [`check_each_format`](crate::pipeline::check_each_format) with the type as
-//! a parameter, so a format carries no data and no instance is built. A
-//! domain format such as a CIDR block or a URL is a consumer type that
+//! a parameter, so a format has no data. No instance is built. A domain
+//! format such as a CIDR block or a URL is a consumer type that
 //! implements the trait the same way.
 
 use crate::diagnostic::Report;
@@ -18,7 +18,7 @@ use std::str::FromStr;
 
 /// A named check that a string parses as one kind of value.
 ///
-/// `check` takes no `self`, so a format type cannot carry configuration. That
+/// `check` takes no `self`, so a format type cannot hold configuration. That
 /// keeps the derive's call a plain turbofish and the schema's record a name
 /// and a function. A parameterized format is a later extension.
 pub trait Format {

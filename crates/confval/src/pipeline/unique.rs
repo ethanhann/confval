@@ -4,7 +4,7 @@
 //! exact string. The message is `duplicate value in {field}: "{value}"`,
 //! reported at the repeated element's span with a related label at the
 //! first occurrence. The first occurrence itself is not reported. Each
-//! repeat carries its own span, so `check_list` takes no list-level span
+//! repeat keeps its own span, so `check_list` takes no list-level span
 //! where `NON_EMPTY.check_list` does.
 
 use crate::diagnostic::Report;

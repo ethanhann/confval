@@ -208,7 +208,7 @@ impl ToFields for ServiceSpec {
 /// The type-level schema, written by hand the way `#[derive(Spec)]` would emit
 /// it. The builders make each field's requiredness explicit: `required()`
 /// marks a field whose absence is a parse error, `with_default()` marks a
-/// defaulted one, and a field carrying both stays unrequired. `route` is the
+/// defaulted one, and a field with both stays unrequired. `route` is the
 /// `routes` field's key. Every node is built through the `Schema::new` and
 /// `SchemaField::new` constructors, because the node structs are
 /// `#[non_exhaustive]`.

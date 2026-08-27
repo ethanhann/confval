@@ -20,7 +20,7 @@ use quote::quote;
 /// holds no child spec.
 ///
 /// Each arm calls `validate_all` rather than `validate`. The child therefore
-/// runs its own rules and then its own traversal. That is what carries the
+/// runs its own rules and then its own traversal. That is what takes the
 /// walk down an arbitrarily deep spec tree from a single call at the root.
 pub(crate) fn nested_visit(shape: &FieldShape, ident: &Ident) -> Option<TokenStream2> {
     match shape {

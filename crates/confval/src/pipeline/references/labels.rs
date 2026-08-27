@@ -4,7 +4,7 @@
 //! The reference check, the scope label diagnostics, and the language server
 //! all read labels through them, so each reader sees the same list.
 
-use crate::format::field::{Field, FieldKind, Fields, Scalar, ValueKind};
+use crate::format::field::{Field, FieldKind, Fields, Scalar, ValueKind, block_bodies};
 use crate::schema::{Schema, SchemaType};
 #[cfg(feature = "__internal-navigation")]
 use crate::source::Located;
@@ -12,7 +12,7 @@ use crate::source::Span;
 
 /// The labels the `block` field defines within one scope instance.
 ///
-/// Each label carries its span, in document order. The list keeps every
+/// Each label keeps its span, in document order. The list keeps every
 /// instance, including a duplicate and an empty label, and the function emits
 /// no diagnostics. The pipeline and the language server share it, so the editor
 /// collects labels the way the reference check does.
@@ -37,7 +37,7 @@ pub(super) fn scope_label_refs<'a>(
     };
     let mut labels = Vec::new();
     for instance in scope.iter().filter(|field| field.name == block) {
-        for body in instance_bodies(instance) {
+        for body in block_bodies(instance) {
             if let Some((value, span)) = instance_label(body, label_field) {
                 labels.push((value, span));
             }
@@ -57,26 +57,6 @@ pub(super) fn labeled_child<'a>(schema: &'a Schema, block: &str) -> Option<&'a s
             .map(|child| child.name.as_str()),
         _ => None,
     })
-}
-
-/// The block bodies of one parsed field. A brace-delimited block is one body, a
-/// map value is one body, and an array-of-tables value is one body per element,
-/// so a repeated block reads the same in every format.
-pub(super) fn instance_bodies(field: &Field) -> Vec<&Fields> {
-    match &field.kind {
-        FieldKind::Block(body) => vec![body],
-        FieldKind::Value(value) => match &value.kind {
-            ValueKind::Map(body) => vec![body],
-            ValueKind::Seq(elements) => elements
-                .iter()
-                .filter_map(|element| match &element.kind {
-                    ValueKind::Map(body) => Some(body),
-                    _ => None,
-                })
-                .collect(),
-            _ => Vec::new(),
-        },
-    }
 }
 
 /// A block instance's label: its native label slot when a frontend read one, and

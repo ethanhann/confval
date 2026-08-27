@@ -3,7 +3,7 @@
 //! documents.
 //!
 //! `env_fields` iterates the process environment, and `set_var` is unsafe in
-//! the 2024 edition, so every test that touches the environment holds
+//! the 2024 edition, so every test that needs the environment holds
 //! `ENV_LOCK` and no other test in this binary reads the environment. Each
 //! test uses its own variable prefix so the tests share nothing.
 
@@ -221,7 +221,7 @@ fn a_kind_conflict_across_sources_is_reported_with_both_spans() {
     );
 }
 
-/// A JSON level can carry two fields under one name, which the TOML sources in
+/// A JSON level can hold two fields under one name, which the TOML sources in
 /// the rest of this file cannot write. These groups reach the merge from no
 /// other source here.
 #[cfg(feature = "json")]
@@ -322,7 +322,7 @@ mod json_duplicate_groups {
     }
 }
 
-/// A YAML level can carry two fields under one name, the same shape the JSON
+/// A YAML level can hold two fields under one name, the same shape the JSON
 /// module above tests, reached through the event stream rather than an AST.
 #[cfg(feature = "yaml")]
 mod yaml_duplicate_groups {

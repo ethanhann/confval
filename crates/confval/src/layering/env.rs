@@ -12,7 +12,7 @@ use crate::source::{SourceMap, Span};
 /// so `APP_SERVER__MAX_BODY_MB` under prefix `APP_` becomes
 /// `server.max_body_mb`. Segments are lowercased. Each value is registered as
 /// its own synthetic source, named for the variable such as `env:APP_PORT`, so
-/// it carries a real span. The value is emitted as an unparsed literal for the
+/// it keeps a real span. The value is emitted as an unparsed literal for the
 /// leaf parsers to coerce.
 ///
 /// Prefix matching is case-sensitive and byte-exact, so write the prefix as
@@ -24,7 +24,7 @@ use crate::source::{SourceMap, Span};
 /// returns `Some` and never `None`.
 ///
 /// A variable that is not valid UTF-8 cannot be read as text. One whose name
-/// carries the prefix is reported as an error, and one outside the prefix is
+/// has the prefix is reported as an error, and one outside the prefix is
 /// skipped.
 pub fn env_fields(sources: &mut SourceMap, prefix: &str, report: &mut Report) -> Option<Fields> {
     from_os_vars(sources, prefix, std::env::vars_os(), report)
@@ -46,7 +46,7 @@ fn from_os_vars(
             (Ok(name), Ok(value)) => utf8.push((name, value)),
             (name, _) => {
                 // Invalid bytes survive a lossy conversion as replacement
-                // characters, so a name that carries the prefix still matches
+                // characters, so a name that has the prefix still matches
                 // it and gets the diagnostic. Anything else in the process
                 // environment is not this provider's to judge.
                 let lossy = match name {

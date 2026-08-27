@@ -30,7 +30,7 @@ keyword_enum!(LimitMode, {
 /// IR is pinned against a representative Spec rather than only its first
 /// consumer. `allow` stays bare, so a list with no attribute is pinned too.
 /// The recording attributes drive the checks, so the `Validate`
-/// bodies carry no line for them.
+/// bodies have no line for them.
 #[derive(confval::Spec)]
 struct ServerSpec {
     #[confval(non_empty, length = HOSTNAME_LEN)]
@@ -69,9 +69,9 @@ impl Validate for LimitsSpec {
 }
 
 /// The shapes and leaf types the fixture does not hold: an optional leaf, an
-/// optional leaf carrying a constraint, an optional-wrapped string list, an
+/// optional leaf with a constraint, an optional-wrapped string list, an
 /// `f64` leaf with a range, a `PathBuf` leaf, a range with units and help, an
-/// `i64::MAX` bound, and a field carrying its own `///` doc.
+/// `i64::MAX` bound, and a field with its own `///` doc.
 #[derive(confval::Spec)]
 struct CoverageSpec {
     maybe_name: Option<Located<String>>,
@@ -107,7 +107,7 @@ impl Validate for BlocksSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
-/// A block whose child carries a `///` while the embedding field does not, so
+/// A block whose child has a `///` while the embedding field does not, so
 /// the doc separation has a value to assert on both sides.
 #[derive(confval::Spec)]
 struct BlockParent {
@@ -129,7 +129,7 @@ impl Validate for DocumentedChild {
     fn validate(&self, _report: &mut Report) {}
 }
 
-// A spec carrying its own `///` doc, so `Schema::doc` has a value to assert.
+// A spec with its own `///` doc, so `Schema::doc` has a value to assert.
 // These `//` lines stay plain, so only the `///` line below reaches the
 // struct's harvested doc.
 /// The server's top-level configuration.
@@ -213,8 +213,8 @@ fn a_defaulted_field_is_not_required_whatever_its_shape() {
     let schema = ServerSpec::schema();
 
     // Assert
-    // workers, allow, and headers all sit in the structurally-required column,
-    // yet each carries a default, so required folds to false.
+    // workers, allow, and headers all are in the structurally-required column,
+    // yet each has a default, so required folds to false.
     let workers = field(&schema, "workers");
     let allow = field(&schema, "allow");
     let headers = field(&schema, "headers");
@@ -490,7 +490,7 @@ fn a_block_keeps_the_field_doc_and_the_child_doc_separate() {
     let schema = BlockParent::schema();
 
     // Assert
-    // The embedding field carries no `///`, so its `SchemaField::doc` is None
+    // The embedding field has no `///`, so its `SchemaField::doc` is None
     // and never inherits the child struct's doc the template folds in.
     let child_field = field(&schema, "child");
     let SchemaType::Block { schema: child, .. } = &child_field.ty else {
@@ -515,8 +515,8 @@ fn the_struct_doc_comment_reaches_the_schema_doc() {
     );
 }
 
-/// A spec whose defaults cover every scalar leaf, for the rendered-default
-/// carry.
+/// A spec whose defaults cover every scalar leaf, for the rendered
+/// defaults.
 #[derive(confval::Spec)]
 struct DefaultedSpec {
     /// An expression default on an integer leaf.
@@ -537,16 +537,16 @@ struct DefaultedSpec {
     /// A bare default, which renders the leaf type's own default.
     #[confval(default)]
     retries: Located<i64>,
-    /// A bare default on a list, which carries no text.
+    /// A bare default on a list, which has no text.
     #[confval(default)]
     allow: Vec<Located<String>>,
-    /// A bare default on a map, which carries no text.
+    /// A bare default on a map, which has no text.
     #[confval(map, default)]
     headers: BTreeMap<String, Located<String>>,
-    /// A defaulted nested block, which carries no text.
+    /// A defaulted nested block, which has no text.
     #[confval(nested, default)]
     limits: Option<Located<DefaultedChild>>,
-    /// No default, which carries no text.
+    /// No default, which has no text.
     port: Located<i64>,
 }
 
@@ -657,7 +657,7 @@ fn a_block_and_a_map_record_no_constraint() {
     let map = field(&schema, "headers").ty.constraint();
 
     // Assert
-    // A shape that carries no constraint answers `None`, so a reader that
+    // A shape that has no constraint answers `None`, so a reader that
     // renders one asks every field rather than testing the variant first.
     assert!(block.is_none());
     assert!(map.is_none());

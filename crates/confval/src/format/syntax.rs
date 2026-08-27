@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn an_empty_message_still_names_the_failure_class() {
         // Arrange
-        // A kdl-rs diagnostic can carry no message.
+        // A kdl-rs diagnostic can have no message.
         let message = "";
 
         // Act

@@ -125,7 +125,7 @@ impl FromFields for TlsSpec {
 impl TlsSpec {
     fn build(&self, walk: Walk) -> Fields {
         let fields = FieldsBuilder::new(walk);
-        // The tag has no `Located` behind it, because the variant carries it.
+        // The tag has no `Located` behind it, because the variant holds it.
         // Both walks emit it: a source view without the tag would not reparse.
         match self {
             TlsSpec::Manual { cert, key } => fields
@@ -178,7 +178,7 @@ impl ValidateNested for TlsSpec {
 /// The type-level schema, written by hand the way `#[derive(Spec)]` would emit
 /// it. A tag decides which fields a variant has, so any one instance shows only
 /// one variant's fields. The schema lists `mode` and every field a variant can
-/// carry, each built through the `Schema::new` and `SchemaField::new`
+/// have, each built through the `Schema::new` and `SchemaField::new`
 /// constructors, because the node structs are `#[non_exhaustive]`.
 impl ToSchema for TlsSpec {
     fn schema() -> Schema {

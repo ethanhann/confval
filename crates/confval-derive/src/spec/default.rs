@@ -27,7 +27,7 @@ pub(crate) fn field_ctor(
 ) -> syn::Result<TokenStream2> {
     match shape {
         FieldShape::Leaf { optional, .. } => leaf_ctor(ident, *optional, options),
-        // A string list is required unless it carries a bare `#[confval(default)]`,
+        // A string list is required unless it has a bare `#[confval(default)]`,
         // which the parser reads as the empty list. A `default = expr` has no
         // meaning here. `reject_unsupported_default` reports it with a better
         // span, and the arm refuses it too, so this match stands correct on
@@ -47,7 +47,7 @@ pub(crate) fn field_ctor(
             }),
             Some(Some(_)) | None => Err(no_default_error(ident)),
         },
-        // A map is required unless it carries a bare `#[confval(default)]`,
+        // A map is required unless it has a bare `#[confval(default)]`,
         // which the parser reads as the empty map. A `default = expr` has no
         // meaning here, the same as on the string list.
         FieldShape::Map => match options.default {

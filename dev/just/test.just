@@ -27,4 +27,4 @@ mutants-diff base="main" jobs="6":
 
 # Mutate only confval-derive, with the trybuild `compile_fail` test kept in. Run this to cover the derive macro's diagnostic paths that the fast recipes skip.
 mutants-derive jobs="4":
-    cargo mutants -p confval-derive --profile mutants -j {{ jobs }}
+    cargo mutants -p confval-derive --profile mutants -t 600 -j {{ jobs }}

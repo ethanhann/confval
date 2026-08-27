@@ -70,7 +70,7 @@ pub fn references(
         spans.push(declaration);
     }
     // The walk covers the declaring scope instance's subtree. A site whose own
-    // outward search resolves to a nearer scope carries that scope instead, so
+    // outward search resolves to a nearer scope keeps that scope instead, so
     // shadowed references drop out by the scope-instance comparison.
     let scope_body = site.scope.body;
     visit_references(scope_body, site.scope.schema, |candidate| {
@@ -145,7 +145,7 @@ fn reference_site<'a>(
 
 /// The site for a cursor on the designated label field's value, the label form
 /// of TOML, JSON, and YAML. The declaring scope is the parent of the labeled
-/// block instance, carried as the last ancestor.
+/// block instance, kept as the last ancestor.
 fn label_field_site<'a>(
     schema: &'a Schema,
     ctx: &'a CursorContext,

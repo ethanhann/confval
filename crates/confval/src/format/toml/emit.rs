@@ -2,7 +2,7 @@
 //!
 //! This is the inverse of [`parse_toml_fields`](super::parse_toml_fields). It
 //! builds a `toml_edit` document by structure and renders it, filling in the
-//! doc comments an annotated template carries.
+//! doc comments an annotated template has.
 
 use super::commented::{child_header, commented_block_text, commented_value_text};
 use crate::format::EmitError;
@@ -32,7 +32,7 @@ pub fn emit_toml(fields: &Fields) -> Result<String, EmitError> {
         document.set_trailing(pending);
     }
     let text = document.to_string();
-    // A doc-commented section carries a leading blank line to separate it from
+    // A doc-commented section has a leading blank line to separate it from
     // what precedes it. At the top of the document nothing precedes it.
     match text.strip_prefix('\n') {
         Some(stripped) => Ok(stripped.to_string()),
@@ -129,7 +129,7 @@ fn emit_table(
                 }
                 let blocks = blocks_named(fields, &field.name);
                 // Only one comment can render above the group, so the group
-                // takes the first doc any element carries.
+                // takes the first doc any element has.
                 let doc = fields
                     .iter()
                     .filter(|other| other.name == field.name)
@@ -292,7 +292,7 @@ fn toml_inline_of(fields: &Fields, path: &str) -> Result<InlineTable, EmitError>
 /// Renders a doc comment as TOML comment lines, one `# line` per source line,
 /// with a trailing newline so the field follows on its own line. A blank line
 /// renders as a bare `#` with no trailing space. TOML content is flat, so the
-/// comment carries no indentation.
+/// comment has no indentation.
 pub(super) fn toml_comment(doc: &str) -> String {
     let mut out = String::new();
     for line in comment_lines(doc) {
@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn emit_toml_rejects_a_native_label_it_cannot_write() {
         // Arrange
-        // A parsed HCL or KDL block carries its label on the inner level, and
+        // A parsed HCL or KDL block keeps its label on the inner level, and
         // TOML has no label syntax and no field name to write it with.
         let inner = Fields::detached(vec![scalar("host", Scalar::String("h".to_string()))])
             .with_label(Located::detached("api".to_string()));
@@ -540,7 +540,7 @@ mod tests {
     #[test]
     fn emit_toml_orders_a_commented_level_values_before_blocks() {
         // Arrange
-        // A commented block carries its own level, and that level walks
+        // A commented block has its own level, and that level walks
         // values before blocks the way an active one does.
         let inner = Fields::detached(vec![
             Field::detached_block(
@@ -596,7 +596,7 @@ mod tests {
             "got:\n{text}"
         );
         assert_eq!(text.matches("[[svc]]").count(), 2, "got:\n{text}");
-        // Counting the comment does not say which element it sits above, and
+        // Counting the comment does not say which element it appears above, and
         // rendering it above the last would keep the count at one.
         let doc_at = text.find("# A service entry.").expect("the doc renders");
         let first_header = text.find("[[svc]]").expect("the first header renders");
@@ -631,7 +631,7 @@ mod tests {
     fn emit_toml_uses_a_later_blocks_doc_when_the_first_has_none() {
         // Arrange
         // Only one comment can render above the grouped array, so the group
-        // takes the first doc any element carries.
+        // takes the first doc any element has.
         let block = |port: i64| {
             Field::detached_block(
                 "svc",
@@ -918,7 +918,7 @@ mod tests {
 
         // Assert
         // The commented entry renders first, then the blank line and doc the
-        // table carries.
+        // table has.
         assert_eq!(
             text,
             "#pid_file = \"\"\n\n# Request limits.\n[limits]\nmax_body_mb = 16\n"

@@ -96,7 +96,7 @@ fn definition_on_a_reference_value_answers_the_label_span() {
 #[test]
 fn definition_on_a_duplicated_label_answers_the_first_in_document_order() {
     // Arrange
-    // Both upstreams carry the label `api`, which diagnostics already flag.
+    // Both upstreams have the label `api`, which diagnostics already flag.
     // The pick is the first declaration, deterministically.
     let text = "upstream:\n  - name: api\n    host: h\n    port: 1\n  - name: api\n    host: h2\n    port: 2\nroutes:\n  - prefix: /a\n    upstream: \"api\"\n";
     let offset = text.rfind("\"api\"").unwrap() + 1;
@@ -564,7 +564,7 @@ const GATEWAY_HCL_TWO_UPSTREAMS: &str = "upstream \"api\" {\n  host = \"h\"\n  p
 #[test]
 fn references_from_a_later_native_label_pick_that_label_not_the_first() {
     // Arrange
-    // Two upstreams declare `api` and `web`. The cursor sits in the second
+    // Two upstreams declare `api` and `web`. The cursor is in the second
     // label, `web`, named by one route. The span-contains check must land on
     // `web`, not fall back to the first label `api`, which two routes name.
     let text = GATEWAY_HCL_TWO_UPSTREAMS;

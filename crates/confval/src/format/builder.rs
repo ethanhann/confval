@@ -178,7 +178,7 @@ impl FieldsBuilder {
     /// list's own span.
     ///
     /// The populated walk emits it detached when present. The source walk emits
-    /// it when the wrapper span is attached, carrying that span and each
+    /// it when the wrapper span is attached, with that span and each
     /// element's own, so a list the source wrote empty survives.
     pub fn string_list_opt(
         mut self,
@@ -204,7 +204,7 @@ impl FieldsBuilder {
     }
 
     /// A required nested block. The populated walk recurses with `to_fields`.
-    /// The source walk recurses with `to_source_fields` and carries the block's
+    /// The source walk recurses with `to_source_fields` and keeps the block's
     /// span, and omits the block when that span is detached.
     pub fn block<S: ToFields>(mut self, name: &str, value: &Located<S>) -> Self {
         match self.walk {
@@ -285,11 +285,11 @@ impl FieldsBuilder {
     /// Adds a field the builder does not shape, in the order it is called.
     ///
     /// A string-keyed map is one such shape. The walk does not reach a pushed
-    /// field. The caller decides what it carries. On a source walk that includes
+    /// field. The caller decides what it holds. On a source walk that includes
     /// deciding whether the source set it. Build the field with
     /// [`Field::detached_value`](Field::detached_value) or
     /// [`Field::detached_block`](Field::detached_block), and locate it with
-    /// [`at`](Field::at) when it carries a span.
+    /// [`at`](Field::at) when it has a span.
     pub fn push(mut self, field: Field) -> Self {
         self.items.push(field);
         self
@@ -553,7 +553,7 @@ mod tests {
     #[test]
     fn the_source_walk_gives_a_bare_list_a_detached_field_and_spanned_elements() {
         // Arrange
-        // The bare list has no wrapper span, so its elements carry the only
+        // The bare list has no wrapper span, so its elements keep the only
         // locations it has, and a detached element was never written.
         let values = vec![
             Located::new("a".to_string(), span_at(0, 3)),
@@ -614,7 +614,7 @@ mod tests {
     #[test]
     fn a_wrapped_empty_list_survives_the_source_walk() {
         // Arrange
-        // The wrapper carries the list's own span, so an empty list the source
+        // The wrapper keeps the list's own span, so an empty list the source
         // wrote is distinguishable from an absent one.
         let list = Located::new(Vec::new(), span_at(9, 11));
 
@@ -872,7 +872,7 @@ mod tests {
     fn a_pushed_field_lands_unchanged_in_call_order() {
         // Arrange
         // A map is the shape the builder does not name, so the caller builds the
-        // field and decides what it carries.
+        // field and decides what it holds.
         let map = Fields::detached(vec![Field::detached_value(
             "a",
             Value::detached(ValueKind::Scalar(Scalar::String("b".to_string()))),
