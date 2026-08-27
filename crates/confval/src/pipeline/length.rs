@@ -21,11 +21,24 @@ pub struct LengthConstraint {
 }
 
 impl LengthConstraint {
+    /// The character count `length` measures: the number of Unicode scalar
+    /// values. The language server and the core check both count with this, so
+    /// they agree on the unit.
+    pub fn measure(text: &str) -> usize {
+        text.chars().count()
+    }
+
+    /// Whether `text` is within the inclusive bound.
+    pub fn admits(&self, text: &str) -> bool {
+        let count = Self::measure(text);
+        self.min <= count && count <= self.max
+    }
+
     /// Reports `{field} must be at least {min} characters` or `{field} must
     /// be at most {max} characters` at the value's span when the count falls
     /// outside the bound.
     pub fn check_located(&self, value: &Located<String>, field: &str, report: &mut Report) {
-        let count = value.value.chars().count();
+        let count = Self::measure(&value.value);
         let (limit, kind) = if count < self.min {
             (self.min, "at least")
         } else if count > self.max {
@@ -62,6 +75,9 @@ impl LengthConstraint {
 /// length_constraint!(HOSTNAME_LEN, max: 253);
 /// length_constraint!(PORT_NAME_LEN, min: 1, max: 15);
 /// length_constraint!(LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 63 characters.");
+///
+/// // The macro also answers to its full path, with no import.
+/// confval::length_constraint!(CAPPED, max: 8);
 /// ```
 #[macro_export]
 macro_rules! length_constraint {
@@ -74,13 +90,13 @@ macro_rules! length_constraint {
         const _: () = assert!($min <= $max, "length_constraint! min is above max");
     };
     ($name:ident, min: $min:expr, max: $max:expr) => {
-        length_constraint!($name, min: $min, max: $max, help: None);
+        $crate::length_constraint!($name, min: $min, max: $max, help: None);
     };
     ($name:ident, max: $max:expr, help: $help:literal) => {
-        length_constraint!($name, min: 0, max: $max, help: $help);
+        $crate::length_constraint!($name, min: 0, max: $max, help: $help);
     };
     ($name:ident, max: $max:expr) => {
-        length_constraint!($name, min: 0, max: $max, help: None);
+        $crate::length_constraint!($name, min: 0, max: $max, help: None);
     };
     ($name:ident, min: $min:expr, max: $max:expr, help: None) => {
         const $name: $crate::LengthConstraint = $crate::LengthConstraint {
