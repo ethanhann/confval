@@ -24,8 +24,13 @@ The binary installs the agent skills and parses no configuration.
 
 This map shows the regions, the traits, and the functions that carry each step.
 Inside `confval` the module dependency direction is strictly downward.
-`pipeline` builds on `format`, `format` builds on `diagnostic`, and `diagnostic` builds on `source`.
-`layering` builds on `format`, and `schema` depends on no other module.
+`pipeline` builds on `format` and `schema`.
+`constraints` builds on `schema`, `diagnostic`, and `source`.
+`pipeline` and `constraints` do not import each other.
+`format` builds on `diagnostic`.
+`diagnostic` builds on `source`.
+`layering` builds on `format`.
+`schema` depends on no other module.
 
 The approach is inspired by ["Parse, don't validate"](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) by Alexis King, though it does not use newtypes to couple construction with validation.
 The pipeline as a whole acts as a multi-pass parser over a set of in-memory intermediate representations of the configuration.
@@ -69,11 +74,14 @@ flowchart TB
 
         subgraph PIPELINE["pipeline"]
             VAL["<b>validate_all</b><br/>Validate + ValidateNested"]
-            CONSTR["<b>Recorded constraints</b><br/>KeywordSet, RangeConstraint<br/>keyword_enum!, range_constraint!"]
             REFS["<b>check_references</b><br/>labels resolved by scope"]
             GATE{"report.has_errors()"}
             LOWER["<b>Lower::lower</b><br/>narrow helpers, LowerAuto"]
             CONFIG(["<b>Config type</b><br/>runtime form<br/>IpNet, SocketAddr, runtime enums"])
+        end
+
+        subgraph CONSTRAINTS["constraints"]
+            CONSTR["<b>Recorded constraints</b><br/>KeywordSet, RangeConstraint, LengthConstraint, Format, NON_EMPTY, UNIQUE<br/>keyword_enum!, range_constraint!, length_constraint!"]
         end
 
         subgraph WRITE["write path"]
@@ -165,7 +173,7 @@ flowchart TB
 
     classDef module stroke-width:2px;
     classDef outer-pane stroke-width:1.5px;
-    class SRC,FORMAT,LAYERING,SPECLAYER,PIPELINE,WRITE,SCHEMAMOD,DIAG module;
+    class SRC,FORMAT,LAYERING,SPECLAYER,PIPELINE,CONSTRAINTS,WRITE,SCHEMAMOD,DIAG module;
     class CONFVAL outer-pane;
 ```
 

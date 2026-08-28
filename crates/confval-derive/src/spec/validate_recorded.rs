@@ -96,7 +96,7 @@ fn constraint_fragment(
                 Some(quote! { #path.check_located(#value, #name, #report); })
             }
             Recorded::Format(path) => Some(quote! {
-                ::confval::pipeline::check_format::<#path>(#value, #name, #report);
+                ::confval::constraints::check_format::<#path>(#value, #name, #report);
             }),
             Recorded::Keywords(path) => {
                 Some(quote! { #path::keyword_set().check_located(#value, #name, #report); })
@@ -127,7 +127,7 @@ fn constraint_fragment(
     let check_each_call = |values: &TokenStream2| -> Option<TokenStream2> {
         match recorded {
             Recorded::Format(path) => Some(quote! {
-                ::confval::pipeline::check_each_format::<#path>(#values, #name, report);
+                ::confval::constraints::check_each_format::<#path>(#values, #name, report);
             }),
             Recorded::Keywords(path) => {
                 Some(quote! { #path::keyword_set().check_each_in(#values, #name, report); })
@@ -191,7 +191,7 @@ fn non_empty_fragment(
             optional: false,
             ..
         } => quote! {
-            ::confval::pipeline::NON_EMPTY.check_located(&self.#ident, #name, report);
+            ::confval::constraints::NON_EMPTY.check_located(&self.#ident, #name, report);
         },
         FieldShape::Leaf {
             leaf: Leaf::String,
@@ -199,21 +199,21 @@ fn non_empty_fragment(
             ..
         } => quote! {
             if let ::core::option::Option::Some(__value) = &self.#ident {
-                ::confval::pipeline::NON_EMPTY.check_located(__value, #name, report);
+                ::confval::constraints::NON_EMPTY.check_located(__value, #name, report);
             }
         },
         FieldShape::BareStringList => quote! {
-            ::confval::pipeline::NON_EMPTY.check_list(
+            ::confval::constraints::NON_EMPTY.check_list(
                 &self.#ident, #name, ::confval::source::Span::detached(), report,
             );
-            ::confval::pipeline::NON_EMPTY.check_each(&self.#ident, #name, report);
+            ::confval::constraints::NON_EMPTY.check_each(&self.#ident, #name, report);
         },
         FieldShape::OptionalWrappedStringList => quote! {
             if let ::core::option::Option::Some(__list) = &self.#ident {
-                ::confval::pipeline::NON_EMPTY.check_list(
+                ::confval::constraints::NON_EMPTY.check_list(
                     &__list.value, #name, __list.span, report,
                 );
-                ::confval::pipeline::NON_EMPTY.check_each(&__list.value, #name, report);
+                ::confval::constraints::NON_EMPTY.check_each(&__list.value, #name, report);
             }
         },
         // `field_schema` runs before this walk and rejects every other shape,
@@ -237,11 +237,11 @@ fn unique_fragment(
     options.unique.as_ref()?;
     let fragment = match shape {
         FieldShape::BareStringList => quote! {
-            ::confval::pipeline::UNIQUE.check_list(&self.#ident, #name, report);
+            ::confval::constraints::UNIQUE.check_list(&self.#ident, #name, report);
         },
         FieldShape::OptionalWrappedStringList => quote! {
             if let ::core::option::Option::Some(__list) = &self.#ident {
-                ::confval::pipeline::UNIQUE.check_list(&__list.value, #name, report);
+                ::confval::constraints::UNIQUE.check_list(&__list.value, #name, report);
             }
         },
         // `field_schema` runs before this walk and rejects every other shape,

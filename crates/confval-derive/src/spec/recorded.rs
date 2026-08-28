@@ -202,7 +202,7 @@ fn keywords_tokens(path: &Path) -> TokenStream2 {
 /// `format_constraint` so the name and the check come from the one type.
 fn format_tokens(path: &Path) -> TokenStream2 {
     quote! {
-        ::core::option::Option::Some(::confval::pipeline::format_constraint::<#path>())
+        ::core::option::Option::Some(::confval::constraints::format_constraint::<#path>())
     }
 }
 

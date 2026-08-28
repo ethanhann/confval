@@ -70,6 +70,11 @@ impl LengthConstraint {
 /// `non_empty` rejects a value that is empty or whitespace-only. A `min:` above
 /// `max:` is a compile error.
 ///
+/// The macro takes attributes and a visibility before the name, the way a
+/// `const` item does. Write them inside the call. A const declared `pub` or
+/// `pub(crate)` is usable from any module that imports from the module
+/// holding it. A `#[doc]` on it satisfies a crate that denies `missing_docs`.
+///
 /// ```rust
 /// use confval::length_constraint;
 ///
@@ -80,33 +85,46 @@ impl LengthConstraint {
 /// // The macro also answers to its full path, with no import.
 /// confval::length_constraint!(CAPPED, max: 8);
 /// ```
+///
+/// For example, a `bounds` module holds the constraints. The parent module
+/// names them:
+///
+/// ```rust
+/// mod bounds {
+///     confval::length_constraint!(
+///         /// The hostname bound.
+///         pub HOSTNAME_LEN, max: 253
+///     );
+///     confval::length_constraint!(
+///         /// The label bound.
+///         pub(crate) LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 63 characters."
+///     );
+/// }
+///
+/// assert_eq!(bounds::HOSTNAME_LEN.max, 253);
+/// assert_eq!(bounds::LABEL_LEN.min, 1);
+/// ```
 #[macro_export]
 macro_rules! length_constraint {
-    ($name:ident, min: $min:expr, max: $max:expr, help: $help:literal) => {
-        const $name: $crate::LengthConstraint = $crate::LengthConstraint {
-            min: $min,
+    (
+        $(#[$meta:meta])* $vis:vis $name:ident,
+        $(min: $min:expr,)? max: $max:expr $(, help: $help:literal)?
+    ) => {
+        $(#[$meta])*
+        $vis const $name: $crate::LengthConstraint = $crate::LengthConstraint {
+            min: $crate::length_constraint!(@min $($min)?),
             max: $max,
-            help: Some($help),
+            help: $crate::length_constraint!(@opt $($help)?),
         };
-        const _: () = assert!($min <= $max, "length_constraint! min is above max");
+        const _: () = ::core::assert!(
+            $crate::length_constraint!(@min $($min)?) <= $max,
+            "length_constraint! min is above max"
+        );
     };
-    ($name:ident, min: $min:expr, max: $max:expr) => {
-        $crate::length_constraint!($name, min: $min, max: $max, help: None);
-    };
-    ($name:ident, max: $max:expr, help: $help:literal) => {
-        $crate::length_constraint!($name, min: 0, max: $max, help: $help);
-    };
-    ($name:ident, max: $max:expr) => {
-        $crate::length_constraint!($name, min: 0, max: $max, help: None);
-    };
-    ($name:ident, min: $min:expr, max: $max:expr, help: None) => {
-        const $name: $crate::LengthConstraint = $crate::LengthConstraint {
-            min: $min,
-            max: $max,
-            help: None,
-        };
-        const _: () = assert!($min <= $max, "length_constraint! min is above max");
-    };
+    (@min $min:expr) => { $min };
+    (@min) => { 0 };
+    (@opt $value:literal) => { ::core::option::Option::Some($value) };
+    (@opt) => { ::core::option::Option::None };
 }
 
 #[cfg(test)]
@@ -117,10 +135,61 @@ mod tests {
     length_constraint!(LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 63 characters.");
     length_constraint!(CAPPED, max: 4);
 
+    mod visibility {
+        length_constraint!(
+            /// The hostname bound, declared here and used from the parent module.
+            pub PUBLIC_HOSTNAME_LEN, max: 253
+        );
+        length_constraint!(
+            /// The label bound, visible inside the crate.
+            pub(crate) CRATE_LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 63 characters."
+        );
+    }
+
     fn check(constraint: &LengthConstraint, value: &str, field: &str) -> Report {
         let mut report = Report::new();
         constraint.check_located(&Located::detached(value.to_string()), field, &mut report);
         report
+    }
+
+    #[test]
+    fn a_pub_constant_is_reachable_from_the_parent_module() {
+        // Arrange
+        let constraint = &visibility::PUBLIC_HOSTNAME_LEN;
+        let long = "a".repeat(254);
+
+        // Act
+        let report = check(constraint, &long, "hostname");
+
+        // Assert
+        assert_eq!(
+            (constraint.min, constraint.max, constraint.help),
+            (0, 253, None)
+        );
+        assert!(
+            report.issues()[0]
+                .message
+                .contains("hostname must be at most 253 characters")
+        );
+    }
+
+    #[test]
+    fn a_pub_crate_constant_is_reachable_from_the_parent_module() {
+        // Arrange
+        let constraint = &visibility::CRATE_LABEL_LEN;
+
+        // Act
+        let report = check(constraint, "", "label");
+
+        // Assert
+        assert_eq!(
+            (constraint.min, constraint.max, constraint.help),
+            (1, 63, Some("Each DNS label is at most 63 characters."))
+        );
+        assert_eq!(
+            report.issues()[0].help.as_deref(),
+            Some("Each DNS label is at most 63 characters.")
+        );
     }
 
     #[test]

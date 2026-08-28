@@ -1,0 +1,11 @@
+error: no rules expected `None`
+ --> tests/ui/fail/length_constraint_help_none.rs:5:52
+  |
+5 | length_constraint!(NAME_LEN, min: 1, max: 2, help: None);
+  |                                                    ^^^^ no rules expected this token in macro call
+  |
+note: while trying to match meta-variable `$help:literal`
+ --> src/constraints/length.rs
+  |
+  |         $(min: $min:expr,)? max: $max:expr $(, help: $help:literal)?
+  |                                                      ^^^^^^^^^^^^^
