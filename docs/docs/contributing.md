@@ -60,9 +60,12 @@ If you add an example or change one's required features, update that page and th
 
 ## Crate layout
 
-confval is organized into six modules, plus a prelude.
+confval is organized into seven modules, plus a prelude.
 The dependency direction is strictly downward.
-`pipeline` builds on `format`, which builds on `diagnostic`, which builds on `source`.
+`pipeline` builds on `format` and `schema`.
+`constraints` builds on `schema`, `diagnostic`, and `source`.
+`pipeline` and `constraints` do not import each other.
+`format` builds on `diagnostic`, which builds on `source`.
 `layering` builds on `format`.
 `schema` depends on no other module.
 
@@ -70,7 +73,8 @@ The dependency direction is strictly downward.
 |-----------------------|---------------------------------------------------------------------------------------------|
 | `confval::source`     | `Located`, `Span`, `SourceId`, `Source`, `SourceMap` (the "where")                          |
 | `confval::diagnostic` | `Report`, `Issue`, `IssueBuilder`, `Severity`, the renderers (the "what")                   |
-| `confval::pipeline`   | `Lower`, `LowerAuto`, `Validate`, `narrow`, `RangeConstraint`, `KeywordSet` (the transform) |
+| `confval::pipeline`   | `Lower`, `LowerAuto`, `Validate`, `narrow`, `check_references` (the transform)               |
+| `confval::constraints` | `RangeConstraint`, `LengthConstraint`, `KeywordSet`, `Format`, `NON_EMPTY`, `UNIQUE` (the checks) |
 | `confval::format`     | the neutral field model (`field`) and the frontends (`hcl`, `json`, `kdl`, `toml`, `yaml`)          |
 | `confval::layering`   | `Assembly` and the `env_fields` and `cli_fields` providers (the merge)                      |
 | `confval::schema`     | `Schema`, `SchemaField`, `SchemaType`, `Constraint`, `ToSchema` (the type-level view)       |
