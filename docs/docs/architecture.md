@@ -27,8 +27,10 @@ Inside `confval` the module dependency direction is strictly downward.
 `pipeline` builds on `format` and `schema`.
 `constraints` builds on `schema`, `diagnostic`, and `source`.
 `pipeline` and `constraints` do not import each other.
-`format` builds on `diagnostic`, and `diagnostic` builds on `source`.
-`layering` builds on `format`, and `schema` depends on no other module.
+`format` builds on `diagnostic`.
+`diagnostic` builds on `source`.
+`layering` builds on `format`.
+`schema` depends on no other module.
 
 The approach is inspired by ["Parse, don't validate"](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) by Alexis King, though it does not use newtypes to couple construction with validation.
 The pipeline as a whole acts as a multi-pass parser over a set of in-memory intermediate representations of the configuration.

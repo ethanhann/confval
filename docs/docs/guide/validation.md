@@ -34,7 +34,8 @@ Each one reports at the value's span with a help line.
 
 ### RangeConstraint
 
-`range_constraint!` declares an inclusive numeric bound:
+`range_constraint!` declares an inclusive numeric bound.
+A `min:` above `max:` is a compile error.
 
 ```rust
 range_constraint!(PORT, i64, min: 1, max: 65535);
@@ -42,10 +43,11 @@ range_constraint!(DRAIN, i64, min: 0, max: 300, units: "seconds");
 range_constraint!(WORKERS, i64, min: 1, max: 512, help: "Match this to your CPU core count.");
 ```
 
-The name takes attributes and a visibility, written inside the call before the name.
-A constraint declared with `pub` or `pub(crate)` in one module is usable from another module in the crate.
-A `min:` above `max:` is a compile error.
-For example, a `bounds` module holds the constraints and the spec module names them:
+The macro takes attributes and a visibility before the name, the way a `const` item does.
+Write them inside the call.
+A const declared `pub` or `pub(crate)` is usable from any module that imports from the module holding it.
+For example, a `bounds` module holds the constraints.
+The spec module names them:
 
 ```rust
 mod bounds {
@@ -80,7 +82,7 @@ length_constraint!(HOSTNAME_LEN, max: 253);
 length_constraint!(LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 63 characters.");
 ```
 
-The name takes the same attribute slot and visibility slot as `range_constraint!`.
+`length_constraint!` takes attributes and a visibility before the name, the same as `range_constraint!`.
 
 A bound with `max:` alone starts at zero.
 The bound takes `help:` only and has no `units:` arm, because the unit is always characters.
