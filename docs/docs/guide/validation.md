@@ -46,7 +46,7 @@ range_constraint!(
 );
 ```
 
-The name may carry attributes and a visibility, written inside the call before the name.
+The name takes attributes and a visibility, written inside the call before the name.
 A constraint declared with `pub` in one module is usable from another.
 
 `check_located` emits an error at the value's span when the value is out of range:
