@@ -1,5 +1,5 @@
-//! The bounds the spec records. Each one is `pub(crate)`. The spec module
-//! names it in a recording attribute.
+//! The bounds the spec records. Each one is `pub(crate)`, so the spec module,
+//! a sibling file, can import it and name it in a recording attribute.
 
 use confval::{length_constraint, range_constraint};
 
