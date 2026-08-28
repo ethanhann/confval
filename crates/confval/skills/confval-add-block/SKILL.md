@@ -45,7 +45,8 @@ Declare a recorded constraint on the field.
 
 The derive runs a recorded constraint during validation, so the `Validate` impl carries no line for it.
 A recorded constraint expands where the spec struct is declared.
-A `range_constraint!` const or a `length_constraint!` const must be in scope there, either declared in that module or declared `pub(crate)` in a module it imports from.
+A `range_constraint!` const or a `length_constraint!` const must be in scope there.
+Declare it in that module, or declare it `pub(crate)` in a module the spec module imports from.
 The keyword enum and a `Format` type may be anywhere that module can import from.
 A project that holds its constraints elsewhere will not compile until they move, and the compiler names the missing const rather than the reason.
 Add a rule an attribute cannot express to the spec type's `Validate` impl.

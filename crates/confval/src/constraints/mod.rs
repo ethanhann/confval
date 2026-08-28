@@ -1,8 +1,8 @@
 //! The value constraints a spec declares and the derive records: keyword
 //! sets, numeric ranges, character lengths, formats, the non-empty flag, and
-//! the unique flag. Each checker reports at the value's span. The
-//! `keyword_enum!`, `range_constraint!`, and `length_constraint!` macros are
-//! the declaration forms for the first three.
+//! the unique flag. Each checker reports at the value's span. A keyword set
+//! is declared with `keyword_enum!`, a range with `range_constraint!`, and a
+//! length with `length_constraint!`.
 
 /// Keyword sets and the [`keyword_enum!`](crate::keyword_enum) macro.
 pub mod keyword;

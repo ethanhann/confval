@@ -70,9 +70,9 @@ impl LengthConstraint {
 /// `non_empty` rejects a value that is empty or whitespace-only. A `min:` above
 /// `max:` is a compile error.
 ///
-/// The name may carry attributes and a visibility, the way a `const` item
-/// does. Write them inside the call, before the name. A constraint declared
-/// with `pub` in one module is usable from another, and a `#[doc]` on it
+/// The name takes attributes and a visibility, the way a `const` item does.
+/// Write them inside the call, before the name. If you declare a constraint
+/// with `pub` in one module, you can use it from another. A `#[doc]` on it
 /// satisfies a crate that denies `missing_docs`.
 ///
 /// ```rust

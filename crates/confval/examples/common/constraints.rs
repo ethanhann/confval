@@ -1,6 +1,5 @@
-//! The bounds the spec records. Each one is `pub(crate)` so the spec module
-//! names it in an attribute. A constraint declared here and not in the spec
-//! module keeps the spec struct short.
+//! The bounds the spec records. Each one is `pub(crate)`. The spec module
+//! names it in a recording attribute.
 
 use confval::{length_constraint, range_constraint};
 

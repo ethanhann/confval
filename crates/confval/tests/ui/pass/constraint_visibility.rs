@@ -2,8 +2,8 @@
 //!
 //! This pins the attribute slot and the visibility slot of both macros from
 //! outside their defining module. Every public form of each macro compiles
-//! with `pub`, `pub(crate)`, and no visibility. The crate denies `dead_code`,
-//! so the unused `pub` constants compile only when their `#[allow(dead_code)]`
+//! with `pub`, `pub(crate)`, and no visibility. The crate denies `dead_code`.
+//! An unused `pub` constant then compiles only when its `#[allow(dead_code)]`
 //! attaches to the emitted const.
 
 #![deny(dead_code)]
