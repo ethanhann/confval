@@ -7,5 +7,5 @@ error: no rules expected `None`
 note: while trying to match meta-variable `$help:literal`
  --> src/constraints/length.rs
   |
-  |     ($(#[$meta:meta])* $vis:vis $name:ident, min: $min:expr, max: $max:expr, help: $help:literal) => {
-  |                                                                                    ^^^^^^^^^^^^^
+  |         $(min: $min:expr,)? max: $max:expr $(, help: $help:literal)?
+  |                                                      ^^^^^^^^^^^^^

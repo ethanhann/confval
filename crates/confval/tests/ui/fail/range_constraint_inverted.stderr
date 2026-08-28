@@ -1,0 +1,7 @@
+error[E0080]: evaluation panicked: range_constraint! min is above max
+ --> tests/ui/fail/range_constraint_inverted.rs:5:1
+  |
+5 | range_constraint!(PORT, i64, min: 65535, max: 1);
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_` failed here
+  |
+  = note: this error originates in the macro `$crate::panic::panic_2021` which comes from the expansion of the macro `range_constraint` (in Nightly builds, run with -Z macro-backtrace for more info)
