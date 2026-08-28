@@ -72,8 +72,9 @@ impl LengthConstraint {
 ///
 /// The name takes attributes and a visibility, the way a `const` item does.
 /// Write them inside the call, before the name. If you declare a constraint
-/// with `pub` in one module, you can use it from another. A `#[doc]` on it
-/// satisfies a crate that denies `missing_docs`.
+/// with `pub` or `pub(crate)` in one module, you can use it from another
+/// module in the crate. A `#[doc]` on it satisfies a crate that denies
+/// `missing_docs`.
 ///
 /// ```rust
 /// use confval::length_constraint;
@@ -86,8 +87,8 @@ impl LengthConstraint {
 /// confval::length_constraint!(CAPPED, max: 8);
 /// ```
 ///
-/// For example, a `bounds` module holds the constraints and the spec module
-/// uses them:
+/// For example, a `bounds` module holds the constraints and the parent module
+/// reads them:
 ///
 /// ```rust
 /// mod bounds {
@@ -106,31 +107,25 @@ impl LengthConstraint {
 /// ```
 #[macro_export]
 macro_rules! length_constraint {
-    (@emit $(#[$meta:meta])* $vis:vis $name:ident, $min:expr, $max:expr, $help:expr) => {
+    (
+        $(#[$meta:meta])* $vis:vis $name:ident,
+        $(min: $min:expr,)? max: $max:expr $(, help: $help:literal)?
+    ) => {
         $(#[$meta])*
         $vis const $name: $crate::LengthConstraint = $crate::LengthConstraint {
-            min: $min,
+            min: $crate::length_constraint!(@min $($min)?),
             max: $max,
-            help: $help,
+            help: $crate::length_constraint!(@opt $($help)?),
         };
-        const _: () = assert!($min <= $max, "length_constraint! min is above max");
+        const _: () = ::core::assert!(
+            $crate::length_constraint!(@min $($min)?) <= $max,
+            "length_constraint! min is above max"
+        );
     };
-    ($(#[$meta:meta])* $vis:vis $name:ident, min: $min:expr, max: $max:expr, help: $help:literal) => {
-        $crate::length_constraint!(@emit $(#[$meta])* $vis $name, $min, $max,
-            ::core::option::Option::Some($help));
-    };
-    ($(#[$meta:meta])* $vis:vis $name:ident, min: $min:expr, max: $max:expr) => {
-        $crate::length_constraint!(@emit $(#[$meta])* $vis $name, $min, $max,
-            ::core::option::Option::None);
-    };
-    ($(#[$meta:meta])* $vis:vis $name:ident, max: $max:expr, help: $help:literal) => {
-        $crate::length_constraint!(@emit $(#[$meta])* $vis $name, 0, $max,
-            ::core::option::Option::Some($help));
-    };
-    ($(#[$meta:meta])* $vis:vis $name:ident, max: $max:expr) => {
-        $crate::length_constraint!(@emit $(#[$meta])* $vis $name, 0, $max,
-            ::core::option::Option::None);
-    };
+    (@min $min:expr) => { $min };
+    (@min) => { 0 };
+    (@opt $value:literal) => { ::core::option::Option::Some($value) };
+    (@opt) => { ::core::option::Option::None };
 }
 
 #[cfg(test)]

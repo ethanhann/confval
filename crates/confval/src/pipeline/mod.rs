@@ -1,9 +1,11 @@
 //! Validation and lowering of a parsed spec. Every parsed value keeps its
 //! exact location in the source text, so a diagnostic points at the offending
-//! value rather than at the enclosing section. The four stages are the
-//! [`Validate`] and [`ValidateNested`] walk, the [`check_references`] pass,
-//! the [`narrow`] helpers, and the [`Lower`] step into the runtime form. A
-//! `Validate` impl calls the checkers in [`constraints`](crate::constraints).
+//! value rather than at the enclosing section. This module holds four of the
+//! stages: the [`Validate`] and [`ValidateNested`] walk, the
+//! [`check_references`] pass, the [`narrow`] helpers, and the [`Lower`] step
+//! into the runtime form. A `Validate` impl calls the checkers in
+//! [`constraints`](crate::constraints). The two modules do not import each
+//! other.
 
 mod lower;
 pub mod narrow;

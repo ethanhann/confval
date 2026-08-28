@@ -85,8 +85,9 @@ where
 ///
 /// The name takes attributes and a visibility, the way a `const` item does.
 /// Write them inside the call, before the name. If you declare a constraint
-/// with `pub` in one module, you can use it from another. A `#[doc]` on it
-/// satisfies a crate that denies `missing_docs`.
+/// with `pub` or `pub(crate)` in one module, you can use it from another
+/// module in the crate. A `#[doc]` on it satisfies a crate that denies
+/// `missing_docs`. A `min:` above `max:` is a compile error.
 ///
 /// ```rust
 /// use confval::range_constraint;
@@ -100,8 +101,8 @@ where
 /// confval::range_constraint!(LIMITS, u32, min: 1, max: 10);
 /// ```
 ///
-/// For example, a `bounds` module holds the constraints and the spec module
-/// uses them:
+/// For example, a `bounds` module holds the constraints and the parent module
+/// reads them:
 ///
 /// ```rust
 /// mod bounds {
@@ -120,31 +121,22 @@ where
 /// ```
 #[macro_export]
 macro_rules! range_constraint {
-    (@emit $(#[$meta:meta])* $vis:vis $name:ident, $T:ty, $min:expr, $max:expr, $units:expr, $help:expr) => {
+    (
+        $(#[$meta:meta])* $vis:vis $name:ident, $T:ty,
+        min: $min:expr, max: $max:expr
+        $(, units: $units:literal)? $(, help: $help:literal)?
+    ) => {
         $(#[$meta])*
         $vis const $name: $crate::RangeConstraint<$T> = $crate::RangeConstraint {
             min: $min,
             max: $max,
-            units: $units,
-            help: $help,
+            units: $crate::range_constraint!(@opt $($units)?),
+            help: $crate::range_constraint!(@opt $($help)?),
         };
+        const _: () = ::core::assert!($min <= $max, "range_constraint! min is above max");
     };
-    ($(#[$meta:meta])* $vis:vis $name:ident, $T:ty, min: $min:expr, max: $max:expr, units: $units:literal, help: $help:literal) => {
-        $crate::range_constraint!(@emit $(#[$meta])* $vis $name, $T, $min, $max,
-            ::core::option::Option::Some($units), ::core::option::Option::Some($help));
-    };
-    ($(#[$meta:meta])* $vis:vis $name:ident, $T:ty, min: $min:expr, max: $max:expr, units: $units:literal) => {
-        $crate::range_constraint!(@emit $(#[$meta])* $vis $name, $T, $min, $max,
-            ::core::option::Option::Some($units), ::core::option::Option::None);
-    };
-    ($(#[$meta:meta])* $vis:vis $name:ident, $T:ty, min: $min:expr, max: $max:expr, help: $help:literal) => {
-        $crate::range_constraint!(@emit $(#[$meta])* $vis $name, $T, $min, $max,
-            ::core::option::Option::None, ::core::option::Option::Some($help));
-    };
-    ($(#[$meta:meta])* $vis:vis $name:ident, $T:ty, min: $min:expr, max: $max:expr) => {
-        $crate::range_constraint!(@emit $(#[$meta])* $vis $name, $T, $min, $max,
-            ::core::option::Option::None, ::core::option::Option::None);
-    };
+    (@opt $value:literal) => { ::core::option::Option::Some($value) };
+    (@opt) => { ::core::option::Option::None };
 }
 
 #[cfg(test)]
