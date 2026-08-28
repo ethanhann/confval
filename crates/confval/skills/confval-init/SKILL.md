@@ -103,7 +103,7 @@ Each recording attribute names its declaration.
 - `#[confval(format = Ip)]` records a `Format` type.
 - `#[confval(keywords = LimitMode)]` records a `keyword_enum!` set.
 
-Each of the three macros takes attributes and a visibility before the name, as in `range_constraint!(#[doc = "The port."] pub PORT, i64, min: 1, max: 65535)`.
+`range_constraint!`, `length_constraint!`, and `keyword_enum!` each take attributes and a visibility before the name, as in `range_constraint!(#[doc = "The port."] pub PORT, i64, min: 1, max: 65535)`.
 
 The derive runs a recorded constraint during validation and records it in the schema.
 An editor's hover and completion read that same rule.
@@ -125,10 +125,11 @@ struct ServerSpec {
 
 A recorded constraint expands where the spec struct is declared, so what it names must be reachable there.
 The four attributes differ on what that means.
+
 `range = ...` and `length = ...` name a value.
-`range_constraint!` and `length_constraint!` generate a const with the visibility you write before the name, as in `range_constraint!(pub(crate) PORT, i64, min: 1, max: 65535)`.
+`range_constraint!` and `length_constraint!` generate a const.
 A private const must be in the module that declares the spec struct.
-A `pub` or `pub(crate)` const may be in any module the spec module imports from.
+A const declared `pub` or `pub(crate)` is usable from any module that imports from the module holding it.
 `keywords = ...` and `format = ...` name a type, so the enum or the format type may be anywhere the spec module can import it from.
 Hold every `keyword_enum!` in one vocabulary module and import it.
 A closed set of words belongs to no single stage, because the spec checks it, lowering converts through it, and the runtime type holds it.

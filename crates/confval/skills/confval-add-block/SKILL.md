@@ -46,10 +46,12 @@ Declare a recorded constraint on the field.
 The derive runs a recorded constraint during validation, so the `Validate` impl carries no line for it.
 A recorded constraint expands where the spec struct is declared.
 A `range_constraint!` const or a `length_constraint!` const must be in scope there.
-Declare it in that module, or declare it `pub` or `pub(crate)` in a module the spec module imports from.
-The keyword enum and a `Format` type may be anywhere that module can import from.
-A private const in another module does not compile.
+The macro takes attributes and a visibility before the name, as in `range_constraint!(#[doc = "The port."] pub PORT, i64, min: 1, max: 65535)`.
+A const declared `pub` or `pub(crate)` is usable from any module that imports from the module holding it.
+A private const in another module is not in scope, so the spec does not compile.
 The compiler names the missing const rather than the reason.
+
+The keyword enum and a `Format` type may be anywhere that module can import from.
 Add a rule an attribute cannot express to the spec type's `Validate` impl.
 A new block needs its own `Validate` impl, which `validate_all` reaches on its own through the generated traversal, so you do not call it by hand.
 Report at the field's span and accumulate into the `Report` with no early return.

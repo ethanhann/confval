@@ -1,9 +1,9 @@
 //! `range_constraint!` and `length_constraint!` pass test.
 //!
-//! This pins the attribute slot and the visibility slot of both macros from
+//! This pins the attributes and the visibility both macros accept, from
 //! outside their defining module. Every public form of each macro appears
-//! with `pub`, with `pub(crate)`, and with no visibility, and one constant
-//! uses `pub(in path)`. The crate denies `dead_code`. An unused `pub` constant
+//! three times: with `pub`, with `pub(crate)`, and with no visibility. One
+//! constant also uses `pub(in path)`. The crate denies `dead_code`. An unused `pub` constant
 //! then compiles only when its `#[allow(dead_code)]` attaches to the emitted
 //! const.
 

@@ -81,13 +81,13 @@ where
     }
 }
 
-/// Define a named range constraint as a const.
+/// Define a named range constraint as a const. A `min:` above `max:` is a
+/// compile error.
 ///
-/// The name takes attributes and a visibility, the way a `const` item does.
-/// Write them inside the call, before the name. If you declare a constraint
-/// with `pub` or `pub(crate)` in one module, you can use it from another
-/// module in the crate. A `#[doc]` on it satisfies a crate that denies
-/// `missing_docs`. A `min:` above `max:` is a compile error.
+/// The macro takes attributes and a visibility before the name, the way a
+/// `const` item does. Write them inside the call. A const declared `pub` or
+/// `pub(crate)` is usable from any module that imports from the module
+/// holding it. A `#[doc]` on it satisfies a crate that denies `missing_docs`.
 ///
 /// ```rust
 /// use confval::range_constraint;
@@ -101,8 +101,8 @@ where
 /// confval::range_constraint!(LIMITS, u32, min: 1, max: 10);
 /// ```
 ///
-/// For example, a `bounds` module holds the constraints and the parent module
-/// reads them:
+/// For example, a `bounds` module holds the constraints. The parent module
+/// names them:
 ///
 /// ```rust
 /// mod bounds {

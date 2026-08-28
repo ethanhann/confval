@@ -1,5 +1,6 @@
-//! The bounds the spec records. Each one is `pub(crate)`, so the spec module,
-//! a sibling file, can import it and name it in a recording attribute.
+//! The bounds the spec records. Each one is `pub(crate)`. The spec module is a
+//! sibling file, so it can import these constants and name them in a
+//! recording attribute.
 
 use confval::{length_constraint, range_constraint};
 
@@ -16,6 +17,6 @@ range_constraint!(
     pub(crate) MAX_BODY_MB, i64, min: 1, max: 1024
 );
 length_constraint!(
-    /// The hostname bound, one DNS name.
+    /// The hostname bound. A DNS name is at most 253 characters.
     pub(crate) HOSTNAME_LEN, max: 253
 );

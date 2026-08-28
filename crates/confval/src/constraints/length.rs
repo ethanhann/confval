@@ -70,11 +70,10 @@ impl LengthConstraint {
 /// `non_empty` rejects a value that is empty or whitespace-only. A `min:` above
 /// `max:` is a compile error.
 ///
-/// The name takes attributes and a visibility, the way a `const` item does.
-/// Write them inside the call, before the name. If you declare a constraint
-/// with `pub` or `pub(crate)` in one module, you can use it from another
-/// module in the crate. A `#[doc]` on it satisfies a crate that denies
-/// `missing_docs`.
+/// The macro takes attributes and a visibility before the name, the way a
+/// `const` item does. Write them inside the call. A const declared `pub` or
+/// `pub(crate)` is usable from any module that imports from the module
+/// holding it. A `#[doc]` on it satisfies a crate that denies `missing_docs`.
 ///
 /// ```rust
 /// use confval::length_constraint;
@@ -87,8 +86,8 @@ impl LengthConstraint {
 /// confval::length_constraint!(CAPPED, max: 8);
 /// ```
 ///
-/// For example, a `bounds` module holds the constraints and the parent module
-/// reads them:
+/// For example, a `bounds` module holds the constraints. The parent module
+/// names them:
 ///
 /// ```rust
 /// mod bounds {
