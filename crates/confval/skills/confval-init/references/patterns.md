@@ -53,7 +53,7 @@ A bound with `max:` alone starts at zero.
 It then pairs with `non_empty`, and the two report different conditions.
 Like `range_constraint!`, the macro takes attributes and a visibility before the name.
 A private const must be in the module that declares the spec struct.
-A `pub(crate)` const may be in any module the spec module imports from.
+A `pub` or `pub(crate)` const may be in any module the spec module imports from.
 The derive rejects `length` on a list, a map, a block, and a non-string leaf.
 
 ## A string that must parse as a format
