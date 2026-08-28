@@ -79,7 +79,7 @@ flowchart TB
         end
 
         subgraph CONSTRAINTS["constraints"]
-            CONSTR["<b>Recorded constraints</b><br/>KeywordSet, RangeConstraint, LengthConstraint, Format<br/>keyword_enum!, range_constraint!, length_constraint!"]
+            CONSTR["<b>Recorded constraints</b><br/>KeywordSet, RangeConstraint, LengthConstraint, Format, NON_EMPTY, UNIQUE<br/>keyword_enum!, range_constraint!, length_constraint!"]
         end
 
         subgraph WRITE["write path"]

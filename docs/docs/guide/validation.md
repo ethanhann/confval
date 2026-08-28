@@ -40,14 +40,27 @@ Each one reports at the value's span with a help line.
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(DRAIN, i64, min: 0, max: 300, units: "seconds");
 range_constraint!(WORKERS, i64, min: 1, max: 512, help: "Match this to your CPU core count.");
-range_constraint!(
-    /// The drain window before shutdown.
-    pub DRAIN_WINDOW, i64, min: 0, max: 300, units: "seconds"
-);
 ```
 
 The name takes attributes and a visibility, written inside the call before the name.
-A constraint declared with `pub` in one module is usable from another.
+A constraint declared with `pub` or `pub(crate)` in one module is usable from another module in the crate.
+A `min:` above `max:` is a compile error.
+For example, a `bounds` module holds the constraints and the spec module names them:
+
+```rust
+mod bounds {
+    confval::range_constraint!(
+        /// The listening port.
+        pub PORT, i64, min: 1, max: 65535
+    );
+}
+
+#[derive(confval::Spec)]
+pub struct ServerSpec {
+    #[confval(range = bounds::PORT)]
+    pub port: Located<i64>,
+}
+```
 
 `check_located` emits an error at the value's span when the value is out of range:
 
@@ -65,10 +78,6 @@ Otherwise, confval generates one like "Set port to at least 1".
 ```rust
 length_constraint!(HOSTNAME_LEN, max: 253);
 length_constraint!(LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 63 characters.");
-length_constraint!(
-    /// The path bound.
-    pub PATH_LEN, min: 1, max: 4096
-);
 ```
 
 The name takes the same attribute slot and visibility slot as `range_constraint!`.

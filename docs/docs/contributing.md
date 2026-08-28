@@ -74,7 +74,7 @@ The dependency direction is strictly downward.
 | `confval::source`     | `Located`, `Span`, `SourceId`, `Source`, `SourceMap` (the "where")                          |
 | `confval::diagnostic` | `Report`, `Issue`, `IssueBuilder`, `Severity`, the renderers (the "what")                   |
 | `confval::pipeline`   | `Lower`, `LowerAuto`, `Validate`, `narrow`, `check_references` (the transform)               |
-| `confval::constraints` | `RangeConstraint`, `LengthConstraint`, `KeywordSet`, `Format`, `NON_EMPTY`, `UNIQUE` (the checks) |
+| `confval::constraints`| `RangeConstraint`, `LengthConstraint`, `KeywordSet`, `Format`, `NON_EMPTY`, `UNIQUE` (the checks)|
 | `confval::format`     | the neutral field model (`field`) and the frontends (`hcl`, `json`, `kdl`, `toml`, `yaml`)          |
 | `confval::layering`   | `Assembly` and the `env_fields` and `cli_fields` providers (the merge)                      |
 | `confval::schema`     | `Schema`, `SchemaField`, `SchemaType`, `Constraint`, `ToSchema` (the type-level view)       |
