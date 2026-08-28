@@ -5,7 +5,7 @@ error: no rules expected `}`
   |                       ^ no rules expected this token in macro call
   |
 note: while trying to match meta-variable `$variant:ident`
- --> src/pipeline/keyword.rs
+ --> src/constraints/keyword.rs
   |
   |         { $($(#[$variant_meta:meta])* $variant:ident => $kw:literal),+ $(,)? }
   |                                       ^^^^^^^^^^^^^^

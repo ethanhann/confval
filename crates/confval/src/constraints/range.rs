@@ -83,6 +83,11 @@ where
 
 /// Define a named range constraint as a const.
 ///
+/// The name may carry attributes and a visibility, the way a `const` item
+/// does. Write them inside the call, before the name. A constraint declared
+/// with `pub` in one module is usable from another, and a `#[doc]` on it
+/// satisfies a crate that denies `missing_docs`.
+///
 /// ```rust
 /// use confval::range_constraint;
 ///
@@ -94,34 +99,52 @@ where
 /// // The macro also answers to its full path, and needs no `RangeConstraint` import.
 /// confval::range_constraint!(LIMITS, u32, min: 1, max: 10);
 /// ```
+///
+/// For example, a `bounds` module holds the constraints and the spec module
+/// uses them:
+///
+/// ```rust
+/// mod bounds {
+///     confval::range_constraint!(
+///         /// The listening port.
+///         pub PORT, i64, min: 1, max: 65535
+///     );
+///     confval::range_constraint!(
+///         /// The drain window.
+///         pub(crate) DRAIN, i64, min: 0, max: 300, units: "seconds"
+///     );
+/// }
+///
+/// assert_eq!(bounds::PORT.max, 65535);
+/// assert_eq!(bounds::DRAIN.units, Some("seconds"));
+/// ```
 #[macro_export]
 macro_rules! range_constraint {
-    ($name:ident, $T:ty, min: $min:expr, max: $max:expr, help: $help:literal) => {
-        const $name: $crate::RangeConstraint<$T> = $crate::RangeConstraint {
+    (@emit $(#[$meta:meta])* $vis:vis $name:ident, $T:ty, $min:expr, $max:expr, $units:expr, $help:expr) => {
+        $(#[$meta])*
+        $vis const $name: $crate::RangeConstraint<$T> = $crate::RangeConstraint {
             min: $min,
             max: $max,
-            units: None,
-            help: Some($help),
+            units: $units,
+            help: $help,
         };
     };
-    ($name:ident, $T:ty, min: $min:expr, max: $max:expr, units: $units:literal, help: $help:literal) => {
-        const $name: $crate::RangeConstraint<$T> = $crate::RangeConstraint {
-            min: $min,
-            max: $max,
-            units: Some($units),
-            help: Some($help),
-        };
+    ($(#[$meta:meta])* $vis:vis $name:ident, $T:ty, min: $min:expr, max: $max:expr, units: $units:literal, help: $help:literal) => {
+        $crate::range_constraint!(@emit $(#[$meta])* $vis $name, $T, $min, $max,
+            ::core::option::Option::Some($units), ::core::option::Option::Some($help));
     };
-    ($name:ident, $T:ty, min: $min:expr, max: $max:expr $(, units: $units:literal)?) => {
-        const $name: $crate::RangeConstraint<$T> = $crate::RangeConstraint {
-            min: $min,
-            max: $max,
-            units: $crate::range_constraint!(@units $($units)?),
-            help: None,
-        };
+    ($(#[$meta:meta])* $vis:vis $name:ident, $T:ty, min: $min:expr, max: $max:expr, units: $units:literal) => {
+        $crate::range_constraint!(@emit $(#[$meta])* $vis $name, $T, $min, $max,
+            ::core::option::Option::Some($units), ::core::option::Option::None);
     };
-    (@units $units:literal) => { Some($units) };
-    (@units) => { None };
+    ($(#[$meta:meta])* $vis:vis $name:ident, $T:ty, min: $min:expr, max: $max:expr, help: $help:literal) => {
+        $crate::range_constraint!(@emit $(#[$meta])* $vis $name, $T, $min, $max,
+            ::core::option::Option::None, ::core::option::Option::Some($help));
+    };
+    ($(#[$meta:meta])* $vis:vis $name:ident, $T:ty, min: $min:expr, max: $max:expr) => {
+        $crate::range_constraint!(@emit $(#[$meta])* $vis $name, $T, $min, $max,
+            ::core::option::Option::None, ::core::option::Option::None);
+    };
 }
 
 #[cfg(test)]
@@ -136,10 +159,67 @@ mod tests {
     range_constraint!(WORKERS, i64, min: 1, max: 128, help: "Match this to your CPU core count.");
     range_constraint!(TIMEOUT, i64, min: 1, max: 300, units: "seconds", help: "Keep this under 5 minutes for responsive shutdowns.");
 
+    mod visibility {
+        range_constraint!(
+            /// The listening port, declared here and used from the parent module.
+            pub PUBLIC_PORT, i64, min: 1, max: 65535
+        );
+        range_constraint!(
+            /// The worker count, visible inside the crate.
+            pub(crate) CRATE_WORKERS, i64, min: 1, max: 128, units: "workers"
+        );
+    }
+
     fn check(constraint: &RangeConstraint<i64>, value: i64, field: &'static str) -> Report {
         let mut report = Report::new();
         constraint.check_located(&Located::detached(value), field, &mut report);
         report
+    }
+
+    #[test]
+    fn a_pub_constant_is_reachable_from_the_parent_module() {
+        // Arrange
+        let constraint = &visibility::PUBLIC_PORT;
+
+        // Act
+        let report = check(constraint, 0, "port");
+
+        // Assert
+        assert_eq!(
+            (
+                constraint.min,
+                constraint.max,
+                constraint.units,
+                constraint.help
+            ),
+            (1, 65535, None, None)
+        );
+        assert!(
+            report.issues()[0]
+                .message
+                .contains("port must be at least 1")
+        );
+    }
+
+    #[test]
+    fn a_pub_crate_constant_is_reachable_from_the_parent_module() {
+        // Arrange
+        let constraint = &visibility::CRATE_WORKERS;
+
+        // Act
+        let report = check(constraint, 64, "workers");
+
+        // Assert
+        assert_eq!(
+            (
+                constraint.min,
+                constraint.max,
+                constraint.units,
+                constraint.help
+            ),
+            (1, 128, Some("workers"), None)
+        );
+        assert!(!report.has_issues());
     }
 
     #[test]

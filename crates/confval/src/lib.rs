@@ -14,6 +14,7 @@
 
 #[cfg(feature = "derive")]
 pub use confval_derive::{Config, Spec};
+pub mod constraints;
 /// Collecting and rendering diagnostics: the [`Report`](diagnostic::Report)
 /// and its issues.
 pub mod diagnostic;
@@ -27,12 +28,12 @@ pub mod schema;
 /// [`Span`](source::Span), and [`Located`](source::Located).
 pub mod source;
 
-pub use pipeline::format::{AbsolutePath, Format, Ip, Ipv4, Ipv6};
-pub use pipeline::keyword::KeywordSet;
-pub use pipeline::length::LengthConstraint;
-pub use pipeline::non_empty::{NON_EMPTY, NonEmptyConstraint};
-pub use pipeline::range::RangeConstraint;
-pub use pipeline::unique::{UNIQUE, UniqueConstraint};
+pub use constraints::format::{AbsolutePath, Format, Ip, Ipv4, Ipv6};
+pub use constraints::keyword::KeywordSet;
+pub use constraints::length::LengthConstraint;
+pub use constraints::non_empty::{NON_EMPTY, NonEmptyConstraint};
+pub use constraints::range::RangeConstraint;
+pub use constraints::unique::{UNIQUE, UniqueConstraint};
 
 /// Implementation detail for the crate's macros. Not part of the public API,
 /// and exempt from semver. `keyword_enum!` uses `serde` through this path, so
@@ -57,8 +58,8 @@ pub mod __private {
 /// ([`KeywordSet`] and its [`keyword_enum!`] macro, [`RangeConstraint`] and its
 /// [`range_constraint!`] macro, [`LengthConstraint`] and its
 /// [`length_constraint!`] macro, the [`Format`] trait with its built-in
-/// types and the [`check_format`](pipeline::check_format) and
-/// [`check_each_format`](pipeline::check_each_format) calls, and the
+/// types and the [`check_format`](constraints::check_format) and
+/// [`check_each_format`](constraints::check_each_format) calls, and the
 /// [`NON_EMPTY`] and [`UNIQUE`] flags), and, with the `derive` feature, the
 /// [`Spec`] and [`Config`] derives. Each validator is exported with its
 /// declaration form, so each validated pattern works from one import.
@@ -79,10 +80,10 @@ pub mod __private {
 pub mod prelude {
     pub use core::ops::ControlFlow;
 
+    pub use crate::constraints::{check_each_format, check_format};
     pub use crate::diagnostic::Report;
     pub use crate::format::ToFields;
     pub use crate::pipeline::{Lower, Validate, ValidateNested, narrow};
-    pub use crate::pipeline::{check_each_format, check_format};
     pub use crate::schema::ToSchema;
     pub use crate::source::{Located, SourceMap, Span};
     pub use crate::{

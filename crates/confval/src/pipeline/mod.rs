@@ -1,29 +1,16 @@
 //! Validation and lowering of a parsed spec. Every parsed value keeps its
 //! exact location in the source text, so a diagnostic points at the offending
-//! value rather than at the enclosing section.
+//! value rather than at the enclosing section. The four stages are the
+//! [`Validate`] and [`ValidateNested`] walk, the [`check_references`] pass,
+//! the [`narrow`] helpers, and the [`Lower`] step into the runtime form. The
+//! value constraints those stages call live in [`constraints`](crate::constraints).
 
-/// Keyword sets and the [`keyword_enum!`](crate::keyword_enum) macro.
-pub mod keyword;
 mod lower;
 pub mod narrow;
-
-/// The `Format` trait, the built-in formats, and the `check_format` calls.
-pub mod format;
-/// Character length constraints and the `length_constraint!` macro.
-pub mod length;
-/// The non-empty constraint and the `NON_EMPTY` constant.
-pub mod non_empty;
-/// Numeric range constraints and the `range_constraint!` macro.
-pub mod range;
 mod references;
-/// The unique constraint and the `UNIQUE` constant.
-pub mod unique;
 mod validate;
 
-pub use format::{check_each_format, check_format, constraint as format_constraint};
 pub use lower::{Lower, LowerAuto};
-pub use non_empty::{NON_EMPTY, NonEmptyConstraint};
-pub use unique::{UNIQUE, UniqueConstraint};
 
 pub use references::check_references;
 #[cfg(feature = "__internal-navigation")]
