@@ -190,18 +190,21 @@ mod tests {
         );
         assert_eq!(
             capabilities.folding_range_provider,
-            Some(FoldingRangeProviderCapability::Simple(true))
+            Some(FoldingRangeProviderCapability::Simple(true)),
+            "the folding range provider is advertised"
         );
         assert_eq!(
             capabilities.rename_provider,
             Some(OneOf::Right(RenameOptions {
                 prepare_provider: Some(true),
                 work_done_progress_options: Default::default(),
-            }))
+            })),
+            "the rename provider is advertised with prepare support"
         );
         assert_eq!(
             capabilities.document_highlight_provider,
-            Some(OneOf::Left(true))
+            Some(OneOf::Left(true)),
+            "the document highlight provider is advertised"
         );
     }
 

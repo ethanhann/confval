@@ -150,8 +150,8 @@ impl Router {
         )
     }
 
-    /// Computes the rename response for a request. A refused name is the
-    /// error the transport answers with.
+    /// Computes the rename response for a request. The transport answers a
+    /// refused name as an error.
     pub(super) fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>, String> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;

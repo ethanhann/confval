@@ -6,8 +6,8 @@
 //! reference pass runs. A label is the definition, so definition answers empty
 //! on it, and find-references answers with the reference values that resolve
 //! to it, collected by the shared scope walk over the declaring scope
-//! instance. Rename and document highlight are two more views of that same
-//! site, in [`rename`] and [`highlight`]. Every handler answers empty on a
+//! instance. [`rename`] and [`highlight`] read the same site. Rename edits it
+//! and highlight marks it. Every handler answers empty on a
 //! buffer that does not parse, because navigation reads spans only a parse
 //! provides.
 
@@ -92,8 +92,8 @@ impl LabelSite<'_> {
     /// in walk order.
     ///
     /// The walk covers the declaring scope instance's subtree. A site whose
-    /// own outward search resolves to a nearer scope keeps that scope instead,
-    /// so shadowed references drop out by the scope-instance comparison.
+    /// own outward search resolves to a nearer scope keeps that scope instead.
+    /// The scope-instance comparison then drops the shadowed references.
     pub(super) fn reference_spans(&self) -> Vec<Span> {
         let scope_body = self.scope.body;
         let mut spans = Vec::new();
@@ -112,8 +112,8 @@ impl LabelSite<'_> {
     }
 
     /// Whether the declaring scope declares this site's label value more
-    /// than once. Rename refuses such a scope, because the validator already
-    /// reports it and the edit would be ambiguous.
+    /// than once. Such a scope is not renameable, because the edit would be
+    /// ambiguous. The validator already reports the duplicate.
     pub(super) fn has_duplicate_label(&self) -> bool {
         scope_labels(self.scope.body, self.scope.schema, &self.block)
             .iter()

@@ -485,7 +485,8 @@ fn an_unmatched_document_answers_empty() {
     );
     assert_eq!(
         folding.response_result.unwrap(),
-        serde_json::Value::Array(Vec::new())
+        serde_json::Value::Array(Vec::new()),
+        "an unmatched document folds nothing"
     );
     let (_, highlight) = client.request(
         lsp_types::request::DocumentHighlightRequest::METHOD,
@@ -497,13 +498,18 @@ fn an_unmatched_document_answers_empty() {
     );
     assert_eq!(
         highlight.response_result.unwrap(),
-        serde_json::Value::Array(Vec::new())
+        serde_json::Value::Array(Vec::new()),
+        "an unmatched document highlights nothing"
     );
     let (_, prepare) = client.request(
         lsp_types::request::PrepareRenameRequest::METHOD,
         position_params(&document),
     );
-    assert_eq!(prepare.response_result.unwrap(), serde_json::Value::Null);
+    assert_eq!(
+        prepare.response_result.unwrap(),
+        serde_json::Value::Null,
+        "an unmatched document prepares no rename"
+    );
     let (_, rename) = client.request(
         lsp_types::request::Rename::METHOD,
         lsp_types::RenameParams {
@@ -512,7 +518,11 @@ fn an_unmatched_document_answers_empty() {
             work_done_progress_params: Default::default(),
         },
     );
-    assert_eq!(rename.response_result.unwrap(), serde_json::Value::Null);
+    assert_eq!(
+        rename.response_result.unwrap(),
+        serde_json::Value::Null,
+        "an unmatched document renames nothing"
+    );
     client.shutdown();
 }
 

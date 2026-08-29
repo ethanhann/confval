@@ -2,10 +2,10 @@
 //! a label and every reference that resolves to it.
 //!
 //! Both read the same label site as definition and references. The edit
-//! covers the label value inside its quotes, so the author's quote style
-//! survives. A scope that declares the label twice is refused, because the
-//! validator already reports it and the edit would be ambiguous. A new name
-//! that would break the literal is refused with a message the client shows.
+//! covers the label value inside its quotes. The author's quote style stays.
+//! A scope that declares the label twice is not renameable. The handler
+//! refuses a new name that would break the value, and answers a message the
+//! client shows.
 
 use std::collections::HashMap;
 
@@ -102,10 +102,10 @@ fn edit_sites(site: &LabelSite, text: &str) -> Option<Vec<((usize, usize), EditS
 /// Checks a new name against the sites it is written into, and answers the
 /// name as written.
 ///
-/// A quote, a backslash, or a line break breaks every literal. A single quote
-/// breaks a single-quoted site. A bare site takes an identifier only, because
-/// a space, a colon, or a leading indicator byte would change the block or
-/// the scalar type.
+/// A quote, a backslash, or a line break breaks every value. A single quote
+/// breaks a single-quoted site. A bare site takes an identifier only. A space,
+/// a colon, or a leading `-`, `?`, `&`, or `*` would change the block or the
+/// scalar type.
 fn check_name<'a>(new_name: &'a str, edits: &[EditSite]) -> Result<&'a str, String> {
     let name = new_name.trim();
     if name.is_empty() {

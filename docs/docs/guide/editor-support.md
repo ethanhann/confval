@@ -76,27 +76,33 @@ The editor's outline and breadcrumbs show the block tree, and each block appears
 
 ## Rename
 
-When the cursor is on a label or on a reference to it, rename changes the label and every reference that resolves to it in one edit.
-The edit covers the text inside the quotes, so the quote style you wrote stays.
-A name that would break the value is refused with a message.
-That is a name with a quote, a backslash, or a line break, or a name with a space where the label is written bare.
+Put the cursor on a label or on a reference to it.
+Rename then changes the label and every reference that resolves to it in one edit.
+The edit covers the text inside the quotes.
+The quote style you wrote stays.
+Rename refuses a name that would break the value and tells you which character it objects to.
+A name with a quote, a backslash, or a line break is refused everywhere.
+Where the label is written bare, the name is refused unless it is letters, digits, and `_.-`, starting with a letter or `_`.
+A single-quoted label also refuses a single quote.
 A scope that declares the same label twice is not renameable until you fix the duplicate.
 
-Document highlight marks the same set while the cursor rests on a label or a reference.
+While the cursor is on a label or a reference, document highlight marks the label and the same references rename would edit.
 The label shows as a write occurrence and each reference as a read occurrence.
 
 ## Folding
 
-Each block folds to its first line.
+A block written across more than one line folds to its first line.
 In HCL, KDL, and JSON a fold runs to the closing brace.
-In TOML and YAML a fold runs to the last entry of the block, so a comment written above the next block stays outside it.
+In TOML and YAML a fold runs to the last entry of the block.
+A comment written above the next block stays outside the fold.
 
 ## Formats
 
 The editor supports every format confval parses: HCL, TOML, KDL, JSON, and YAML.
 
 For HCL, TOML, KDL, and JSON, completion and navigation stay precise while you type, even before the file parses.
-Rename, highlight, and folding read the parsed file, so they answer once the file parses.
+Rename, document highlight, and folding read the parsed file.
+They answer nothing until the file parses.
 YAML reads structure from indentation, so it handles the common shapes, including a block sequence, a value on the next line, and an inline flow collection.
 An unusual YAML layout, such as a flow collection spread across several lines, can resolve less precisely than a block mapping.
 

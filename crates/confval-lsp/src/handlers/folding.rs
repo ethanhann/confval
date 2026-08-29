@@ -1,8 +1,8 @@
 //! The folding-range handler: one line range per declared block instance.
 //!
-//! The ranges come from the same tree the document-symbol outline builds, so
-//! a block folds exactly where the outline lists it, and a field the schema
-//! does not declare folds nowhere. A buffer that does not parse answers empty.
+//! The ranges come from the same tree the document-symbol outline builds. A
+//! block folds where the outline lists it. A field the schema does not declare
+//! folds nowhere. A buffer that does not parse answers empty.
 
 use lsp_types::{FoldingRange, SymbolKind};
 
@@ -16,9 +16,9 @@ use super::symbols::{RawSymbol, raw_symbols};
 /// Produces the folding ranges for a parsed document.
 ///
 /// `covers_body` is the frontend's block-span answer. `brace_format` is true
-/// for a format whose block span ends at a closing brace. For a header or
-/// indentation format the block span runs to the next sibling, so the fold
-/// ends at the block's last own content instead.
+/// for a format whose block span ends at a closing brace. A header or
+/// indentation format's block span runs to the next sibling. The fold ends at
+/// the block's last entry instead.
 pub fn folding_ranges(
     schema: &Schema,
     fields: &Fields,

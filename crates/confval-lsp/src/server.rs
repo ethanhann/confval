@@ -4,12 +4,13 @@
 //! [`Router`] owns a set of [`Binding`]s and routes each document to the first
 //! binding whose matcher accepts it when the client opens it, so one process
 //! serves every document of a multi document configuration. It runs over an
-//! `lsp-server` connection the caller provides, negotiates the position encoding at
-//! initialization, updates the document store on open and change
-//! notifications, and answers the completion, hover, code action, navigation,
-//! rename, highlight, symbol, link, and folding requests by calling the
-//! handlers. It publishes diagnostics on every open and change. [`serve`] binds one root spec and one frontend
-//! over the same router, for a configuration of one document shape.
+//! `lsp-server` connection the caller provides and negotiates the position
+//! encoding at initialization. It updates the document store on open and
+//! change notifications. It answers the completion, hover, code action,
+//! navigation, rename, document highlight, symbol, link, and folding requests
+//! by calling the handlers. It publishes diagnostics on every open and change.
+//! [`serve`] binds one root spec and one frontend over the same router, for a
+//! configuration of one document shape.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -408,8 +409,8 @@ where
 }
 
 /// The same guard for a handler that can refuse its input. A refusal answers
-/// the invalid-params error with the handler's message, so the client shows
-/// the operator why.
+/// the invalid-params error with the handler's message. The client puts that
+/// message in front of the operator, so a rejected name reads as the reason.
 fn respond_fallible<P, T>(
     request: Request,
     method: String,

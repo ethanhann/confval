@@ -3,7 +3,8 @@
 //!
 //! The set is the one find-references answers with the declaration included.
 //! The declaration is a write occurrence and each reference is a read
-//! occurrence, so a client renders the two apart.
+//! occurrence. A client can then color the declaration apart from the
+//! references.
 
 use lsp_types::{DocumentHighlight, DocumentHighlightKind};
 

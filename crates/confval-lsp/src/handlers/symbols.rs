@@ -27,7 +27,8 @@ pub(super) struct RawSymbol {
     selection: (usize, usize),
     /// The end of the container's own content, the furthest scalar end among
     /// its descendants. A header or indentation format's block span runs to
-    /// the next sibling, so a fold ends here instead. A leaf's is its range end.
+    /// the next sibling. A fold ends here instead. For a leaf, the content end
+    /// is the range end.
     pub(super) content_end: usize,
     pub(super) children: Vec<RawSymbol>,
 }
@@ -220,9 +221,9 @@ fn container(
     }
 }
 
-/// The furthest scalar end among a level's fields and their descendants. A
-/// block field's own span is skipped, because in a header or indentation
-/// format it runs to the next sibling, past the block's last entry.
+/// The furthest scalar end among a level's fields and their descendants. The
+/// walk skips a block field's own span, because a header or indentation
+/// format runs it past the block's last entry.
 fn content_end(fields: &Fields) -> u32 {
     fields
         .iter()
