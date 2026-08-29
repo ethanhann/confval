@@ -107,7 +107,7 @@ flowchart TB
         SRV["<b>Router</b><br/>transport, bindings, document store, encoding"]
         FRONT["<b>Frontend trait</b><br/>Hcl, Toml, Kdl, Json, Yaml"]
         CTX["<b>CursorContext</b><br/>tree walk or raw-text scan"]
-        HAND["<b>Handlers</b><br/>completion, hover, diagnostics<br/>code action, navigation, symbols"]
+        HAND["<b>Handlers</b><br/>completion, hover, diagnostics<br/>code action, navigation, rename, highlight<br/>symbols, folding"]
     end
 
     FILE --> SM

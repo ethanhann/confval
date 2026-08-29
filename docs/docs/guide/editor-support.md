@@ -74,11 +74,29 @@ Go-to-definition jumps from a reference value to the label it names.
 Find-references lists every reference to a label, whether you start from the label or from one of its references.
 The editor's outline and breadcrumbs show the block tree, and each block appears with its label.
 
+## Rename
+
+When the cursor is on a label or on a reference to it, rename changes the label and every reference that resolves to it in one edit.
+The edit covers the text inside the quotes, so the quote style you wrote stays.
+A name that would break the value is refused with a message.
+That is a name with a quote, a backslash, or a line break, or a name with a space where the label is written bare.
+A scope that declares the same label twice is not renameable until you fix the duplicate.
+
+Document highlight marks the same set while the cursor rests on a label or a reference.
+The label shows as a write occurrence and each reference as a read occurrence.
+
+## Folding
+
+Each block folds to its first line.
+In HCL, KDL, and JSON a fold runs to the closing brace.
+In TOML and YAML a fold runs to the last entry of the block, so a comment written above the next block stays outside it.
+
 ## Formats
 
 The editor supports every format confval parses: HCL, TOML, KDL, JSON, and YAML.
 
 For HCL, TOML, KDL, and JSON, completion and navigation stay precise while you type, even before the file parses.
+Rename, highlight, and folding read the parsed file, so they answer once the file parses.
 YAML reads structure from indentation, so it handles the common shapes, including a block sequence, a value on the next line, and an inline flow collection.
 An unusual YAML layout, such as a flow collection spread across several lines, can resolve less precisely than a block mapping.
 
