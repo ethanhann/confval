@@ -71,7 +71,7 @@ fn json_objects_fold_from_the_key_to_the_closing_brace() {
     let folds = folds(&Json, &schema, text);
 
     // Assert
-    assert_eq!(folds, vec![(3, 5), (8, 10)]);
+    assert_eq!(folds, vec![(3, 5), (6, 11), (8, 10)]);
 }
 
 #[test]
@@ -97,7 +97,7 @@ fn yaml_mappings_fold_to_their_last_child_and_not_to_a_following_comment() {
     let folds = folds(&Yaml, &schema, text);
 
     // Assert
-    assert_eq!(folds, vec![(2, 4), (9, 10)]);
+    assert_eq!(folds, vec![(2, 4), (7, 10), (9, 10)]);
 }
 
 #[test]
@@ -110,7 +110,10 @@ fn yaml_sequence_elements_fold_one_per_instance() {
     let folds = folds(&Yaml, &schema, text);
 
     // Assert
-    assert_eq!(folds, vec![(1, 3), (4, 6), (8, 9), (10, 11)]);
+    assert_eq!(
+        folds,
+        vec![(0, 6), (1, 3), (4, 6), (7, 11), (8, 9), (10, 11)]
+    );
 }
 
 /// Parses a document and answers each fold's end line and end character.
@@ -179,7 +182,7 @@ fn a_yaml_block_ending_in_an_empty_flow_map_folds_to_that_line() {
     let folds = folds(&Yaml, &schema, text);
 
     // Assert
-    assert_eq!(folds, vec![(1, 4)]);
+    assert_eq!(folds, vec![(0, 4), (1, 4), (2, 3)]);
 }
 
 #[test]
@@ -196,7 +199,7 @@ fn nested_blocks_fold_at_every_level() {
 }
 
 #[test]
-fn a_string_map_does_not_fold() {
+fn a_multi_line_string_map_folds() {
     // Arrange
     let text = "hostname = \"h\"\nport = 1\nheaders = {\n  a = \"b\"\n  c = \"d\"\n}\n";
     let schema = ServerSpec::schema();
@@ -205,7 +208,37 @@ fn a_string_map_does_not_fold() {
     let folds = folds(&Hcl, &schema, text);
 
     // Assert
-    assert!(folds.is_empty());
+    assert_eq!(folds, vec![(2, 5)]);
+}
+
+#[test]
+fn a_multi_line_scalar_list_folds_in_yaml_and_json() {
+    // Arrange
+    let yaml = "hostname: h\nport: 1\nallow:\n  - a\n  - b\nheaders:\n  x: y\n  z: w\n";
+    let json = "{\n  \"hostname\": \"h\",\n  \"port\": 1,\n  \"allow\": [\n    \"a\",\n    \"b\"\n  ]\n}\n";
+    let schema = ServerSpec::schema();
+
+    // Act
+    let yaml_folds = folds(&Yaml, &schema, yaml);
+    let json_folds = folds(&Json, &schema, json);
+
+    // Assert
+    assert_eq!(yaml_folds, vec![(2, 4), (5, 7)]);
+    assert_eq!(json_folds, vec![(3, 6)]);
+}
+
+#[test]
+fn a_toml_table_array_does_not_double_its_first_header() {
+    // Arrange
+    let text =
+        "hostname = \"h\"\nport = 1\n\n[[rules]]\nprefix = \"/a\"\n\n[[rules]]\nprefix = \"/b\"\n";
+    let schema = ServerSpec::schema();
+
+    // Act
+    let folds = folds(&Toml, &schema, text);
+
+    // Assert
+    assert_eq!(folds, vec![(3, 4), (6, 7)]);
 }
 
 #[test]

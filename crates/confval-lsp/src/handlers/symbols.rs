@@ -15,22 +15,16 @@ use confval::schema::{Schema, SchemaType};
 use confval::source::Span;
 
 use crate::encoding::{LineIndex, PositionEncoding};
-use crate::resolve::{deepest_end, furthest_end};
+use crate::resolve::deepest_end;
 
-/// One symbol with byte ranges, before position encoding. The folding
-/// handler reads the same tree.
-pub(super) struct RawSymbol {
+/// One symbol with byte ranges, before position encoding.
+struct RawSymbol {
     name: String,
     detail: Option<String>,
-    pub(super) kind: SymbolKind,
-    pub(super) range: (usize, usize),
+    kind: SymbolKind,
+    range: (usize, usize),
     selection: (usize, usize),
-    /// The end of the container's own content, the furthest scalar end among
-    /// its descendants. A header or indentation format's block span runs to
-    /// the next sibling. A fold ends here instead. For a leaf, the content end
-    /// is the range end.
-    pub(super) content_end: usize,
-    pub(super) children: Vec<RawSymbol>,
+    children: Vec<RawSymbol>,
 }
 
 /// The two answers that shape a symbol response: the frontend's block-span
@@ -66,9 +60,8 @@ struct Build {
     text_len: usize,
 }
 
-/// The raw symbol tree of a parsed document, the input both the outline and
-/// the folding handler encode.
-pub(super) fn raw_symbols(
+/// The raw symbol tree of a parsed document.
+fn raw_symbols(
     schema: &Schema,
     fields: &Fields,
     covers_body: bool,
@@ -216,7 +209,6 @@ fn container(
         kind: SymbolKind::STRUCT,
         range: (start, end),
         selection,
-        content_end: (furthest_end(body, false) as usize).min(build.text_len),
         children: level_symbols(inner_schema, body, build),
     }
 }
@@ -232,7 +224,6 @@ fn leaf(field: &Field, kind: SymbolKind, text_len: usize) -> Option<RawSymbol> {
         kind,
         range: (start, end),
         selection: clamp(field.name_span, (start, end), text_len),
-        content_end: end,
         children: Vec::new(),
     })
 }
@@ -253,8 +244,9 @@ fn instance_label(body: &Fields, schema: &Schema) -> Option<String> {
     }
 }
 
-/// The bodies of one block field, one per instance, each with its span.
-fn instances(field: &Field) -> Vec<(&Fields, Span)> {
+/// The bodies of one block field, one per instance, each with its span. The
+/// folding handler shares it.
+pub(super) fn instances(field: &Field) -> Vec<(&Fields, Span)> {
     match &field.kind {
         FieldKind::Block(body) => vec![(body, field.span)],
         FieldKind::Value(value) => match &value.kind {

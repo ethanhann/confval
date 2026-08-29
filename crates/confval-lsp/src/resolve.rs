@@ -397,7 +397,7 @@ pub(crate) fn furthest_end(fields: &Fields, include_block_spans: bool) -> u32 {
 
 /// The furthest non-detached end offset within a value, recursing through maps
 /// and sequences under the same rule as [`furthest_end`].
-fn furthest_end_value(value: &Value, include_block_spans: bool) -> u32 {
+pub(crate) fn furthest_end_value(value: &Value, include_block_spans: bool) -> u32 {
     match &value.kind {
         ValueKind::Map(inner) => {
             if include_block_spans || inner.iter().next().is_none() {
