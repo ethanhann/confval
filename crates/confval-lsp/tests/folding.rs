@@ -113,6 +113,49 @@ fn yaml_sequence_elements_fold_one_per_instance() {
     assert_eq!(folds, vec![(1, 3), (4, 6), (8, 9), (10, 11)]);
 }
 
+/// Parses a document and answers each fold's end line and end character.
+fn fold_ends<F: Frontend>(
+    frontend: &F,
+    schema: &confval::schema::Schema,
+    text: &str,
+) -> Vec<(u32, Option<u32>)> {
+    let Some(tree) = frontend.parse_tree(text) else {
+        return Vec::new();
+    };
+    let index = LineIndex::new(text);
+    folding_ranges(
+        schema,
+        &tree,
+        text,
+        frontend.block_span_covers_body(),
+        frontend.recovery(),
+        &index,
+        ENCODING,
+    )
+    .iter()
+    .map(|range| (range.end_line, range.end_character))
+    .collect()
+}
+
+#[test]
+fn a_brace_fold_ends_at_the_closing_brace_column() {
+    // Arrange
+    let hcl = "hostname = \"h\"\nport = 1\nlimits {\n  max_body_mb = 16\n}\nrules {\n  prefix = \"/a\"\n}\n";
+    let json = "{\n  \"hostname\": \"h\",\n  \"port\": 1,\n  \"limits\": {\n    \"max_body_mb\": 16\n  },\n  \"rules\": []\n}\n";
+    let toml = "hostname = \"h\"\nport = 1\n[limits]\nmax_body_mb = 16\n";
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hcl_ends = fold_ends(&Hcl, &schema, hcl);
+    let json_ends = fold_ends(&Json, &schema, json);
+    let toml_ends = fold_ends(&Toml, &schema, toml);
+
+    // Assert
+    assert_eq!(hcl_ends, vec![(4, Some(0)), (7, Some(0))]);
+    assert_eq!(json_ends, vec![(5, Some(2))]);
+    assert_eq!(toml_ends, vec![(3, Some("max_body_mb = 16".len() as u32))]);
+}
+
 #[test]
 fn hcl_labeled_repeats_fold_one_per_instance() {
     // Arrange

@@ -17,9 +17,11 @@ use super::symbols::{RawSymbol, raw_symbols};
 /// Produces the folding ranges for a parsed document.
 ///
 /// `covers_body` is the frontend's block-span answer and `recovery` is its
-/// block syntax. When a block closes with a brace the fold ends at the span
-/// end. A header or indentation format's block span runs to the next sibling,
-/// and the fold ends at the block's last entry instead.
+/// block syntax. When a block closes with a brace the fold ends at the brace,
+/// with the brace's column as the end character, so the collapsed line keeps
+/// its `}` and a client that scans forward for a closing brace stops at this
+/// block's own. A header or indentation format's block span runs to the next
+/// sibling, and the fold ends at the block's last entry instead.
 pub fn folding_ranges(
     schema: &Schema,
     fields: &Fields,
@@ -64,6 +66,9 @@ fn collect(
             while end > start && text.as_bytes()[end - 1].is_ascii_whitespace() {
                 end -= 1;
             }
+            if brace_format && end > start && text.as_bytes()[end - 1] == b'}' {
+                end -= 1;
+            }
             if end > start {
                 let range = index.range_of_bytes(text, (start, end), encoding);
                 if range.start.line < range.end.line {
@@ -71,7 +76,7 @@ fn collect(
                         start_line: range.start.line,
                         start_character: None,
                         end_line: range.end.line,
-                        end_character: None,
+                        end_character: Some(range.end.character),
                         kind: None,
                         collapsed_text: None,
                     });
