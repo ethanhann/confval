@@ -92,9 +92,9 @@ The label shows as a write occurrence and each reference as a read occurrence.
 
 ## Folding
 
-A block written across more than one line folds to its first line.
-In HCL, KDL, and JSON a fold runs to the closing brace.
-In TOML and YAML a fold runs to the last entry of the block.
+A block, a list, or a map written across more than one line folds to its first line.
+In HCL, KDL, and JSON a fold ends at the closing brace or bracket, which stays visible on the collapsed line.
+In TOML and YAML a fold ends at the last entry.
 A comment written above the next block stays outside the fold.
 
 ## Formats
