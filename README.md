@@ -37,7 +37,7 @@ The confval crate was extracted from the [Snakeway reverse proxy](https://snakew
 The [confval-lsp](https://github.com/ethanhann/confval/tree/main/crates/confval-lsp) crate is a schema-generic language server core.
 It binds to your `#[derive(Spec)]` root and a format frontend.
 `serve_multi` serves a configuration that spans several document shapes from one process, one binding per shape.
-It serves diagnostics, completion, hover, navigation, document symbols, and quick fixes for any of the five formats.
+It serves diagnostics, completion, hover, navigation, rename, document highlight, document symbols, folding, and quick fixes for any of the five formats.
 See [Language Server](https://ethanhann.com/confval/docs/guide/language-server) for the walkthrough and a runnable example.
 
 ## Usage examples
