@@ -71,7 +71,7 @@ fn json_objects_fold_from_the_key_to_the_closing_brace() {
     let folds = folds(&Json, &schema, text);
 
     // Assert
-    assert_eq!(folds, vec![(3, 5), (6, 11), (8, 10)]);
+    assert_eq!(folds, vec![(0, 12), (3, 5), (6, 11), (8, 10)]);
 }
 
 #[test]
@@ -155,7 +155,7 @@ fn a_brace_fold_ends_at_the_closing_brace_column() {
 
     // Assert
     assert_eq!(hcl_ends, vec![(4, Some(0)), (7, Some(0))]);
-    assert_eq!(json_ends, vec![(5, Some(2))]);
+    assert_eq!(json_ends, vec![(7, Some(0)), (5, Some(2))]);
     assert_eq!(toml_ends, vec![(3, Some("max_body_mb = 16".len() as u32))]);
 }
 
@@ -224,7 +224,7 @@ fn a_multi_line_scalar_list_folds_in_yaml_and_json() {
 
     // Assert
     assert_eq!(yaml_folds, vec![(2, 4), (5, 7)]);
-    assert_eq!(json_folds, vec![(3, 6)]);
+    assert_eq!(json_folds, vec![(0, 7), (3, 6)]);
 }
 
 #[test]

@@ -43,6 +43,16 @@ pub fn folding_ranges(
         encoding,
     };
     let mut out = Vec::new();
+    // A JSON document is one object, and its braces fold like any block's.
+    // An HCL or KDL root has no delimiter, and a YAML or TOML root no entry
+    // of its own, so those roots do not fold.
+    if recovery == Recovery::Object {
+        let root = fields.enclosing();
+        walk.push(
+            span_start(root).map(|start| (start, span_end(root) as usize)),
+            &mut out,
+        );
+    }
     walk.level(schema, fields, &mut out);
     out
 }
