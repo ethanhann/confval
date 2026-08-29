@@ -473,6 +473,46 @@ fn an_unmatched_document_answers_empty() {
         serde_json::Value::Array(Vec::new()),
         "an unmatched document offers no code actions"
     );
+    let (_, folding) = client.request(
+        lsp_types::request::FoldingRangeRequest::METHOD,
+        lsp_types::FoldingRangeParams {
+            text_document: TextDocumentIdentifier {
+                uri: document.clone(),
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        },
+    );
+    assert_eq!(
+        folding.response_result.unwrap(),
+        serde_json::Value::Array(Vec::new())
+    );
+    let (_, highlight) = client.request(
+        lsp_types::request::DocumentHighlightRequest::METHOD,
+        lsp_types::DocumentHighlightParams {
+            text_document_position_params: position_params(&document),
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        },
+    );
+    assert_eq!(
+        highlight.response_result.unwrap(),
+        serde_json::Value::Array(Vec::new())
+    );
+    let (_, prepare) = client.request(
+        lsp_types::request::PrepareRenameRequest::METHOD,
+        position_params(&document),
+    );
+    assert_eq!(prepare.response_result.unwrap(), serde_json::Value::Null);
+    let (_, rename) = client.request(
+        lsp_types::request::Rename::METHOD,
+        lsp_types::RenameParams {
+            text_document_position: position_params(&document),
+            new_name: "x".to_string(),
+            work_done_progress_params: Default::default(),
+        },
+    );
+    assert_eq!(rename.response_result.unwrap(), serde_json::Value::Null);
     client.shutdown();
 }
 

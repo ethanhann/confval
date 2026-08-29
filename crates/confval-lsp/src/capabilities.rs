@@ -2,9 +2,9 @@
 //! server capabilities.
 
 use lsp_types::{
-    CodeActionProviderCapability, CompletionOptions, HoverProviderCapability, InitializeParams,
-    OneOf, PositionEncodingKind, ServerCapabilities, TextDocumentSyncCapability,
-    TextDocumentSyncKind,
+    CodeActionProviderCapability, CompletionOptions, FoldingRangeProviderCapability,
+    HoverProviderCapability, InitializeParams, OneOf, PositionEncodingKind, RenameOptions,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
 };
 
 use crate::encoding::PositionEncoding;
@@ -66,6 +66,12 @@ pub(crate) fn server_capabilities(encoding: PositionEncoding) -> ServerCapabilit
             resolve_provider: Some(false),
             work_done_progress_options: Default::default(),
         }),
+        folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+        rename_provider: Some(OneOf::Right(RenameOptions {
+            prepare_provider: Some(true),
+            work_done_progress_options: Default::default(),
+        })),
+        document_highlight_provider: Some(OneOf::Left(true)),
         ..ServerCapabilities::default()
     }
 }
@@ -181,6 +187,21 @@ mod tests {
         assert!(
             capabilities.document_link_provider.is_some(),
             "document link provider is advertised"
+        );
+        assert_eq!(
+            capabilities.folding_range_provider,
+            Some(FoldingRangeProviderCapability::Simple(true))
+        );
+        assert_eq!(
+            capabilities.rename_provider,
+            Some(OneOf::Right(RenameOptions {
+                prepare_provider: Some(true),
+                work_done_progress_options: Default::default(),
+            }))
+        );
+        assert_eq!(
+            capabilities.document_highlight_provider,
+            Some(OneOf::Left(true))
         );
     }
 

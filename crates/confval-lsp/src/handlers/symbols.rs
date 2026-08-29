@@ -17,14 +17,19 @@ use confval::source::Span;
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::resolve::deepest_end;
 
-/// One symbol with byte ranges, before position encoding.
-struct RawSymbol {
+/// One symbol with byte ranges, before position encoding. The folding
+/// handler reads the same tree.
+pub(super) struct RawSymbol {
     name: String,
     detail: Option<String>,
-    kind: SymbolKind,
-    range: (usize, usize),
+    pub(super) kind: SymbolKind,
+    pub(super) range: (usize, usize),
     selection: (usize, usize),
-    children: Vec<RawSymbol>,
+    /// The end of the container's own content, the furthest scalar end among
+    /// its descendants. A header or indentation format's block span runs to
+    /// the next sibling, so a fold ends here instead. A leaf's is its range end.
+    pub(super) content_end: usize,
+    pub(super) children: Vec<RawSymbol>,
 }
 
 /// The two answers that shape a symbol response: the frontend's block-span
@@ -60,6 +65,21 @@ struct Build {
     text_len: usize,
 }
 
+/// The raw symbol tree of a parsed document, the input both the outline and
+/// the folding handler encode.
+pub(super) fn raw_symbols(
+    schema: &Schema,
+    fields: &Fields,
+    covers_body: bool,
+    text_len: usize,
+) -> Vec<RawSymbol> {
+    let build = Build {
+        covers_body,
+        text_len,
+    };
+    level_symbols(schema, fields, &build)
+}
+
 /// Produces the document symbols for a parsed document.
 pub fn document_symbols(
     schema: &Schema,
@@ -70,11 +90,7 @@ pub fn document_symbols(
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> DocumentSymbolResponse {
-    let build = Build {
-        covers_body: shape.covers_body,
-        text_len: text.len(),
-    };
-    let symbols = level_symbols(schema, fields, &build);
+    let symbols = raw_symbols(schema, fields, shape.covers_body, text.len());
     if shape.hierarchical {
         DocumentSymbolResponse::Nested(
             symbols
@@ -199,8 +215,42 @@ fn container(
         kind: SymbolKind::STRUCT,
         range: (start, end),
         selection,
+        content_end: (content_end(body) as usize).min(build.text_len),
         children: level_symbols(inner_schema, body, build),
     }
+}
+
+/// The furthest scalar end among a level's fields and their descendants. A
+/// block field's own span is skipped, because in a header or indentation
+/// format it runs to the next sibling, past the block's last entry.
+fn content_end(fields: &Fields) -> u32 {
+    fields
+        .iter()
+        .map(|field| match &field.kind {
+            FieldKind::Block(inner) => content_end(inner).max(span_end(field.name_span)),
+            FieldKind::Value(value) => value_content_end(value),
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+/// The furthest scalar end within a value, recursing through maps and
+/// sequences.
+fn value_content_end(value: &confval::format::Value) -> u32 {
+    match &value.kind {
+        ValueKind::Map(inner) => content_end(inner),
+        ValueKind::Seq(items) => items
+            .iter()
+            .map(value_content_end)
+            .max()
+            .unwrap_or_else(|| span_end(value.span)),
+        _ => span_end(value.span),
+    }
+}
+
+/// A span's end, or zero for the detached sentinel.
+fn span_end(span: Span) -> u32 {
+    span_range(span).map_or(0, |range| range.1)
 }
 
 /// One leaf symbol over the field's own span.
@@ -214,6 +264,7 @@ fn leaf(field: &Field, kind: SymbolKind, text_len: usize) -> Option<RawSymbol> {
         kind,
         range: (start, end),
         selection: clamp(field.name_span, (start, end), text_len),
+        content_end: end,
         children: Vec::new(),
     })
 }

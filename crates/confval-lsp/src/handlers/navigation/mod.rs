@@ -1,12 +1,23 @@
-//! Go-to-definition and find-references over the label model.
+//! Go-to-definition, find-references, rename, and document highlight over
+//! the label model.
 //!
 //! A reference value defines nothing, so definition jumps from it to the
 //! matching label in its declaring scope, found by the same outward search the
 //! reference pass runs. A label is the definition, so definition answers empty
 //! on it, and find-references answers with the reference values that resolve
 //! to it, collected by the shared scope walk over the declaring scope
-//! instance. Both answer empty on a buffer that does not parse, because
-//! navigation reads spans only a parse provides.
+//! instance. Rename and document highlight are two more views of that same
+//! site, in [`rename`] and [`highlight`]. Every handler answers empty on a
+//! buffer that does not parse, because navigation reads spans only a parse
+//! provides.
+
+mod edit;
+mod highlight;
+mod rename;
+
+use edit::{EditSite, Quote, edit_site, span_range};
+pub use highlight::document_highlight;
+pub use rename::{prepare_rename, rename};
 
 use lsp_types::{Location, Uri};
 
@@ -21,11 +32,11 @@ use crate::walk::{declaring_scope, field_text, label_matches, schema_at};
 /// The label site a cursor resolves to: the declaring scope, the block field
 /// the labels belong to, the label value under the cursor, and where that
 /// label is declared.
-struct LabelSite<'a> {
+pub(super) struct LabelSite<'a> {
     scope: Scope<'a>,
     block: String,
-    value: String,
-    declaration: Option<Span>,
+    pub(super) value: String,
+    pub(super) declaration: Option<Span>,
     /// Whether the cursor is on a reference value rather than on the label
     /// itself. Definition answers only here, because a label is its own
     /// definition.
@@ -69,31 +80,53 @@ pub fn references(
     if include_declaration && let Some(declaration) = site.declaration {
         spans.push(declaration);
     }
-    // The walk covers the declaring scope instance's subtree. A site whose own
-    // outward search resolves to a nearer scope keeps that scope instead, so
-    // shadowed references drop out by the scope-instance comparison.
-    let scope_body = site.scope.body;
-    visit_references(scope_body, site.scope.schema, |candidate| {
-        let Some(candidate_scope) = candidate.scope else {
-            return;
-        };
-        if candidate.block == site.block
-            && candidate_scope.same_instance(scope_body)
-            && candidate.value == site.value
-        {
-            spans.push(candidate.span);
-        }
-    });
+    spans.extend(site.reference_spans());
     spans
         .into_iter()
         .map(|span| location(span, uri, text, index, encoding))
         .collect()
 }
 
+impl LabelSite<'_> {
+    /// The span of every reference value that resolves to this site's label,
+    /// in walk order.
+    ///
+    /// The walk covers the declaring scope instance's subtree. A site whose
+    /// own outward search resolves to a nearer scope keeps that scope instead,
+    /// so shadowed references drop out by the scope-instance comparison.
+    pub(super) fn reference_spans(&self) -> Vec<Span> {
+        let scope_body = self.scope.body;
+        let mut spans = Vec::new();
+        visit_references(scope_body, self.scope.schema, |candidate| {
+            let Some(candidate_scope) = candidate.scope else {
+                return;
+            };
+            if candidate.block == self.block
+                && candidate_scope.same_instance(scope_body)
+                && candidate.value == self.value
+            {
+                spans.push(candidate.span);
+            }
+        });
+        spans
+    }
+
+    /// Whether the declaring scope declares this site's label value more
+    /// than once. Rename refuses such a scope, because the validator already
+    /// reports it and the edit would be ambiguous.
+    pub(super) fn has_duplicate_label(&self) -> bool {
+        scope_labels(self.scope.body, self.scope.schema, &self.block)
+            .iter()
+            .filter(|label| label.value == self.value)
+            .count()
+            > 1
+    }
+}
+
 /// Classifies the cursor against the label positions: a reference value, a
 /// native block label, or the designated label field's value. Any other
 /// position, including the label field's name, is no site.
-fn label_site<'a>(schema: &'a Schema, ctx: &'a CursorContext) -> Option<LabelSite<'a>> {
+pub(super) fn label_site<'a>(schema: &'a Schema, ctx: &'a CursorContext) -> Option<LabelSite<'a>> {
     match &ctx.kind {
         PositionKind::AttributeValue { field } => {
             let enclosing = schema_at(schema, &ctx.path)?;

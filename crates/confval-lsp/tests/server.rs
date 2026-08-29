@@ -29,6 +29,31 @@ fn single<F: confval_lsp::Frontend + Send + 'static>(frontend: F) -> Router {
     }
 }
 
+/// Sends one request and waits for its response.
+fn round_trip(
+    client: &lsp_server::Connection,
+    id: i32,
+    method: impl Into<String>,
+    params: impl serde::Serialize,
+) -> Response {
+    let method: String = method.into();
+    if client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(id),
+            method.clone(),
+            params,
+        )))
+        .is_err()
+    {
+        panic!("the server receives the {method} request");
+    }
+    recv_until(client, |message| match message {
+        Message::Response(response) if response.id == RequestId::from(id) => Some(response.clone()),
+        _ => None,
+    })
+}
+
 /// Receives messages until one satisfies the predicate, or panics on hangup.
 fn recv_until<T>(connection: &Connection, mut pick: impl FnMut(&Message) -> Option<T>) -> T {
     while let Ok(message) = connection.receiver.recv() {
@@ -47,18 +72,12 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
     let uri = Uri::from_str("file:///server.hcl").unwrap();
 
     // Act, initialize.
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(1),
-            Initialize::METHOD.to_string(),
-            InitializeParams::default(),
-        )))
-        .unwrap();
-    let _init: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(1) => Some(response.clone()),
-        _ => None,
-    });
+    let _init = round_trip(
+        &client,
+        1,
+        Initialize::METHOD.to_string(),
+        InitializeParams::default(),
+    );
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -92,52 +111,40 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
     });
 
     // Act, request completion in the root body.
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(2),
-            Completion::METHOD.to_string(),
-            CompletionParams {
-                text_document_position: TextDocumentPositionParams {
-                    text_document: TextDocumentIdentifier { uri: uri.clone() },
-                    position: Position {
-                        line: 2,
-                        character: 0,
-                    },
+    let completion = round_trip(
+        &client,
+        2,
+        Completion::METHOD.to_string(),
+        CompletionParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                position: Position {
+                    line: 2,
+                    character: 0,
                 },
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
-                context: None,
             },
-        )))
-        .unwrap();
-    let completion: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(2) => Some(response.clone()),
-        _ => None,
-    });
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: None,
+        },
+    );
 
     // Act, request hover on the port value.
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(4),
-            HoverRequest::METHOD.to_string(),
-            HoverParams {
-                text_document_position_params: TextDocumentPositionParams {
-                    text_document: TextDocumentIdentifier { uri: uri.clone() },
-                    position: Position {
-                        line: 1,
-                        character: 8,
-                    },
+    let hover = round_trip(
+        &client,
+        4,
+        HoverRequest::METHOD.to_string(),
+        HoverParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                position: Position {
+                    line: 1,
+                    character: 8,
                 },
-                work_done_progress_params: WorkDoneProgressParams::default(),
             },
-        )))
-        .unwrap();
-    let hover: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(4) => Some(response.clone()),
-        _ => None,
-    });
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        },
+    );
 
     // Act, change the document to a valid one.
     client
@@ -186,18 +193,7 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
     });
 
     // Act, shut down.
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(3),
-            Shutdown::METHOD.to_string(),
-            (),
-        )))
-        .unwrap();
-    let _shutdown: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(3) => Some(response.clone()),
-        _ => None,
-    });
+    let _shutdown = round_trip(&client, 3, Shutdown::METHOD.to_string(), ());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -244,18 +240,12 @@ fn the_server_serves_a_yaml_document() {
     let uri = Uri::from_str("file:///server.yaml").unwrap();
 
     // Act, initialize.
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(1),
-            Initialize::METHOD.to_string(),
-            InitializeParams::default(),
-        )))
-        .unwrap();
-    let _init: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(1) => Some(response.clone()),
-        _ => None,
-    });
+    let _init = round_trip(
+        &client,
+        1,
+        Initialize::METHOD.to_string(),
+        InitializeParams::default(),
+    );
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -289,18 +279,7 @@ fn the_server_serves_a_yaml_document() {
     });
 
     // Act, shut down.
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(2),
-            Shutdown::METHOD.to_string(),
-            (),
-        )))
-        .unwrap();
-    let _shutdown: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(2) => Some(response.clone()),
-        _ => None,
-    });
+    let _shutdown = round_trip(&client, 2, Shutdown::METHOD.to_string(), ());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -325,18 +304,12 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
     let uri = Uri::from_str("file:///server.hcl").unwrap();
 
     // Act, initialize and open a parsing document.
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(1),
-            Initialize::METHOD.to_string(),
-            InitializeParams::default(),
-        )))
-        .unwrap();
-    let init: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(1) => Some(response.clone()),
-        _ => None,
-    });
+    let init = round_trip(
+        &client,
+        1,
+        Initialize::METHOD.to_string(),
+        InitializeParams::default(),
+    );
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -366,138 +339,91 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
             character: 2,
         },
     };
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(2),
-            lsp_types::request::GotoDefinition::METHOD.to_string(),
-            lsp_types::GotoDefinitionParams {
-                text_document_position_params: position.clone(),
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
+    let definition = round_trip(
+        &client,
+        2,
+        lsp_types::request::GotoDefinition::METHOD.to_string(),
+        lsp_types::GotoDefinitionParams {
+            text_document_position_params: position.clone(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+    );
+    let references = round_trip(
+        &client,
+        3,
+        lsp_types::request::References::METHOD.to_string(),
+        lsp_types::ReferenceParams {
+            text_document_position: position.clone(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: lsp_types::ReferenceContext {
+                include_declaration: true,
             },
-        )))
-        .unwrap();
-    let definition: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(2) => Some(response.clone()),
-        _ => None,
-    });
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(3),
-            lsp_types::request::References::METHOD.to_string(),
-            lsp_types::ReferenceParams {
-                text_document_position: position.clone(),
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
-                context: lsp_types::ReferenceContext {
-                    include_declaration: true,
+        },
+    );
+    let symbols = round_trip(
+        &client,
+        4,
+        lsp_types::request::DocumentSymbolRequest::METHOD.to_string(),
+        lsp_types::DocumentSymbolParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+    );
+    let action = round_trip(
+        &client,
+        5,
+        lsp_types::request::CodeActionRequest::METHOD.to_string(),
+        lsp_types::CodeActionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            range: lsp_types::Range {
+                start: Position {
+                    line: 0,
+                    character: 12,
+                },
+                end: Position {
+                    line: 0,
+                    character: 12,
                 },
             },
-        )))
-        .unwrap();
-    let references: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(3) => Some(response.clone()),
-        _ => None,
-    });
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(4),
-            lsp_types::request::DocumentSymbolRequest::METHOD.to_string(),
-            lsp_types::DocumentSymbolParams {
-                text_document: TextDocumentIdentifier { uri: uri.clone() },
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
-            },
-        )))
-        .unwrap();
-    let symbols: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(4) => Some(response.clone()),
-        _ => None,
-    });
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(5),
-            lsp_types::request::CodeActionRequest::METHOD.to_string(),
-            lsp_types::CodeActionParams {
-                text_document: TextDocumentIdentifier { uri: uri.clone() },
-                range: lsp_types::Range {
-                    start: Position {
-                        line: 0,
-                        character: 12,
-                    },
-                    end: Position {
-                        line: 0,
-                        character: 12,
-                    },
-                },
-                context: lsp_types::CodeActionContext::default(),
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
-            },
-        )))
-        .unwrap();
-    let action: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(5) => Some(response.clone()),
-        _ => None,
-    });
+            context: lsp_types::CodeActionContext::default(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+    );
     let ghost = Uri::from_str("file:///ghost.hcl").unwrap();
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(6),
-            lsp_types::request::References::METHOD.to_string(),
-            lsp_types::ReferenceParams {
-                text_document_position: TextDocumentPositionParams {
-                    text_document: TextDocumentIdentifier { uri: ghost },
-                    position: Position {
-                        line: 0,
-                        character: 0,
-                    },
-                },
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
-                context: lsp_types::ReferenceContext {
-                    include_declaration: false,
+    let ghost_references = round_trip(
+        &client,
+        6,
+        lsp_types::request::References::METHOD.to_string(),
+        lsp_types::ReferenceParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: ghost },
+                position: Position {
+                    line: 0,
+                    character: 0,
                 },
             },
-        )))
-        .unwrap();
-    let ghost_references: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(6) => Some(response.clone()),
-        _ => None,
-    });
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(7),
-            lsp_types::request::DocumentLinkRequest::METHOD.to_string(),
-            lsp_types::DocumentLinkParams {
-                text_document: TextDocumentIdentifier { uri: uri.clone() },
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: lsp_types::ReferenceContext {
+                include_declaration: false,
             },
-        )))
-        .unwrap();
-    let document_link: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(7) => Some(response.clone()),
-        _ => None,
-    });
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(9),
-            Shutdown::METHOD.to_string(),
-            (),
-        )))
-        .unwrap();
-    let _shutdown: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(9) => Some(response.clone()),
-        _ => None,
-    });
+        },
+    );
+    let document_link = round_trip(
+        &client,
+        7,
+        lsp_types::request::DocumentLinkRequest::METHOD.to_string(),
+        lsp_types::DocumentLinkParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+    );
+    let _shutdown = round_trip(&client, 9, Shutdown::METHOD.to_string(), ());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -547,18 +473,12 @@ fn a_document_that_does_not_parse_has_no_outline() {
     let uri = Uri::from_str("file:///broken.hcl").unwrap();
 
     // Act
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(1),
-            Initialize::METHOD.to_string(),
-            InitializeParams::default(),
-        )))
-        .unwrap();
-    let _init: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(1) => Some(response.clone()),
-        _ => None,
-    });
+    let _init = round_trip(
+        &client,
+        1,
+        Initialize::METHOD.to_string(),
+        InitializeParams::default(),
+    );
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -580,34 +500,17 @@ fn a_document_that_does_not_parse_has_no_outline() {
             },
         )))
         .unwrap();
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(2),
-            lsp_types::request::DocumentSymbolRequest::METHOD.to_string(),
-            lsp_types::DocumentSymbolParams {
-                text_document: TextDocumentIdentifier { uri },
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
-            },
-        )))
-        .unwrap();
-    let symbols: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(2) => Some(response.clone()),
-        _ => None,
-    });
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            RequestId::from(9),
-            Shutdown::METHOD.to_string(),
-            (),
-        )))
-        .unwrap();
-    let _shutdown: Response = recv_until(&client, |message| match message {
-        Message::Response(response) if response.id == RequestId::from(9) => Some(response.clone()),
-        _ => None,
-    });
+    let symbols = round_trip(
+        &client,
+        2,
+        lsp_types::request::DocumentSymbolRequest::METHOD.to_string(),
+        lsp_types::DocumentSymbolParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+    );
+    let _shutdown = round_trip(&client, 9, Shutdown::METHOD.to_string(), ());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -623,4 +526,116 @@ fn a_document_that_does_not_parse_has_no_outline() {
         serde_json::Value::Null,
         "the outline reads spans only a parse provides"
     );
+}
+
+#[test]
+fn the_server_advertises_and_routes_the_rename_highlight_and_folding_requests() {
+    // Arrange
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || single(Hcl).run(&server));
+    let uri = Uri::from_str("file:///server.hcl").unwrap();
+
+    // Act, initialize and open a parsing document.
+    let init = round_trip(
+        &client,
+        1,
+        Initialize::METHOD.to_string(),
+        InitializeParams::default(),
+    );
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            Initialized::METHOD.to_string(),
+            InitializedParams {},
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            DidOpenTextDocument::METHOD.to_string(),
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "hcl".to_string(),
+                    version: 1,
+                    text: "hostname = \"h\"\nport = 1\nlimits {\n  mode = \"enforce\"\n}\n"
+                        .to_string(),
+                },
+            },
+        )))
+        .unwrap();
+    let at_origin = TextDocumentPositionParams {
+        text_document: TextDocumentIdentifier { uri: uri.clone() },
+        position: Position {
+            line: 0,
+            character: 0,
+        },
+    };
+    let folding = round_trip(
+        &client,
+        8,
+        lsp_types::request::FoldingRangeRequest::METHOD,
+        lsp_types::FoldingRangeParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+    );
+    let highlight = round_trip(
+        &client,
+        10,
+        lsp_types::request::DocumentHighlightRequest::METHOD,
+        lsp_types::DocumentHighlightParams {
+            text_document_position_params: at_origin.clone(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+    );
+    let prepare = round_trip(
+        &client,
+        11,
+        lsp_types::request::PrepareRenameRequest::METHOD,
+        at_origin.clone(),
+    );
+    let rename = round_trip(
+        &client,
+        12,
+        lsp_types::request::Rename::METHOD,
+        lsp_types::RenameParams {
+            text_document_position: at_origin,
+            new_name: "renamed".to_string(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        },
+    );
+    let _shutdown = round_trip(&client, 9, Shutdown::METHOD.to_string(), ());
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            Exit::METHOD.to_string(),
+            (),
+        )))
+        .unwrap();
+    handle.join().unwrap().unwrap();
+
+    // Assert
+    let capabilities = &init.response_result.unwrap()["capabilities"];
+    assert_eq!(capabilities["foldingRangeProvider"], true);
+    assert_eq!(capabilities["documentHighlightProvider"], true);
+    assert_eq!(
+        capabilities["renameProvider"],
+        serde_json::json!({ "prepareProvider": true })
+    );
+    assert!(
+        folding.response_result.is_ok(),
+        "folding routes: {folding:?}"
+    );
+    assert!(
+        highlight.response_result.is_ok(),
+        "highlight routes: {highlight:?}"
+    );
+    assert!(
+        prepare.response_result.is_ok(),
+        "prepare rename routes: {prepare:?}"
+    );
+    assert!(rename.response_result.is_ok(), "rename routes: {rename:?}");
 }
