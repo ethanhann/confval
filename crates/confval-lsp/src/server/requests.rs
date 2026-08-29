@@ -14,7 +14,7 @@ use lsp_types::{
 
 use crate::binding::Binding;
 use crate::encoding::LineIndex;
-use crate::frontend::{CursorContext, Recovery};
+use crate::frontend::CursorContext;
 use crate::handlers;
 
 use super::{Document, Router};
@@ -183,16 +183,12 @@ impl Router {
             return Vec::new();
         };
         let index = LineIndex::new(&document.text);
-        let brace_format = matches!(
-            binding.frontend.recovery(),
-            Recovery::Braces | Recovery::Object
-        );
         handlers::folding_ranges(
             &binding.schema,
             tree,
             &document.text,
             binding.frontend.block_span_covers_body(),
-            brace_format,
+            binding.frontend.recovery(),
             &index,
             self.encoding,
         )

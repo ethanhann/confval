@@ -15,7 +15,7 @@ use confval::schema::{Schema, SchemaType};
 use confval::source::Span;
 
 use crate::encoding::{LineIndex, PositionEncoding};
-use crate::resolve::deepest_end;
+use crate::resolve::{deepest_end, furthest_end};
 
 /// One symbol with byte ranges, before position encoding. The folding
 /// handler reads the same tree.
@@ -216,42 +216,9 @@ fn container(
         kind: SymbolKind::STRUCT,
         range: (start, end),
         selection,
-        content_end: (content_end(body) as usize).min(build.text_len),
+        content_end: (furthest_end(body, false) as usize).min(build.text_len),
         children: level_symbols(inner_schema, body, build),
     }
-}
-
-/// The furthest scalar end among a level's fields and their descendants. The
-/// walk skips a block field's own span, because a header or indentation
-/// format runs it past the block's last entry.
-fn content_end(fields: &Fields) -> u32 {
-    fields
-        .iter()
-        .map(|field| match &field.kind {
-            FieldKind::Block(inner) => content_end(inner).max(span_end(field.name_span)),
-            FieldKind::Value(value) => value_content_end(value),
-        })
-        .max()
-        .unwrap_or(0)
-}
-
-/// The furthest scalar end within a value, recursing through maps and
-/// sequences.
-fn value_content_end(value: &confval::format::Value) -> u32 {
-    match &value.kind {
-        ValueKind::Map(inner) => content_end(inner),
-        ValueKind::Seq(items) => items
-            .iter()
-            .map(value_content_end)
-            .max()
-            .unwrap_or_else(|| span_end(value.span)),
-        _ => span_end(value.span),
-    }
-}
-
-/// A span's end, or zero for the detached sentinel.
-fn span_end(span: Span) -> u32 {
-    span_range(span).map_or(0, |range| range.1)
 }
 
 /// One leaf symbol over the field's own span.

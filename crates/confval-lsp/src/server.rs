@@ -7,7 +7,8 @@
 //! `lsp-server` connection the caller provides and negotiates the position
 //! encoding at initialization. It updates the document store on open and
 //! change notifications. It answers the completion, hover, code action,
-//! navigation, rename, document highlight, symbol, link, and folding requests
+//! navigation, rename, document highlight, document symbol, document link,
+//! and folding requests
 //! by calling the handlers. It publishes diagnostics on every open and change.
 //! [`serve`] binds one root spec and one frontend over the same router, for a
 //! configuration of one document shape.
@@ -79,6 +80,8 @@ const METHOD_NOT_FOUND: i32 = -32601;
 const INVALID_PARAMS: i32 = -32602;
 /// JSON-RPC error code for a server-side failure.
 const INTERNAL_ERROR: i32 = -32603;
+/// JSON-RPC error code for a well formed request the server cannot fulfil.
+const REQUEST_FAILED: i32 = -32803;
 
 /// One open document: its current text, its current parse, the report that
 /// parse produced, and the index of the binding that matched it. The parse is
@@ -409,7 +412,7 @@ where
 }
 
 /// The same guard for a handler that can refuse its input. A refusal answers
-/// the invalid-params error with the handler's message. The client puts that
+/// the request-failed error with the handler's message. The client puts that
 /// message in front of the operator, so a rejected name reads as the reason.
 fn respond_fallible<P, T>(
     request: Request,
@@ -425,7 +428,7 @@ where
         Ok((id, params)) => {
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| handle(params))) {
                 Ok(Ok(value)) => Response::new_ok(id, value),
-                Ok(Err(message)) => Response::new_err(id, INVALID_PARAMS, message),
+                Ok(Err(message)) => Response::new_err(id, REQUEST_FAILED, message),
                 Err(_) => {
                     Response::new_err(id, INTERNAL_ERROR, format!("the {method} handler failed"))
                 }
@@ -911,6 +914,75 @@ mod tests {
             matches!(result, Ok(None)),
             "an absent document renames nothing"
         );
+    }
+
+    #[test]
+    fn document_highlight_for_an_unknown_document_is_empty() {
+        // Arrange
+        let (router, _server_conn, _client_conn) = setup();
+        let uri = Uri::from_str("file:///absent.hcl").unwrap();
+        let params = lsp_types::DocumentHighlightParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position: Position {
+                    line: 0,
+                    character: 0,
+                },
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+
+        // Act
+        let highlights = router.document_highlight(params);
+
+        // Assert
+        assert!(
+            highlights.is_empty(),
+            "an absent document highlights nothing"
+        );
+    }
+
+    #[test]
+    fn prepare_rename_for_an_unknown_document_is_none() {
+        // Arrange
+        let (router, _server_conn, _client_conn) = setup();
+        let uri = Uri::from_str("file:///absent.hcl").unwrap();
+        let params = TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri },
+            position: Position {
+                line: 0,
+                character: 0,
+            },
+        };
+
+        // Act
+        let range = router.prepare_rename(params);
+
+        // Assert
+        assert!(range.is_none(), "an absent document prepares no rename");
+    }
+
+    #[test]
+    fn a_refused_handler_answers_the_request_failed_error_with_its_message() {
+        // Arrange
+        let request = Request::new(
+            RequestId::from(1),
+            "textDocument/rename".to_string(),
+            serde_json::json!({}),
+        );
+
+        // Act
+        let response = respond_fallible::<serde_json::Value, ()>(
+            request,
+            "textDocument/rename".to_string(),
+            |_| Err("a label cannot be empty".to_string()),
+        );
+
+        // Assert
+        let error = response.response_result.unwrap_err();
+        assert_eq!(error.code, REQUEST_FAILED);
+        assert_eq!(error.message, "a label cannot be empty");
     }
 
     #[test]

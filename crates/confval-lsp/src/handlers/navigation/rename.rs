@@ -4,8 +4,10 @@
 //! Both read the same label site as definition and references. The edit
 //! covers the label value inside its quotes. The author's quote style stays.
 //! A scope that declares the label twice is not renameable. The handler
-//! refuses a new name that would break the value, and answers a message the
-//! client shows.
+//! refuses a new name that would break the value, or a site written as a raw
+//! or escaped string, and answers a message the client shows. A rename from
+//! a reference that resolves to no label edits the references that share its
+//! value.
 
 use std::collections::HashMap;
 
@@ -32,9 +34,10 @@ pub fn prepare_rename(
         return None;
     }
     let cursor = ctx.token.0;
-    let (_, under_cursor) = edit_sites(&site, text)?
+    let (_, under_cursor) = edit_sites(&site, text)
         .into_iter()
         .find(|(span, _)| span.0 <= cursor && cursor <= span.1)?;
+    let under_cursor = under_cursor?;
     Some(PrepareRenameResponse::Range(index.range_of_bytes(
         text,
         under_cursor.range,
@@ -62,10 +65,20 @@ pub fn rename(
     if site.has_duplicate_label() {
         return Ok(None);
     }
-    let Some(edits) = edit_sites(&site, text) else {
+    let sites = edit_sites(&site, text);
+    if sites.is_empty() {
         return Ok(None);
+    }
+    let Some(edits) = sites
+        .into_iter()
+        .map(|(_, edit)| edit)
+        .collect::<Option<Vec<EditSite>>>()
+    else {
+        return Err(
+            "a label or a reference is written as a raw or escaped string and cannot be rewritten"
+                .to_string(),
+        );
     };
-    let edits: Vec<EditSite> = edits.into_iter().map(|(_, edit)| edit).collect();
     let new_name = check_name(new_name, &edits)?;
     let edits = edits
         .into_iter()
@@ -81,58 +94,69 @@ pub fn rename(
 }
 
 /// Every site a rename edits, each with the parsed span it came from: the
-/// declaration, then each reference. `None` when any site fails the value
-/// check, because a partial rename would leave the document inconsistent.
-fn edit_sites(site: &LabelSite, text: &str) -> Option<Vec<((usize, usize), EditSite)>> {
+/// declaration, then each reference. A site that fails the value check is
+/// `None`, and the caller refuses the whole edit, because a partial rename
+/// would leave the document inconsistent.
+fn edit_sites(site: &LabelSite, text: &str) -> Vec<((usize, usize), Option<EditSite>)> {
     let mut spans = Vec::new();
     spans.extend(site.declaration);
     spans.extend(site.reference_spans());
-    if spans.is_empty() {
-        return None;
-    }
     spans
         .into_iter()
-        .map(|span| {
-            let range = span_range(span)?;
-            Some((range, edit_site(text, range, &site.value)?))
-        })
+        .filter_map(span_range)
+        .map(|range| (range, edit_site(text, range, &site.value)))
         .collect()
 }
 
 /// Checks a new name against the sites it is written into, and answers the
 /// name as written.
 ///
-/// A quote, a backslash, or a line break breaks every value. A single quote
-/// breaks a single-quoted site. A bare site takes an identifier only. A space,
-/// a colon, or a leading `-`, `?`, `&`, or `*` would change the block or the
-/// scalar type.
+/// A quote, a backslash, a line break, or an HCL template opener breaks every
+/// value. A single quote breaks a single-quoted site. A bare site takes a plain
+/// name only. A space or a colon would change the block or the scalar, and
+/// the literal words `true`, `false`, `null`, `inf`, and `nan` would change
+/// the scalar type in KDL and YAML.
 fn check_name<'a>(new_name: &'a str, edits: &[EditSite]) -> Result<&'a str, String> {
     let name = new_name.trim();
     if name.is_empty() {
         return Err("a label cannot be empty".to_string());
     }
-    if name.contains(['"', '\\', '\n', '\r']) {
-        return Err("a label cannot contain a quote, a backslash, or a line break".to_string());
+    if name.contains(['"', '\\', '\n', '\r']) || name.contains("${") || name.contains("%{") {
+        return Err(
+            "a label cannot contain a quote, a backslash, a line break, `${`, or `%{`".to_string(),
+        );
     }
     if edits.iter().any(|edit| edit.quote == Quote::Single) && name.contains('\'') {
         return Err("a single-quoted label cannot contain a single quote".to_string());
     }
-    if edits.iter().any(|edit| edit.quote == Quote::Bare) && !is_identifier(name) {
-        return Err(
-            "a bare label takes letters, digits, and `_.-` only, starting with a letter or `_`"
-                .to_string(),
-        );
+    if edits.iter().any(|edit| edit.quote == Quote::Bare) {
+        if !is_plain_name(name) {
+            return Err(
+                "a bare label takes letters, digits, `_`, and `-` only, starting with a letter or `_`"
+                    .to_string(),
+            );
+        }
+        if LITERAL_WORDS.contains(&name.to_ascii_lowercase().as_str()) {
+            return Err(format!("a bare label cannot be the literal word `{name}`"));
+        }
     }
     Ok(name)
 }
 
-/// Whether a name is safe to write bare: `[A-Za-z_][A-Za-z0-9_.-]*`.
-fn is_identifier(name: &str) -> bool {
-    let mut chars = name.chars();
-    chars
-        .next()
-        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
+/// The words a bare KDL or YAML scalar reads as a bool, a null, or a float.
+const LITERAL_WORDS: [&str; 5] = ["true", "false", "null", "inf", "nan"];
+
+/// Whether a name is safe to write bare: `[A-Za-z_][A-Za-z0-9_-]*`, the class
+/// the KDL and YAML emitters write without quotes.
+fn is_plain_name(name: &str) -> bool {
+    let Some((first, rest)) = name.as_bytes().split_first() else {
+        return false;
+    };
+    if !first.is_ascii_alphabetic() && *first != b'_' {
+        return false;
+    }
+    rest.iter()
+        .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_' || *byte == b'-')
 }
 
 #[cfg(test)]
@@ -147,9 +171,10 @@ mod tests {
     }
 
     #[test]
-    fn a_name_that_breaks_a_literal_is_refused() {
+    fn a_name_that_breaks_a_value_is_refused_with_the_reason() {
         // Arrange
         let sites = [site(Quote::Double)];
+        let reason = "a label cannot contain a quote, a backslash, a line break, `${`, or `%{`";
 
         // Act
         let results = [
@@ -157,27 +182,42 @@ mod tests {
             check_name("a\"b", &sites),
             check_name("a\\b", &sites),
             check_name("a\nb", &sites),
+            check_name("${x}", &sites),
         ];
 
         // Assert
-        assert!(results.iter().all(Result::is_err));
+        assert_eq!(results[0], Err("a label cannot be empty".to_string()));
+        for result in &results[1..] {
+            assert_eq!(*result, Err(reason.to_string()));
+        }
     }
 
     #[test]
-    fn a_bare_site_takes_an_identifier_only() {
+    fn a_bare_site_takes_a_plain_name_only() {
         // Arrange
         let bare = [site(Quote::Bare)];
         let quoted = [site(Quote::Double)];
+        let class =
+            "a bare label takes letters, digits, `_`, and `-` only, starting with a letter or `_`";
 
         // Act
         let spaced_bare = check_name("my api", &bare);
+        let dotted_bare = check_name("api.v2", &bare);
+        let literal_bare = check_name("True", &bare);
         let spaced_quoted = check_name("my api", &quoted);
-        let plain = check_name(" api-v2.x ", &bare);
+        let literal_quoted = check_name("true", &quoted);
+        let plain = check_name(" api-v2 ", &bare);
 
         // Assert
-        assert!(spaced_bare.is_err());
+        assert_eq!(spaced_bare, Err(class.to_string()));
+        assert_eq!(dotted_bare, Err(class.to_string()));
+        assert_eq!(
+            literal_bare,
+            Err("a bare label cannot be the literal word `True`".to_string())
+        );
         assert_eq!(spaced_quoted, Ok("my api"));
-        assert_eq!(plain, Ok("api-v2.x"));
+        assert_eq!(literal_quoted, Ok("true"));
+        assert_eq!(plain, Ok("api-v2"));
     }
 
     #[test]
@@ -191,7 +231,10 @@ mod tests {
         let in_double = check_name("it's", &double);
 
         // Assert
-        assert!(in_single.is_err());
+        assert_eq!(
+            in_single,
+            Err("a single-quoted label cannot contain a single quote".to_string())
+        );
         assert_eq!(in_double, Ok("it's"));
     }
 }

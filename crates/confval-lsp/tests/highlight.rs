@@ -23,14 +23,20 @@ fn highlights_at<F: Frontend>(
     frontend: &F,
     text: &str,
     offset: usize,
-) -> Vec<(DocumentHighlightKind, String)> {
+) -> Vec<(DocumentHighlightKind, String, u32)> {
     let schema = GatewaySpec::schema();
     let tree = frontend.parse_tree(text);
     let context = frontend.resolve(tree.as_ref(), text, offset);
     let index = LineIndex::new(text);
     document_highlight(&schema, &context, text, &index, ENCODING)
         .iter()
-        .map(|highlight| (kind(highlight), covered(highlight, text, &index)))
+        .map(|highlight| {
+            (
+                kind(highlight),
+                covered(highlight, text, &index),
+                highlight.range.start.line,
+            )
+        })
         .collect()
 }
 
@@ -56,9 +62,9 @@ fn a_native_label_cursor_highlights_the_label_and_its_references() {
     assert_eq!(
         highlights,
         vec![
-            (DocumentHighlightKind::WRITE, "api".to_string()),
-            (DocumentHighlightKind::READ, "api".to_string()),
-            (DocumentHighlightKind::READ, "api".to_string()),
+            (DocumentHighlightKind::WRITE, "api".to_string(), 0),
+            (DocumentHighlightKind::READ, "api".to_string(), 6),
+            (DocumentHighlightKind::READ, "api".to_string(), 10),
         ]
     );
 }
@@ -66,15 +72,30 @@ fn a_native_label_cursor_highlights_the_label_and_its_references() {
 #[test]
 fn a_reference_cursor_highlights_the_same_set() {
     // Arrange
-    let offset = GATEWAY_HCL.rfind("\"api\"").unwrap() + 1;
+    let hcl_offset = GATEWAY_HCL.rfind("\"api\"").unwrap() + 1;
+    let yaml_offset = GATEWAY_YAML.rfind("\"api\"").unwrap() + 1;
 
     // Act
-    let highlights = highlights_at(&Hcl, GATEWAY_HCL, offset);
+    let hcl = highlights_at(&Hcl, GATEWAY_HCL, hcl_offset);
+    let yaml = highlights_at(&Yaml, GATEWAY_YAML, yaml_offset);
 
     // Assert
-    assert_eq!(highlights.len(), 3);
-    assert_eq!(highlights[0].0, DocumentHighlightKind::WRITE);
-    assert!(highlights.iter().all(|(_, text)| text == "api"));
+    assert_eq!(
+        hcl,
+        vec![
+            (DocumentHighlightKind::WRITE, "api".to_string(), 0),
+            (DocumentHighlightKind::READ, "api".to_string(), 6),
+            (DocumentHighlightKind::READ, "api".to_string(), 10),
+        ]
+    );
+    assert_eq!(
+        yaml,
+        vec![
+            (DocumentHighlightKind::WRITE, "api".to_string(), 1),
+            (DocumentHighlightKind::READ, "api".to_string(), 6),
+            (DocumentHighlightKind::READ, "api".to_string(), 8),
+        ]
+    );
 }
 
 #[test]
@@ -89,9 +110,9 @@ fn a_designated_label_field_cursor_highlights_inside_the_quotes() {
     assert_eq!(
         highlights,
         vec![
-            (DocumentHighlightKind::WRITE, "api".to_string()),
-            (DocumentHighlightKind::READ, "api".to_string()),
-            (DocumentHighlightKind::READ, "api".to_string()),
+            (DocumentHighlightKind::WRITE, "api".to_string(), 1),
+            (DocumentHighlightKind::READ, "api".to_string(), 6),
+            (DocumentHighlightKind::READ, "api".to_string(), 8),
         ]
     );
 }
@@ -109,8 +130,8 @@ fn an_unresolved_reference_highlights_the_references_only() {
     assert_eq!(
         highlights,
         vec![
-            (DocumentHighlightKind::READ, "nope".to_string()),
-            (DocumentHighlightKind::READ, "nope".to_string()),
+            (DocumentHighlightKind::READ, "nope".to_string(), 6),
+            (DocumentHighlightKind::READ, "nope".to_string(), 10),
         ]
     );
 }
@@ -125,8 +146,14 @@ fn a_duplicate_label_scope_highlights_the_label_under_the_cursor() {
     let highlights = highlights_at(&Hcl, &text, offset);
 
     // Assert
-    assert_eq!(highlights.len(), 3);
-    assert_eq!(highlights[0].0, DocumentHighlightKind::WRITE);
+    assert_eq!(
+        highlights,
+        vec![
+            (DocumentHighlightKind::WRITE, "api".to_string(), 4),
+            (DocumentHighlightKind::READ, "api".to_string(), 10),
+            (DocumentHighlightKind::READ, "api".to_string(), 14),
+        ]
+    );
 }
 
 #[test]

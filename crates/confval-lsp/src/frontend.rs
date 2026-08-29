@@ -37,6 +37,13 @@ pub enum Recovery {
 }
 
 impl Recovery {
+    /// Whether a block in this format ends at a closing brace, so its parsed
+    /// span covers the whole block. A header or indentation format's block
+    /// span runs to the next sibling instead.
+    pub fn closes_with_brace(self) -> bool {
+        matches!(self, Recovery::Braces | Recovery::Object)
+    }
+
     /// The raw-text scan's own dispatch, or `None` for an indentation format,
     /// whose reader covers both parse states before the text scan is reached.
     /// The scan's enum has no indentation variant, so it cannot be asked to

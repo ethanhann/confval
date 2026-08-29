@@ -10,24 +10,26 @@ use confval::format::Fields;
 use confval::schema::Schema;
 
 use crate::encoding::{LineIndex, PositionEncoding};
+use crate::frontend::Recovery;
 
 use super::symbols::{RawSymbol, raw_symbols};
 
 /// Produces the folding ranges for a parsed document.
 ///
-/// `covers_body` is the frontend's block-span answer. `brace_format` is true
-/// for a format whose block span ends at a closing brace. A header or
-/// indentation format's block span runs to the next sibling. The fold ends at
-/// the block's last entry instead.
+/// `covers_body` is the frontend's block-span answer and `recovery` is its
+/// block syntax. When a block closes with a brace the fold ends at the span
+/// end. A header or indentation format's block span runs to the next sibling,
+/// and the fold ends at the block's last entry instead.
 pub fn folding_ranges(
     schema: &Schema,
     fields: &Fields,
     text: &str,
     covers_body: bool,
-    brace_format: bool,
+    recovery: Recovery,
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> Vec<FoldingRange> {
+    let brace_format = recovery.closes_with_brace();
     let mut out = Vec::new();
     collect(
         &raw_symbols(schema, fields, covers_body, text.len()),

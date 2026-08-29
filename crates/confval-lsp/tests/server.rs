@@ -72,12 +72,7 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
     let uri = Uri::from_str("file:///server.hcl").unwrap();
 
     // Act, initialize.
-    let _init = round_trip(
-        &client,
-        1,
-        Initialize::METHOD.to_string(),
-        InitializeParams::default(),
-    );
+    let _init = round_trip(&client, 1, Initialize::METHOD, InitializeParams::default());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -114,7 +109,7 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
     let completion = round_trip(
         &client,
         2,
-        Completion::METHOD.to_string(),
+        Completion::METHOD,
         CompletionParams {
             text_document_position: TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
@@ -133,7 +128,7 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
     let hover = round_trip(
         &client,
         4,
-        HoverRequest::METHOD.to_string(),
+        HoverRequest::METHOD,
         HoverParams {
             text_document_position_params: TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
@@ -193,7 +188,7 @@ fn the_server_runs_the_initialize_open_and_request_cycle() {
     });
 
     // Act, shut down.
-    let _shutdown = round_trip(&client, 3, Shutdown::METHOD.to_string(), ());
+    let _shutdown = round_trip(&client, 3, Shutdown::METHOD, ());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -240,12 +235,7 @@ fn the_server_serves_a_yaml_document() {
     let uri = Uri::from_str("file:///server.yaml").unwrap();
 
     // Act, initialize.
-    let _init = round_trip(
-        &client,
-        1,
-        Initialize::METHOD.to_string(),
-        InitializeParams::default(),
-    );
+    let _init = round_trip(&client, 1, Initialize::METHOD, InitializeParams::default());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -279,7 +269,7 @@ fn the_server_serves_a_yaml_document() {
     });
 
     // Act, shut down.
-    let _shutdown = round_trip(&client, 2, Shutdown::METHOD.to_string(), ());
+    let _shutdown = round_trip(&client, 2, Shutdown::METHOD, ());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -304,12 +294,7 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
     let uri = Uri::from_str("file:///server.hcl").unwrap();
 
     // Act, initialize and open a parsing document.
-    let init = round_trip(
-        &client,
-        1,
-        Initialize::METHOD.to_string(),
-        InitializeParams::default(),
-    );
+    let init = round_trip(&client, 1, Initialize::METHOD, InitializeParams::default());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -342,7 +327,7 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
     let definition = round_trip(
         &client,
         2,
-        lsp_types::request::GotoDefinition::METHOD.to_string(),
+        lsp_types::request::GotoDefinition::METHOD,
         lsp_types::GotoDefinitionParams {
             text_document_position_params: position.clone(),
             work_done_progress_params: WorkDoneProgressParams::default(),
@@ -352,7 +337,7 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
     let references = round_trip(
         &client,
         3,
-        lsp_types::request::References::METHOD.to_string(),
+        lsp_types::request::References::METHOD,
         lsp_types::ReferenceParams {
             text_document_position: position.clone(),
             work_done_progress_params: WorkDoneProgressParams::default(),
@@ -365,7 +350,7 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
     let symbols = round_trip(
         &client,
         4,
-        lsp_types::request::DocumentSymbolRequest::METHOD.to_string(),
+        lsp_types::request::DocumentSymbolRequest::METHOD,
         lsp_types::DocumentSymbolParams {
             text_document: TextDocumentIdentifier { uri: uri.clone() },
             work_done_progress_params: WorkDoneProgressParams::default(),
@@ -375,7 +360,7 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
     let action = round_trip(
         &client,
         5,
-        lsp_types::request::CodeActionRequest::METHOD.to_string(),
+        lsp_types::request::CodeActionRequest::METHOD,
         lsp_types::CodeActionParams {
             text_document: TextDocumentIdentifier { uri: uri.clone() },
             range: lsp_types::Range {
@@ -397,7 +382,7 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
     let ghost_references = round_trip(
         &client,
         6,
-        lsp_types::request::References::METHOD.to_string(),
+        lsp_types::request::References::METHOD,
         lsp_types::ReferenceParams {
             text_document_position: TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier { uri: ghost },
@@ -416,14 +401,14 @@ fn the_server_advertises_and_routes_the_navigation_requests() {
     let document_link = round_trip(
         &client,
         7,
-        lsp_types::request::DocumentLinkRequest::METHOD.to_string(),
+        lsp_types::request::DocumentLinkRequest::METHOD,
         lsp_types::DocumentLinkParams {
             text_document: TextDocumentIdentifier { uri: uri.clone() },
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         },
     );
-    let _shutdown = round_trip(&client, 9, Shutdown::METHOD.to_string(), ());
+    let _shutdown = round_trip(&client, 9, Shutdown::METHOD, ());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -473,12 +458,7 @@ fn a_document_that_does_not_parse_has_no_outline() {
     let uri = Uri::from_str("file:///broken.hcl").unwrap();
 
     // Act
-    let _init = round_trip(
-        &client,
-        1,
-        Initialize::METHOD.to_string(),
-        InitializeParams::default(),
-    );
+    let _init = round_trip(&client, 1, Initialize::METHOD, InitializeParams::default());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -503,14 +483,14 @@ fn a_document_that_does_not_parse_has_no_outline() {
     let symbols = round_trip(
         &client,
         2,
-        lsp_types::request::DocumentSymbolRequest::METHOD.to_string(),
+        lsp_types::request::DocumentSymbolRequest::METHOD,
         lsp_types::DocumentSymbolParams {
             text_document: TextDocumentIdentifier { uri },
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         },
     );
-    let _shutdown = round_trip(&client, 9, Shutdown::METHOD.to_string(), ());
+    let _shutdown = round_trip(&client, 9, Shutdown::METHOD, ());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -536,12 +516,7 @@ fn the_server_advertises_and_routes_the_rename_highlight_and_folding_requests() 
     let uri = Uri::from_str("file:///server.hcl").unwrap();
 
     // Act, initialize and open a parsing document.
-    let init = round_trip(
-        &client,
-        1,
-        Initialize::METHOD.to_string(),
-        InitializeParams::default(),
-    );
+    let init = round_trip(&client, 1, Initialize::METHOD, InitializeParams::default());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -607,7 +582,7 @@ fn the_server_advertises_and_routes_the_rename_highlight_and_folding_requests() 
             work_done_progress_params: WorkDoneProgressParams::default(),
         },
     );
-    let _shutdown = round_trip(&client, 9, Shutdown::METHOD.to_string(), ());
+    let _shutdown = round_trip(&client, 9, Shutdown::METHOD, ());
     client
         .sender
         .send(Message::Notification(Notification::new(
@@ -619,11 +594,18 @@ fn the_server_advertises_and_routes_the_rename_highlight_and_folding_requests() 
 
     // Assert
     let capabilities = &init.response_result.unwrap()["capabilities"];
-    assert_eq!(capabilities["foldingRangeProvider"], true);
-    assert_eq!(capabilities["documentHighlightProvider"], true);
+    assert_eq!(
+        capabilities["foldingRangeProvider"], true,
+        "the folding range provider is advertised"
+    );
+    assert_eq!(
+        capabilities["documentHighlightProvider"], true,
+        "the document highlight provider is advertised"
+    );
     assert_eq!(
         capabilities["renameProvider"],
-        serde_json::json!({ "prepareProvider": true })
+        serde_json::json!({ "prepareProvider": true }),
+        "the rename provider is advertised with prepare support"
     );
     assert!(
         folding.response_result.is_ok(),

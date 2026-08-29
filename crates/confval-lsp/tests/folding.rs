@@ -5,7 +5,7 @@ mod fixture;
 
 use confval::schema::ToSchema;
 use confval_lsp::handlers::folding_ranges;
-use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Recovery, Toml, Yaml};
+use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
 
 use fixture::{GatewaySpec, MeshSpec, ServerSpec};
 
@@ -21,13 +21,12 @@ fn folds<F: Frontend>(
         return Vec::new();
     };
     let index = LineIndex::new(text);
-    let brace_format = matches!(frontend.recovery(), Recovery::Braces | Recovery::Object);
     folding_ranges(
         schema,
         &tree,
         text,
         frontend.block_span_covers_body(),
-        brace_format,
+        frontend.recovery(),
         &index,
         ENCODING,
     )
@@ -52,15 +51,14 @@ fn hcl_blocks_fold_from_the_header_to_the_closing_brace() {
 #[test]
 fn kdl_blocks_fold_from_the_node_to_the_closing_brace() {
     // Arrange
-    let text =
-        "hostname \"h\"\nport 1\nlimits {\n  max_body_mb 16\n}\nrules {\n  prefix \"/a\"\n}\n";
+    let text = "hostname \"h\"\nport 1\nlimits {\n  max_body_mb 16\n}\nrules {\n  prefix \"/a\"\n}\nrules {\n  prefix \"/b\"\n}\n";
     let schema = ServerSpec::schema();
 
     // Act
     let folds = folds(&Kdl, &schema, text);
 
     // Assert
-    assert_eq!(folds, vec![(2, 4), (5, 7)]);
+    assert_eq!(folds, vec![(2, 4), (5, 7), (8, 10)]);
 }
 
 #[test]
@@ -92,14 +90,14 @@ fn toml_tables_fold_to_their_last_value_and_not_to_a_following_comment() {
 #[test]
 fn yaml_mappings_fold_to_their_last_child_and_not_to_a_following_comment() {
     // Arrange
-    let text = "hostname: h\nport: 1\nlimits:\n  max_body_mb: 16\n  mode: enforce\n\n# the rules\nrules:\n  - prefix: /a\n";
+    let text = "hostname: h\nport: 1\nlimits:\n  max_body_mb: 16\n  mode: enforce\n\n# the rules\nrules:\n  - prefix: /a\n  - prefix:\n      /b\n";
     let schema = ServerSpec::schema();
 
     // Act
     let folds = folds(&Yaml, &schema, text);
 
     // Assert
-    assert_eq!(folds, vec![(2, 4)]);
+    assert_eq!(folds, vec![(2, 4), (9, 10)]);
 }
 
 #[test]
@@ -113,6 +111,32 @@ fn yaml_sequence_elements_fold_one_per_instance() {
 
     // Assert
     assert_eq!(folds, vec![(1, 3), (4, 6), (8, 9), (10, 11)]);
+}
+
+#[test]
+fn hcl_labeled_repeats_fold_one_per_instance() {
+    // Arrange
+    let text = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\nupstream \"web\" {\n  host = \"h2\"\n  port = 2\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"api\"\n}\n";
+    let schema = GatewaySpec::schema();
+
+    // Act
+    let folds = folds(&Hcl, &schema, text);
+
+    // Assert
+    assert_eq!(folds, vec![(0, 3), (4, 7), (8, 11)]);
+}
+
+#[test]
+fn a_yaml_block_ending_in_an_empty_flow_map_folds_to_that_line() {
+    // Arrange
+    let text = "services:\n  - name: a\n    routes:\n      - upstream: u\n    upstreams: {}\n";
+    let schema = MeshSpec::schema();
+
+    // Act
+    let folds = folds(&Yaml, &schema, text);
+
+    // Assert
+    assert_eq!(folds, vec![(1, 4)]);
 }
 
 #[test]
