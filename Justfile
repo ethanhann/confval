@@ -9,6 +9,7 @@ default: list
 
 # Import modular justfiles
 
+import "dev/just/analysis.just"
 import "dev/just/code_quality.just"
 import "dev/just/docs.just"
 import "dev/just/examples.just"
