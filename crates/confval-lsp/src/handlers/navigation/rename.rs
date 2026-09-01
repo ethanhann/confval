@@ -4,42 +4,39 @@
 //! Both read the same label site as definition and references. The edit
 //! covers the label value inside its quotes. The author's quote style stays.
 //! A scope that declares the label twice is not renameable. The handler
-//! refuses a new name that would break the value, or a site written as a raw
-//! or escaped string, and answers a message the client shows. A rename from
-//! a reference that resolves to no label edits the references that share its
+//! refuses three kinds of rename: a new name that would break the value, a
+//! name the scope already declares, and a site written as a raw or escaped
+//! string. Each refusal answers a message the client shows. A rename from a
+//! reference that resolves to no label edits the references that share its
 //! value.
 
 use std::collections::HashMap;
 
 use lsp_types::{PrepareRenameResponse, TextEdit, Uri, WorkspaceEdit};
 
-use confval::schema::Schema;
-
 use crate::encoding::{LineIndex, PositionEncoding};
-use crate::frontend::CursorContext;
+use crate::handlers::Cx;
 
 use super::{EditSite, LabelSite, Quote, edit_site, label_site, span_range};
 
 /// The range a rename at the cursor would cover, or `None` when the cursor is
 /// on nothing renameable.
 pub fn prepare_rename(
-    schema: &Schema,
-    ctx: &CursorContext,
-    text: &str,
+    cx: &Cx,
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> Option<PrepareRenameResponse> {
-    let site = label_site(schema, ctx)?;
+    let site = label_site(cx.schema, cx.ctx)?;
     if site.has_duplicate_label() {
         return None;
     }
-    let cursor = ctx.token.0;
-    let (_, under_cursor) = edit_sites(&site, text)
+    let cursor = cx.ctx.token.0;
+    let (_, under_cursor) = edit_sites(&site, cx.text)
         .into_iter()
         .find(|(span, _)| span.0 <= cursor && cursor <= span.1)?;
     let under_cursor = under_cursor?;
     Some(PrepareRenameResponse::Range(index.range_of_bytes(
-        text,
+        cx.text,
         under_cursor.range,
         encoding,
     )))
@@ -51,21 +48,19 @@ pub fn prepare_rename(
 /// `Ok(None)` is a cursor on nothing renameable. `Err` is a refused name, with
 /// the reason.
 pub fn rename(
-    schema: &Schema,
-    ctx: &CursorContext,
+    cx: &Cx,
     uri: &Uri,
-    text: &str,
     index: &LineIndex,
     encoding: PositionEncoding,
     new_name: &str,
 ) -> Result<Option<WorkspaceEdit>, String> {
-    let Some(site) = label_site(schema, ctx) else {
+    let Some(site) = label_site(cx.schema, cx.ctx) else {
         return Ok(None);
     };
     if site.has_duplicate_label() {
         return Ok(None);
     }
-    let sites = edit_sites(&site, text);
+    let sites = edit_sites(&site, cx.text);
     if sites.is_empty() {
         return Ok(None);
     }
@@ -80,10 +75,15 @@ pub fn rename(
         );
     };
     let new_name = check_name(new_name, &edits)?;
+    // A rename that edits no label leaves the declarations alone, so renaming
+    // an unresolved reference onto an existing label stays allowed.
+    if site.declaration.is_some() && site.declares_other_label(new_name) {
+        return Err(format!("the scope already declares `{new_name}`"));
+    }
     let edits = edits
         .into_iter()
         .map(|edit| TextEdit {
-            range: index.range_of_bytes(text, edit.range, encoding),
+            range: index.range_of_bytes(cx.text, edit.range, encoding),
             new_text: new_name.to_string(),
         })
         .collect();
@@ -111,19 +111,24 @@ fn edit_sites(site: &LabelSite, text: &str) -> Vec<((usize, usize), Option<EditS
 /// Checks a new name against the sites it is written into, and answers the
 /// name as written.
 ///
-/// A quote, a backslash, a line break, or an HCL template opener breaks every
-/// value. A single quote breaks a single-quoted site. A bare site takes a plain
-/// name only. A space or a colon would change the block or the scalar, and
-/// the literal words `true`, `false`, `null`, `inf`, and `nan` would change
-/// the scalar type in KDL and YAML.
+/// A quote, a backslash, a control character, or an HCL template opener
+/// breaks every value. A single quote breaks a single-quoted site. A bare
+/// site takes a plain name only. A space or a colon would change the block
+/// or the scalar, and the literal words `true`, `false`, `null`, `inf`, and
+/// `nan` would change the scalar type in KDL and YAML.
 fn check_name<'a>(new_name: &'a str, edits: &[EditSite]) -> Result<&'a str, String> {
     let name = new_name.trim();
     if name.is_empty() {
         return Err("a label cannot be empty".to_string());
     }
-    if name.contains(['"', '\\', '\n', '\r']) || name.contains("${") || name.contains("%{") {
+    if name.contains(['"', '\\'])
+        || name.chars().any(char::is_control)
+        || name.contains("${")
+        || name.contains("%{")
+    {
         return Err(
-            "a label cannot contain a quote, a backslash, a line break, `${`, or `%{`".to_string(),
+            "a label cannot contain a quote, a backslash, a control character, `${`, or `%{`"
+                .to_string(),
         );
     }
     if edits.iter().any(|edit| edit.quote == Quote::Single) && name.contains('\'') {
@@ -174,7 +179,8 @@ mod tests {
     fn a_name_that_breaks_a_value_is_refused_with_the_reason() {
         // Arrange
         let sites = [site(Quote::Double)];
-        let reason = "a label cannot contain a quote, a backslash, a line break, `${`, or `%{`";
+        let reason =
+            "a label cannot contain a quote, a backslash, a control character, `${`, or `%{`";
 
         // Act
         let results = [
@@ -182,6 +188,7 @@ mod tests {
             check_name("a\"b", &sites),
             check_name("a\\b", &sites),
             check_name("a\nb", &sites),
+            check_name("a\tb", &sites),
             check_name("${x}", &sites),
         ];
 
@@ -203,14 +210,18 @@ mod tests {
         // Act
         let spaced_bare = check_name("my api", &bare);
         let dotted_bare = check_name("api.v2", &bare);
+        let digit_bare = check_name("1x", &bare);
         let literal_bare = check_name("True", &bare);
         let spaced_quoted = check_name("my api", &quoted);
         let literal_quoted = check_name("true", &quoted);
         let plain = check_name(" api-v2 ", &bare);
+        let underscore = check_name("_x", &bare);
 
         // Assert
         assert_eq!(spaced_bare, Err(class.to_string()));
         assert_eq!(dotted_bare, Err(class.to_string()));
+        assert_eq!(digit_bare, Err(class.to_string()));
+        assert_eq!(underscore, Ok("_x"));
         assert_eq!(
             literal_bare,
             Err("a bare label cannot be the literal word `True`".to_string())
