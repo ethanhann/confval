@@ -1,7 +1,7 @@
 # Number of results to show
 top := "30"
 # Time window for "recent" queries
-since := "30 days ago"
+since := "3 days ago"
 
 # Most frequently changed .rs files recently
 analyze-hot-files:
@@ -11,11 +11,24 @@ analyze-hot-files:
 
 # Files with the most churn (lines added + removed) recently
 analyze-churn:
-    @echo "★ Highest churn files (since {{since}})"
-    @echo " total   add   del  file"
-    @git log --since="{{since}}" --numstat --pretty=format: -- 'crates/**/*.rs' \
-        | awk 'NF==3 {add[$$3]+=$$1; del[$$3]+=$$2} END {for(f in add) printf "%5d %5d %5d  %s\n", add[f]+del[f], add[f], del[f], f}' \
-        | sort -rn | head -n {{top}}
+    #!/usr/bin/env python3
+    import subprocess, collections
+    out = subprocess.check_output([
+        "git", "log", "--since={{since}}", "--numstat", "--pretty=format:", "--", "crates/**/*.rs"
+    ], text=True)
+    add = collections.defaultdict(int)
+    rem = collections.defaultdict(int)
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) == 3 and parts[0] != "-":
+            add[parts[2]] += int(parts[0])
+            rem[parts[2]] += int(parts[1])
+    print("★ Highest churn files (since {{since}})")
+    print(" total   add   del  file")
+    ranked = sorted(add, key=lambda f: add[f] + rem[f], reverse=True)[:{{top}}]
+    for f in ranked:
+        t = add[f] + rem[f]
+        print(f"{t:5d} {add[f]:5d} {rem[f]:5d}  {f}")
 
 # Commits per crate to see which crates are hottest
 analyze-hot-crates:
