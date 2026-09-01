@@ -4,11 +4,14 @@
 //! [`Router`] owns a set of [`Binding`]s and routes each document to the first
 //! binding whose matcher accepts it when the client opens it, so one process
 //! serves every document of a multi document configuration. It runs over an
-//! `lsp-server` connection the caller provides, negotiates the position encoding at
-//! initialization, updates the document store on open and change
-//! notifications, and answers the completion, hover, and diagnostic requests
-//! by calling the handlers. [`serve`] binds one root spec and one frontend
-//! over the same router, for a configuration of one document shape.
+//! `lsp-server` connection the caller provides and negotiates the position
+//! encoding at initialization. It updates the document store on open and
+//! change notifications. It answers the completion, hover, code action,
+//! navigation, rename, document highlight, document symbol, document link,
+//! and folding requests
+//! by calling the handlers. It publishes diagnostics on every open and change.
+//! [`serve`] binds one root spec and one frontend over the same router, for a
+//! configuration of one document shape.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -19,8 +22,9 @@ use lsp_types::notification::{
     Notification as _, PublishDiagnostics,
 };
 use lsp_types::request::{
-    CodeActionRequest, Completion, DocumentLinkRequest, DocumentSymbolRequest, GotoDefinition,
-    HoverRequest, References, Request as _,
+    CodeActionRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
+    DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, HoverRequest, PrepareRenameRequest,
+    References, Rename, Request as _,
 };
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
@@ -76,6 +80,8 @@ const METHOD_NOT_FOUND: i32 = -32601;
 const INVALID_PARAMS: i32 = -32602;
 /// JSON-RPC error code for a server-side failure.
 const INTERNAL_ERROR: i32 = -32603;
+/// JSON-RPC error code for a well formed request the server cannot fulfil.
+const REQUEST_FAILED: i32 = -32803;
 
 /// One open document: its current text, its current parse, the report that
 /// parse produced, and the index of the binding that matched it. The parse is
@@ -187,6 +193,16 @@ impl Router {
             DocumentLinkRequest::METHOD => {
                 respond(request, method, |params| self.document_links(params))
             }
+            FoldingRangeRequest::METHOD => {
+                respond(request, method, |params| self.folding_ranges(params))
+            }
+            DocumentHighlightRequest::METHOD => {
+                respond(request, method, |params| self.document_highlight(params))
+            }
+            PrepareRenameRequest::METHOD => {
+                respond(request, method, |params| self.prepare_rename(params))
+            }
+            Rename::METHOD => respond_fallible(request, method, |params| self.rename(params)),
             _ => Response::new_err(id, METHOD_NOT_FOUND, format!("unhandled method: {method}")),
         };
         connection.sender.send(Message::Response(response))?;
@@ -392,11 +408,27 @@ where
     P: serde::de::DeserializeOwned,
     T: serde::Serialize,
 {
+    respond_fallible(request, method, |params| Ok::<T, String>(handle(params)))
+}
+
+/// The same guard for a handler that can refuse its input. A refusal answers
+/// the request-failed error with the handler's message. The client puts that
+/// message in front of the operator, so a rejected name reads as the reason.
+fn respond_fallible<P, T>(
+    request: Request,
+    method: String,
+    handle: impl FnOnce(P) -> Result<T, String>,
+) -> Response
+where
+    P: serde::de::DeserializeOwned,
+    T: serde::Serialize,
+{
     let id = request.id.clone();
     match request.extract::<P>(&method) {
         Ok((id, params)) => {
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| handle(params))) {
-                Ok(value) => Response::new_ok(id, value),
+                Ok(Ok(value)) => Response::new_ok(id, value),
+                Ok(Err(message)) => Response::new_err(id, REQUEST_FAILED, message),
                 Err(_) => {
                     Response::new_err(id, INTERNAL_ERROR, format!("the {method} handler failed"))
                 }
@@ -855,6 +887,120 @@ mod tests {
             CompletionResponse::Array(items) => assert!(items.is_empty()),
             other => panic!("expected an empty array, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn rename_for_an_unknown_document_is_none() {
+        // Arrange
+        let (router, _server_conn, _client_conn) = setup();
+        let uri = Uri::from_str("file:///absent.hcl").unwrap();
+        let params = lsp_types::RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position: Position {
+                    line: 0,
+                    character: 0,
+                },
+            },
+            new_name: "x".to_string(),
+            work_done_progress_params: Default::default(),
+        };
+
+        // Act
+        let result = router.rename(params);
+
+        // Assert
+        assert!(
+            matches!(result, Ok(None)),
+            "an absent document renames nothing"
+        );
+    }
+
+    #[test]
+    fn document_highlight_for_an_unknown_document_is_empty() {
+        // Arrange
+        let (router, _server_conn, _client_conn) = setup();
+        let uri = Uri::from_str("file:///absent.hcl").unwrap();
+        let params = lsp_types::DocumentHighlightParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position: Position {
+                    line: 0,
+                    character: 0,
+                },
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+
+        // Act
+        let highlights = router.document_highlight(params);
+
+        // Assert
+        assert!(
+            highlights.is_empty(),
+            "an absent document highlights nothing"
+        );
+    }
+
+    #[test]
+    fn prepare_rename_for_an_unknown_document_is_none() {
+        // Arrange
+        let (router, _server_conn, _client_conn) = setup();
+        let uri = Uri::from_str("file:///absent.hcl").unwrap();
+        let params = TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri },
+            position: Position {
+                line: 0,
+                character: 0,
+            },
+        };
+
+        // Act
+        let range = router.prepare_rename(params);
+
+        // Assert
+        assert!(range.is_none(), "an absent document prepares no rename");
+    }
+
+    #[test]
+    fn a_refused_handler_answers_the_request_failed_error_with_its_message() {
+        // Arrange
+        let request = Request::new(
+            RequestId::from(1),
+            "textDocument/rename".to_string(),
+            serde_json::json!({}),
+        );
+
+        // Act
+        let response = respond_fallible::<serde_json::Value, ()>(
+            request,
+            "textDocument/rename".to_string(),
+            |_| Err("a label cannot be empty".to_string()),
+        );
+
+        // Assert
+        let error = response.response_result.unwrap_err();
+        assert_eq!(error.code, REQUEST_FAILED);
+        assert_eq!(error.message, "a label cannot be empty");
+    }
+
+    #[test]
+    fn folding_ranges_for_an_unknown_document_is_empty() {
+        // Arrange
+        let (router, _server_conn, _client_conn) = setup();
+        let uri = Uri::from_str("file:///absent.hcl").unwrap();
+        let params = lsp_types::FoldingRangeParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+
+        // Act
+        let ranges = router.folding_ranges(params);
+
+        // Assert
+        assert!(ranges.is_empty(), "an absent document folds nothing");
     }
 
     #[test]

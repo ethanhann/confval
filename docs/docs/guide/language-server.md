@@ -5,7 +5,7 @@ sidebar_position: 11
 # Language Server
 
 `confval-lsp` is a language server.
-It gives an editor the completion, hover, diagnostics, and navigation that [Editor Support](./editor-support.md) describes.
+It gives an editor the completion, hover, diagnostics, navigation, rename, document highlight, and folding that [Editor Support](./editor-support.md) describes.
 The server works for any confval schema and any format confval parses.
 You build one server for your own configuration.
 

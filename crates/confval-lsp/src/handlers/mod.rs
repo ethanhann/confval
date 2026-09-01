@@ -11,6 +11,7 @@ mod code_action;
 mod completion;
 mod diagnostics;
 mod document_link;
+mod folding;
 mod hover;
 mod navigation;
 mod symbols;
@@ -19,8 +20,9 @@ pub use code_action::code_action;
 pub use completion::{ClientSupport, completion};
 pub use diagnostics::diagnostics;
 pub use document_link::document_links;
+pub use folding::folding_ranges;
 pub use hover::hover;
-pub use navigation::{definition, references};
+pub use navigation::{definition, document_highlight, prepare_rename, references, rename};
 pub use symbols::{SymbolShape, document_symbols};
 
 use confval::format::Fields;

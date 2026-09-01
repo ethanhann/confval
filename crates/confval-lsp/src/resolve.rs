@@ -358,31 +358,67 @@ fn block_body_end(block_span: Span, inner: &Fields) -> u32 {
 /// descendants. The document-symbol outline shares it, so a container's
 /// extension cannot drift from cursor resolution.
 pub(crate) fn deepest_end(fields: &Fields) -> u32 {
+    furthest_end(fields, true)
+}
+
+/// The furthest non-detached end offset among a level's fields and their
+/// descendants.
+///
+/// With `include_block_spans` the walk counts a block field's own span and a
+/// map value's own span. Without it the walk counts scalar ends only, because
+/// a header or indentation format's block span runs to the next sibling, past
+/// the block's last entry. An empty block or map still counts its own span,
+/// because it has no entry to end at.
+pub(crate) fn furthest_end(fields: &Fields, include_block_spans: bool) -> u32 {
     let mut furthest = 0;
     for field in fields.iter() {
-        furthest = furthest.max(end_of(field.span));
-        match &field.kind {
-            FieldKind::Block(inner) => furthest = furthest.max(deepest_end(inner)),
-            FieldKind::Value(value) => furthest = furthest.max(deepest_end_value(value)),
-        }
+        let end = match &field.kind {
+            FieldKind::Block(inner) => {
+                let own = if include_block_spans || inner.iter().next().is_none() {
+                    end_of(field.span)
+                } else {
+                    end_of(field.name_span)
+                };
+                own.max(furthest_end(inner, include_block_spans))
+            }
+            FieldKind::Value(value) => {
+                let own = if include_block_spans {
+                    end_of(field.span)
+                } else {
+                    0
+                };
+                own.max(furthest_end_value(value, include_block_spans))
+            }
+        };
+        furthest = furthest.max(end);
     }
     furthest
 }
 
 /// The furthest non-detached end offset within a value, recursing through maps
-/// and sequences.
-fn deepest_end_value(value: &Value) -> u32 {
-    let mut furthest = end_of(value.span);
+/// and sequences under the same rule as [`furthest_end`].
+pub(crate) fn furthest_end_value(value: &Value, include_block_spans: bool) -> u32 {
     match &value.kind {
-        ValueKind::Map(inner) => furthest = furthest.max(deepest_end(inner)),
-        ValueKind::Seq(items) => {
-            for item in items {
-                furthest = furthest.max(deepest_end_value(item));
+        ValueKind::Map(inner) => {
+            if include_block_spans || inner.iter().next().is_none() {
+                end_of(value.span).max(furthest_end(inner, include_block_spans))
+            } else {
+                furthest_end(inner, include_block_spans)
             }
         }
-        _ => {}
+        ValueKind::Seq(items) => {
+            let own = if include_block_spans || items.is_empty() {
+                end_of(value.span)
+            } else {
+                0
+            };
+            items
+                .iter()
+                .map(|item| furthest_end_value(item, include_block_spans))
+                .fold(own, u32::max)
+        }
+        _ => end_of(value.span),
     }
-    furthest
 }
 
 /// The end offset of a span, or zero for the detached sentinel.
@@ -465,7 +501,7 @@ mod tests {
         let map_value = Value::spanned(Span::new(id, 5, 10), ValueKind::Map(inner));
 
         // Act
-        let furthest = deepest_end_value(&map_value);
+        let furthest = furthest_end_value(&map_value, true);
 
         // Assert
         assert_eq!(furthest, 50);

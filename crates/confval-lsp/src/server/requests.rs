@@ -5,9 +5,11 @@
 //! module dispatches to these.
 
 use lsp_types::{
-    CodeActionOrCommand, CodeActionParams, CompletionParams, CompletionResponse, DocumentLink,
-    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, Hover,
-    HoverParams, ReferenceParams, Uri,
+    CodeActionOrCommand, CodeActionParams, CompletionParams, CompletionResponse, DocumentHighlight,
+    DocumentHighlightParams, DocumentLink, DocumentLinkParams, DocumentSymbolParams,
+    DocumentSymbolResponse, FoldingRange, FoldingRangeParams, GotoDefinitionParams, Hover,
+    HoverParams, PrepareRenameResponse, ReferenceParams, RenameParams, TextDocumentPositionParams,
+    Uri, WorkspaceEdit,
 };
 
 use crate::binding::Binding;
@@ -111,6 +113,85 @@ impl Router {
             &index,
             self.encoding,
         ))
+    }
+
+    /// Computes the document-highlight response for a request.
+    pub(super) fn document_highlight(
+        &self,
+        params: DocumentHighlightParams,
+    ) -> Vec<DocumentHighlight> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        let Some((document, binding, index, context)) = self.resolve_at(uri, position) else {
+            return Vec::new();
+        };
+        handlers::document_highlight(
+            &binding.schema,
+            &context,
+            &document.text,
+            &index,
+            self.encoding,
+        )
+    }
+
+    /// Computes the prepare-rename response for a request.
+    pub(super) fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> Option<PrepareRenameResponse> {
+        let (document, binding, index, context) =
+            self.resolve_at(&params.text_document.uri, params.position)?;
+        handlers::prepare_rename(
+            &binding.schema,
+            &context,
+            &document.text,
+            &index,
+            self.encoding,
+        )
+    }
+
+    /// Computes the rename response for a request. The transport answers a
+    /// refused name as an error.
+    pub(super) fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>, String> {
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let Some((document, binding, index, context)) = self.resolve_at(uri, position) else {
+            return Ok(None);
+        };
+        handlers::rename(
+            &binding.schema,
+            &context,
+            uri,
+            &document.text,
+            &index,
+            self.encoding,
+            &params.new_name,
+        )
+    }
+
+    /// Computes the folding ranges for a request. A buffer that does not
+    /// parse answers empty, because the folds read parsed spans.
+    pub(super) fn folding_ranges(&self, params: FoldingRangeParams) -> Vec<FoldingRange> {
+        let uri = &params.text_document.uri;
+        let Some(document) = self.documents.get(uri.as_str()) else {
+            return Vec::new();
+        };
+        let Some(tree) = document.tree.as_ref() else {
+            return Vec::new();
+        };
+        let Some(binding) = document.binding.and_then(|i| self.bindings.get(i)) else {
+            return Vec::new();
+        };
+        let index = LineIndex::new(&document.text);
+        handlers::folding_ranges(
+            &binding.schema,
+            tree,
+            &document.text,
+            binding.frontend.block_span_covers_body(),
+            binding.frontend.recovery(),
+            &index,
+            self.encoding,
+        )
     }
 
     /// Collects document links for path-typed fields in the parsed tree.

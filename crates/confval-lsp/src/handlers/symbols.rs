@@ -60,6 +60,20 @@ struct Build {
     text_len: usize,
 }
 
+/// The raw symbol tree of a parsed document.
+fn raw_symbols(
+    schema: &Schema,
+    fields: &Fields,
+    covers_body: bool,
+    text_len: usize,
+) -> Vec<RawSymbol> {
+    let build = Build {
+        covers_body,
+        text_len,
+    };
+    level_symbols(schema, fields, &build)
+}
+
 /// Produces the document symbols for a parsed document.
 pub fn document_symbols(
     schema: &Schema,
@@ -70,11 +84,7 @@ pub fn document_symbols(
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> DocumentSymbolResponse {
-    let build = Build {
-        covers_body: shape.covers_body,
-        text_len: text.len(),
-    };
-    let symbols = level_symbols(schema, fields, &build);
+    let symbols = raw_symbols(schema, fields, shape.covers_body, text.len());
     if shape.hierarchical {
         DocumentSymbolResponse::Nested(
             symbols
@@ -234,8 +244,9 @@ fn instance_label(body: &Fields, schema: &Schema) -> Option<String> {
     }
 }
 
-/// The bodies of one block field, one per instance, each with its span.
-fn instances(field: &Field) -> Vec<(&Fields, Span)> {
+/// The bodies of one block field, one per instance, each with its span. The
+/// folding handler shares it.
+pub(super) fn instances(field: &Field) -> Vec<(&Fields, Span)> {
     match &field.kind {
         FieldKind::Block(body) => vec![(body, field.span)],
         FieldKind::Value(value) => match &value.kind {
