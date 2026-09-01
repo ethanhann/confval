@@ -107,7 +107,7 @@ flowchart TB
         SRV["<b>Router</b><br/>transport, bindings, document store, encoding"]
         FRONT["<b>Frontend trait</b><br/>Hcl, Toml, Kdl, Json, Yaml"]
         CTX["<b>CursorContext</b><br/>tree walk or raw-text scan"]
-        HAND["<b>Handlers</b><br/>completion, hover, diagnostics<br/>code action, navigation, rename<br/>document highlight, document symbols, folding"]
+        HAND["<b>Handlers</b><br/>completion, hover, diagnostics<br/>code action, navigation, rename<br/>document highlight, document symbols<br/>document links, folding"]
     end
 
     FILE --> SM
@@ -236,8 +236,9 @@ The inner type is the rawest type that parses infallibly.
 ## Validation and the gate
 
 `validate_all` runs the spec's `Validate` rules and descends through `ValidateNested` into every nested block.
-The recorded constraints, `KeywordSet` and `RangeConstraint`, run inside that pass for a derived spec.
-The `keyword_enum!` and `range_constraint!` macros declare those two types.
+Six recorded constraints run inside that pass for a derived spec.
+They are `KeywordSet`, `RangeConstraint`, `LengthConstraint`, `Format`, `NON_EMPTY`, and `UNIQUE`.
+The `keyword_enum!`, `range_constraint!`, and `length_constraint!` macros declare the kinds that have a declaration form.
 
 `check_references` is separate.
 It reads the whole parsed tree and the schema rather than one level's own fields.
@@ -271,7 +272,7 @@ A handwritten spec lists its fields once through `FieldsBuilder`, which takes th
 `ToSchema::schema` reads the spec type rather than a value.
 It needs no instance.
 The `Schema` tree carries each field's name, doc comment, `required` flag, default text, and declared `SchemaType`.
-The recorded constraints appear as `Constraint::Keywords`, `Constraint::Range`, and `Constraint::References`.
+The recorded constraints appear as `Constraint::Keywords`, `Constraint::Range`, `Constraint::Length`, `Constraint::Format`, and `Constraint::References`.
 
 Two consumers read it.
 `check_references` resolves labels against it, and the language server answers each editor request from it.

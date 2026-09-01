@@ -81,11 +81,17 @@ Rename then changes the label and every reference that resolves to it in one edi
 The edit covers the text inside the quotes.
 The quote style you wrote stays.
 Rename refuses a name that would break the value and names the rule the name breaks.
-A name with a quote, a backslash, or a line break is refused everywhere.
-Where the label is written bare, the name is refused unless it is letters, digits, `_`, and `-`, starting with a letter or `_`, and it cannot be `true`, `false`, `null`, `inf`, or `nan`.
-A single-quoted label also refuses a single quote.
-A scope that declares the same label twice is not renameable until you fix the duplicate.
+
+- A name with a quote, a backslash, a control character, `${`, or `%{` is refused everywhere.
+- Where the label is written bare, the name is refused unless it is letters, digits, `_`, and `-`, starting with a letter or `_`, and it cannot be `true`, `false`, `null`, `inf`, or `nan`.
+- A single-quoted label also refuses a single quote.
+- A rename onto a name the scope already declares is refused.
+- A scope that declares the same label twice is not renameable until you fix the duplicate.
+- A label or a reference written as a raw or an escaped string cannot be rewritten, and the whole rename is refused.
+
 A rename from a reference that resolves to no label changes every reference that shares its value, which fixes a typo in one edit.
+
+## Document highlight
 
 While the cursor is on a label or a reference, document highlight marks the label and the same references rename would edit.
 The label shows as a write occurrence and each reference as a read occurrence.

@@ -5,7 +5,7 @@ sidebar_position: 11
 # Language Server
 
 `confval-lsp` is a language server.
-It gives an editor the completion, hover, diagnostics, navigation, rename, document highlight, and folding that [Editor Support](./editor-support.md) describes.
+It gives an editor the completion, hover, diagnostics, quick fixes, path links, navigation, rename, document highlight, and folding that [Editor Support](./editor-support.md) describes.
 The server works for any confval schema and any format confval parses.
 You build one server for your own configuration.
 
@@ -111,6 +111,7 @@ It binds an entrypoint spec to `gateway.cvm` by file name, and a middleware spec
 There is no fallback binding, so any other document shows the unmatched warning.
 The sample documents are plain HCL under the made-up `.cvm` extension.
 The extension lets an IDE register this server on its own file pattern, beside an existing `.hcl` registration.
+The single-format samples under `dev/sample_configs/` use a made-up extension the same way, one per format.
 
 ```
 cargo run -p confval-lsp --example serve_multi
@@ -126,7 +127,7 @@ The build then carries one parser instead of all five.
 
 ```toml
 [dependencies]
-confval-lsp = { version = "0.9.0", default-features = false, features = ["toml"] }
+confval-lsp = { version = "0.11", default-features = false, features = ["toml"] }
 ```
 
 ## Position encoding

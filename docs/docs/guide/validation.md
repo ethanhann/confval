@@ -85,6 +85,7 @@ length_constraint!(LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 
 `length_constraint!` takes attributes and a visibility before the name, the same as `range_constraint!`.
 
 A bound with `max:` alone starts at zero.
+A `min:` above `max:` is a compile error.
 The bound takes `help:` only and has no `units:` arm, because the unit is always characters.
 The count is `value.chars().count()`, the number of Unicode scalar values.
 So an emoji built from several scalar values, or an accented letter written as a base plus a combining mark, counts as more than one.
