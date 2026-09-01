@@ -8,7 +8,7 @@ use std::str::FromStr;
 use lsp_types::{DocumentSymbolResponse, Location, SymbolKind, Uri};
 
 use confval::schema::ToSchema;
-use confval_lsp::handlers::{SymbolShape, definition, document_symbols, references};
+use confval_lsp::handlers::{Cx, SymbolShape, definition, document_symbols, references};
 use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
 
 use fixture::{GatewaySpec, MeshSpec, ServerSpec};
@@ -41,7 +41,13 @@ fn definition_at<F: Frontend>(
     let context = frontend.resolve(tree.as_ref(), text, offset);
     let uri = doc_uri();
     let index = LineIndex::new(text);
-    definition(schema, &context, &uri, text, &index, ENCODING)
+    let cx = Cx {
+        schema,
+        fields: tree.as_ref(),
+        ctx: &context,
+        text,
+    };
+    definition(&cx, &uri, &index, ENCODING)
 }
 
 /// Resolves a cursor and runs the references handler.
@@ -56,15 +62,13 @@ fn references_at<F: Frontend>(
     let context = frontend.resolve(tree.as_ref(), text, offset);
     let uri = doc_uri();
     let index = LineIndex::new(text);
-    references(
+    let cx = Cx {
         schema,
-        &context,
-        include_declaration,
-        &uri,
+        fields: tree.as_ref(),
+        ctx: &context,
         text,
-        &index,
-        ENCODING,
-    )
+    };
+    references(&cx, include_declaration, &uri, &index, ENCODING)
 }
 
 const GATEWAY_YAML: &str = "upstream:\n  - name: api\n    host: h\n    port: 1\n  - name: web\n    host: h2\n    port: 2\nroutes:\n  - prefix: /a\n    upstream: \"api\"\n  - prefix: /b\n    upstream: \"api\"\n";

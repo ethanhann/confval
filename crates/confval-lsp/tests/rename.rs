@@ -8,7 +8,7 @@ use std::str::FromStr;
 use lsp_types::{PrepareRenameResponse, Uri, WorkspaceEdit};
 
 use confval::schema::{Schema, ToSchema};
-use confval_lsp::handlers::{prepare_rename, rename};
+use confval_lsp::handlers::{Cx, prepare_rename, rename};
 use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
 
 use fixture::{GatewaySpec, MeshSpec};
@@ -41,15 +41,13 @@ fn rename_at<F: Frontend>(
     let tree = frontend.parse_tree(text);
     let context = frontend.resolve(tree.as_ref(), text, offset);
     let index = LineIndex::new(text);
-    rename(
+    let cx = Cx {
         schema,
-        &context,
-        &doc_uri(),
+        fields: tree.as_ref(),
+        ctx: &context,
         text,
-        &index,
-        encoding,
-        new_name,
-    )
+    };
+    rename(&cx, &doc_uri(), &index, encoding, new_name)
 }
 
 /// Resolves a cursor and runs the prepare-rename handler, answering the text
@@ -63,7 +61,13 @@ fn prepare_at<F: Frontend>(
     let tree = frontend.parse_tree(text);
     let context = frontend.resolve(tree.as_ref(), text, offset);
     let index = LineIndex::new(text);
-    let response = prepare_rename(schema, &context, text, &index, UTF8)?;
+    let cx = Cx {
+        schema,
+        fields: tree.as_ref(),
+        ctx: &context,
+        text,
+    };
+    let response = prepare_rename(&cx, &index, UTF8)?;
     let PrepareRenameResponse::Range(range) = response else {
         panic!("a plain range");
     };
@@ -119,7 +123,13 @@ fn prepare_line_at<F: Frontend>(frontend: &F, schema: &Schema, text: &str, offse
     let tree = frontend.parse_tree(text);
     let context = frontend.resolve(tree.as_ref(), text, offset);
     let index = LineIndex::new(text);
-    match prepare_rename(schema, &context, text, &index, UTF8) {
+    let cx = Cx {
+        schema,
+        fields: tree.as_ref(),
+        ctx: &context,
+        text,
+    };
+    match prepare_rename(&cx, &index, UTF8) {
         Some(PrepareRenameResponse::Range(range)) => range.start.line,
         _ => panic!("a plain range"),
     }
@@ -417,7 +427,7 @@ fn a_refused_name_answers_the_reason() {
     let bare = GATEWAY_YAML_BARE.find("name: api").unwrap() + "name: a".len();
     let single = GATEWAY_TOML.replace("name = \"api\"", "name = 'api'");
     let single_offset = single.find("'api'").unwrap() + 1;
-    let breaks = "a label cannot contain a quote, a backslash, a line break, `${`, or `%{`";
+    let breaks = "a label cannot contain a quote, a backslash, a control character, `${`, or `%{`";
     let class =
         "a bare label takes letters, digits, `_`, and `-` only, starting with a letter or `_`";
 
@@ -448,6 +458,40 @@ fn a_refused_name_answers_the_reason() {
         apostrophe,
         Err("a single-quoted label cannot contain a single quote".to_string())
     );
+}
+
+#[test]
+fn a_name_that_collides_with_a_sibling_label_is_refused() {
+    // Arrange
+    let schema = GatewaySpec::schema();
+    let text = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\nupstream \"web\" {\n  host = \"w\"\n  port = 2\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"api\"\n}\n";
+    let label = text.find("\"api\"").unwrap() + 1;
+    let reference = text.rfind("\"api\"").unwrap() + 1;
+
+    // Act
+    let from_label = rename_at(&Hcl, &schema, text, label, "web", UTF8);
+    let from_reference = rename_at(&Hcl, &schema, text, reference, "web", UTF8);
+
+    // Assert
+    let reason = Err("the scope already declares `web`".to_string());
+    assert_eq!(from_label, reason);
+    assert_eq!(from_reference, reason);
+}
+
+#[test]
+fn a_rename_from_an_unresolved_reference_edits_the_matching_references() {
+    // Arrange
+    // Renaming the references onto the existing label is the typo fix, so the
+    // sibling-label refusal does not apply when no label is edited.
+    let text = GATEWAY_HCL.replace("upstream = \"api\"", "upstream = \"nope\"");
+    let schema = GatewaySpec::schema();
+    let offset = text.find("\"nope\"").unwrap() + 1;
+
+    // Act
+    let edited = renamed(&Hcl, &schema, &text, offset, "api", UTF8);
+
+    // Assert
+    assert_eq!(edited, GATEWAY_HCL);
 }
 
 #[test]

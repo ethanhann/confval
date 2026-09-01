@@ -19,7 +19,7 @@ use lsp_types::{
 };
 
 use confval_lsp::{Hcl, Matcher, Router, Yaml, bind};
-use fixture::ServerSpec;
+use fixture::{GatewaySpec, ServerSpec};
 
 /// The one binding router `serve` runs for the demo spec, over any frontend.
 fn single<F: confval_lsp::Frontend + Send + 'static>(frontend: F) -> Router {
@@ -620,4 +620,111 @@ fn the_server_advertises_and_routes_the_rename_highlight_and_folding_requests() 
         "prepare rename routes: {prepare:?}"
     );
     assert!(rename.response_result.is_ok(), "rename routes: {rename:?}");
+}
+
+#[test]
+fn a_refused_rename_answers_the_request_failed_error_on_the_wire() {
+    // Arrange
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || {
+        match Router::new(vec![bind::<GatewaySpec, Hcl>(Matcher::Any, Hcl)]) {
+            Ok(router) => router.run(&server),
+            Err(error) => panic!("one binding is never empty: {error}"),
+        }
+    });
+    let uri = Uri::from_str("file:///gateway.hcl").unwrap();
+    let text = "upstream \"api\" {\n  host = \"h\"\n  port = 1\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"api\"\n}\n";
+
+    // Act, a rename of the label to a name holding a quote.
+    let _init = round_trip(&client, 1, Initialize::METHOD, InitializeParams::default());
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            Initialized::METHOD.to_string(),
+            InitializedParams {},
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            DidOpenTextDocument::METHOD.to_string(),
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "hcl".to_string(),
+                    version: 1,
+                    text: text.to_string(),
+                },
+            },
+        )))
+        .unwrap();
+    let prepare = round_trip(
+        &client,
+        4,
+        lsp_types::request::PrepareRenameRequest::METHOD,
+        TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            position: Position {
+                line: 0,
+                character: 11,
+            },
+        },
+    );
+    let folding = round_trip(
+        &client,
+        5,
+        lsp_types::request::FoldingRangeRequest::METHOD,
+        lsp_types::FoldingRangeParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+    );
+    let rename = round_trip(
+        &client,
+        2,
+        lsp_types::request::Rename::METHOD,
+        lsp_types::RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position: Position {
+                    line: 0,
+                    character: 11,
+                },
+            },
+            new_name: "a\"b".to_string(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        },
+    );
+    let _shutdown = round_trip(&client, 3, Shutdown::METHOD, ());
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            Exit::METHOD.to_string(),
+            (),
+        )))
+        .unwrap();
+    handle.join().unwrap().unwrap();
+
+    // Assert
+    let prepared = prepare.response_result.expect("prepare routes");
+    assert!(
+        prepared.get("start").is_some(),
+        "the label position answers a prepare range: {prepared:?}"
+    );
+    let folds = folding.response_result.expect("folding routes");
+    assert!(
+        folds.as_array().is_some_and(|folds| !folds.is_empty()),
+        "the multi-line block answers at least one fold: {folds:?}"
+    );
+    let error = rename.response_result.unwrap_err();
+    assert_eq!(
+        error.code, -32803,
+        "the request-failed code reaches the wire"
+    );
+    assert_eq!(
+        error.message,
+        "a label cannot contain a quote, a backslash, a control character, `${`, or `%{`",
+        "the refusal reason reaches the client"
+    );
 }

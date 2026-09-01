@@ -186,6 +186,21 @@ fn a_yaml_block_ending_in_an_empty_flow_map_folds_to_that_line() {
 }
 
 #[test]
+fn an_empty_flow_seq_fold_keeps_its_closing_bracket() {
+    // Arrange
+    // The empty seq has no entry to end at, so the fold ends after `]`, and
+    // only a brace format strips a closing bracket.
+    let text = "allow:\n  []\n";
+    let schema = ServerSpec::schema();
+
+    // Act
+    let ends = fold_ends(&Yaml, &schema, text);
+
+    // Assert
+    assert_eq!(ends, vec![(1, Some(4))]);
+}
+
+#[test]
 fn nested_blocks_fold_at_every_level() {
     // Arrange
     let text = "services {\n  name = \"a\"\n  upstreams \"u\" {\n    port = 1\n  }\n}\n";
