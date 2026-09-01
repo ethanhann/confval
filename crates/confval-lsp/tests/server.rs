@@ -670,6 +670,46 @@ fn a_refused_rename_answers_the_request_failed_error_on_the_wire() {
             },
         },
     );
+    let at_reference = TextDocumentPositionParams {
+        text_document: TextDocumentIdentifier { uri: uri.clone() },
+        position: Position {
+            line: 6,
+            character: 15,
+        },
+    };
+    let definition = round_trip(
+        &client,
+        6,
+        lsp_types::request::GotoDefinition::METHOD,
+        lsp_types::GotoDefinitionParams {
+            text_document_position_params: at_reference.clone(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+    );
+    let references = round_trip(
+        &client,
+        7,
+        lsp_types::request::References::METHOD,
+        lsp_types::ReferenceParams {
+            text_document_position: at_reference.clone(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: lsp_types::ReferenceContext {
+                include_declaration: true,
+            },
+        },
+    );
+    let highlight = round_trip(
+        &client,
+        8,
+        lsp_types::request::DocumentHighlightRequest::METHOD,
+        lsp_types::DocumentHighlightParams {
+            text_document_position_params: at_reference,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+    );
     let folding = round_trip(
         &client,
         5,
@@ -716,6 +756,21 @@ fn a_refused_rename_answers_the_request_failed_error_on_the_wire() {
     assert!(
         folds.as_array().is_some_and(|folds| !folds.is_empty()),
         "the multi-line block answers at least one fold: {folds:?}"
+    );
+    let target = definition.response_result.expect("definition routes");
+    assert!(
+        target.get("uri").is_some(),
+        "the reference answers its label's location: {target:?}"
+    );
+    let referenced = references.response_result.expect("references route");
+    assert!(
+        referenced.as_array().is_some_and(|list| list.len() == 2),
+        "the label and the reference are listed: {referenced:?}"
+    );
+    let marked = highlight.response_result.expect("highlight routes");
+    assert!(
+        marked.as_array().is_some_and(|list| !list.is_empty()),
+        "the reference answers its highlight set: {marked:?}"
     );
     let error = rename.response_result.unwrap_err();
     assert_eq!(
