@@ -6,9 +6,13 @@
 //! constant also uses `pub(in path)`. The crate denies `dead_code`. An unused `pub` constant
 //! then compiles only when its `#[allow(dead_code)]` attaches to the emitted
 //! const.
+//! A spec names `bounds::PORT` through its module path in a
+//! `#[confval(range = ...)]` attribute, and `main` checks that the recorded
+//! constraint fires.
 
 #![deny(dead_code)]
 
+use confval::prelude::{Located, Report, Validate};
 use confval::{length_constraint, range_constraint};
 
 mod bounds {
@@ -86,6 +90,17 @@ length_constraint!(PRIVATE_LABEL_LEN, min: 0, max: 8);
 length_constraint!(PRIVATE_NAME_LEN, max: 63, help: "Keep names short.");
 length_constraint!(PRIVATE_PATH_LEN, min: 1, max: 4096, help: "A path is at most 4096 characters.");
 
+/// A spec that names its range constraint through the `bounds` module path.
+#[derive(confval::Spec)]
+struct ServerSpec {
+    #[confval(range = bounds::PORT)]
+    port: Located<i64>,
+}
+
+impl Validate for ServerSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
 fn main() {
     assert_eq!((bounds::PORT.min, bounds::PORT.max), (1, 65535));
     assert_eq!(bounds::DRAIN.units, Some("seconds"));
@@ -100,4 +115,11 @@ fn main() {
     assert_eq!(PRIVATE_LABEL_LEN.max, 8);
     assert_eq!(PRIVATE_NAME_LEN.help, Some("Keep names short."));
     assert_eq!(PRIVATE_PATH_LEN.min, 1);
+
+    let spec = ServerSpec {
+        port: Located::detached(99999),
+    };
+    let mut report = Report::new();
+    spec.validate_all(&mut report);
+    assert_eq!(report.issues()[0].message, "port must be at most 65535");
 }
