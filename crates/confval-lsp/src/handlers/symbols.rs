@@ -15,7 +15,7 @@ use confval::schema::{Schema, SchemaType};
 use confval::source::Span;
 
 use crate::encoding::{LineIndex, PositionEncoding};
-use crate::resolve::deepest_end;
+use crate::resolve::{Extent, furthest_end};
 
 /// One symbol with byte ranges, before position encoding.
 struct RawSymbol {
@@ -60,20 +60,6 @@ struct Build {
     text_len: usize,
 }
 
-/// The raw symbol tree of a parsed document.
-fn raw_symbols(
-    schema: &Schema,
-    fields: &Fields,
-    covers_body: bool,
-    text_len: usize,
-) -> Vec<RawSymbol> {
-    let build = Build {
-        covers_body,
-        text_len,
-    };
-    level_symbols(schema, fields, &build)
-}
-
 /// Produces the document symbols for a parsed document.
 pub fn document_symbols(
     schema: &Schema,
@@ -84,7 +70,11 @@ pub fn document_symbols(
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> DocumentSymbolResponse {
-    let symbols = raw_symbols(schema, fields, shape.covers_body, text.len());
+    let build = Build {
+        covers_body: shape.covers_body,
+        text_len: text.len(),
+    };
+    let symbols = level_symbols(schema, fields, &build);
     if shape.hierarchical {
         DocumentSymbolResponse::Nested(
             symbols
@@ -196,9 +186,11 @@ fn container(
     let end = if build.covers_body {
         span_range(instance_span)
             .map_or(0, |range| range.1)
-            .max(deepest_end(body))
+            .max(furthest_end(body, Extent::Deepest))
     } else {
-        bound.unwrap_or(enclosing_end).max(deepest_end(body))
+        bound
+            .unwrap_or(enclosing_end)
+            .max(furthest_end(body, Extent::Deepest))
     } as usize;
     let end = end.min(build.text_len).max(start);
     let selection = clamp(field.name_span, (start, end), build.text_len);
