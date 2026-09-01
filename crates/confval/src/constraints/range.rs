@@ -133,7 +133,11 @@ macro_rules! range_constraint {
             units: $crate::range_constraint!(@opt $($units)?),
             help: $crate::range_constraint!(@opt $($help)?),
         };
-        const _: () = ::core::assert!($min <= $max, "range_constraint! min is above max");
+        const _: () = {
+            let min: $T = $min;
+            let max: $T = $max;
+            ::core::assert!(min <= max, "range_constraint! min is above max");
+        };
     };
     (@opt $value:literal) => { ::core::option::Option::Some($value) };
     (@opt) => { ::core::option::Option::None };
