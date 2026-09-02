@@ -14,8 +14,9 @@ use confval::source::Span;
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::Recovery;
-use crate::resolve::{furthest_end, furthest_end_value};
+use crate::resolve::{Extent, furthest_end, furthest_end_value};
 
+use super::navigation::span_range;
 use super::symbols::instances;
 
 /// Produces the folding ranges for a parsed document.
@@ -46,12 +47,8 @@ pub fn folding_ranges(
     // A JSON document is one object, and its braces fold like any block's.
     // An HCL or KDL root has no delimiter, and a YAML or TOML root no entry
     // of its own, so those roots do not fold.
-    if recovery == Recovery::Object {
-        let root = fields.enclosing();
-        walk.push(
-            span_start(root).map(|start| (start, span_end(root) as usize)),
-            &mut out,
-        );
+    if recovery.delimited_root() {
+        walk.push(span_range(fields.enclosing()), &mut out);
     }
     walk.level(schema, fields, &mut out);
     out
@@ -101,28 +98,28 @@ impl Walk<'_> {
     /// The byte extent of a whole field: from its name to the end of its
     /// content.
     fn field_extent(&self, field: &Field) -> Option<(usize, usize)> {
-        let start = span_start(field.span).or_else(|| span_start(field.name_span))?;
+        let (start, _) = span_range(field.span).or_else(|| span_range(field.name_span))?;
         let end = if self.brace_format {
-            span_end(field.span)
+            span_range(field.span)?.1
         } else {
             match &field.kind {
-                FieldKind::Block(inner) => furthest_end(inner, false),
-                FieldKind::Value(value) => furthest_end_value(value, false),
+                FieldKind::Block(inner) => furthest_end(inner, Extent::Entries) as usize,
+                FieldKind::Value(value) => furthest_end_value(value, Extent::Entries) as usize,
             }
         };
-        Some((start, end as usize))
+        Some((start, end))
     }
 
     /// The byte extent of one block instance: from its span start to its
     /// span end for a brace format, or to its last entry otherwise.
     fn instance_extent(&self, body: &Fields, span: Span) -> Option<(usize, usize)> {
-        let start = span_start(span)?;
+        let (start, span_end) = span_range(span)?;
         let end = if self.brace_format || (self.covers_body && !has_entries(body)) {
-            span_end(span)
+            span_end
         } else {
-            furthest_end(body, false)
+            furthest_end(body, Extent::Entries) as usize
         };
-        Some((start, end as usize))
+        Some((start, end))
     }
 
     /// The line a byte offset is on.
@@ -135,8 +132,11 @@ impl Walk<'_> {
     }
 
     /// Emits one range when the extent spans more than one line and no
-    /// emitted range covers the same lines. A brace format's extent ends
-    /// before its closing brace or bracket.
+    /// emitted range covers the same lines. The same-lines check removes an
+    /// exact twin only, such as a wrapped value that matches its own field.
+    /// The container rule in [`Walk::level`] removes the fold that shares
+    /// no more than its first line with its first instance. A brace format's extent
+    /// ends before its closing brace or bracket.
     fn push(&self, extent: Option<(usize, usize)>, out: &mut Vec<FoldingRange>) {
         let Some((start, end)) = extent else {
             return;
@@ -174,14 +174,4 @@ impl Walk<'_> {
 /// Whether a block body has at least one entry.
 fn has_entries(body: &Fields) -> bool {
     body.iter().next().is_some()
-}
-
-/// A span's start, or `None` for the detached sentinel.
-fn span_start(span: Span) -> Option<usize> {
-    (!span.is_detached()).then_some(span.start as usize)
-}
-
-/// A span's end, or zero for the detached sentinel.
-fn span_end(span: Span) -> u32 {
-    if span.is_detached() { 0 } else { span.end }
 }

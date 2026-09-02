@@ -80,7 +80,7 @@ const METHOD_NOT_FOUND: i32 = -32601;
 const INVALID_PARAMS: i32 = -32602;
 /// JSON-RPC error code for a server-side failure.
 const INTERNAL_ERROR: i32 = -32603;
-/// JSON-RPC error code for a well formed request the server cannot fulfil.
+/// JSON-RPC error code for a well-formed request the server cannot fulfill.
 const REQUEST_FAILED: i32 = -32803;
 
 /// One open document: its current text, its current parse, the report that

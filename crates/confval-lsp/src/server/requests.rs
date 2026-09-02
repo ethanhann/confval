@@ -12,6 +12,8 @@ use lsp_types::{
     Uri, WorkspaceEdit,
 };
 
+use confval::format::Fields;
+
 use crate::binding::Binding;
 use crate::encoding::LineIndex;
 use crate::frontend::CursorContext;
@@ -55,19 +57,24 @@ impl Router {
         Some((document, binding, index, context))
     }
 
+    /// Resolves a whole-document request against a stored document and its
+    /// binding. Three cases resolve to `None`: a document the server has not
+    /// opened, a buffer that does not parse, and a document that matched no
+    /// binding. The callers answer empty on each.
+    fn resolve_tree(&self, uri: &Uri) -> Option<(&Document, &Binding, &Fields, LineIndex)> {
+        let document = self.documents.get(uri.as_str())?;
+        let tree = document.tree.as_ref()?;
+        let binding = self.bindings.get(document.binding?)?;
+        let index = LineIndex::new(&document.text);
+        Some((document, binding, tree, index))
+    }
+
     /// Computes the definition response for a request.
     pub(super) fn definition(&self, params: GotoDefinitionParams) -> Option<lsp_types::Location> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let (document, binding, index, context) = self.resolve_at(uri, position)?;
-        handlers::definition(
-            &binding.schema,
-            &context,
-            uri,
-            &document.text,
-            &index,
-            self.encoding,
-        )
+        handlers::definition(&cx(document, binding, &context), uri, &index, self.encoding)
     }
 
     /// Computes the references response for a request.
@@ -78,11 +85,9 @@ impl Router {
             return Vec::new();
         };
         handlers::references(
-            &binding.schema,
-            &context,
+            &cx(document, binding, &context),
             params.context.include_declaration,
             uri,
-            &document.text,
             &index,
             self.encoding,
         )
@@ -97,10 +102,7 @@ impl Router {
         params: DocumentSymbolParams,
     ) -> Option<DocumentSymbolResponse> {
         let uri = &params.text_document.uri;
-        let document = self.documents.get(uri.as_str())?;
-        let tree = document.tree.as_ref()?;
-        let binding = self.bindings.get(document.binding?)?;
-        let index = LineIndex::new(&document.text);
+        let (document, binding, tree, index) = self.resolve_tree(uri)?;
         Some(handlers::document_symbols(
             &binding.schema,
             tree,
@@ -125,13 +127,7 @@ impl Router {
         let Some((document, binding, index, context)) = self.resolve_at(uri, position) else {
             return Vec::new();
         };
-        handlers::document_highlight(
-            &binding.schema,
-            &context,
-            &document.text,
-            &index,
-            self.encoding,
-        )
+        handlers::document_highlight(&cx(document, binding, &context), &index, self.encoding)
     }
 
     /// Computes the prepare-rename response for a request.
@@ -141,13 +137,7 @@ impl Router {
     ) -> Option<PrepareRenameResponse> {
         let (document, binding, index, context) =
             self.resolve_at(&params.text_document.uri, params.position)?;
-        handlers::prepare_rename(
-            &binding.schema,
-            &context,
-            &document.text,
-            &index,
-            self.encoding,
-        )
+        handlers::prepare_rename(&cx(document, binding, &context), &index, self.encoding)
     }
 
     /// Computes the rename response for a request. The transport answers a
@@ -159,10 +149,8 @@ impl Router {
             return Ok(None);
         };
         handlers::rename(
-            &binding.schema,
-            &context,
+            &cx(document, binding, &context),
             uri,
-            &document.text,
             &index,
             self.encoding,
             &params.new_name,
@@ -173,16 +161,9 @@ impl Router {
     /// parse answers empty, because the folds read parsed spans.
     pub(super) fn folding_ranges(&self, params: FoldingRangeParams) -> Vec<FoldingRange> {
         let uri = &params.text_document.uri;
-        let Some(document) = self.documents.get(uri.as_str()) else {
+        let Some((document, binding, tree, index)) = self.resolve_tree(uri) else {
             return Vec::new();
         };
-        let Some(tree) = document.tree.as_ref() else {
-            return Vec::new();
-        };
-        let Some(binding) = document.binding.and_then(|i| self.bindings.get(i)) else {
-            return Vec::new();
-        };
-        let index = LineIndex::new(&document.text);
         handlers::folding_ranges(
             &binding.schema,
             tree,
@@ -197,19 +178,9 @@ impl Router {
     /// Collects document links for path-typed fields in the parsed tree.
     pub(super) fn document_links(&self, params: DocumentLinkParams) -> Vec<DocumentLink> {
         let uri = &params.text_document.uri;
-        let Some(document) = self.documents.get(uri.as_str()) else {
-            // The editor sent a request for a document the server has not opened.
+        let Some((document, binding, tree, index)) = self.resolve_tree(uri) else {
             return Vec::new();
         };
-        let Some(tree) = document.tree.as_ref() else {
-            // The document has a syntax error and produced no parsed tree.
-            return Vec::new();
-        };
-        let Some(binding) = document.binding.and_then(|i| self.bindings.get(i)) else {
-            // The document matched no binding at open, so it has no schema.
-            return Vec::new();
-        };
-        let index = LineIndex::new(&document.text);
         handlers::document_links(
             &binding.schema,
             tree,

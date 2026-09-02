@@ -81,6 +81,7 @@ mod bounds {
 }
 
 range_constraint!(PRIVATE_PORT, u16, min: 1, max: 65535);
+range_constraint!(PRIVATE_BYTES, u64, min: 0, max: 3_000_000_000);
 range_constraint!(PRIVATE_DRAIN, i64, min: 0, max: 300, units: "seconds");
 range_constraint!(PRIVATE_WORKERS, i64, min: 1, max: 512, help: "Match this to your CPU core count.");
 range_constraint!(PRIVATE_TIMEOUT, i64, min: 1, max: 300, units: "seconds", help: "Keep this under 5 minutes.");
@@ -89,6 +90,7 @@ length_constraint!(PRIVATE_HOSTNAME_LEN, max: 253);
 length_constraint!(PRIVATE_LABEL_LEN, min: 0, max: 8);
 length_constraint!(PRIVATE_NAME_LEN, max: 63, help: "Keep names short.");
 length_constraint!(PRIVATE_PATH_LEN, min: 1, max: 4096, help: "A path is at most 4096 characters.");
+length_constraint!(PRIVATE_BLOB_LEN, min: 1, max: 4_294_967_296);
 
 /// A spec that names its range constraint through the `bounds` module path.
 #[derive(confval::Spec)]
@@ -115,6 +117,8 @@ fn main() {
     assert_eq!(PRIVATE_LABEL_LEN.max, 8);
     assert_eq!(PRIVATE_NAME_LEN.help, Some("Keep names short."));
     assert_eq!(PRIVATE_PATH_LEN.min, 1);
+    assert_eq!(PRIVATE_BYTES.max, 3_000_000_000);
+    assert_eq!(PRIVATE_BLOB_LEN.max, 4_294_967_296);
 
     let spec = ServerSpec {
         port: Located::detached(99999),

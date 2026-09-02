@@ -3,9 +3,8 @@
 //! Each handler is a function of the document, the schema, and a resolved
 //! cursor context. They hold no state and use no socket, so a test builds
 //! their inputs from a buffer and an offset and calls one directly. A handler
-//! that reads the full document context, the schema, the parse, the cursor,
-//! and the text, takes the [`Cx`] bundle. A handler that reads a subset takes
-//! its inputs loose.
+//! that answers for a cursor position takes the [`Cx`] bundle. A handler that
+//! reads the whole document without a cursor takes its inputs loose.
 
 mod code_action;
 mod completion;

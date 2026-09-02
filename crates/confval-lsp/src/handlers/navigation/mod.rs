@@ -6,16 +6,17 @@
 //! reference pass runs. A label is the definition, so definition answers empty
 //! on it, and find-references answers with the reference values that resolve
 //! to it, collected by the shared scope walk over the declaring scope
-//! instance. [`rename`] and [`highlight`] read the same site. Rename edits it
-//! and highlight marks it. Every handler answers empty on a
-//! buffer that does not parse, because navigation reads spans only a parse
-//! provides.
+//! instance. [`rename`] and [`document_highlight`] read the same site.
+//! Rename edits it and highlight marks it. Every handler answers empty on
+//! a buffer that does not parse, because navigation reads spans only a
+//! parse provides.
 
 mod edit;
 mod highlight;
 mod rename;
 
-use edit::{EditSite, Quote, edit_site, span_range};
+pub(super) use edit::span_range;
+use edit::{EditSite, Quote, edit_site};
 pub use highlight::document_highlight;
 pub use rename::{prepare_rename, rename};
 
@@ -27,6 +28,7 @@ use confval::source::Span;
 
 use crate::encoding::{LineIndex, PositionEncoding};
 use crate::frontend::{CursorContext, PositionKind};
+use crate::handlers::Cx;
 use crate::walk::{declaring_scope, field_text, label_matches, schema_at};
 
 /// The label site a cursor resolves to: the declaring scope, the block field
@@ -47,33 +49,29 @@ pub(super) struct LabelSite<'a> {
 /// label in the declaring scope, or `None` on a label, an unresolved value, or
 /// any other position.
 pub fn definition(
-    schema: &Schema,
-    ctx: &CursorContext,
+    cx: &Cx,
     uri: &Uri,
-    text: &str,
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> Option<Location> {
-    let site = label_site(schema, ctx)?;
+    let site = label_site(cx.schema, cx.ctx)?;
     if !site.is_reference {
         return None;
     }
     let span = site.declaration?;
-    Some(location(span, uri, text, index, encoding))
+    Some(location(span, uri, cx.text, index, encoding))
 }
 
 /// Every reference value that resolves to the label under the cursor, with the
 /// label's own span joining the list when `include_declaration` is set.
 pub fn references(
-    schema: &Schema,
-    ctx: &CursorContext,
+    cx: &Cx,
     include_declaration: bool,
     uri: &Uri,
-    text: &str,
     index: &LineIndex,
     encoding: PositionEncoding,
 ) -> Vec<Location> {
-    let Some(site) = label_site(schema, ctx) else {
+    let Some(site) = label_site(cx.schema, cx.ctx) else {
         return Vec::new();
     };
     let mut spans = Vec::new();
@@ -81,10 +79,11 @@ pub fn references(
         spans.push(declaration);
     }
     spans.extend(site.reference_spans());
-    spans
-        .into_iter()
-        .map(|span| location(span, uri, text, index, encoding))
-        .collect()
+    let mut locations = Vec::with_capacity(spans.len());
+    for span in spans {
+        locations.push(location(span, uri, cx.text, index, encoding));
+    }
+    locations
 }
 
 impl LabelSite<'_> {
@@ -120,6 +119,15 @@ impl LabelSite<'_> {
             .filter(|label| label.value == self.value)
             .count()
             > 1
+    }
+
+    /// Whether the declaring scope declares `name` on another label. A rename
+    /// onto such a name would create a duplicate.
+    pub(super) fn declares_other_label(&self, name: &str) -> bool {
+        self.value != name
+            && scope_labels(self.scope.body, self.scope.schema, &self.block)
+                .iter()
+                .any(|label| label.value == name)
     }
 }
 

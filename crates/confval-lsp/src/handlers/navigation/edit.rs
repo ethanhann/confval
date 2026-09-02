@@ -54,7 +54,7 @@ pub(super) fn edit_site(text: &str, span: (usize, usize), value: &str) -> Option
 }
 
 /// A span's byte range, or `None` for the detached sentinel.
-pub(super) fn span_range(span: Span) -> Option<(usize, usize)> {
+pub(in crate::handlers) fn span_range(span: Span) -> Option<(usize, usize)> {
     (!span.is_detached()).then_some((span.start as usize, span.end as usize))
 }
 
@@ -96,6 +96,22 @@ mod tests {
                 quote: Quote::Bare
             })
         );
+    }
+
+    #[test]
+    fn edit_site_refuses_an_empty_span_an_empty_value_and_a_span_past_the_text() {
+        // Arrange
+        let text = "\"api\"";
+
+        // Act
+        let empty_span = edit_site(text, (2, 2), "api");
+        let empty_value = edit_site(text, (0, 5), "");
+        let past_end = edit_site("x", (3, 9), "x");
+
+        // Assert
+        assert!(empty_span.is_none());
+        assert!(empty_value.is_none());
+        assert!(past_end.is_none());
     }
 
     #[test]

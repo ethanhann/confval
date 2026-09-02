@@ -116,10 +116,11 @@ macro_rules! length_constraint {
             max: $max,
             help: $crate::length_constraint!(@opt $($help)?),
         };
-        const _: () = ::core::assert!(
-            $crate::length_constraint!(@min $($min)?) <= $max,
-            "length_constraint! min is above max"
-        );
+        const _: () = {
+            let min: usize = $crate::length_constraint!(@min $($min)?);
+            let max: usize = $max;
+            ::core::assert!(min <= max, "length_constraint! min is above max");
+        };
     };
     (@min $min:expr) => { $min };
     (@min) => { 0 };

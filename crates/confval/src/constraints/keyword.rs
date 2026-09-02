@@ -199,7 +199,7 @@ macro_rules! keyword_enum {
 
         const _: () = ::core::assert!(
             $crate::constraints::keyword::__keyword_enum_keywords_unique(&[$($kw,)+]),
-            "keyword_enum!: two variants map to the same keyword"
+            "keyword_enum! two variants map to the same keyword"
         );
 
         impl $name {

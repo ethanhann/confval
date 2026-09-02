@@ -6,8 +6,8 @@ mod fixture;
 use lsp_types::{DocumentHighlight, DocumentHighlightKind};
 
 use confval::schema::ToSchema;
-use confval_lsp::handlers::document_highlight;
-use confval_lsp::{Frontend, Hcl, LineIndex, PositionEncoding, Yaml};
+use confval_lsp::handlers::{Cx, document_highlight};
+use confval_lsp::{Frontend, Hcl, Json, Kdl, LineIndex, PositionEncoding, Toml, Yaml};
 
 use fixture::GatewaySpec;
 
@@ -28,7 +28,13 @@ fn highlights_at<F: Frontend>(
     let tree = frontend.parse_tree(text);
     let context = frontend.resolve(tree.as_ref(), text, offset);
     let index = LineIndex::new(text);
-    document_highlight(&schema, &context, text, &index, ENCODING)
+    let cx = Cx {
+        schema: &schema,
+        fields: tree.as_ref(),
+        ctx: &context,
+        text,
+    };
+    document_highlight(&cx, &index, ENCODING)
         .iter()
         .map(|highlight| {
             (
@@ -96,6 +102,63 @@ fn a_reference_cursor_highlights_the_same_set() {
             (DocumentHighlightKind::READ, "api".to_string(), 8),
         ]
     );
+}
+
+#[test]
+fn every_quoted_format_highlights_from_the_label_and_from_a_reference() {
+    // Arrange
+    let kdl = "upstream \"api\" {\n  host \"h\"\n  port 1\n}\nroutes {\n  prefix \"/a\"\n  upstream \"api\"\n}\n";
+    let toml = "[[upstream]]\nname = \"api\"\nhost = \"h\"\nport = 1\n\n[[routes]]\nprefix = \"/a\"\nupstream = \"api\"\n";
+    let json = "{\n  \"upstream\": [{\"name\": \"api\", \"host\": \"h\", \"port\": 1}],\n  \"routes\": [{\"prefix\": \"/a\", \"upstream\": \"api\"}]\n}\n";
+
+    // Act
+    let sets = [
+        (
+            highlights_at(&Kdl, kdl, kdl.find("\"api\"").unwrap() + 1),
+            0,
+            6,
+        ),
+        (
+            highlights_at(&Kdl, kdl, kdl.rfind("\"api\"").unwrap() + 1),
+            0,
+            6,
+        ),
+        (
+            highlights_at(&Toml, toml, toml.find("\"api\"").unwrap() + 1),
+            1,
+            7,
+        ),
+        (
+            highlights_at(&Toml, toml, toml.rfind("\"api\"").unwrap() + 1),
+            1,
+            7,
+        ),
+        (
+            highlights_at(&Json, json, json.find(": \"api\"").unwrap() + 3),
+            1,
+            2,
+        ),
+        (
+            highlights_at(&Json, json, json.rfind(": \"api\"").unwrap() + 3),
+            1,
+            2,
+        ),
+    ];
+
+    // Assert
+    for (highlights, label_line, reference_line) in sets {
+        assert_eq!(
+            highlights,
+            vec![
+                (DocumentHighlightKind::WRITE, "api".to_string(), label_line),
+                (
+                    DocumentHighlightKind::READ,
+                    "api".to_string(),
+                    reference_line
+                ),
+            ]
+        );
+    }
 }
 
 #[test]

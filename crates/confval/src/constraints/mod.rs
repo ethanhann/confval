@@ -20,6 +20,9 @@ pub mod range;
 /// The unique constraint and the `UNIQUE` constant.
 pub mod unique;
 
-pub use format::{check_each_format, check_format, constraint as format_constraint};
+pub use format::{Format, check_each_format, check_format, constraint as format_constraint};
+pub use keyword::KeywordSet;
+pub use length::LengthConstraint;
 pub use non_empty::{NON_EMPTY, NonEmptyConstraint};
+pub use range::RangeConstraint;
 pub use unique::{UNIQUE, UniqueConstraint};

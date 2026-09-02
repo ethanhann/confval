@@ -1,4 +1,4 @@
-error[E0080]: evaluation panicked: keyword_enum!: two variants map to the same keyword
+error[E0080]: evaluation panicked: keyword_enum! two variants map to the same keyword
  --> tests/ui/fail/keyword_enum_duplicate_keyword.rs:5:1
   |
 5 | / keyword_enum!(Dup, {

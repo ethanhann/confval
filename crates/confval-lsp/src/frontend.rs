@@ -44,6 +44,13 @@ impl Recovery {
         matches!(self, Recovery::Braces | Recovery::Object)
     }
 
+    /// Whether the whole document is one delimited value, so the root itself
+    /// folds. A header or indentation format's root has no delimiter of its
+    /// own.
+    pub fn delimited_root(self) -> bool {
+        matches!(self, Recovery::Object)
+    }
+
     /// The raw-text scan's own dispatch, or `None` for an indentation format,
     /// whose reader covers both parse states before the text scan is reached.
     /// The scan's enum has no indentation variant, so it cannot be asked to

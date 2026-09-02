@@ -9,11 +9,16 @@
 //! is in [`text`](crate::scan::text), and YAML resolves from indentation in
 //! [`yaml`](crate::scan::yaml).
 
+mod extent;
+
 use confval::format::{Field, FieldKind, Fields, Value, ValueKind};
 use confval::source::Span;
 
 use crate::frontend::CursorContext;
 use crate::scan::is_identifier;
+
+use extent::block_body_end;
+pub(crate) use extent::{Extent, furthest_end, furthest_end_value};
 
 /// Resolves `offset` against the parsed tree.
 pub(crate) fn resolve_in_tree(
@@ -226,7 +231,7 @@ fn seq_element_body(
             // offset at the sibling's first character reads the enclosing level.
             None => match next_sibling_start {
                 Some(sibling) => offset < sibling as usize,
-                None => offset <= enclosing_end.max(deepest_end(inner)) as usize,
+                None => offset <= enclosing_end.max(furthest_end(inner, Extent::Deepest)) as usize,
             },
         };
         if start <= offset && within {
@@ -337,88 +342,13 @@ fn in_block_body(
         // The last header-only block extends to the enclosing end, or past it to
         // its own furthest child, because a nested table's enclosing span is only
         // the parent header.
-        None => offset <= enclosing_end.max(deepest_end(inner)) as usize,
+        None => offset <= enclosing_end.max(furthest_end(inner, Extent::Deepest)) as usize,
     }
 }
 
 /// The start offset of a span, or zero for the detached sentinel.
 fn start_of(span: Span) -> u32 {
     if span.is_detached() { 0 } else { span.start }
-}
-
-/// A block's body extent: the furthest end among the block's own span and its
-/// descendants. A TOML `[table]` span covers only the header, so the block's
-/// entries extend the body past it. HCL and KDL block spans already cover their
-/// entries, so the furthest end leaves them unchanged.
-fn block_body_end(block_span: Span, inner: &Fields) -> u32 {
-    end_of(block_span).max(deepest_end(inner))
-}
-
-/// The furthest non-detached end offset among a level's fields and their
-/// descendants. The document-symbol outline shares it, so a container's
-/// extension cannot drift from cursor resolution.
-pub(crate) fn deepest_end(fields: &Fields) -> u32 {
-    furthest_end(fields, true)
-}
-
-/// The furthest non-detached end offset among a level's fields and their
-/// descendants.
-///
-/// With `include_block_spans` the walk counts a block field's own span and a
-/// map value's own span. Without it the walk counts scalar ends only, because
-/// a header or indentation format's block span runs to the next sibling, past
-/// the block's last entry. An empty block or map still counts its own span,
-/// because it has no entry to end at.
-pub(crate) fn furthest_end(fields: &Fields, include_block_spans: bool) -> u32 {
-    let mut furthest = 0;
-    for field in fields.iter() {
-        let end = match &field.kind {
-            FieldKind::Block(inner) => {
-                let own = if include_block_spans || inner.iter().next().is_none() {
-                    end_of(field.span)
-                } else {
-                    end_of(field.name_span)
-                };
-                own.max(furthest_end(inner, include_block_spans))
-            }
-            FieldKind::Value(value) => {
-                let own = if include_block_spans {
-                    end_of(field.span)
-                } else {
-                    0
-                };
-                own.max(furthest_end_value(value, include_block_spans))
-            }
-        };
-        furthest = furthest.max(end);
-    }
-    furthest
-}
-
-/// The furthest non-detached end offset within a value, recursing through maps
-/// and sequences under the same rule as [`furthest_end`].
-pub(crate) fn furthest_end_value(value: &Value, include_block_spans: bool) -> u32 {
-    match &value.kind {
-        ValueKind::Map(inner) => {
-            if include_block_spans || inner.iter().next().is_none() {
-                end_of(value.span).max(furthest_end(inner, include_block_spans))
-            } else {
-                furthest_end(inner, include_block_spans)
-            }
-        }
-        ValueKind::Seq(items) => {
-            let own = if include_block_spans || items.is_empty() {
-                end_of(value.span)
-            } else {
-                0
-            };
-            items
-                .iter()
-                .map(|item| furthest_end_value(item, include_block_spans))
-                .fold(own, u32::max)
-        }
-        _ => end_of(value.span),
-    }
 }
 
 /// The end offset of a span, or zero for the detached sentinel.
@@ -471,39 +401,4 @@ fn token_around(text: &str, offset: usize, is_member: fn(u8) -> bool) -> (usize,
 /// inserted value would run into.
 pub(crate) fn is_value_byte(byte: u8) -> bool {
     !byte.is_ascii_whitespace() && !matches!(byte, b'=' | b'{' | b'}' | b'[' | b']' | b',')
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use confval::format::Scalar;
-    use confval::source::SourceMap;
-
-    #[test]
-    fn deepest_end_value_reaches_past_a_maps_own_span_to_its_deepest_child() {
-        // Arrange
-        // The map value's own span ends at 10, but a child inside it ends at 50.
-        // The furthest end must follow the map into its fields, not stop at the
-        // map's own end.
-        let mut sources = SourceMap::new();
-        let id = sources.add("map", "x");
-        let child = Field::parsed(
-            "deep",
-            Span::new(id, 40, 44),
-            Span::new(id, 40, 50),
-            id,
-            FieldKind::Value(Value::spanned(
-                Span::new(id, 45, 50),
-                ValueKind::Scalar(Scalar::Int(1)),
-            )),
-        );
-        let inner = Fields::new(id, Span::new(id, 30, 55), vec![child]);
-        let map_value = Value::spanned(Span::new(id, 5, 10), ValueKind::Map(inner));
-
-        // Act
-        let furthest = furthest_end_value(&map_value, true);
-
-        // Assert
-        assert_eq!(furthest, 50);
-    }
 }
