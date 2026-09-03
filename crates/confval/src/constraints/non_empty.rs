@@ -8,9 +8,9 @@ use crate::diagnostic::Report;
 use crate::source::{Located, Span};
 
 /// The non-empty check. [`NON_EMPTY`] is the rule with the generated help
-/// line. [`with_help`](NonEmptyConstraint::with_help) builds a rule whose help
-/// line replaces it, which the derive emits for
-/// `#[confval(non_empty(help = "..."))]` and a handwritten spec declares as a
+/// line. [`with_help`](NonEmptyConstraint::with_help) builds a rule with its
+/// own help line. The derive emits that form for
+/// `#[confval(non_empty(help = "..."))]`. A handwritten spec declares it as a
 /// const.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]

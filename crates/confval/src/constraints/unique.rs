@@ -12,9 +12,9 @@ use crate::source::{Located, Span};
 use std::collections::HashMap;
 
 /// The unique check. [`UNIQUE`] is the rule with the generated help line.
-/// [`with_help`](UniqueConstraint::with_help) builds a rule whose help line
-/// replaces it, which the derive emits for `#[confval(unique(help = "..."))]`
-/// and a handwritten spec declares as a const.
+/// [`with_help`](UniqueConstraint::with_help) builds a rule with its own help
+/// line. The derive emits that form for `#[confval(unique(help = "..."))]`. A
+/// handwritten spec declares it as a const.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct UniqueConstraint {

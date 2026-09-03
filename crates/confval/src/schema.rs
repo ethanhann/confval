@@ -414,10 +414,10 @@ impl SchemaField {
         self
     }
 
-    /// Marks the field so it rejects an empty value and keeps the rule's help
-    /// line, or `None` for the generated one. The derive calls it for a
-    /// `#[confval(non_empty(help = "..."))]` field, and a handwritten spec
-    /// passes the `help` field of the const it checks with.
+    /// Marks the field so it rejects an empty value, and keeps the rule's
+    /// help line. `None` keeps the generated line. The derive calls it for a
+    /// `#[confval(non_empty(help = "..."))]` field. A handwritten spec passes
+    /// the `help` field of the const it checks with.
     pub fn with_non_empty_help(mut self, help: Option<&'static str>) -> Self {
         self.non_empty = true;
         self.non_empty_help = help;
@@ -431,10 +431,10 @@ impl SchemaField {
         self
     }
 
-    /// Marks the list so it rejects a repeated element and keeps the rule's
-    /// help line, or `None` for the generated one. The derive calls it for a
-    /// `#[confval(unique(help = "..."))]` field, and a handwritten spec passes
-    /// the `help` field of the const it checks with.
+    /// Marks the list so it rejects a repeated element, and keeps the rule's
+    /// help line. `None` keeps the generated line. The derive calls it for a
+    /// `#[confval(unique(help = "..."))]` field. A handwritten spec passes the
+    /// `help` field of the const it checks with.
     pub fn with_unique_help(mut self, help: Option<&'static str>) -> Self {
         self.unique = true;
         self.unique_help = help;

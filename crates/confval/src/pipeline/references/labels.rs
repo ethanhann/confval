@@ -10,7 +10,7 @@ use crate::schema::{Schema, SchemaType};
 use crate::source::Located;
 use crate::source::Span;
 
-/// Whether a label names nothing: it is empty or holds white space alone.
+/// Whether a label names nothing: it is empty or whitespace-only.
 ///
 /// The reference pass and the language server both read a label through this
 /// test, so an editor and the pipeline agree on which labels define something.

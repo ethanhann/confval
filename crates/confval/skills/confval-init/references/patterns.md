@@ -119,15 +119,16 @@ A field cannot have `#[confval(non_empty)]` and `#[confval(default)]` together, 
 A field cannot have `#[confval(non_empty)]` and `#[confval(label)]` together, because `check_references` reports an empty label.
 When the field needs its own remediation line, write `#[confval(non_empty(help = "Provide the service name."))]`.
 The help replaces the generated suggestion in the diagnostic and renders after the rule in an editor's hover.
+On a list, one help line covers the empty list and each empty element, so word it for both.
 
 For a handwritten spec, declare the rule once as a const and call its checker:
 
 ```rust
 use confval::prelude::{Located, NonEmptyConstraint, Report};
 
-const NAME: NonEmptyConstraint = NonEmptyConstraint::with_help("Provide the service name.");
+const NAME_NON_EMPTY: NonEmptyConstraint = NonEmptyConstraint::with_help("Provide the service name.");
 
-NAME.check_located(&name, "name", &mut report);
+NAME_NON_EMPTY.check_located(&name, "name", &mut report);
 ```
 
 `NON_EMPTY` is the same rule with the generated help line.

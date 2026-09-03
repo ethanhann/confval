@@ -30,8 +30,9 @@ impl LengthConstraint {
     }
 
     /// The schema record for this bound. The derive emits this call for a
-    /// `#[confval(length = ...)]` field, and a handwritten `schema()` calls it
-    /// on the same value `validate` checks with, so the two cannot disagree.
+    /// `#[confval(length = ...)]` field. A handwritten `schema()` calls it on
+    /// the value `validate` checks with. The two records then come from one
+    /// value.
     pub fn constraint(&self) -> Constraint {
         Constraint::length(self.min, self.max, self.help)
     }

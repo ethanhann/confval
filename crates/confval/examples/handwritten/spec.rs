@@ -14,6 +14,11 @@
 //! but the handwritten write path, `FieldsBuilder`, has no method for one, so
 //! this impl reads it with `parse_string_map_field` and builds the field to
 //! push by hand.
+//!
+//! Each recorded rule is declared once. `validate` checks with `WORKERS`,
+//! `NAME_LEN`, and `NAME_NON_EMPTY`, and `schema()` builds its records from
+//! the same constants through `constraint()` and `with_non_empty_help`.
+//! `pid_file` shows `check_format_path` beside `format_constraint`.
 
 use crate::children::{LimitsSpec, RouteSpec, TelemetrySpec};
 use confval::constraints::format_constraint;

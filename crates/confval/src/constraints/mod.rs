@@ -5,9 +5,9 @@
 //! `length_constraint!`.
 //!
 //! A range and a length describe themselves for the schema through
-//! `constraint()`. A keyword set's record is `Constraint::keywords(&T::KEYWORDS)`,
-//! read from the same table `keyword_set()` reads, and a format's record is
-//! `format_constraint::<T>()`.
+//! `constraint()`. A keyword set's record is
+//! `Constraint::keywords(&T::KEYWORDS)`, read from the same table
+//! `keyword_set()` reads. A format's record is `format_constraint::<T>()`.
 //!
 //! This module and [`pipeline`](crate::pipeline) do not import each other.
 //! A `Validate` impl in the caller's crate calls into both.

@@ -13,7 +13,7 @@
 
 use crate::diagnostic::Report;
 use crate::schema::Constraint;
-use crate::source::Located;
+use crate::source::{Located, Span};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -38,30 +38,29 @@ pub fn check_format<T: Format>(value: &Located<String>, field: &str, report: &mu
     if T::check(&value.value) {
         return;
     }
-    report
-        .error(format!(
-            "{field} is not a valid {}: \"{}\"",
-            T::NAME,
-            value.value
-        ))
-        .at(value.span)
-        .help(format!("Set {field} to a valid {}", T::NAME))
-        .emit();
+    report_format_miss::<T>(&value.value, value.span, field, report);
 }
 
-/// Reports `{field} is not a valid {NAME}: "{value}"` at the path's span when
+/// Reports `{field} is not a valid {NAME}: "{text}"` at the path's span when
 /// the path's text does not parse as `T`. The text is the lossy string form,
-/// the one the emitters write, so a path that is not valid UTF-8 checks with
-/// replacement characters in place of its bad bytes. This is the form
-/// `#[confval(format = ...)]` generates for a `PathBuf` leaf.
+/// the one the emitters write. A path that is not valid UTF-8 therefore
+/// checks with replacement characters in place of its bad bytes. This is the
+/// form `#[confval(format = ...)]` generates for a `PathBuf` leaf.
 pub fn check_format_path<T: Format>(value: &Located<PathBuf>, field: &str, report: &mut Report) {
     let text = value.value.to_string_lossy();
     if T::check(&text) {
         return;
     }
+    report_format_miss::<T>(&text, value.span, field, report);
+}
+
+/// The scalar miss, reported the same way for a `String` and a `PathBuf`. The
+/// text is quoted so an empty or whitespace-only value is visible in the
+/// message.
+fn report_format_miss<T: Format>(text: &str, span: Span, field: &str, report: &mut Report) {
     report
         .error(format!("{field} is not a valid {}: \"{text}\"", T::NAME))
-        .at(value.span)
+        .at(span)
         .help(format!("Set {field} to a valid {}", T::NAME))
         .emit();
 }
@@ -180,6 +179,20 @@ mod tests {
             report.issues()[0].help.as_deref(),
             Some("Set pid_file to a valid absolute path")
         );
+    }
+
+    #[test]
+    fn a_string_and_a_path_report_the_same_diagnostic() {
+        // Arrange
+        let text = "var/run";
+
+        // Act
+        let by_string = check::<AbsolutePath>(text, "pid_file");
+        let by_path = check_path::<AbsolutePath>(std::path::PathBuf::from(text), "pid_file");
+
+        // Assert
+        assert_eq!(by_string.issues()[0].message, by_path.issues()[0].message);
+        assert_eq!(by_string.issues()[0].help, by_path.issues()[0].help);
     }
 
     #[test]
