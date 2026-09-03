@@ -114,9 +114,9 @@ struct ServiceSpec {
 }
 ```
 
-A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(keywords = ...)]`.
-A field cannot carry `#[confval(non_empty)]` and `#[confval(default)]` together, because the default is empty and would fail the check.
-A field cannot carry `#[confval(non_empty)]` and `#[confval(label)]` together, because `check_references` reports an empty label.
+A field can have `#[confval(non_empty)]` and one value constraint, such as `#[confval(keywords = ...)]`.
+A field cannot have `#[confval(non_empty)]` and `#[confval(default)]` together, because the default is empty and would fail the check.
+A field cannot have `#[confval(non_empty)]` and `#[confval(label)]` together, because `check_references` reports an empty label.
 When the field needs its own remediation line, write `#[confval(non_empty(help = "Provide the service name."))]`.
 The help replaces the generated suggestion in the diagnostic and renders after the rule in an editor's hover.
 

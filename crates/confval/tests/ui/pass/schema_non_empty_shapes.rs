@@ -2,7 +2,7 @@
 //!
 //! This pins the two leaf shapes and the two list shapes as legal, in the
 //! bare form and in the `help = "..."` form, and pins the flag beside a value
-//! constraint, so the spelling stays compilable rather than resting on the
+//! constraint, so each form stays compilable rather than resting on the
 //! fail cases alone.
 
 use confval::diagnostic::Report;
