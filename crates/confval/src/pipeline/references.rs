@@ -20,9 +20,9 @@ use crate::schema::{Constraint, Schema, SchemaType};
 use crate::source::Span;
 
 use crate::format::block_bodies;
-#[cfg(feature = "__internal-navigation")]
-pub use labels::scope_labels;
 use labels::{field_string, labeled_child, scope_label_refs};
+#[cfg(feature = "__internal-navigation")]
+pub use labels::{is_empty_label, scope_labels};
 
 /// Checks every reference field against the labels its scope can see.
 ///
@@ -74,7 +74,8 @@ impl InstanceKey {
     }
 }
 
-/// The distinct, non-empty labels of one block within one scope instance.
+/// The distinct, non-empty labels of one block within one scope instance. A
+/// whitespace-only label is empty.
 struct DefinedLabels<'a> {
     /// Membership, for the check itself.
     set: HashSet<&'a str>,
@@ -88,7 +89,7 @@ impl<'a> DefinedLabels<'a> {
         let mut set = HashSet::new();
         let mut ordered = Vec::new();
         for (label, _) in scope_label_refs(scope, schema, block) {
-            if !label.is_empty() && set.insert(label) {
+            if !labels::is_empty_label(label) && set.insert(label) {
                 ordered.push(label);
             }
         }
@@ -278,7 +279,9 @@ pub fn declares_labeled_block(schema: &Schema, block: &str) -> bool {
     })
 }
 
-/// Reports a duplicate label and an empty label within one scope instance.
+/// Reports a duplicate label and an empty label within one scope instance. A
+/// whitespace-only label is empty. The help names the block and its label
+/// field.
 ///
 /// The checks are scope-local: two sibling instances of the enclosing block may
 /// define the same label, and a duplicate within one instance still reports.
@@ -286,15 +289,19 @@ pub fn declares_labeled_block(schema: &Schema, block: &str) -> bool {
 /// stable order.
 fn report_scope_label_issues(body: &Fields, schema: &Schema, report: &mut Report) {
     for field in &schema.fields {
-        if labeled_child(schema, &field.name).is_none() {
+        let Some(label_field) = labeled_child(schema, &field.name) else {
             continue;
-        }
+        };
         let mut first_span: HashMap<&str, Span> = HashMap::new();
         for (label, span) in scope_label_refs(body, schema, &field.name) {
-            if label.is_empty() {
+            if labels::is_empty_label(label) {
                 report
                     .error("a block label must not be empty")
                     .at(span)
+                    .help(format!(
+                        "name the {} block with a non-empty {label_field}",
+                        field.name
+                    ))
                     .emit();
                 continue;
             }

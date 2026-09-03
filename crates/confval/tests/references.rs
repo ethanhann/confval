@@ -971,3 +971,127 @@ fn scope_labels_reads_the_named_blocks_own_label_field() {
     assert_eq!(labels.len(), 1, "beta defines one label");
     assert_eq!(labels[0].value.as_str(), "b1");
 }
+
+/// A root whose labeled block has a plural field name, so the empty-label help
+/// is exercised on a name the singular wording would misread.
+#[derive(confval::Spec)]
+struct PluralGatewaySpec {
+    #[confval(nested)]
+    upstreams: Vec<Located<UpstreamSpec>>,
+}
+
+impl Validate for PluralGatewaySpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// The help line of the first issue with the given message, if any.
+fn help_of(report: &Report, message: &str) -> Option<String> {
+    report
+        .issues()
+        .iter()
+        .find(|issue| issue.message == message)
+        .and_then(|issue| issue.help.clone())
+}
+
+#[test]
+fn a_whitespace_only_native_label_reports_empty_with_its_help() {
+    // Arrange
+    let text = "upstream \"  \" {\n  host = \"h\"\n  port = 1\n}\n";
+
+    // Act
+    let report = parse("hcl", text);
+
+    // Assert
+    assert!(
+        errors(&report)
+            .iter()
+            .any(|m| m == "a block label must not be empty"),
+        "got: {:?}",
+        errors(&report)
+    );
+    assert_eq!(
+        help_of(&report, "a block label must not be empty").as_deref(),
+        Some("name the upstream block with a non-empty name")
+    );
+}
+
+#[test]
+fn a_whitespace_only_child_field_label_reports_empty() {
+    // Arrange
+    let text = "[[upstream]]\nname = \"  \"\nhost = \"h\"\nport = 1\n";
+
+    // Act
+    let report = parse("toml", text);
+
+    // Assert
+    assert!(
+        errors(&report)
+            .iter()
+            .any(|m| m == "a block label must not be empty"),
+        "got: {:?}",
+        errors(&report)
+    );
+}
+
+#[test]
+fn a_reference_to_a_whitespace_only_label_reports_undefined() {
+    // Arrange
+    let text = "upstream \"  \" {\n  host = \"h\"\n  port = 1\n}\nrules {\n  prefix = \"/a\"\n  upstream = \"  \"\n}\n";
+
+    // Act
+    let report = parse("hcl", text);
+
+    // Assert
+    let messages = errors(&report);
+    assert!(
+        messages.iter().any(|m| m == "no upstream named \"  \""),
+        "got: {messages:?}"
+    );
+    assert_eq!(
+        help_of(&report, "no upstream named \"  \"").as_deref(),
+        Some("the file defines no upstream")
+    );
+}
+
+#[test]
+fn two_whitespace_only_labels_report_no_duplicate() {
+    // Arrange
+    let text = "upstream \"  \" {\n  host = \"h\"\n  port = 1\n}\nupstream \"  \" {\n  host = \"h2\"\n  port = 2\n}\n";
+
+    // Act
+    let report = parse("hcl", text);
+
+    // Assert
+    let messages = errors(&report);
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|m| *m == "a block label must not be empty")
+            .count(),
+        2,
+        "got: {messages:?}"
+    );
+    assert!(
+        !messages.iter().any(|m| m.starts_with("duplicate")),
+        "got: {messages:?}"
+    );
+}
+
+#[test]
+fn the_empty_label_help_names_a_plural_block() {
+    // Arrange
+    let text = "upstreams \"\" {\n  host = \"h\"\n  port = 1\n}\n";
+    let mut sources = SourceMap::new();
+    let id = sources.add("gateway.hcl", text);
+    let mut report = Report::new();
+    let fields = hcl::parse_hcl_fields(&sources, id, &mut report).expect("the source parses");
+
+    // Act
+    check_references(&fields, &PluralGatewaySpec::schema(), &mut report);
+
+    // Assert
+    assert_eq!(
+        help_of(&report, "a block label must not be empty").as_deref(),
+        Some("name the upstreams block with a non-empty name")
+    );
+}

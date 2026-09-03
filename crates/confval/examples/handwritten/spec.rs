@@ -14,8 +14,14 @@
 //! but the handwritten write path, `FieldsBuilder`, has no method for one, so
 //! this impl reads it with `parse_string_map_field` and builds the field to
 //! push by hand.
+//!
+//! Each recorded rule is declared once. `validate` checks with `WORKERS`,
+//! `NAME_LEN`, and `NAME_NON_EMPTY`, and `schema()` builds its records from
+//! the same constants through `constraint()` and `with_non_empty_help`.
+//! `pid_file` shows `check_format_path` beside `format_constraint`.
 
 use crate::children::{LimitsSpec, RouteSpec, TelemetrySpec};
+use confval::constraints::format_constraint;
 use confval::format::{
     Field, Fields, FieldsBuilder, FromFields, Scalar, ToFields, Value, ValueKind, Walk,
     first_occurrence, parse_bool_field, parse_float_field, parse_int_field, parse_path_field,
@@ -29,6 +35,11 @@ use std::path::PathBuf;
 
 range_constraint!(WORKERS, i64, min: 1, max: 512);
 length_constraint!(NAME_LEN, max: 63);
+
+/// The emptiness rule on `name`, declared once so `validate` checks with the
+/// same help line `schema()` records.
+const NAME_NON_EMPTY: NonEmptyConstraint =
+    NonEmptyConstraint::with_help("Provide the service name the file configures.");
 
 confval::keyword_enum!(pub LogEvent, {
     Started  => "started",
@@ -226,33 +237,24 @@ impl ToSchema for ServiceSpec {
             }
             field
         };
-        let workers = SchemaType::scalar(
-            ScalarType::Int,
-            Some(Constraint::range(
-                WORKERS.min.to_string(),
-                WORKERS.max.to_string(),
-                WORKERS.units,
-                WORKERS.help,
-            )),
-        );
-        let name = SchemaType::scalar(
-            ScalarType::String,
-            Some(Constraint::length(
-                NAME_LEN.min,
-                NAME_LEN.max,
-                NAME_LEN.help,
-            )),
-        );
+        // Each record comes from the constant `validate` checks with.
+        let workers = SchemaType::scalar(ScalarType::Int, Some(WORKERS.constraint()));
+        let name = SchemaType::scalar(ScalarType::String, Some(NAME_LEN.constraint()));
         Schema::new(
             None,
             vec![
-                sf("name", true, false, name).with_non_empty(),
+                sf("name", true, false, name).with_non_empty_help(NAME_NON_EMPTY.help),
                 sf("workers", true, true, workers).with_default_text("4".to_string()),
                 sf("sample_rate", true, true, leaf(ScalarType::Float))
                     .with_default_text("1.0".to_string()),
                 sf("verbose", true, true, leaf(ScalarType::Bool))
                     .with_default_text("false".to_string()),
-                sf("pid_file", false, false, leaf(ScalarType::Path)),
+                sf(
+                    "pid_file",
+                    false,
+                    false,
+                    SchemaType::scalar(ScalarType::Path, Some(format_constraint::<AbsolutePath>())),
+                ),
                 sf(
                     "events",
                     true,
@@ -282,9 +284,12 @@ impl ToSchema for ServiceSpec {
 
 impl Validate for ServiceSpec {
     fn validate(&self, report: &mut Report) {
-        NON_EMPTY.check_located(&self.name, "name", report);
+        NAME_NON_EMPTY.check_located(&self.name, "name", report);
         NAME_LEN.check_located(&self.name, "name", report);
         WORKERS.check_located(&self.workers, "workers", report);
+        if let Some(pid_file) = &self.pid_file {
+            check_format_path::<AbsolutePath>(pid_file, "pid_file", report);
+        }
         // A keyword list is checked per element, so a typo is reported under
         // the entry the operator typed.
         LogEvent::keyword_set().check_each(&self.events, "event", report);

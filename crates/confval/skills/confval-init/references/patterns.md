@@ -55,6 +55,7 @@ Like `range_constraint!`, the macro takes attributes and a visibility before the
 A private const must be in the module that declares the spec struct.
 A const declared `pub` or `pub(crate)` is usable from any module that imports from the module holding it.
 The derive rejects `length` on a list, a map, a block, and a non-string leaf.
+A handwritten `schema()` records the bound with `HOSTNAME_LEN.constraint()`, the same constant `validate` checks with.
 
 ## A string that must parse as a format
 
@@ -69,9 +70,12 @@ struct ServerSpec {
     bind: Located<String>,
     #[confval(default, format = Ip)]
     peers: Vec<Located<String>>,
+    #[confval(format = AbsolutePath)]
+    pid_file: Option<Located<PathBuf>>,
 }
 ```
 
+On a `Located<PathBuf>` the format checks the path's text.
 A domain format is a unit struct that implements `Format` with a `NAME` and a `check` function.
 Declare it in a module the spec module can import from, because `format = ...` names a type.
 Do not pair a built-in `format` with `non_empty`, because each built-in format rejects the empty string on its own.
@@ -90,6 +94,8 @@ struct ServerSpec {
 ```
 
 `unique` combines with `keywords`, `format`, `non_empty`, and `default`, because the default list is empty and so unique.
+When the field needs its own remediation line, write `#[confval(unique(help = "Each peer may appear once."))]`.
+The help replaces the generated suggestion in the diagnostic and renders after the rule in an editor's hover.
 A duplicate check that spans blocks, such as a service name unique across files, compares labels and stays in the `Validate` body.
 
 ## A non-empty string or list
@@ -108,16 +114,24 @@ struct ServiceSpec {
 }
 ```
 
-A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(keywords = ...)]`.
-A field cannot carry `#[confval(non_empty)]` and `#[confval(default)]` together, because the default is empty and would fail the check.
+A field can have `#[confval(non_empty)]` and one value constraint, such as `#[confval(keywords = ...)]`.
+A field cannot have `#[confval(non_empty)]` and `#[confval(default)]` together, because the default is empty and would fail the check.
+A field cannot have `#[confval(non_empty)]` and `#[confval(label)]` together, because `check_references` reports an empty label.
+When the field needs its own remediation line, write `#[confval(non_empty(help = "Provide the service name."))]`.
+The help replaces the generated suggestion in the diagnostic and renders after the rule in an editor's hover.
+On a list, one help line covers the empty list and each empty element, so word it for both.
 
-For a handwritten spec, call the checker directly:
+For a handwritten spec, declare the rule once as a const and call its checker:
 
 ```rust
-use confval::prelude::{NON_EMPTY, Located, Report};
+use confval::prelude::{Located, NonEmptyConstraint, Report};
 
-NON_EMPTY.check_located(&name, "name", &mut report);
+const NAME_NON_EMPTY: NonEmptyConstraint = NonEmptyConstraint::with_help("Provide the service name.");
+
+NAME_NON_EMPTY.check_located(&name, "name", &mut report);
 ```
+
+`NON_EMPTY` is the same rule with the generated help line.
 
 ## A default declared once
 

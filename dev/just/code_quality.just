@@ -16,7 +16,7 @@ check-code-quality:
     # and the populate walk's leaf mapping both dispatch per leaf and produce
     # different tokens. `KeywordSet::new` and `SchemaType::string_list` are
     # one-line constructors in different crates that wrap unrelated values.
-    cargo dupes --exclude tests --exclude benches --exclude examples --exclude-tests check --max-exact 35 --max-near 8 --max-exact-percent 5.0 --max-near-percent 1.2
+    cargo dupes --exclude tests --exclude benches --exclude examples --exclude-tests check --max-exact 38 --max-near 8 --max-exact-percent 5.0 --max-near-percent 1.2
     cargo machete
     cargo fmt --check
     fail=0

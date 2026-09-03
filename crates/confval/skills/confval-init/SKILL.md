@@ -139,7 +139,10 @@ The shape of the field decides whether a recorded constraint applies.
 A `Located<T>` takes one, and so does an `Option<Located<T>>`, which the derive checks only when the value is present.
 `keywords` also takes a string list, in both the bare and the optional form, where it records the set each element must come from and reports each bad element at its own span.
 `format` takes a string list the same way, where each element must parse.
+`format` also takes a `Located<PathBuf>` leaf, where it checks the path's text.
 `unique` takes a string list alone, and reports each repeated entry at its own span.
+`non_empty` and `unique` each take an optional `help = "..."`, as in `#[confval(non_empty(help = "Provide the service name."))]`.
+The help replaces the generated suggestion.
 `range` takes a scalar leaf alone, because there is no numeric list shape for it to apply to.
 A map and a nested block take none of these.
 The derive rejects an attribute on a shape that cannot carry it, so a misplaced attribute fails the build rather than being skipped in silence.

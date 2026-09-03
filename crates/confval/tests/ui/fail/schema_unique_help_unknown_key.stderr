@@ -1,0 +1,5 @@
+error: unknown key in `unique(...)`; expected `help = "..."`
+ --> tests/ui/fail/schema_unique_help_unknown_key.rs:5:22
+  |
+5 |     #[confval(unique(hint = "x"))]
+  |                      ^^^^

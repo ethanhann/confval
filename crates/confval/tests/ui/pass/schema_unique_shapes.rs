@@ -1,9 +1,9 @@
 //! `#[confval(unique)]` pass test over every legal carrier.
 //!
 //! This pins the bare and the wrapped string list as legal carriers of
-//! `#[confval(unique)]`, and pins the flag beside `default`, beside
-//! `non_empty`, beside `keywords`, and beside `format`. The fail cases alone
-//! do not prove the legal forms compile.
+//! `#[confval(unique)]`, in the bare form and in the `help = "..."` form, and
+//! pins the flag beside `default`, beside `non_empty`, beside `keywords`, and
+//! beside `format`. The fail cases alone do not prove the legal forms compile.
 
 use confval::diagnostic::Report;
 use confval::keyword_enum;
@@ -30,6 +30,10 @@ struct Cfg {
     modes: Vec<Located<String>>,
     #[confval(unique, format = Ip)]
     peers: Vec<Located<String>>,
+    #[confval(unique(help = "Each listener may appear once."))]
+    listeners: Vec<Located<String>>,
+    #[confval(unique(help = "Each hook may appear once."))]
+    hooks: Option<Located<Vec<Located<String>>>>,
 }
 
 impl Validate for Cfg {

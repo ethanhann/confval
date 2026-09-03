@@ -22,9 +22,9 @@ use syn::{Ident, Path};
 /// The mutual-exclusion check runs first for every shape, so a field with two
 /// recording attributes reports that mistake rather than a pairing message
 /// about one of them. What each shape can then record differs. A scalar leaf
-/// records any of the five against its leaf type. A string list records
-/// `keywords` or `format`, each applied to every element. A map and a nested
-/// block record nothing.
+/// records any of the five against its leaf type. Only `format` also takes a
+/// `Path` leaf. A string list records `keywords` or `format`, each applied to
+/// every element. A map and a nested block record nothing.
 pub(crate) fn constraint_tokens(
     shape: &FieldShape,
     options: &FieldOptions,
@@ -58,7 +58,8 @@ const KEYWORDS_REQUIRES: &str =
     "#[confval(keywords = ...)] requires a String leaf or a string list";
 const RANGE_REQUIRES: &str = "#[confval(range = ...)] requires an Int or Float leaf";
 const LENGTH_REQUIRES: &str = "#[confval(length = ...)] requires a String leaf";
-const FORMAT_REQUIRES: &str = "#[confval(format = ...)] requires a String leaf or a string list";
+const FORMAT_REQUIRES: &str =
+    "#[confval(format = ...)] requires a String leaf, a Path leaf, or a string list";
 const REFERENCES_REQUIRES: &str = "#[confval(references = ...)] requires a String leaf";
 
 /// The one recording attribute a field declares.
@@ -125,52 +126,30 @@ fn leaf_constraint(leaf: &Leaf, recorded: Recorded<'_>) -> syn::Result<TokenStre
             }
             Ok(keywords_tokens(path))
         }
+        // A range and a length describe themselves, so the record comes from
+        // the same value the validation walk checks with. The typed binding
+        // pins the value to the crate's own type, so `range = PATH` names a
+        // `RangeConstraint` and nothing else that happens to have the methods.
         Recorded::Range(path) => {
             if !matches!(leaf, Leaf::Int | Leaf::Float) {
                 return Err(syn::Error::new_spanned(path, RANGE_REQUIRES));
             }
-            // A float bound renders through `{:?}`, the form the default text
-            // uses, so a whole-number bound keeps its `.0` and hover on a
-            // float field reads float text.
-            let (min, max) = match leaf {
-                Leaf::Float => (
-                    quote! { ::std::format!("{:?}", #path.min) },
-                    quote! { ::std::format!("{:?}", #path.max) },
-                ),
-                _ => (
-                    quote! { ::std::string::ToString::to_string(&#path.min) },
-                    quote! { ::std::string::ToString::to_string(&#path.max) },
-                ),
-            };
-            Ok(quote! {
-                ::core::option::Option::Some(
-                    ::confval::schema::Constraint::range(
-                        #min,
-                        #max,
-                        #path.units,
-                        #path.help,
-                    ),
-                )
-            })
+            Ok(quote! {{
+                let __range: &::confval::RangeConstraint<_> = &#path;
+                ::core::option::Option::Some(__range.constraint())
+            }})
         }
         Recorded::Length(path) => {
             if !matches!(leaf, Leaf::String) {
                 return Err(syn::Error::new_spanned(path, LENGTH_REQUIRES));
             }
-            // A character count has one type, so the bounds pass through as
-            // they are and the hover needs no text to parse.
-            Ok(quote! {
-                ::core::option::Option::Some(
-                    ::confval::schema::Constraint::length(
-                        #path.min,
-                        #path.max,
-                        #path.help,
-                    ),
-                )
-            })
+            Ok(quote! {{
+                let __length: &::confval::LengthConstraint = &#path;
+                ::core::option::Option::Some(__length.constraint())
+            }})
         }
         Recorded::Format(path) => {
-            if !matches!(leaf, Leaf::String) {
+            if !matches!(leaf, Leaf::String | Leaf::PathBuf) {
                 return Err(syn::Error::new_spanned(path, FORMAT_REQUIRES));
             }
             Ok(format_tokens(path))

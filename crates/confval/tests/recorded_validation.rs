@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use confval::prelude::*;
+use std::path::PathBuf;
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(LEVEL, i64, min: 0, max: 10);
@@ -1490,6 +1491,293 @@ fn unique_and_format_both_fire_on_a_repeated_invalid_entry() {
             "invalid IP address in peers: \"nope\"",
             "invalid IP address in peers: \"nope\"",
             "duplicate value in peers: \"nope\""
+        ]
+    );
+}
+
+/// The help lines in a report, in order, with `None` for an issue without one.
+fn helps(report: &Report) -> Vec<Option<&str>> {
+    report
+        .issues()
+        .iter()
+        .map(|issue| issue.help.as_deref())
+        .collect()
+}
+
+/// A spec with `non_empty(help = ...)` on the four legal carriers.
+#[derive(confval::Spec)]
+struct NonEmptyHelp {
+    #[confval(non_empty(help = "Provide a service name."))]
+    name: Located<String>,
+    #[confval(non_empty(help = "Provide a region or omit it."))]
+    region: Option<Located<String>>,
+    #[confval(non_empty(help = "List at least one tag."))]
+    tags: Vec<Located<String>>,
+    #[confval(non_empty(help = "List at least one event."))]
+    events: Option<Located<Vec<Located<String>>>>,
+}
+
+impl Validate for NonEmptyHelp {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec with `unique(help = ...)` on both list shapes.
+#[derive(confval::Spec)]
+struct UniqueHelp {
+    #[confval(unique(help = "Each listener may appear once."))]
+    listeners: Vec<Located<String>>,
+    #[confval(unique(help = "Each hook may appear once."))]
+    hooks: Option<Located<Vec<Located<String>>>>,
+}
+
+impl Validate for UniqueHelp {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec with `non_empty(help = ...)` on a bare list, for the empty-list path.
+#[derive(confval::Spec)]
+struct NonEmptyHelpEmptyList {
+    #[confval(non_empty(help = "List at least one hook."))]
+    hooks: Vec<Located<String>>,
+}
+
+impl Validate for NonEmptyHelpEmptyList {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec with both bare flags on one list.
+#[derive(confval::Spec)]
+struct BareFlags {
+    #[confval(non_empty, unique)]
+    tags: Vec<Located<String>>,
+}
+
+impl Validate for BareFlags {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn non_empty_help_replaces_the_generated_line_on_every_carrier() {
+    // Arrange
+    // `name` and `region` take the leaf path. `tags` takes the empty-element
+    // path of a bare list, and `events` takes the empty-list path of a wrapped
+    // list. The empty-list path of a bare list has its own test below.
+    let spec = NonEmptyHelp {
+        name: Located::detached(String::new()),
+        region: Some(Located::detached("  ".to_string())),
+        tags: vec![Located::detached(String::new())],
+        events: Some(Located::detached(Vec::new())),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "name must not be empty",
+            "region must not be empty",
+            "tags must not be empty",
+            "events must not be empty",
+        ]
+    );
+    assert_eq!(
+        helps(&report),
+        vec![
+            Some("Provide a service name."),
+            Some("Provide a region or omit it."),
+            Some("List at least one tag."),
+            Some("List at least one event."),
+        ]
+    );
+}
+
+#[test]
+fn non_empty_help_reports_nothing_on_a_valid_spec() {
+    // Arrange
+    let spec = NonEmptyHelp {
+        name: Located::detached("api".to_string()),
+        region: None,
+        tags: vec![Located::detached("web".to_string())],
+        events: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_issues());
+}
+
+#[test]
+fn unique_help_replaces_the_generated_line_on_both_shapes() {
+    // Arrange
+    let spec = UniqueHelp {
+        listeners: vec![
+            Located::detached("a".to_string()),
+            Located::detached("a".to_string()),
+        ],
+        hooks: Some(Located::detached(vec![
+            Located::detached("h".to_string()),
+            Located::detached("h".to_string()),
+        ])),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "duplicate value in listeners: \"a\"",
+            "duplicate value in hooks: \"h\"",
+        ]
+    );
+    assert_eq!(
+        helps(&report),
+        vec![
+            Some("Each listener may appear once."),
+            Some("Each hook may appear once."),
+        ]
+    );
+}
+
+#[test]
+fn non_empty_help_replaces_the_generated_line_on_an_empty_bare_list() {
+    // Arrange
+    let spec = NonEmptyHelpEmptyList { hooks: Vec::new() };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(messages(&report), vec!["hooks must not be empty"]);
+    assert_eq!(helps(&report), vec![Some("List at least one hook.")]);
+    assert_eq!(report.issues()[0].span, None, "a bare list has no span");
+}
+
+#[test]
+fn the_bare_flags_keep_the_generated_help() {
+    // Arrange
+    let spec = BareFlags {
+        tags: vec![
+            Located::detached(String::new()),
+            Located::detached(String::new()),
+        ],
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        helps(&report),
+        vec![
+            Some("Provide a non-empty value for tags"),
+            Some("Provide a non-empty value for tags"),
+            Some("Remove the repeated entry from tags"),
+        ]
+    );
+}
+
+/// A spec with `format` on a required and on an optional path leaf.
+#[derive(confval::Spec)]
+struct FormatPaths {
+    #[confval(format = AbsolutePath)]
+    root: Located<PathBuf>,
+    #[confval(format = AbsolutePath)]
+    cache: Option<Located<PathBuf>>,
+}
+
+impl Validate for FormatPaths {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec whose defaulted path leaf has a default that fails its own format.
+#[derive(confval::Spec)]
+struct FormatPathBadDefault {
+    #[confval(default = PathBuf::from("run/app.pid"), format = AbsolutePath)]
+    pid_file: Located<PathBuf>,
+}
+
+impl Validate for FormatPathBadDefault {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn format_on_a_path_leaf_reports_a_relative_path() {
+    // Arrange
+    let spec = FormatPaths {
+        root: Located::detached(PathBuf::from("srv/www")),
+        cache: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec!["root is not a valid absolute path: \"srv/www\""]
+    );
+}
+
+#[test]
+fn format_on_a_path_leaf_passes_an_absolute_path() {
+    // Arrange
+    let spec = FormatPaths {
+        root: Located::detached(PathBuf::from("/srv/www")),
+        cache: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_issues());
+}
+
+#[test]
+fn format_on_an_optional_path_leaf_checks_only_a_present_value() {
+    // Arrange
+    let absent = FormatPaths {
+        root: Located::detached(PathBuf::from("/srv/www")),
+        cache: None,
+    };
+    let present = FormatPaths {
+        root: Located::detached(PathBuf::from("/srv/www")),
+        cache: Some(Located::detached(PathBuf::from("tmp/cache"))),
+    };
+
+    // Act
+    let absent_report = validate(&absent);
+    let present_report = validate(&present);
+
+    // Assert
+    assert!(!absent_report.has_issues());
+    assert_eq!(
+        messages(&present_report),
+        vec!["cache is not a valid absolute path: \"tmp/cache\""]
+    );
+}
+
+#[test]
+fn format_names_the_default_when_a_path_default_fails_its_format() {
+    // Arrange
+    let spec = FormatPathBadDefault {
+        pid_file: Located::detached(PathBuf::from("run/app.pid")),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "the default for `pid_file` fails its recorded constraint: pid_file is not a valid absolute path: \"run/app.pid\""
         ]
     );
 }

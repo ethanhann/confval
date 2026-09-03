@@ -1,9 +1,10 @@
 //! `#[confval(format = ...)]` pass test over every legal carrier.
 //!
-//! This pins the required and the optional `String` leaf and both list
-//! shapes as legal carriers of `#[confval(format = ...)]`, and pins the
-//! attribute beside `default`, beside `non_empty`, and beside `label`. The
-//! fail cases alone do not prove the legal forms compile.
+//! This pins the required and the optional `String` leaf, the required and
+//! the optional `PathBuf` leaf, and both list shapes as legal carriers of
+//! `#[confval(format = ...)]`, and pins the attribute beside `default`,
+//! beside `non_empty`, and beside `label`. The fail cases alone do not prove
+//! the legal forms compile.
 //!
 //! The `non_empty` pairing compiles although the guide advises against it
 //! for a built-in format, because a consumer format may accept the empty
@@ -13,6 +14,7 @@ use confval::diagnostic::Report;
 use confval::pipeline::Validate;
 use confval::source::Located;
 use confval::{AbsolutePath, Ip, Ipv4};
+use std::path::PathBuf;
 
 #[derive(confval::Spec)]
 struct Cfg {
@@ -28,6 +30,10 @@ struct Cfg {
     allow: Vec<Located<String>>,
     #[confval(format = AbsolutePath)]
     roots: Option<Located<Vec<Located<String>>>>,
+    #[confval(format = AbsolutePath)]
+    root: Located<PathBuf>,
+    #[confval(format = AbsolutePath)]
+    cache: Option<Located<PathBuf>>,
 }
 
 impl Validate for Cfg {

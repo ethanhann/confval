@@ -58,7 +58,8 @@ pub mod __private {
 /// ([`KeywordSet`] and its [`keyword_enum!`] macro, [`RangeConstraint`] and its
 /// [`range_constraint!`] macro, [`LengthConstraint`] and its
 /// [`length_constraint!`] macro, the [`Format`] trait with its built-in
-/// types and the [`check_format`](constraints::check_format) and
+/// types and the [`check_format`](constraints::check_format),
+/// [`check_format_path`](constraints::check_format_path), and
 /// [`check_each_format`](constraints::check_each_format) calls, and the
 /// [`NON_EMPTY`] and [`UNIQUE`] flags), and, with the `derive` feature, the
 /// [`Spec`] and [`Config`] derives. Each validator is exported with its
@@ -80,7 +81,7 @@ pub mod __private {
 pub mod prelude {
     pub use core::ops::ControlFlow;
 
-    pub use crate::constraints::{check_each_format, check_format};
+    pub use crate::constraints::{check_each_format, check_format, check_format_path};
     pub use crate::diagnostic::Report;
     pub use crate::format::ToFields;
     pub use crate::pipeline::{Lower, Validate, ValidateNested, narrow};

@@ -1,0 +1,5 @@
+error: unknown key in `non_empty(...)`; expected `help = "..."`
+ --> tests/ui/fail/schema_non_empty_help_unknown_key.rs:5:25
+  |
+5 |     #[confval(non_empty(hint = "x"))]
+  |                         ^^^^

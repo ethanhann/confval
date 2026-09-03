@@ -259,3 +259,22 @@ fn a_label_with_an_inner_quote_completes_escaped() {
     let item = items.first().expect("the label");
     assert_eq!(inserted(item), "\"a\\\"b\"", "the inner quote is escaped");
 }
+
+#[test]
+fn reference_value_completion_omits_a_whitespace_only_label() {
+    // Arrange
+    // A label of spaces alone names nothing, so the reference value offers the
+    // named upstream and not the blank one.
+    let hcl = "upstream \"  \" {\n  host = \"h\"\n  port = 1\n}\nupstream \"api\" {\n  host = \"h2\"\n  port = 2\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"\"\n}\n";
+    let offset = hcl.rfind("upstream = \"").unwrap() + "upstream = \"".len();
+
+    // Act
+    let offered = gateway_offered(&Hcl, hcl, offset);
+
+    // Assert
+    assert_eq!(
+        offered,
+        vec!["api".to_string()],
+        "offers the named label alone"
+    );
+}

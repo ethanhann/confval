@@ -1,4 +1,4 @@
-name = "edge-cache"
+name = "  "
 kind = "tracing"
 port = 99999
 after = ["auth", "auth", "tracing"]

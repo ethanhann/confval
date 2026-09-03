@@ -11,14 +11,27 @@ use crate::diagnostic::Report;
 use crate::source::{Located, Span};
 use std::collections::HashMap;
 
-/// The unique check. Use the [`UNIQUE`] constant. Do not construct one.
+/// The unique check. [`UNIQUE`] is the rule with the generated help line.
+/// [`with_help`](UniqueConstraint::with_help) builds a rule with its own help
+/// line. The derive emits that form for `#[confval(unique(help = "..."))]`. A
+/// handwritten spec declares it as a const.
 #[derive(Debug, Clone, Copy)]
-pub struct UniqueConstraint;
+#[non_exhaustive]
+pub struct UniqueConstraint {
+    /// A help line that replaces the generated suggestion.
+    pub help: Option<&'static str>,
+}
 
-/// The single instance a caller or the derive names in a check call.
-pub const UNIQUE: UniqueConstraint = UniqueConstraint;
+/// The rule with the generated help line, which a bare `#[confval(unique)]`
+/// and a handwritten check name.
+pub const UNIQUE: UniqueConstraint = UniqueConstraint { help: None };
 
 impl UniqueConstraint {
+    /// A rule whose help line replaces the generated suggestion.
+    pub const fn with_help(help: &'static str) -> Self {
+        Self { help: Some(help) }
+    }
+
     /// Reports `duplicate value in {field}: "{value}"` for each element that
     /// repeats an earlier one, at that element's span, with the first
     /// occurrence as a related span. The value is quoted so an empty or
@@ -30,11 +43,15 @@ impl UniqueConstraint {
                 first_span.insert(value.value.as_str(), value.span);
                 continue;
             };
+            let help = self
+                .help
+                .map(String::from)
+                .unwrap_or_else(|| format!("Remove the repeated entry from {field}"));
             report
                 .error(format!("duplicate value in {field}: \"{}\"", value.value))
                 .at(value.span)
                 .related(first, "first declared here")
-                .help(format!("Remove the repeated entry from {field}"))
+                .help(help)
                 .emit();
         }
     }
@@ -59,6 +76,49 @@ mod tests {
 
         // Assert
         assert!(!report.has_issues());
+    }
+
+    #[test]
+    fn a_provided_help_replaces_the_generated_line() {
+        // Arrange
+        let rule = UniqueConstraint::with_help("Each listener may appear once.");
+        let values = vec![
+            Located::detached("a".to_string()),
+            Located::detached("a".to_string()),
+        ];
+        let mut report = Report::new();
+
+        // Act
+        rule.check_list(&values, "listeners", &mut report);
+
+        // Assert
+        assert_eq!(
+            report.issues()[0].message,
+            "duplicate value in listeners: \"a\""
+        );
+        assert_eq!(
+            report.issues()[0].help.as_deref(),
+            Some("Each listener may appear once.")
+        );
+    }
+
+    #[test]
+    fn the_bare_rule_keeps_the_generated_help() {
+        // Arrange
+        let values = vec![
+            Located::detached("a".to_string()),
+            Located::detached("a".to_string()),
+        ];
+        let mut report = Report::new();
+
+        // Act
+        UNIQUE.check_list(&values, "tags", &mut report);
+
+        // Assert
+        assert_eq!(
+            report.issues()[0].help.as_deref(),
+            Some("Remove the repeated entry from tags")
+        );
     }
 
     #[test]

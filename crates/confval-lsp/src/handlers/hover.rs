@@ -192,10 +192,18 @@ fn render(field: &SchemaField, set: Option<bool>) -> String {
         out.push_str("\n\n");
     }
     if field.non_empty {
-        out.push_str("Must not be empty.\n\n");
+        out.push_str(&with_help(
+            "Must not be empty.".to_string(),
+            field.non_empty_help,
+        ));
+        out.push_str("\n\n");
     }
     if field.unique {
-        out.push_str("Entries must be unique.\n\n");
+        out.push_str(&with_help(
+            "Entries must be unique.".to_string(),
+            field.unique_help,
+        ));
+        out.push_str("\n\n");
     }
     if let Some(constraint) = constraint_of(&field.ty) {
         out.push_str(&constraint_label(constraint));

@@ -7,22 +7,40 @@
 use crate::diagnostic::Report;
 use crate::source::{Located, Span};
 
-/// The non-empty check. Use the [`NON_EMPTY`] constant. Do not construct one.
+/// The non-empty check. [`NON_EMPTY`] is the rule with the generated help
+/// line. [`with_help`](NonEmptyConstraint::with_help) builds a rule with its
+/// own help line. The derive emits that form for
+/// `#[confval(non_empty(help = "..."))]`. A handwritten spec declares it as a
+/// const.
 #[derive(Debug, Clone, Copy)]
-pub struct NonEmptyConstraint;
+#[non_exhaustive]
+pub struct NonEmptyConstraint {
+    /// A help line that replaces the generated suggestion.
+    pub help: Option<&'static str>,
+}
 
-/// The single instance a caller or the derive names in a check call.
-pub const NON_EMPTY: NonEmptyConstraint = NonEmptyConstraint;
+/// The rule with the generated help line, which a bare `#[confval(non_empty)]`
+/// and a handwritten check name.
+pub const NON_EMPTY: NonEmptyConstraint = NonEmptyConstraint { help: None };
 
 impl NonEmptyConstraint {
+    /// A rule whose help line replaces the generated suggestion.
+    pub const fn with_help(help: &'static str) -> Self {
+        Self { help: Some(help) }
+    }
+
     /// Reports `{field} must not be empty` when the string is empty or
     /// whitespace-only.
     pub fn check_located(&self, value: &Located<String>, field: &str, report: &mut Report) {
         if value.value.trim().is_empty() {
+            let help = self
+                .help
+                .map(String::from)
+                .unwrap_or_else(|| format!("Provide a non-empty value for {field}"));
             report
                 .error(format!("{field} must not be empty"))
                 .at(value.span)
-                .help(format!("Provide a non-empty value for {field}"))
+                .help(help)
                 .emit();
         }
     }
@@ -45,10 +63,14 @@ impl NonEmptyConstraint {
         report: &mut Report,
     ) {
         if values.is_empty() {
+            let help = self
+                .help
+                .map(String::from)
+                .unwrap_or_else(|| format!("Provide at least one item in {field}"));
             report
                 .error(format!("{field} must not be empty"))
                 .at(span)
-                .help(format!("Provide at least one item in {field}"))
+                .help(help)
                 .emit();
         }
     }
@@ -117,6 +139,62 @@ mod tests {
         assert_eq!(report.issues().len(), 2);
         assert_eq!(report.issues()[0].message, "tag must not be empty");
         assert_eq!(report.issues()[1].message, "tag must not be empty");
+    }
+
+    #[test]
+    fn a_provided_help_replaces_the_generated_line_on_a_leaf() {
+        // Arrange
+        let rule = NonEmptyConstraint::with_help("Provide the socket path.");
+        let value = Located::detached(String::new());
+        let mut report = Report::new();
+
+        // Act
+        rule.check_located(&value, "sock", &mut report);
+
+        // Assert
+        assert_eq!(report.issues()[0].message, "sock must not be empty");
+        assert_eq!(
+            report.issues()[0].help.as_deref(),
+            Some("Provide the socket path.")
+        );
+    }
+
+    #[test]
+    fn a_provided_help_replaces_the_generated_line_on_a_list() {
+        // Arrange
+        let rule = NonEmptyConstraint::with_help("List at least one hook.");
+        let mut report = Report::new();
+
+        // Act
+        rule.check_list(&[], "hooks", Span::detached(), &mut report);
+
+        // Assert
+        assert_eq!(report.issues()[0].message, "hooks must not be empty");
+        assert_eq!(
+            report.issues()[0].help.as_deref(),
+            Some("List at least one hook.")
+        );
+    }
+
+    #[test]
+    fn the_bare_rule_keeps_the_generated_help() {
+        // Arrange
+        let value = Located::detached(String::new());
+        let mut report = Report::new();
+
+        // Act
+        NON_EMPTY.check_located(&value, "name", &mut report);
+        NON_EMPTY.check_list(&[], "tags", Span::detached(), &mut report);
+
+        // Assert
+        assert_eq!(
+            report.issues()[0].help.as_deref(),
+            Some("Provide a non-empty value for name")
+        );
+        assert_eq!(
+            report.issues()[1].help.as_deref(),
+            Some("Provide at least one item in tags")
+        );
     }
 
     #[test]

@@ -87,14 +87,19 @@ Two more attributes, `#[confval(non_empty)]` and `#[confval(unique)]`, each reco
 The field is a `String` leaf or a string list.
 It rejects an empty or whitespace-only value.
 On a list it also rejects a list with zero elements.
-The schema records it as `SchemaField::non_empty`, a `bool` flag separate from the `Constraint` slot.
+The schema records it as `SchemaField::non_empty`, a `bool` flag.
+The help line of `non_empty(help = "...")` is in `SchemaField::non_empty_help`.
+The `Constraint` slot stays free for a value constraint.
 A field can have both `non_empty` and a value constraint.
+It cannot have `non_empty` beside `label`, because `check_references` reports an empty label.
 
 ### `#[confval(unique)]`
 
 The field is a string list.
 It rejects an entry that repeats an earlier one.
-The schema records it as `SchemaField::unique`, a `bool` flag separate from the `Constraint` slot.
+The schema records it as `SchemaField::unique`, a `bool` flag.
+The help line of `unique(help = "...")` is in `SchemaField::unique_help`.
+The `Constraint` slot stays free for a value constraint.
 `unique` combines with `keywords`, `format`, `non_empty`, and `default`, because the default list is empty and so unique.
 
 ### `#[confval(keywords = PATH)]`
@@ -121,7 +126,7 @@ The bounds are character counts.
 ### `#[confval(format = PATH)]`
 
 Names a type that implements `Format`.
-Takes a `String` leaf or a string list.
+Takes a `String` leaf, a `Path` leaf, or a string list.
 The schema records the format's name and its check as `Constraint::Format`.
 An editor reads the name for the hover.
 It calls the check before it offers a default as a fix.
@@ -206,6 +211,7 @@ if let Some(fields) = &fields {
 ```
 
 The pass reports an undefined reference, a duplicate label, and an empty label, each at its value's span.
+A whitespace-only label is empty.
 The language server runs the same pass in its diagnostics.
 The editor and your pipeline report the same reference errors.
 
@@ -223,26 +229,51 @@ A spec you write by hand implements it too, because a derived parent's `schema()
 Build the tree through the same constructors.
 
 ```rust
-use confval::schema::{Constraint, Schema, SchemaField, SchemaType, ScalarType, ToSchema};
+use confval::prelude::*;
+use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
+
+length_constraint!(NAME_LEN, max: 63);
+
+struct TlsSpec {
+    mode: Located<String>,
+    name: Option<Located<String>>,
+}
 
 impl ToSchema for TlsSpec {
     fn schema() -> Schema {
         Schema::new(
             None,
-            vec![SchemaField::new(
-                "mode".to_string(),
-                None,
-                true,
-                false,
-                SchemaType::Scalar {
-                    leaf: ScalarType::String,
-                    constraint: Some(Constraint::Keywords(&["manual", "acme"])),
-                },
-            )],
+            vec![
+                SchemaField::new(
+                    "mode".to_string(),
+                    None,
+                    SchemaType::scalar(
+                        ScalarType::String,
+                        Some(Constraint::keywords(&["manual", "acme"])),
+                    ),
+                )
+                .required(),
+                SchemaField::new(
+                    "name".to_string(),
+                    None,
+                    SchemaType::scalar(ScalarType::String, Some(NAME_LEN.constraint())),
+                ),
+            ],
         )
     }
 }
+
+fn main() {
+    let spec = TlsSpec {
+        mode: Located::detached("acme".to_string()),
+        name: None,
+    };
+    assert_eq!(spec.mode.value, "acme");
+    assert_eq!(TlsSpec::schema().fields.len(), 2);
+}
 ```
 
-A reference field is declared the same way, with `Some(Constraint::References { block: "upstreams" })` as the constraint.
+A reference field is declared the same way, with `Some(Constraint::references("upstreams"))` as the constraint.
 The target block marks its label child by calling `as_label()` on that child's `SchemaField`.
+A value constraint's record comes from the constant `validate` checks with.
+[Recording a constraint on a handwritten spec](./validation.md#recording-a-constraint-on-a-handwritten-spec) shows the pattern.

@@ -67,10 +67,11 @@ upstream = "cdn.internal:80"
   key = "/etc/tls/edge.key"
 "#;
 
-/// A document with one problem per kind of type: an unknown field in the
-/// handwritten root, a bad value in a derived route, and a missing required
-/// field in the handwritten tagged enum.
-const BROKEN: &str = r#"name = "edge"
+/// A document with one problem per kind of type: a blank name, a relative pid
+/// file, and an unknown field in the handwritten root, a bad value in a
+/// derived route, and a missing required field in the handwritten tagged enum.
+const BROKEN: &str = r#"name = " "
+pid_file = "run/edge.pid"
 verbosity = true
 
 [limits]

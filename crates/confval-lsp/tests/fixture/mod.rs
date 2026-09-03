@@ -8,6 +8,7 @@
 
 use confval::prelude::*;
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
@@ -24,7 +25,7 @@ keyword_enum!(pub LimitMode, {
 #[derive(confval::Spec)]
 pub struct ServerSpec {
     /// The address the server binds.
-    #[confval(non_empty, length = HOSTNAME_LEN)]
+    #[confval(non_empty(help = "Provide the hostname the server binds."), length = HOSTNAME_LEN)]
     pub hostname: Located<String>,
     /// The TCP port the server listens on.
     #[confval(range = PORT)]
@@ -36,7 +37,7 @@ pub struct ServerSpec {
     #[confval(default = false)]
     pub tls: Located<bool>,
     /// The networks allowed to connect.
-    #[confval(default, unique)]
+    #[confval(default, unique(help = "Each network may appear once."))]
     pub allow: Vec<Located<String>>,
     /// How each limit breach is handled. A constrained list in the bare shape.
     #[confval(default, keywords = LimitMode)]
@@ -77,6 +78,9 @@ pub struct LimitsSpec {
     /// How a limit breach is handled.
     #[confval(default = "enforce".to_string(), keywords = LimitMode)]
     pub mode: Located<String>,
+    /// Where the limiter writes its pid. A path leaf with a format.
+    #[confval(format = AbsolutePath)]
+    pub pid_file: Option<Located<PathBuf>>,
 }
 
 impl Validate for LimitsSpec {

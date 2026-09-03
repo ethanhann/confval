@@ -18,6 +18,6 @@ pub use references::check_references;
 #[cfg(feature = "__internal-navigation")]
 #[doc(hidden)]
 pub use references::{
-    ReferenceSite, Scope, declares_labeled_block, scope_labels, visit_references,
+    ReferenceSite, Scope, declares_labeled_block, is_empty_label, scope_labels, visit_references,
 };
 pub use validate::{Validate, ValidateNested};

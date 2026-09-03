@@ -10,6 +10,14 @@ use crate::schema::{Schema, SchemaType};
 use crate::source::Located;
 use crate::source::Span;
 
+/// Whether a label names nothing: it is empty or whitespace-only.
+///
+/// The reference pass and the language server both read a label through this
+/// test, so an editor and the pipeline agree on which labels define something.
+pub fn is_empty_label(text: &str) -> bool {
+    text.trim().is_empty()
+}
+
 /// The labels the `block` field defines within one scope instance.
 ///
 /// Each label keeps its span, in document order. The list keeps every
@@ -81,5 +89,28 @@ fn field_str(field: &Field) -> Option<(&str, Span)> {
     match &value.kind {
         ValueKind::Scalar(Scalar::String(string)) => Some((string.as_str(), value.span)),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_empty_label;
+
+    #[test]
+    fn a_label_is_empty_when_it_holds_no_non_whitespace_character() {
+        // Arrange
+        let cases = [("", true), ("  ", true), ("\t", true), ("a", false)];
+
+        // Act
+        let results: Vec<(bool, bool)> = cases
+            .iter()
+            .map(|(text, expected)| (is_empty_label(text), *expected))
+            .collect();
+
+        // Assert
+        assert!(
+            results.iter().all(|(actual, expected)| actual == expected),
+            "got: {results:?}"
+        );
     }
 }

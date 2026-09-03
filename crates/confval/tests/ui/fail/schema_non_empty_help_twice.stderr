@@ -1,0 +1,5 @@
+error: duplicate `help` in `non_empty(...)`
+ --> tests/ui/fail/schema_non_empty_help_twice.rs:5:37
+  |
+5 |     #[confval(non_empty(help = "a", help = "b"))]
+  |                                     ^^^^

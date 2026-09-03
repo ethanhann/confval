@@ -1,0 +1,5 @@
+error: #[confval(non_empty)] cannot be combined with #[confval(label)]; check_references reports an empty label, so run that pass beside validate_all
+ --> tests/ui/fail/schema_non_empty_with_label.rs:5:22
+  |
+5 |     #[confval(label, non_empty)]
+  |                      ^^^^^^^^^

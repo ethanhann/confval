@@ -6,9 +6,11 @@
 //! `#[confval(format = ...)]`, or `#[confval(keywords = ...)]` constraint for
 //! the IR, this walk runs the same constraint during validation, so the
 //! attribute is the single source and the author's `Validate` body has
-//! no line for it. A scalar leaf emits a `check_located` call. A string list
-//! emits a `check_each_in` call for a keyword set or a `check_each_format`
-//! call for a format, and both report each bad element at its own span.
+//! no line for it. A scalar leaf emits a `check_located` call, or a
+//! `check_format` call for a format. On a `PathBuf` leaf the format call is
+//! `check_format_path`. A string list emits a `check_each_in` call for a
+//! keyword set or a `check_each_format` call for a format, and both report
+//! each bad element at its own span.
 //!
 //! `#[confval(non_empty)]` and `#[confval(unique)]` are flags rather than
 //! value constraints, so each has its own fragment emitted after the
@@ -16,9 +18,12 @@
 //! `NON_EMPTY.check_located`, and a string list calls `NON_EMPTY.check_list`
 //! for the list and `NON_EMPTY.check_each` for its elements. For `unique`, a
 //! string list calls `UNIQUE.check_list`, which reports each repeat at its
-//! own span. The fragments run in that order, constraint, then `non_empty`,
-//! then `unique`, and the renderer keeps that order within one source, so an
-//! operator reads a value error before a flag error on the same field.
+//! own span. A flag with `help = "..."` calls the same methods on
+//! `NonEmptyConstraint::with_help(...)` or
+//! `UniqueConstraint::with_help(...)`. The fragments run in that order,
+//! constraint, then `non_empty`, then `unique`, and the renderer keeps that
+//! order within one source, so an operator reads a value error before a flag
+//! error on the same field.
 //!
 //! The walk decides what to emit from the one recorded attribute a field
 //! has, read through the same `Recorded` classification the schema walk
@@ -79,22 +84,33 @@ fn constraint_fragment(
     // The schema walk has already rejected a doubled attribute, so the error
     // arm is unreachable here and the walk reads the one it found.
     let recorded = one_recording_attribute(options).ok().flatten()?;
+    let is_path = matches!(
+        shape,
+        FieldShape::Leaf {
+            leaf: Leaf::PathBuf,
+            ..
+        }
+    );
 
     // The `check_located` call, given the `&Located<T>` value expression and
     // the report expression it writes into. A `range` names a
     // `RangeConstraint` value, a `length` names a `LengthConstraint` value,
     // a `format` names a type the free function takes as a parameter, and a
     // `keywords` names a `keyword_enum!` type whose `keyword_set()` yields
-    // the check. The reference pass resolves a `references`, because it
-    // holds the labels in scope, so this walk emits nothing for one. The
-    // match is exhaustive. A constraint added to the schema walk and
-    // forgotten here is then a compile error rather than a recorded but
-    // unchecked field.
+    // the check. A `format` on a `PathBuf` leaf calls `check_format_path`,
+    // which checks the path's text. The reference pass resolves a
+    // `references`, because it holds the labels in scope, so this walk emits
+    // nothing for one. The match is exhaustive. A constraint added to the
+    // schema walk and forgotten here is then a compile error rather than a
+    // recorded but unchecked field.
     let call = |value: &TokenStream2, report: &TokenStream2| -> Option<TokenStream2> {
         match recorded {
             Recorded::Range(path) | Recorded::Length(path) => {
                 Some(quote! { #path.check_located(#value, #name, #report); })
             }
+            Recorded::Format(path) if is_path => Some(quote! {
+                ::confval::constraints::check_format_path::<#path>(#value, #name, #report);
+            }),
             Recorded::Format(path) => Some(quote! {
                 ::confval::constraints::check_format::<#path>(#value, #name, #report);
             }),
@@ -185,13 +201,17 @@ fn non_empty_fragment(
     name: &str,
 ) -> Option<TokenStream2> {
     options.non_empty.as_ref()?;
+    let rule = match &options.non_empty_help {
+        Some(help) => quote! { ::confval::constraints::NonEmptyConstraint::with_help(#help) },
+        None => quote! { ::confval::constraints::NON_EMPTY },
+    };
     let fragment = match shape {
         FieldShape::Leaf {
             leaf: Leaf::String,
             optional: false,
             ..
         } => quote! {
-            ::confval::constraints::NON_EMPTY.check_located(&self.#ident, #name, report);
+            #rule.check_located(&self.#ident, #name, report);
         },
         FieldShape::Leaf {
             leaf: Leaf::String,
@@ -199,21 +219,19 @@ fn non_empty_fragment(
             ..
         } => quote! {
             if let ::core::option::Option::Some(__value) = &self.#ident {
-                ::confval::constraints::NON_EMPTY.check_located(__value, #name, report);
+                #rule.check_located(__value, #name, report);
             }
         },
         FieldShape::BareStringList => quote! {
-            ::confval::constraints::NON_EMPTY.check_list(
+            #rule.check_list(
                 &self.#ident, #name, ::confval::source::Span::detached(), report,
             );
-            ::confval::constraints::NON_EMPTY.check_each(&self.#ident, #name, report);
+            #rule.check_each(&self.#ident, #name, report);
         },
         FieldShape::OptionalWrappedStringList => quote! {
             if let ::core::option::Option::Some(__list) = &self.#ident {
-                ::confval::constraints::NON_EMPTY.check_list(
-                    &__list.value, #name, __list.span, report,
-                );
-                ::confval::constraints::NON_EMPTY.check_each(&__list.value, #name, report);
+                #rule.check_list(&__list.value, #name, __list.span, report);
+                #rule.check_each(&__list.value, #name, report);
             }
         },
         // `field_schema` runs before this walk and rejects every other shape,
@@ -235,13 +253,17 @@ fn unique_fragment(
     name: &str,
 ) -> Option<TokenStream2> {
     options.unique.as_ref()?;
+    let rule = match &options.unique_help {
+        Some(help) => quote! { ::confval::constraints::UniqueConstraint::with_help(#help) },
+        None => quote! { ::confval::constraints::UNIQUE },
+    };
     let fragment = match shape {
         FieldShape::BareStringList => quote! {
-            ::confval::constraints::UNIQUE.check_list(&self.#ident, #name, report);
+            #rule.check_list(&self.#ident, #name, report);
         },
         FieldShape::OptionalWrappedStringList => quote! {
             if let ::core::option::Option::Some(__list) = &self.#ident {
-                ::confval::constraints::UNIQUE.check_list(&__list.value, #name, report);
+                #rule.check_list(&__list.value, #name, report);
             }
         },
         // `field_schema` runs before this walk and rejects every other shape,

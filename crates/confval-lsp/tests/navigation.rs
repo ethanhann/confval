@@ -737,3 +737,19 @@ fn a_single_nested_block_is_a_container_symbol() {
     let children = limits.children.as_ref().expect("children");
     assert!(children.iter().any(|c| c.name == "mode"));
 }
+
+#[test]
+fn references_from_a_whitespace_only_label_answer_empty() {
+    // Arrange
+    // A label of spaces alone defines nothing, so find-references from it
+    // answers empty even when a route repeats the same blank value.
+    let text = "upstream \"  \" {\n  host = \"h\"\n  port = 1\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"  \"\n}\n";
+    let offset = text.find("\"  \"").unwrap() + 2;
+    let schema = GatewaySpec::schema();
+
+    // Act
+    let found = references_at(&Hcl, &schema, text, offset, true);
+
+    // Assert
+    assert!(found.is_empty(), "got {found:?}");
+}

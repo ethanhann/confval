@@ -535,3 +535,19 @@ fn utf16_ranges_land_after_a_non_ascii_value_on_the_same_line() {
     // Assert
     assert_eq!(edited, text.replace("\"api\"", "\"backend\""));
 }
+
+#[test]
+fn a_whitespace_only_label_is_not_renameable() {
+    // Arrange
+    // A label of spaces defines nothing, the way an empty one does, so rename
+    // refuses it and the operator fixes the label by hand.
+    let schema = GatewaySpec::schema();
+    let blank = GATEWAY_HCL.replace("upstream \"api\"", "upstream \"  \"");
+    let offset = blank.find("\"  \"").unwrap() + 2;
+
+    // Act
+    let prepared = prepare_at(&Hcl, &schema, &blank, offset);
+
+    // Assert
+    assert_eq!(prepared, None);
+}

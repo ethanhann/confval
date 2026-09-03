@@ -1,0 +1,5 @@
+error: unexpected end of input, expected nested attribute
+ --> tests/ui/fail/schema_non_empty_help_empty_list.rs:5:25
+  |
+5 |     #[confval(non_empty())]
+  |                         ^

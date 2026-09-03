@@ -6,6 +6,7 @@
 //! harvested `///` doc comment, into a plain [`FieldOptions`] struct the rest of
 //! the derive reads.
 
+use super::attrs::{set_flag, set_flag_with_help, set_path};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{DeriveInput, Expr, Field, Ident, Path};
@@ -131,11 +132,17 @@ pub(crate) struct FieldOptions {
     /// empty list. It is a precondition on the value, so it combines with any
     /// one value constraint.
     pub(crate) non_empty: Option<syn::Path>,
+    /// The help line of `#[confval(non_empty(help = "..."))]`, or `None` for
+    /// the bare flag.
+    pub(crate) non_empty_help: Option<syn::LitStr>,
     /// The `unique` path from `#[confval(unique)]`, kept so a misuse error
     /// points at the attribute. The flag rejects a repeated element in a
     /// string list. It is a precondition on the list, so it combines with
     /// `keywords`, `format`, `non_empty`, and `default`.
     pub(crate) unique: Option<syn::Path>,
+    /// The help line of `#[confval(unique(help = "..."))]`, or `None` for the
+    /// bare flag.
+    pub(crate) unique_help: Option<syn::LitStr>,
     /// The doc comment `to_template` renders above the field, or `None`. Comes
     /// from `#[confval(doc = "...")]` if present, otherwise the field's `///`
     /// doc comments joined into one string.
@@ -147,33 +154,6 @@ pub(crate) struct FieldOptions {
 /// Walks every `#[confval(...)]` attribute on the field and records the keys it
 /// recognizes. An unrecognized key is a compile error, so a typo like
 /// `#[confval(nestd)]` is caught rather than silently ignored.
-/// Stores a bare flag's own path, kept so a misuse error points at the
-/// attribute, or rejects a second one.
-fn set_flag(
-    slot: &mut Option<syn::Path>,
-    meta: &syn::meta::ParseNestedMeta<'_>,
-    key: &str,
-) -> syn::Result<()> {
-    if slot.is_some() {
-        return Err(meta.error(format!("duplicate confval attribute `{key}`")));
-    }
-    *slot = Some(meta.path.clone());
-    Ok(())
-}
-
-/// Stores the path a `key = PATH` attribute names, or rejects a second one.
-fn set_path<T: syn::parse::Parse>(
-    slot: &mut Option<T>,
-    meta: &syn::meta::ParseNestedMeta<'_>,
-    key: &str,
-) -> syn::Result<()> {
-    if slot.is_some() {
-        return Err(meta.error(format!("duplicate confval attribute `{key}`")));
-    }
-    *slot = Some(meta.value()?.parse()?);
-    Ok(())
-}
-
 pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
     let mut options = FieldOptions {
         nested: false,
@@ -186,7 +166,9 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
         label: None,
         references: None,
         non_empty: None,
+        non_empty_help: None,
         unique: None,
+        unique_help: None,
         doc: None,
     };
     let mut confval_doc = None;
@@ -231,9 +213,11 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
             } else if meta.path.is_ident("references") {
                 set_path(&mut options.references, &meta, "references")
             } else if meta.path.is_ident("non_empty") {
-                set_flag(&mut options.non_empty, &meta, "non_empty")
+                let help = &mut options.non_empty_help;
+                set_flag_with_help(&mut options.non_empty, help, &meta, "non_empty")
             } else if meta.path.is_ident("unique") {
-                set_flag(&mut options.unique, &meta, "unique")
+                let help = &mut options.unique_help;
+                set_flag_with_help(&mut options.unique, help, &meta, "unique")
             } else if meta.path.is_ident("doc") {
                 if confval_doc.is_some() {
                     return Err(meta.error("duplicate confval attribute `doc`"));
