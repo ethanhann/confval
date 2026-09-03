@@ -57,7 +57,7 @@ struct GatewaySpec {
 #[derive(confval::Spec)]
 struct MiddlewareSpec {
     /// The middleware name.
-    #[confval(non_empty(help = "A middleware name should be human-readonable."), length = NAME_LEN)]
+    #[confval(non_empty(help = "A middleware name should be human-readable."), length = NAME_LEN)]
     name: Located<String>,
     /// What the middleware does.
     #[confval(keywords = MiddlewareKind)]
