@@ -1,0 +1,5 @@
+error: `help` in `non_empty(...)` must not be empty
+ --> tests/ui/fail/schema_non_empty_help_blank.rs:5:32
+  |
+5 |     #[confval(non_empty(help = "  "))]
+  |                                ^^^^

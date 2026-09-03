@@ -1,5 +1,5 @@
-error: expected `,`
- --> tests/ui/fail/schema_non_empty_equals_form.rs:5:25
+error: `non_empty` takes no value; write `non_empty(help = "...")`
+ --> tests/ui/fail/schema_non_empty_equals_form.rs:5:15
   |
 5 |     #[confval(non_empty = "x")]
-  |                         ^
+  |               ^^^^^^^^^

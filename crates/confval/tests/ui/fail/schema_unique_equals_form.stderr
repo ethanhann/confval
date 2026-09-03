@@ -1,0 +1,5 @@
+error: `unique` takes no value; write `unique(help = "...")`
+ --> tests/ui/fail/schema_unique_equals_form.rs:5:15
+  |
+5 |     #[confval(unique = "x")]
+  |               ^^^^^^

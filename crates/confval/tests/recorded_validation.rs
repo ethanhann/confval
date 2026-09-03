@@ -1534,9 +1534,34 @@ impl Validate for UniqueHelp {
     fn validate(&self, _report: &mut Report) {}
 }
 
+/// A spec with `non_empty(help = ...)` on a bare list, for the empty-list path.
+#[derive(confval::Spec)]
+struct NonEmptyHelpEmptyList {
+    #[confval(non_empty(help = "List at least one hook."))]
+    hooks: Vec<Located<String>>,
+}
+
+impl Validate for NonEmptyHelpEmptyList {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec with both bare flags on one list.
+#[derive(confval::Spec)]
+struct BareFlags {
+    #[confval(non_empty, unique)]
+    tags: Vec<Located<String>>,
+}
+
+impl Validate for BareFlags {
+    fn validate(&self, _report: &mut Report) {}
+}
+
 #[test]
 fn non_empty_help_replaces_the_generated_line_on_every_carrier() {
     // Arrange
+    // `name` and `region` take the leaf path. `tags` takes the empty-element
+    // path of a bare list, and `events` takes the empty-list path of a wrapped
+    // list. The empty-list path of a bare list has its own test below.
     let spec = NonEmptyHelp {
         name: Located::detached(String::new()),
         region: Some(Located::detached("  ".to_string())),
@@ -1620,10 +1645,27 @@ fn unique_help_replaces_the_generated_line_on_both_shapes() {
 }
 
 #[test]
+fn non_empty_help_replaces_the_generated_line_on_an_empty_bare_list() {
+    // Arrange
+    let spec = NonEmptyHelpEmptyList { hooks: Vec::new() };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(messages(&report), vec!["hooks must not be empty"]);
+    assert_eq!(helps(&report), vec![Some("List at least one hook.")]);
+    assert_eq!(report.issues()[0].span, None, "a bare list has no span");
+}
+
+#[test]
 fn the_bare_flags_keep_the_generated_help() {
     // Arrange
-    let spec = NonEmptyList {
-        tags: vec![Located::detached(String::new())],
+    let spec = BareFlags {
+        tags: vec![
+            Located::detached(String::new()),
+            Located::detached(String::new()),
+        ],
     };
 
     // Act
@@ -1632,7 +1674,11 @@ fn the_bare_flags_keep_the_generated_help() {
     // Assert
     assert_eq!(
         helps(&report),
-        vec![Some("Provide a non-empty value for tags")]
+        vec![
+            Some("Provide a non-empty value for tags"),
+            Some("Provide a non-empty value for tags"),
+            Some("Remove the repeated entry from tags"),
+        ]
     );
 }
 
