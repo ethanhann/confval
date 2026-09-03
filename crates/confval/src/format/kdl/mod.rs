@@ -526,7 +526,7 @@ mod tests {
         let FieldKind::Block(inner) = &fields.get("service").unwrap().kind else {
             panic!("service should still be a block");
         };
-        let label = inner.label().expect("the block carries its native label");
+        let label = inner.label().expect("the block keeps its native label");
         assert_eq!(label.value, "web");
         assert_eq!(
             &input[label.span.start as usize..label.span.end as usize],

@@ -35,7 +35,7 @@ The binding is only your root spec and its frontend.
 
 ## Serving a multi document configuration
 
-When one configuration spans several document shapes, an entrypoint file names the top level, and included files carry their own shapes, each with its own root spec.
+When one configuration spans several document shapes, an entrypoint file names the top level, and included files have their own shapes, each with its own root spec.
 With `serve` alone, each shape needs its own server process and its own editor registration.
 
 `serve_multi` serves every shape from one process.
@@ -123,7 +123,7 @@ The documents under `dev/sample_configs/multi/` exercise it: a valid entrypoint,
 
 Every format is a cargo feature, and all of them are on by default.
 To ship a server for one format, turn the defaults off and enable that format.
-The build then carries one parser instead of all five.
+The build then includes one parser instead of all five.
 
 ```toml
 [dependencies]

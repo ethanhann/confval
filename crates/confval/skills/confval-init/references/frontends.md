@@ -1,7 +1,7 @@
 # The frontends, and what each format can express
 
 You are choosing the frontend feature that matches your project's configuration format, and you need to know where a format constrains what a spec can hold.
-This file carries one row per frontend and the per-format limitations that change what a spec can express.
+This file has one row per frontend and the per-format limitations that change what a spec can express.
 
 It does not restate how each format maps onto the field model.
 That detail is in the complete confval documentation at https://ethanhann.com/confval/llms-full.txt.

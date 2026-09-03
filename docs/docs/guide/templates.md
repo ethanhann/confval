@@ -5,7 +5,7 @@ sidebar_position: 6
 # Templates
 
 A spec type encodes the whole configuration surface.
-It names every field, holds every default, and carries the doc comment you wrote on each field.
+It names every field, holds every default, and keeps the doc comment you wrote on each field.
 Once you have a spec, you can turn it into a configuration file by running [parsing](./parsing.md) backward.
 
 `to_fields` produces a plain configuration file with every default filled in.
@@ -98,7 +98,7 @@ JSON has no comment syntax.
 `emit_json` renders no doc comments and skips commented entries.
 `emit_json(&spec.to_template())` therefore produces the same text as `emit_json(&spec.to_fields())`.
 A commented entry stands for a field the source does not set.
-The emitted JSON holds every value the spec carries and shows none of the settings the operator has not written.
+The emitted JSON holds every value the spec holds and shows none of the settings the operator has not written.
 Use HCL, TOML, KDL, or YAML when you want an annotated template.
 
 A comment is indented to line up with the field it documents.
@@ -176,7 +176,7 @@ One call at the root resolves a nested tree of defaults all the way down.
 An absent optional field still exists in the spec.
 A template that hid it would leave you unaware the setting is available.
 `to_template` renders each one as a commented-out entry instead, with its doc comment above it.
-The template documents every field the spec accepts while activating only the ones that carry a value.
+The template documents every field the spec accepts while activating only the ones that have a value.
 `to_fields`, the plain dump, emits no commented entries.
 
 Each shape renders a placeholder you overwrite when uncommenting:
@@ -278,7 +278,7 @@ You can `expect` on the emit call.
 
 [Format Limitations](./format-limitations.md) collects every format's gaps in one place.
 
-Emit can also fail on a `Fields` that a frontend parsed rather than populated, because a parsed model can carry a name or a value the target format cannot write.
+Emit can also fail on a `Fields` that a frontend parsed rather than populated, because a parsed model can hold a name or a value the target format cannot write.
 A value with no representation, such as a TOML datetime, fails in any format.
 A name that is not a valid identifier fails when you emit HCL, which has no way to quote it.
 TOML and KDL quote it without trouble.
@@ -294,13 +294,13 @@ The only way either can write that pair is a duplicate key, which loses one of t
 Each emit error names the dotted path of the field responsible.
 A failure in a large tree points at its location.
 
-A tree assembled by layering can carry unparsed text from an environment variable or a command line flag.
+A tree assembled by layering can hold unparsed text from an environment variable or a command line flag.
 That text emits as a string literal, since its type was never decided.
 A typed reparse of the emitted file therefore reads those leaves as strings.
 
 ## Detached spans and the fixed point
 
-Every value populate produces carries a detached span, a span with no source location.
+Every value populate produces has a detached span, a span with no source location.
 The value comes from the spec and not from a file.
 A parsed value points at the bytes it came from.
 A populated value has no bytes to point at.

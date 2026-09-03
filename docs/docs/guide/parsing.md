@@ -107,7 +107,7 @@ Two things make a field optional:
 A bare `#[confval(default)]` uses the field type's `Default`.
 The `default = expr` form uses `expr` instead.
 For example, `#[confval(default = 30)]` gives the field the value `30` when the file leaves it out.
-A filled-in value carries a detached span, because no source text stands behind it.
+A filled-in value has a detached span, because no source text stands behind it.
 
 Which form a field accepts depends on its shape.
 
@@ -334,7 +334,7 @@ The tables below collect the behaviors you are most likely to encounter.
 | `null` | Reports `expected string, found null`. Omit the member when you want an optional setting left unset. |
 | Duplicate key | A list when the field is a list. A `duplicate field` error when the field is single-valued. |
 | Type mismatch | A scalar where a nested object is expected reports `expected block, found string`. The expected side of a mismatch is shared across formats. |
-| Comments | JSON has no comment syntax. Emitted JSON carries no comments. [Templates](./templates.md#generating-a-template) covers what that means for a template. |
+| Comments | JSON has no comment syntax. Emitted JSON has no comments. [Templates](./templates.md#generating-a-template) covers what that means for a template. |
 
 #### YAML
 
@@ -396,7 +396,7 @@ Parsing all of them first keeps one bad field from hiding the problems in the ot
 
 Report each problem as you find it.
 Then return `None` when a field failed and the value cannot be built.
-The `None` itself carries no reason.
+The `None` itself holds no reason.
 Whatever explains the failure must already be in the report.
 
 A `Fields` built by `to_template` can also hold commented-out entries, fields whose `commented` flag is set.
@@ -416,7 +416,7 @@ A frontend builds it, and from there nothing knows which format the text was.
 | `FieldKind` | Either `Value` for an attribute (`name = value`) or `Block` for a block (`name { ... }` in HCL, `[name]` in TOML). The split lets a diagnostic say "found block" rather than "found object". |
 | `Value` | A span plus a `ValueKind`: a `Scalar`, a `Seq` (a list), a `Map` (nested fields), or `Other`. |
 | `Scalar` | `String`, `Int(i64)`, `Float(f64)`, `Bool`, or `Unparsed`. Integers and floats stay distinct so a format that separates them (like TOML's `1` and `1.0`) round-trips faithfully. |
-| `Unparsed(String)` | The raw text of a value from a source that only carries strings, such as an environment variable or a command line flag. The leaf parsers coerce it to the type they expect. No file frontend produces it. A quoted string in a file stays a `String`. |
+| `Unparsed(String)` | The raw text of a value from a source that only holds strings, such as an environment variable or a command line flag. The leaf parsers coerce it to the type they expect. No file frontend produces it. A quoted string in a file stays a `String`. |
 | `Other(label)` | A value that exists in the file but falls outside the model, such as an HCL template or a TOML datetime. It surfaces as a type mismatch named by the label. For example, `expected string, found datetime`. [Format Limitations](./format-limitations.md) lists every one. |
 
 ### Helpers
@@ -503,9 +503,9 @@ Each method takes the `Located` rather than the value inside it, so the builder 
 | Method | `Walk::Populated` | `Walk::Source` |
 |--------|-------------------|----------------|
 | `leaf`, `leaf_opt` | emits detached | emits with its span, or omits a detached one |
-| `string_list` | emits every element detached | emits the elements that carry a span, or omits the field |
-| `string_list_opt` | emits detached when present | emits when the wrapper carries a span, elements included |
-| `block`, `block_opt`, `block_list` | recurses with `to_fields` | recurses with `to_source_fields` when the block carries a span |
+| `string_list` | emits every element detached | emits the elements that keep a span, or omits the field |
+| `string_list_opt` | emits detached when present | emits when the wrapper keeps a span, elements included |
+| `block`, `block_opt`, `block_list` | recurses with `to_fields` | recurses with `to_source_fields` when the block keeps a span |
 | `block_opt_default` | fills an absent block from `S::default()` | omits an absent block |
 | `literal_string` | emits detached | emits detached |
 
@@ -539,7 +539,7 @@ The builder does not cover every shape a spec can hold.
 A string-keyed map has a derive form, `#[confval(map)]`, so it needs no handwritten walk.
 The builder has no method for one.
 Build such a field directly with `Field::detached_value` or `Field::detached_block`.
-Locate it with `at` when it carries a span, then `push` it into the builder:
+Locate it with `at` when it keeps a span, then `push` it into the builder:
 
 ```rust
 let field = Field::detached_value(name, value).at(span);
@@ -547,7 +547,7 @@ builder.push(field);
 ```
 
 The walk does not reach a pushed field.
-You decide what it carries.
+You decide what it holds.
 On a source walk that includes deciding whether the source set it.
 The builder still shapes every other field of the type.
 

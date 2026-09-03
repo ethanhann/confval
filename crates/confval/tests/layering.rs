@@ -128,7 +128,7 @@ fn a_bad_env_value_reports_a_type_mismatch_at_the_variable() {
     assert!(spec.is_none());
     let issue = &report.issues()[0];
     assert_eq!(issue.message, "expected integer, found string");
-    let span = issue.span.expect("the mismatch should carry a span");
+    let span = issue.span.expect("the mismatch should keep a span");
     assert_eq!(
         sources.get(span.source).unwrap().name,
         "env:CONFVAL_LAYERING_BAD_PORT"

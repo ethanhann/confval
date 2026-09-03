@@ -67,9 +67,9 @@ upstream = "cdn.internal:80"
   key = "/etc/tls/edge.key"
 "#;
 
-/// A document with one problem per kind of type: a blank name, a relative pid
-/// file, and an unknown field in the handwritten root, a bad value in a
-/// derived route, and a missing required field in the handwritten tagged enum.
+/// A document with a problem in each kind of type. The handwritten root has a
+/// blank name, a relative pid file, and an unknown field. A derived route has
+/// a bad value. The handwritten tagged enum is missing a required field.
 const BROKEN: &str = r#"name = " "
 pid_file = "run/edge.pid"
 verbosity = true
@@ -144,7 +144,7 @@ fn main() -> Result<(), String> {
     println!("That fallback recurses with to_fields, so comments stop at the");
     println!("first handwritten node and never reach anything below it.");
     println!("The root here is handwritten, so the whole document comes out");
-    println!("bare, including the derived blocks that do carry doc comments.\n");
+    println!("bare, including the derived blocks that do have doc comments.\n");
     let template = emit_toml(&spec.to_template()).map_err(|error| error.to_string())?;
     print!("{template}");
 

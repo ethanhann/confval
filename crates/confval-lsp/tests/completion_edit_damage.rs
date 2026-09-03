@@ -47,7 +47,7 @@ fn accept<F: Frontend>(frontend: &F, text: &str, offset: usize, label: &str) -> 
         return text.to_string();
     };
     let Some(CompletionTextEdit::Edit(edit)) = &item.text_edit else {
-        panic!("the item carries a replace edit");
+        panic!("the item has a replace edit");
     };
     let index = LineIndex::new(text);
     let start = index.offset_of(text, edit.range.start, ENCODING);

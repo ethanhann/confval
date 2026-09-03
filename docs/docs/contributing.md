@@ -25,7 +25,7 @@ A change that departs from one of these decisions needs a reason in the pull req
 
 ### Spans travel with values
 
-- Every parsed value carries the byte range it came from.
+- Every parsed value keeps the byte range it came from.
 - Any later check resolves that range to a line and column in the source file.
 
 ### All errors are collected and displayed to an operator

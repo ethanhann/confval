@@ -302,7 +302,7 @@ fn a_keyword_field_carries_its_keyword_set() {
         panic!("limits should be a block");
     };
     let Some(Constraint::Keywords(keywords)) = constraint(limits, "mode") else {
-        panic!("mode should carry a keyword set");
+        panic!("mode should record a keyword set");
     };
     assert_eq!(keywords.to_vec(), vec!["enforce", "log", "off"]);
     assert_eq!(keywords.to_vec(), LimitMode::KEYWORDS.to_vec());
@@ -322,7 +322,7 @@ fn a_range_field_renders_its_bounds_to_text() {
         ..
     }) = constraint(&schema, "port")
     else {
-        panic!("port should carry a range");
+        panic!("port should record a range");
     };
     assert_eq!(min.as_str(), "1");
     assert_eq!(max.as_str(), "65535");
@@ -337,7 +337,7 @@ fn a_workers_range_reads_from_its_own_constraint() {
 
     // Assert
     let Some(Constraint::Range { min, max, .. }) = constraint(&schema, "workers") else {
-        panic!("workers should carry a range");
+        panic!("workers should record a range");
     };
     assert_eq!(min.as_str(), "1");
     assert_eq!(max.as_str(), "512");
@@ -350,7 +350,7 @@ fn a_range_renders_an_i64_extreme_as_its_literal_text() {
 
     // Assert
     let Some(Constraint::Range { max, .. }) = constraint(&schema, "big") else {
-        panic!("big should carry a range");
+        panic!("big should record a range");
     };
     assert_eq!(max.as_str(), "9223372036854775807");
 }
@@ -362,7 +362,7 @@ fn a_range_carries_its_units_and_help() {
 
     // Assert
     let Some(Constraint::Range { units, help, .. }) = constraint(&schema, "timeout") else {
-        panic!("timeout should carry a range");
+        panic!("timeout should record a range");
     };
     assert_eq!(*units, Some("seconds"));
     assert_eq!(*help, Some("Keep this under 5 minutes."));
@@ -390,7 +390,7 @@ fn an_optional_leaf_can_carry_a_constraint() {
     assert!(!maybe_mode.required);
     assert_eq!(leaf(&schema, "maybe_mode"), ScalarType::String);
     let Some(Constraint::Keywords(keywords)) = constraint(&schema, "maybe_mode") else {
-        panic!("maybe_mode should carry a keyword set");
+        panic!("maybe_mode should record a keyword set");
     };
     assert_eq!(keywords.to_vec(), LimitMode::KEYWORDS.to_vec());
 }
@@ -415,7 +415,7 @@ fn a_float_leaf_reads_from_the_rust_type_and_carries_a_range() {
     // Assert
     assert_eq!(leaf(&schema, "ratio"), ScalarType::Float);
     let Some(Constraint::Range { min, max, .. }) = constraint(&schema, "ratio") else {
-        panic!("ratio should carry a range");
+        panic!("ratio should record a range");
     };
     // A float bound keeps its float form, so hover on a float field reads
     // float text rather than suggesting integers.
@@ -621,7 +621,7 @@ fn a_non_scalar_or_absent_default_carries_no_text() {
         block, None,
         "a defaulted block has no single value to render"
     );
-    assert_eq!(bare, None, "an undefaulted field carries nothing");
+    assert_eq!(bare, None, "an undefaulted field has no default text");
     assert!(field(&schema, "allow").has_default);
     assert!(field(&schema, "headers").has_default);
     assert!(field(&schema, "limits").has_default);
@@ -711,14 +711,14 @@ fn a_length_field_carries_its_bounds_and_help() {
 
     // Assert
     let Some(Constraint::Length { min, max, help, .. }) = constraint(&schema, "hostname") else {
-        panic!("hostname should carry a length bound");
+        panic!("hostname should record a length bound");
     };
     assert_eq!(*min, 0);
     assert_eq!(*max, 253);
     assert_eq!(*help, Some("A hostname is at most 253 characters."));
     assert!(
         field(&schema, "hostname").non_empty,
-        "the flag sits beside the bound"
+        "the flag is beside the bound"
     );
 }
 
@@ -742,7 +742,7 @@ fn a_format_field_carries_its_name_and_check() {
 
     // Assert
     let Some(Constraint::Format { name, check, .. }) = constraint(&schema, "bind") else {
-        panic!("bind should carry a format");
+        panic!("bind should record a format");
     };
     assert_eq!(*name, "IPv4 address");
     assert!(check.call("127.0.0.1"));
@@ -751,7 +751,7 @@ fn a_format_field_carries_its_name_and_check() {
         panic!("roots should be a list");
     };
     let Some(Constraint::Format { name, .. }) = constraint else {
-        panic!("roots should carry a format");
+        panic!("roots should record a format");
     };
     assert_eq!(*name, "absolute path");
 }
@@ -791,7 +791,7 @@ fn a_unique_list_carries_the_flag_in_both_shapes_beside_a_constraint() {
                 ..
             }
         ),
-        "the flag sits beside the keyword set"
+        "the flag is beside the keyword set"
     );
     assert!(!port.unique, "a leaf is not marked unique");
 }

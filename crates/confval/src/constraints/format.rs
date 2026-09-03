@@ -43,9 +43,9 @@ pub fn check_format<T: Format>(value: &Located<String>, field: &str, report: &mu
 
 /// Reports `{field} is not a valid {NAME}: "{text}"` at the path's span when
 /// the path's text does not parse as `T`. The text is the lossy string form,
-/// the one the emitters write. A path that is not valid UTF-8 therefore
-/// checks with replacement characters in place of its bad bytes. This is the
-/// form `#[confval(format = ...)]` generates for a `PathBuf` leaf.
+/// the one the emitters write. A path that is not valid UTF-8 is checked with
+/// replacement characters in place of its bad bytes. The derive emits this
+/// call for a `#[confval(format = ...)]` field with a `PathBuf` leaf.
 pub fn check_format_path<T: Format>(value: &Located<PathBuf>, field: &str, report: &mut Report) {
     let text = value.value.to_string_lossy();
     if T::check(&text) {

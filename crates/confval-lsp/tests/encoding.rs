@@ -137,6 +137,6 @@ fn an_offset_inside_a_character_floors_to_its_boundary() {
     // Assert
     assert!(
         text.is_char_boundary(offset),
-        "offset {offset} sits inside a character of {text:?}"
+        "offset {offset} is inside a character of {text:?}"
     );
 }

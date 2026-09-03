@@ -22,7 +22,7 @@ The binary installs the agent skills and parses no configuration.
 
 ## The full map
 
-This map shows the regions, the traits, and the functions that carry each step.
+This map shows the regions, the traits, and the functions that perform each step.
 Inside `confval` the module dependency direction is strictly downward.
 `pipeline` builds on `format` and `schema`.
 `constraints` builds on `schema`, `diagnostic`, and `source`.
@@ -195,7 +195,7 @@ After parsing, no stage reads source text until a renderer resolves a span at re
 
 The `format` module is the boundary between text and the rest of the system.
 A frontend parses one format into `Fields`, one level of named entries.
-Each `Field` carries its name span, its entry span, and a `FieldKind` of `Value` or `Block`.
+Each `Field` holds its name span, its entry span, and a `FieldKind` of `Value` or `Block`.
 A `Value` pairs a span with a `ValueKind`.
 The kinds are a `Scalar`, a sequence, a map, and an out-of-model `Other`.
 After a frontend runs, no later stage knows which format the text came from.
@@ -203,8 +203,8 @@ After a frontend runs, no later stage knows which format the text came from.
 The same model flows in both directions.
 The emitters render a `Fields` back to canonical text in any format.
 A configuration can therefore be read in one format and written in another.
-Each frontend and emitter pair sits behind a cargo feature.
-A build carries only the formats it enables.
+Each frontend and emitter pair is behind a cargo feature.
+A build includes only the formats it enables.
 [Parsing](./guide/parsing.md#the-field-model) describes the model, and [Format Limitations](./guide/format-limitations.md) lists what falls outside it.
 
 ## Layering
@@ -271,7 +271,7 @@ A handwritten spec lists its fields once through `FieldsBuilder`, which takes th
 
 `ToSchema::schema` reads the spec type rather than a value.
 It needs no instance.
-The `Schema` tree carries each field's name, doc comment, `required` flag, default text, and declared `SchemaType`.
+The `Schema` tree holds each field's name, doc comment, `required` flag, default text, and declared `SchemaType`.
 The recorded constraints appear as `Constraint::Keywords`, `Constraint::Range`, `Constraint::Length`, `Constraint::Format`, and `Constraint::References`.
 
 Two consumers read it.
@@ -291,7 +291,7 @@ The renderers resolve spans through the `SourceMap` only at render time: as one 
 The `Spec` derive writes `FromFields`, the three `ToFields` walks, `ToSchema`, the `ValidateNested` descent, and the checks for recorded constraints.
 The `Config` derive writes `Lower`, with an exhaustive destructure of the spec.
 A field added on one side without the other is a compile error.
-The generated `Lower` impl carries a `Validate + ValidateNested` bound.
+The generated `Lower` impl has a `Validate + ValidateNested` bound.
 A spec without a validator does not compile.
 
 ## The language server

@@ -100,19 +100,20 @@ pub struct SchemaField {
     /// derive reports an empty bare `Vec<Located<String>>` without a span,
     /// because that shape holds none of its own.
     ///
-    /// `non_empty` is a flag. `unique` below is another flag. Each one records
-    /// whether its rule applies and keeps its optional help line beside it. A
-    /// rule with bounds of its own, such as a range or a length, is recorded
-    /// in the [`Constraint`] slot on [`SchemaType`] instead.
+    /// `non_empty` is a flag. `unique` below is another flag. Each flag says
+    /// whether its rule applies. The optional help line for each is in
+    /// `non_empty_help` and `unique_help`. A rule with bounds of its own,
+    /// such as a range or a length, is recorded in the [`Constraint`] slot on
+    /// [`SchemaType`] instead.
     pub non_empty: bool,
-    /// The help line of a `#[confval(non_empty(help = "..."))]`, or `None`.
+    /// The help line of a `#[confval(non_empty(help = "..."))]` field, or `None`.
     /// The hover reads it after the rule sentence.
     pub non_empty_help: Option<&'static str>,
     /// Whether the list rejects a repeated element, marked `#[confval(unique)]`.
     /// The comparison is the exact string, and each repeat is reported at its
     /// own span.
     pub unique: bool,
-    /// The help line of a `#[confval(unique(help = "..."))]`, or `None`.
+    /// The help line of a `#[confval(unique(help = "..."))]` field, or `None`.
     /// The hover reads it after the rule sentence.
     pub unique_help: Option<&'static str>,
 }
@@ -414,7 +415,7 @@ impl SchemaField {
         self
     }
 
-    /// Marks the field so it rejects an empty value, and keeps the rule's
+    /// Marks the field so it rejects an empty value and keeps the rule's
     /// help line. `None` keeps the generated line. The derive calls it for a
     /// `#[confval(non_empty(help = "..."))]` field. A handwritten spec passes
     /// the `help` field of the const it checks with.
@@ -431,7 +432,7 @@ impl SchemaField {
         self
     }
 
-    /// Marks the list so it rejects a repeated element, and keeps the rule's
+    /// Marks the list so it rejects a repeated element and keeps the rule's
     /// help line. `None` keeps the generated line. The derive calls it for a
     /// `#[confval(unique(help = "..."))]` field. A handwritten spec passes the
     /// `help` field of the const it checks with.

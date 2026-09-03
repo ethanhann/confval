@@ -4,7 +4,7 @@ sidebar_position: 5
 
 # Agent Skills
 
-When you start a new project with confval, you need a spec type whose fields carry a span, validation that accumulates into a report, and lowering into runtime types.
+When you start a new project with confval, you need a spec type whose fields keep a span, validation that accumulates into a report, and lowering into runtime types.
 The shape of each depends on the settings you parse.
 confval ships two agent skills that walk an agent through that work, and a `confval` binary whose job is to install them into your project.
 

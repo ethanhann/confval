@@ -10,10 +10,10 @@ use crate::schema::{Schema, SchemaType};
 use crate::source::Located;
 use crate::source::Span;
 
-/// Whether a label names nothing: it is empty or whitespace-only.
+/// Whether a label is empty or whitespace-only. Such a label names nothing.
 ///
-/// The reference pass and the language server both read a label through this
-/// test, so an editor and the pipeline agree on which labels define something.
+/// The reference pass and the language server both call this function. An
+/// editor and the pipeline then agree on which labels define something.
 pub fn is_empty_label(text: &str) -> bool {
     text.trim().is_empty()
 }

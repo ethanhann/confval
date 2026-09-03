@@ -93,7 +93,7 @@ fn definition_on_a_reference_value_answers_the_label_span() {
     let start = index.offset_of(text, found.range.start, ENCODING);
     assert!(
         start >= label_offset && start < label_offset + "name: api".len(),
-        "the span sits on the first upstream's label"
+        "the span is on the first upstream's label"
     );
 }
 
@@ -219,7 +219,7 @@ fn references_stay_within_the_declaring_scope() {
     let start = index.offset_of(text, found[0].range.start, ENCODING);
     assert!(
         start < text.find("- name: b").unwrap(),
-        "the hit sits inside service a"
+        "the hit is inside service a"
     );
 }
 
@@ -332,7 +332,7 @@ fn each_repeated_instance_range_contains_its_own_children() {
         for child in children {
             assert!(
                 upstream.range.start <= child.range.start && child.range.end <= upstream.range.end,
-                "child {:?} sits inside instance range {:?}",
+                "child {:?} is inside instance range {:?}",
                 child.range,
                 upstream.range
             );
@@ -419,14 +419,14 @@ fn toml_container_ranges_contain_their_children() {
     let mode = children.iter().find(|c| c.name == "mode").expect("mode");
     assert!(
         limits.range.start <= mode.range.start && mode.range.end <= limits.range.end,
-        "the child range sits inside the container: {:?} in {:?}",
+        "the child range is inside the container: {:?} in {:?}",
         mode.range,
         limits.range
     );
     assert!(
         limits.range.start <= limits.selection_range.start
             && limits.selection_range.end <= limits.range.end,
-        "the selection sits inside the range"
+        "the selection is inside the range"
     );
 }
 
@@ -526,7 +526,7 @@ fn toml_repeated_table_symbols_do_not_overlap() {
         assert!(
             symbol.range.start <= symbol.selection_range.start
                 && symbol.selection_range.end <= symbol.range.end,
-            "the selection sits inside its own instance"
+            "the selection is inside its own instance"
         );
         let children = symbol.children.as_ref().expect("children");
         for child in children {

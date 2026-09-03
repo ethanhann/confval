@@ -56,10 +56,10 @@ let source = emit_toml(&spec.to_source_fields())?;
 
 The view is decided one field at a time by whether the field's span is attached.
 Parsing gives every value it reads a real span into the source file.
-Every filled default carries a detached sentinel span instead.
+Every filled default has a detached sentinel span instead.
 The source view keeps the attached values and drops the detached ones, so a default never appears as though the operator wrote it.
 
-Each value the view keeps carries its real source span.
+Each value the view keeps has its real source span.
 A tool that wants to report where a value came from still has the location.
 A block the operator wrote with every inner field left to its default renders as an empty block, because the block itself was written but nothing inside it was.
 
@@ -118,7 +118,7 @@ use confval::schema::ToSchema;
 let schema = ServerSpec::schema();
 ```
 
-The [schema IR](./schema-ir.md) page covers what it carries, the attributes that declare a field's constraint and run it during validation, and why it needs no instance.
+The [schema IR](./schema-ir.md) page covers what it holds, the attributes that declare a field's constraint and run it during validation, and why it needs no instance.
 
 ## Why a separate walk
 

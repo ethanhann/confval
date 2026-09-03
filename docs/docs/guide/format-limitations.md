@@ -59,7 +59,7 @@ KDL's gaps all follow from one rule.
 A KDL argument must be a scalar, and the language has no inline array literal.
 There is no way to write an inner array or an object inside a grouped repetition.
 
-YAML has no gap in this table, and it carries two markers no other format produces.
+YAML has no gap in this table, and it has two markers no other format produces.
 An alias is not expanded, and a tag outside the core schema has no reading.
 A decimal that overflows `f64` refuses rather than becoming an infinity the operator never wrote.
 JSON refuses the same value for the same reason.

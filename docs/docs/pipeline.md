@@ -64,7 +64,7 @@ A whitespace-only label is empty.
 
 :::info
 The `Validate` trait exists so the requirement can be written as a bound.
-Every generated `Lower` impl carries `where SpecType: Validate + ValidateNested`.
+Every generated `Lower` impl has `where SpecType: Validate + ValidateNested`.
 A config does not compile unless its spec has a validator and a traversal.
 
 That catches the forgotten validator and the unreachable child block.
@@ -100,7 +100,7 @@ Say so in the message.
 For example, "this is likely a bug that should have been caught during validation".
 An operator reading that knows the problem is in the software rather than in their configuration file.
 
-The error still carries a span and renders with a source location like any other issue.
+The error still keeps a span and renders with a source location like any other issue.
 
 ## Spec types vs. config types
 

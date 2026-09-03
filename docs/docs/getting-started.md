@@ -5,7 +5,7 @@ sidebar_position: 1
 # Getting Started
 
 confval is a Rust crate for parsing, validating, and lowering configuration files.
-Every parsed value carries its source span, so a validation error can report the line and column in the file the value came from.
+Every parsed value keeps its source span, so a validation error can report the line and column in the file the value came from.
 
 Use it to build the configuration layer of an application.
 You define the shape of the config as Rust types, parse a file into those types, run validation, and lower the result into the runtime types the rest of the program uses.

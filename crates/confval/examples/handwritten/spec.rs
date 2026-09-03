@@ -16,8 +16,8 @@
 //! push by hand.
 //!
 //! Each recorded rule is declared once. `validate` checks with `WORKERS`,
-//! `NAME_LEN`, and `NAME_NON_EMPTY`, and `schema()` builds its records from
-//! the same constants through `constraint()` and `with_non_empty_help`.
+//! `NAME_LEN`, and `NAME_NON_EMPTY`. `schema()` builds its records from the
+//! same three constants, through `constraint()` and `with_non_empty_help`.
 //! `pid_file` shows `check_format_path` beside `format_constraint`.
 
 use crate::children::{LimitsSpec, RouteSpec, TelemetrySpec};
@@ -36,8 +36,8 @@ use std::path::PathBuf;
 range_constraint!(WORKERS, i64, min: 1, max: 512);
 length_constraint!(NAME_LEN, max: 63);
 
-/// The emptiness rule on `name`, declared once so `validate` checks with the
-/// same help line `schema()` records.
+/// The emptiness rule on `name`, declared once. `validate` checks with this
+/// const and `schema()` records its help line.
 const NAME_NON_EMPTY: NonEmptyConstraint =
     NonEmptyConstraint::with_help("Provide the service name the file configures.");
 

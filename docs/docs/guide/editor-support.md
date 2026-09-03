@@ -48,7 +48,7 @@ It shows the field's doc comment, its type, its constraint, and whether it has a
 A field marked `#[confval(non_empty)]` reads "Must not be empty."
 A list marked `#[confval(unique)]` reads "Entries must be unique."
 A flag with a help line reads it after the rule sentence.
-For example, `non_empty(help = "Provide the hostname the server binds.")` reads "Must not be empty. Provide the hostname the server binds."
+For example, `non_empty(help = "Provide the address the server binds to.")` reads "Must not be empty. Provide the address the server binds to."
 A field with a length bound reads `Between {min} and {max} characters.`
 A bound that starts at zero reads `At most {max} characters.`
 A field with a format reads "Format: IPv4 address."

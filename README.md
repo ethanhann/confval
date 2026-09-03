@@ -7,7 +7,7 @@
 
 Configuration parsing, validation, and lowering primitives for Rust.
 
-Configuration is parsed span-first, so every value carries the byte range it came from and every later check can point
+Configuration is parsed span-first, so every value keeps the byte range it came from and every later check can point
 at the place in the file that caused it.
 The core does not depend on any file format.
 A frontend converts one syntax into a format-neutral field model.

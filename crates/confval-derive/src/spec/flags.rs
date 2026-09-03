@@ -142,3 +142,88 @@ pub(crate) fn reject_unique_misuse(shape: &FieldShape, options: &FieldOptions) -
         )),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::spec::options::parse_options;
+    use crate::spec::shape::classify;
+    use syn::parse_quote;
+
+    /// The shape and the options of the first field of a parsed struct.
+    fn field(item: syn::ItemStruct) -> (FieldShape, FieldOptions) {
+        let field = item
+            .fields
+            .into_iter()
+            .next()
+            .expect("the struct has a field");
+        let options = parse_options(&field).expect("the attributes read");
+        let shape = classify(&field, options.nested, options.map).expect("the shape classifies");
+        (shape, options)
+    }
+
+    #[test]
+    fn non_empty_is_rejected_beside_label_and_default_and_on_a_non_string_leaf() {
+        // Arrange
+        let (label_shape, label_options) = field(parse_quote! {
+            struct Cfg {
+                #[confval(label, non_empty)]
+                name: Located<String>,
+            }
+        });
+        let (default_shape, default_options) = field(parse_quote! {
+            struct Cfg {
+                #[confval(default, non_empty)]
+                name: Located<String>,
+            }
+        });
+        let (int_shape, int_options) = field(parse_quote! {
+            struct Cfg {
+                #[confval(non_empty)]
+                port: Located<i64>,
+            }
+        });
+
+        // Act
+        let results = [
+            reject_non_empty_misuse(&label_shape, &label_options),
+            reject_non_empty_misuse(&default_shape, &default_options),
+            reject_non_empty_misuse(&int_shape, &int_options),
+        ];
+
+        // Assert
+        let messages: Vec<String> = results
+            .iter()
+            .map(|result| {
+                result
+                    .as_ref()
+                    .expect_err("the pair is rejected")
+                    .to_string()
+            })
+            .collect();
+        assert!(messages[0].contains("cannot be combined with #[confval(label)]"));
+        assert!(messages[1].contains("cannot be combined with #[confval(default)]"));
+        assert!(messages[2].contains("requires a String leaf or a string list"));
+    }
+
+    #[test]
+    fn non_empty_is_accepted_on_a_string_leaf_beside_a_value_constraint() {
+        // Arrange
+        let (shape, options) = field(parse_quote! {
+            struct Cfg {
+                #[confval(non_empty(help = "Provide a mode."), keywords = Mode)]
+                mode: Located<String>,
+            }
+        });
+
+        // Act
+        let result = reject_non_empty_misuse(&shape, &options);
+
+        // Assert
+        assert!(result.is_ok());
+        assert_eq!(
+            options.non_empty_help.map(|help| help.value()),
+            Some("Provide a mode.".to_string())
+        );
+    }
+}

@@ -2,8 +2,8 @@
 //! bare flag, a `key = PATH` value, and a flag with an optional
 //! `(help = "...")` list.
 
-/// Stores a bare flag's own path, kept so a misuse error points at the
-/// attribute, or rejects a second one.
+/// Stores a bare flag's own path, or rejects a second one. The path is kept
+/// so a misuse error points at the attribute.
 pub(super) fn set_flag(
     slot: &mut Option<syn::Path>,
     meta: &syn::meta::ParseNestedMeta<'_>,
@@ -30,8 +30,15 @@ pub(super) fn set_path<T: syn::parse::Parse>(
 }
 
 /// Stores a flag's own path and, when a parenthesized list follows, its
-/// `help = "..."` line. Rejects a second flag, the `key = value` form, an
-/// unknown key, a non-string help, a blank help, and a second help.
+/// `help = "..."` line. Each rejection is a compile error with its own
+/// `tests/ui/fail` case:
+///
+/// - a second flag,
+/// - the `key = value` form,
+/// - an unknown key in the list,
+/// - a non-string help,
+/// - a blank help,
+/// - a second help.
 pub(super) fn set_flag_with_help(
     slot: &mut Option<syn::Path>,
     help: &mut Option<syn::LitStr>,

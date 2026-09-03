@@ -311,12 +311,12 @@ mod tests {
     fn body_reference_links_resolve_in_the_catalog() {
         for skill in SKILLS {
             let body = skill.skill_md.template;
-            let carried: BTreeSet<&str> = skill.files().map(|f| f.relative_path).collect();
+            let included: BTreeSet<&str> = skill.files().map(|f| f.relative_path).collect();
             for link in reference_links(body) {
                 let target = format!("{}/{link}", skill.name);
                 assert!(
-                    carried.contains(target.as_str()),
-                    "{} links to {link}, which the catalog does not carry",
+                    included.contains(target.as_str()),
+                    "{} links to {link}, which the catalog does not include",
                     skill.name
                 );
             }

@@ -189,9 +189,9 @@ NON_EMPTY.check_each(&spec.tags, "tag", report);
 `check_each` checks each element of a list at its own span.
 `check_list` takes a list span and reports when the list has no elements.
 The message is `name must not be empty`.
-`check_located` and `check_each` generate the help line "Provide a non-empty value for name".
+`check_located` and `check_each` generate the help line "Provide a non-empty value for" followed by the field name you pass.
 `check_list` generates "Provide at least one item in name".
-When a field needs its own remediation line, declare the rule once with `NonEmptyConstraint::with_help`.
+When a field needs its own help line, declare the rule once with `NonEmptyConstraint::with_help`.
 
 ```rust
 const SOCK: NonEmptyConstraint =
@@ -213,7 +213,7 @@ UNIQUE.check_list(&spec.tags, "tags", report);
 
 The message is `duplicate value in tags: "web"`, with a related label at the first occurrence.
 The help line is "Remove the repeated entry from tags".
-When a list needs its own remediation line, declare the rule once with `UniqueConstraint::with_help`.
+When a list needs its own help line, declare the rule once with `UniqueConstraint::with_help`.
 
 ```rust
 const LISTENERS: UniqueConstraint = UniqueConstraint::with_help("Each listener may appear once.");
@@ -287,7 +287,7 @@ The derive then runs the check for you.
 `#[confval(length = PATH)]` on a `String` leaf names a `length_constraint!` bound.
 `#[confval(format = PATH)]` on a `String` leaf, a `Path` leaf, or a string list names a type that implements `Format`.
 On a `Path` leaf the check reads the path's text.
-`AbsolutePath` therefore records on a `Located<PathBuf>`.
+For example, `#[confval(format = AbsolutePath)]` compiles on a `Located<PathBuf>` field.
 On a list, every element must parse.
 `#[confval(unique)]` on a string list rejects an entry that repeats an earlier one.
 The comparison is the exact string.
@@ -295,13 +295,17 @@ Each repeat is reported at its own span, with a related label at the first occur
 `#[confval(keywords = PATH)]` also applies to a string list, where it records the set each element must come from.
 `#[confval(non_empty)]` on a `String` leaf or a string list rejects an empty or whitespace-only value.
 On an `Option<Located<String>>` leaf, the derive checks the value only when the source sets it.
-Both flags take an optional help line, as in `#[confval(non_empty(help = "Provide a path to the socket."))]` and `#[confval(unique(help = "Each listener may appear once."))]`.
-When you provide **help**, it replaces the generated suggestion.
-On a list, one help line covers the empty list and each empty element, so word it for both.
-The help reaches the schema and an editor's hover as well.
 On a list, it also rejects a list with zero elements.
 The wrapped `Option<Located<Vec<Located<String>>>>` keeps the list's own span, so that message points at the brackets.
 The bare `Vec<Located<String>>` holds no span of its own, so that message has no location.
+
+Both flags take an optional help line, as in `#[confval(non_empty(help = "Provide a path to the socket."))]` and `#[confval(unique(help = "Each listener may appear once."))]`.
+When you provide **help**, it replaces the generated suggestion.
+On a list, one help line covers the empty list and each empty element.
+Word it so it reads correctly for both.
+The schema keeps the help line.
+An editor's hover reads it after the rule sentence.
+
 `validate_all` runs each recorded check.
 The field needs no line in `validate`.
 
@@ -374,7 +378,7 @@ It stays in the `Validate` body.
 A duplicate check that spans blocks, such as a service name unique across files, compares labels and stays there too.
 `unique` covers one list.
 An emptiness rule on a defaulted list also stays in the `Validate` body, because `non_empty` cannot be combined with `default`.
-An empty or whitespace-only label is reported by `check_references`.
+`check_references` reports an empty or whitespace-only label.
 A `label` field needs neither `non_empty` nor a manual check when the pipeline runs that pass.
 
 A keyword list checked by hand with `check_each` also stays there.
@@ -396,10 +400,12 @@ Its `Validate` body calls each check, and its `ToSchema` builds each record.
 When the two are declared apart, nothing keeps them in agreement.
 Declare each rule once and use that one declaration in both places.
 
-A `RangeConstraint` and a `LengthConstraint` describe themselves through `constraint()`.
-A format's record is `confval::constraints::format_constraint::<T>()`, which is not in the prelude.
-A keyword set's record is `Constraint::keywords(&T::KEYWORDS)`, from the same table `keyword_set()` reads.
-A flag records through `with_non_empty_help` or `with_unique_help`, with the help read from the const.
+`RangeConstraint::constraint` and `LengthConstraint::constraint` return the schema record for the bound.
+A format's record is `confval::constraints::format_constraint::<T>()`.
+That function is not in the prelude, so name it by its full path.
+A keyword set's record is `Constraint::keywords(&T::KEYWORDS)`, built from the table `keyword_set()` reads.
+A flag records through `with_non_empty_help` or `with_unique_help`.
+Pass the `help` field of the const the `Validate` body checks with.
 
 For example, a service block with a name and a worker count:
 
@@ -460,7 +466,8 @@ fn main() {
 
 A rule that depends on which variant a tagged block holds stays handwritten and records nothing.
 The `domains` list an `acme` mode needs is one example.
-The schema describes one flat level, so a flag on `domains` would describe the `manual` variant too.
+The schema describes one flat level.
+A flag on `domains` would describe the `manual` variant too.
 
 ## Writing a Validate impl
 
@@ -481,7 +488,7 @@ pub trait Validate {
 `validate` is the only method with no default.
 It is the one you implement.
 
-A `Validate` impl checks what a spec value can prove from its own fields, reporting at the span each field carries.
+A `Validate` impl checks what a spec value can prove from its own fields, reporting at the span each field keeps.
 Because it receives `&self`, it can read every field of that struct.
 A rule spanning two fields of the same spec type belongs here.
 
