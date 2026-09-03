@@ -1,8 +1,9 @@
 //! `#[confval(non_empty)]` pass test over every legal carrier.
 //!
-//! This pins the two leaf shapes and the two list shapes as legal, and pins
-//! the flag beside `label` and beside a value constraint, so the spelling
-//! stays compilable rather than resting on the fail cases alone.
+//! This pins the two leaf shapes and the two list shapes as legal, in the
+//! bare form and in the `help = "..."` form, and pins the flag beside a value
+//! constraint, so the spelling stays compilable rather than resting on the
+//! fail cases alone.
 
 use confval::diagnostic::Report;
 use confval::keyword_enum;
@@ -17,7 +18,7 @@ keyword_enum!(pub LimitMode, {
 
 #[derive(confval::Spec)]
 struct Cfg {
-    #[confval(label, non_empty)]
+    #[confval(label)]
     name: Located<String>,
     #[confval(non_empty, keywords = LimitMode)]
     mode: Located<String>,
@@ -27,6 +28,16 @@ struct Cfg {
     tags: Vec<Located<String>>,
     #[confval(non_empty)]
     events: Option<Located<Vec<Located<String>>>>,
+    #[confval(non_empty(help = "Provide a socket path."))]
+    sock: Located<String>,
+    #[confval(non_empty(help = "Provide a zone or omit it."))]
+    zone: Option<Located<String>>,
+    #[confval(non_empty(help = "List at least one hook."))]
+    hooks: Vec<Located<String>>,
+    #[confval(non_empty(help = "List at least one phase."))]
+    phases: Option<Located<Vec<Located<String>>>>,
+    #[confval(non_empty(help = "Provide a limit mode."), keywords = LimitMode)]
+    limit: Located<String>,
 }
 
 impl Validate for Cfg {

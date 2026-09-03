@@ -89,6 +89,7 @@ It rejects an empty or whitespace-only value.
 On a list it also rejects a list with zero elements.
 The schema records it as `SchemaField::non_empty`, a `bool` flag separate from the `Constraint` slot.
 A field can have both `non_empty` and a value constraint.
+It cannot have `non_empty` beside `label`, because the reference pass reports an empty label.
 
 ### `#[confval(unique)]`
 
@@ -206,6 +207,7 @@ if let Some(fields) = &fields {
 ```
 
 The pass reports an undefined reference, a duplicate label, and an empty label, each at its value's span.
+A label of spaces alone is empty.
 The language server runs the same pass in its diagnostics.
 The editor and your pipeline report the same reference errors.
 

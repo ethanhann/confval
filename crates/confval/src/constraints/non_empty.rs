@@ -120,6 +120,62 @@ mod tests {
     }
 
     #[test]
+    fn a_provided_help_replaces_the_generated_line_on_a_leaf() {
+        // Arrange
+        let rule = NonEmptyConstraint::with_help("Provide the socket path.");
+        let value = Located::detached(String::new());
+        let mut report = Report::new();
+
+        // Act
+        rule.check_located(&value, "sock", &mut report);
+
+        // Assert
+        assert_eq!(report.issues()[0].message, "sock must not be empty");
+        assert_eq!(
+            report.issues()[0].help.as_deref(),
+            Some("Provide the socket path.")
+        );
+    }
+
+    #[test]
+    fn a_provided_help_replaces_the_generated_line_on_a_list() {
+        // Arrange
+        let rule = NonEmptyConstraint::with_help("List at least one hook.");
+        let mut report = Report::new();
+
+        // Act
+        rule.check_list(&[], "hooks", Span::detached(), &mut report);
+
+        // Assert
+        assert_eq!(report.issues()[0].message, "hooks must not be empty");
+        assert_eq!(
+            report.issues()[0].help.as_deref(),
+            Some("List at least one hook.")
+        );
+    }
+
+    #[test]
+    fn the_bare_rule_keeps_the_generated_help() {
+        // Arrange
+        let value = Located::detached(String::new());
+        let mut report = Report::new();
+
+        // Act
+        NON_EMPTY.check_located(&value, "name", &mut report);
+        NON_EMPTY.check_list(&[], "tags", Span::detached(), &mut report);
+
+        // Assert
+        assert_eq!(
+            report.issues()[0].help.as_deref(),
+            Some("Provide a non-empty value for name")
+        );
+        assert_eq!(
+            report.issues()[1].help.as_deref(),
+            Some("Provide at least one item in tags")
+        );
+    }
+
+    #[test]
     fn check_each_passes_when_all_elements_are_non_empty() {
         // Arrange
         let values = vec![

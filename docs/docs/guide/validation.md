@@ -327,6 +327,7 @@ A field cannot have `#[confval(non_empty)]` and `#[confval(default)]` together.
 The default for a string is the empty string.
 The default for a list is the empty list.
 Either default would fail the check.
+A field cannot have `#[confval(non_empty)]` and `#[confval(label)]` together, because the reference pass reports an empty label.
 
 ### What recording covers
 
@@ -344,6 +345,8 @@ It stays in the `Validate` body.
 A duplicate check that spans blocks, such as a service name unique across files, compares labels and stays there too.
 `unique` covers one list.
 An emptiness rule on a defaulted list also stays in the `Validate` body, because `non_empty` cannot be combined with `default`.
+An empty label, or a label of spaces alone, is reported by `check_references`.
+A `label` field needs neither `non_empty` nor a manual check when the pipeline runs that pass.
 
 A keyword list checked by hand with `check_each` also stays there.
 If you record other fields and delete that line, the check disappears with no compile error.

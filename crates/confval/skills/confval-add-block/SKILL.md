@@ -30,6 +30,7 @@ Use `#[confval(nested)]` on a new block and give the block its own spec struct.
 Use `Vec<Located<T>>` for a block that may repeat.
 Hold a closed set of strings as a `Located<String>` with a `keyword_enum!` for its enum, rather than an enum in the spec.
 Mark the child field that names a repeated block's instances with `#[confval(label)]`.
+The label field takes no `#[confval(non_empty)]`, because `check_references` reports an empty label.
 Mark a string field that points at one of those names with `#[confval(references = <block>)]`.
 
 ### 2. The validation

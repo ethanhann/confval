@@ -7,6 +7,7 @@ use std::collections::HashSet;
 
 use lsp_types::CompletionItemKind;
 
+use confval::pipeline::is_empty_label;
 use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 use crate::frontend::{Frontend, ValueSeparator, quoted_literal};
@@ -228,7 +229,7 @@ fn reference_items(block: &str, separator: ValueSeparator, cx: &Cx) -> Vec<RawIt
     let mut seen = HashSet::new();
     labels
         .iter()
-        .filter(|label| !label.value.is_empty())
+        .filter(|label| !is_empty_label(&label.value))
         .filter(|label| seen.insert(label.value.as_str()))
         .enumerate()
         .map(|(order, label)| keyword_item(&label.value, separator, cx, order))

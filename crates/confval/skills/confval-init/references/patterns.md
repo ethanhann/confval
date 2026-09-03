@@ -110,6 +110,7 @@ struct ServiceSpec {
 
 A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(keywords = ...)]`.
 A field cannot carry `#[confval(non_empty)]` and `#[confval(default)]` together, because the default is empty and would fail the check.
+A field cannot carry `#[confval(non_empty)]` and `#[confval(label)]` together, because `check_references` reports an empty label.
 
 For a handwritten spec, call the checker directly:
 

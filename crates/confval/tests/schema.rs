@@ -795,3 +795,51 @@ fn a_unique_list_carries_the_flag_in_both_shapes_beside_a_constraint() {
     );
     assert!(!port.unique, "a leaf is not marked unique");
 }
+
+/// A spec with a help line on each flag, beside a bare flag.
+#[derive(confval::Spec)]
+struct FlagHelp {
+    #[confval(non_empty(help = "Provide a service name."))]
+    name: Located<String>,
+    #[confval(unique(help = "Each listener may appear once."))]
+    listeners: Vec<Located<String>>,
+    #[confval(non_empty, unique)]
+    tags: Vec<Located<String>>,
+}
+
+impl Validate for FlagHelp {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_flag_with_help_holds_the_flag_and_its_help() {
+    // Arrange
+    let schema = FlagHelp::schema();
+
+    // Act
+    let name = field(&schema, "name");
+    let listeners = field(&schema, "listeners");
+
+    // Assert
+    assert!(name.non_empty, "name is marked non_empty");
+    assert_eq!(name.non_empty_help, Some("Provide a service name."));
+    assert!(listeners.unique, "listeners is marked unique");
+    assert_eq!(
+        listeners.unique_help,
+        Some("Each listener may appear once.")
+    );
+}
+
+#[test]
+fn a_bare_flag_holds_the_flag_and_no_help() {
+    // Arrange
+    let schema = FlagHelp::schema();
+
+    // Act
+    let tags = field(&schema, "tags");
+
+    // Assert
+    assert!(tags.non_empty && tags.unique, "tags is marked with both flags");
+    assert_eq!(tags.non_empty_help, None);
+    assert_eq!(tags.unique_help, None);
+}

@@ -62,11 +62,12 @@ pub(crate) fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) ->
 /// Rejects the misuses of `#[confval(non_empty)]`.
 ///
 /// `non_empty` is valid on a `String` leaf and on a string list. It rejects
-/// `Int`, `Float`, `Bool`, `Path`, `Block`, and `Map`. It combines with
-/// `label` and with the value constraints valid on a string, which are
-/// `keywords`, `length`, `format`, and `references`. It does not combine with
-/// `range`, because `range` requires an `Int` or `Float` leaf. A field with
-/// both `default` and `non_empty` is rejected.
+/// `Int`, `Float`, `Bool`, `Path`, `Block`, and `Map`. It combines with the
+/// value constraints valid on a string, which are `keywords`, `length`,
+/// `format`, and `references`. It does not combine with `range`, because
+/// `range` requires an `Int` or `Float` leaf. A field with both `label` and
+/// `non_empty` is rejected, because the reference pass owns the empty-label
+/// report. A field with both `default` and `non_empty` is rejected.
 /// The default for a `String` is the empty string and for a list is the
 /// empty list. Either one would fail the check.
 pub(crate) fn reject_non_empty_misuse(
@@ -97,6 +98,13 @@ pub(crate) fn reject_non_empty_misuse(
                  it cannot apply to a map or a nested block",
             ));
         }
+    }
+    if options.label.is_some() {
+        return Err(syn::Error::new_spanned(
+            non_empty,
+            "#[confval(non_empty)] cannot be combined with #[confval(label)]; \
+             check_references reports an empty label, so run that pass beside validate_all",
+        ));
     }
     if options.default.is_some() {
         return Err(syn::Error::new_spanned(

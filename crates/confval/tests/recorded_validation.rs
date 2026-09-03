@@ -1493,3 +1493,144 @@ fn unique_and_format_both_fire_on_a_repeated_invalid_entry() {
         ]
     );
 }
+
+/// The help lines in a report, in order, with `None` for an issue without one.
+fn helps(report: &Report) -> Vec<Option<&str>> {
+    report
+        .issues()
+        .iter()
+        .map(|issue| issue.help.as_deref())
+        .collect()
+}
+
+/// A spec with `non_empty(help = ...)` on the four legal carriers.
+#[derive(confval::Spec)]
+struct NonEmptyHelp {
+    #[confval(non_empty(help = "Provide a service name."))]
+    name: Located<String>,
+    #[confval(non_empty(help = "Provide a region or omit it."))]
+    region: Option<Located<String>>,
+    #[confval(non_empty(help = "List at least one tag."))]
+    tags: Vec<Located<String>>,
+    #[confval(non_empty(help = "List at least one event."))]
+    events: Option<Located<Vec<Located<String>>>>,
+}
+
+impl Validate for NonEmptyHelp {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec with `unique(help = ...)` on both list shapes.
+#[derive(confval::Spec)]
+struct UniqueHelp {
+    #[confval(unique(help = "Each listener may appear once."))]
+    listeners: Vec<Located<String>>,
+    #[confval(unique(help = "Each hook may appear once."))]
+    hooks: Option<Located<Vec<Located<String>>>>,
+}
+
+impl Validate for UniqueHelp {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn non_empty_help_replaces_the_generated_line_on_every_carrier() {
+    // Arrange
+    let spec = NonEmptyHelp {
+        name: Located::detached(String::new()),
+        region: Some(Located::detached("  ".to_string())),
+        tags: vec![Located::detached(String::new())],
+        events: Some(Located::detached(Vec::new())),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "name must not be empty",
+            "region must not be empty",
+            "tags must not be empty",
+            "events must not be empty",
+        ]
+    );
+    assert_eq!(
+        helps(&report),
+        vec![
+            Some("Provide a service name."),
+            Some("Provide a region or omit it."),
+            Some("List at least one tag."),
+            Some("List at least one event."),
+        ]
+    );
+}
+
+#[test]
+fn non_empty_help_reports_nothing_on_a_valid_spec() {
+    // Arrange
+    let spec = NonEmptyHelp {
+        name: Located::detached("api".to_string()),
+        region: None,
+        tags: vec![Located::detached("web".to_string())],
+        events: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_issues());
+}
+
+#[test]
+fn unique_help_replaces_the_generated_line_on_both_shapes() {
+    // Arrange
+    let spec = UniqueHelp {
+        listeners: vec![
+            Located::detached("a".to_string()),
+            Located::detached("a".to_string()),
+        ],
+        hooks: Some(Located::detached(vec![
+            Located::detached("h".to_string()),
+            Located::detached("h".to_string()),
+        ])),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "duplicate value in listeners: \"a\"",
+            "duplicate value in hooks: \"h\"",
+        ]
+    );
+    assert_eq!(
+        helps(&report),
+        vec![
+            Some("Each listener may appear once."),
+            Some("Each hook may appear once."),
+        ]
+    );
+}
+
+#[test]
+fn the_bare_flags_keep_the_generated_help() {
+    // Arrange
+    let spec = NonEmptyList {
+        tags: vec![Located::detached(String::new())],
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        helps(&report),
+        vec![Some("Provide a non-empty value for tags")]
+    );
+}

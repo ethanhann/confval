@@ -663,3 +663,48 @@ fn yaml_hover_on_a_list_element_reports_the_list_as_set() {
         "the cursor sits on the list's own value, body: {body}"
     );
 }
+
+#[test]
+fn a_reference_to_a_whitespace_only_label_hovers_as_unresolved() {
+    // Arrange
+    let text = "upstream \"  \" {\n  host = \"h\"\n  port = 1\n}\nroutes {\n  prefix = \"/a\"\n  upstream = \"  \"\n}\n";
+    let offset = text.rfind("upstream = \"  \"").unwrap() + "upstream = \"".len();
+
+    // Act
+    let markdown = gateway_hover(&Hcl, text, offset);
+
+    // Assert
+    assert!(
+        markdown.contains("Does not resolve to any defined label."),
+        "reports a miss: {markdown:?}"
+    );
+}
+
+#[test]
+fn hover_on_a_flag_with_help_reads_the_help_after_the_rule() {
+    // Arrange
+    let text = "hostname = \"127.0.0.1\"\n";
+    let offset = text.find("hostname").expect("the field is present") + 1;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let body = markdown(hover.expect("a hover is produced"));
+    assert!(
+        body.contains("Must not be empty. Provide the hostname the server binds."),
+        "body: {body}"
+    );
+}

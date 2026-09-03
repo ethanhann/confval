@@ -6,7 +6,7 @@
 //! along the same path to find which fields the operator has already set.
 
 use confval::format::{Field, FieldKind, Fields, Scalar, ValueKind};
-use confval::pipeline::{Scope, declares_labeled_block, scope_labels};
+use confval::pipeline::{Scope, declares_labeled_block, is_empty_label, scope_labels};
 use confval::schema::{Schema, SchemaType};
 use confval::source::Located;
 
@@ -126,7 +126,7 @@ pub(crate) fn declaring_scope<'a>(
 
 /// Whether a label is a non-empty match for a reference value.
 pub(crate) fn label_matches(label: &Located<String>, value: &str) -> bool {
-    !label.value.is_empty() && label.value == value
+    !is_empty_label(&label.value) && label.value == value
 }
 
 /// The labels a reference at the cursor resolves against: the declaring
@@ -176,10 +176,12 @@ mod tests {
     fn a_label_matches_only_a_non_empty_equal_value() {
         // Arrange
         let empty = confval::source::Located::detached(String::new());
+        let blank = confval::source::Located::detached("  ".to_string());
         let named = confval::source::Located::detached("api".to_string());
 
         // Act, Assert
         assert!(!label_matches(&empty, ""));
+        assert!(!label_matches(&blank, "  "));
         assert!(!label_matches(&named, "web"));
         assert!(label_matches(&named, "api"));
     }

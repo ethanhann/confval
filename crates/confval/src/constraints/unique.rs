@@ -62,6 +62,49 @@ mod tests {
     }
 
     #[test]
+    fn a_provided_help_replaces_the_generated_line() {
+        // Arrange
+        let rule = UniqueConstraint::with_help("Each listener may appear once.");
+        let values = vec![
+            Located::detached("a".to_string()),
+            Located::detached("a".to_string()),
+        ];
+        let mut report = Report::new();
+
+        // Act
+        rule.check_list(&values, "listeners", &mut report);
+
+        // Assert
+        assert_eq!(
+            report.issues()[0].message,
+            "duplicate value in listeners: \"a\""
+        );
+        assert_eq!(
+            report.issues()[0].help.as_deref(),
+            Some("Each listener may appear once.")
+        );
+    }
+
+    #[test]
+    fn the_bare_rule_keeps_the_generated_help() {
+        // Arrange
+        let values = vec![
+            Located::detached("a".to_string()),
+            Located::detached("a".to_string()),
+        ];
+        let mut report = Report::new();
+
+        // Act
+        UNIQUE.check_list(&values, "tags", &mut report);
+
+        // Assert
+        assert_eq!(
+            report.issues()[0].help.as_deref(),
+            Some("Remove the repeated entry from tags")
+        );
+    }
+
+    #[test]
     fn each_repeat_is_reported_at_its_own_span_and_the_first_is_not() {
         // Arrange
         let mut sources = SourceMap::new();

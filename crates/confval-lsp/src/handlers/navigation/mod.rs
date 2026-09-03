@@ -22,7 +22,7 @@ pub use rename::{prepare_rename, rename};
 
 use lsp_types::{Location, Uri};
 
-use confval::pipeline::{Scope, scope_labels, visit_references};
+use confval::pipeline::{Scope, is_empty_label, scope_labels, visit_references};
 use confval::schema::{Constraint, Schema, SchemaType};
 use confval::source::Span;
 
@@ -200,7 +200,7 @@ fn label_field_site<'a>(
     let label = instance.get(field)?;
     let value = field_text(label)?;
     // The pipeline rejects an empty label, so it defines nothing to navigate.
-    if value.is_empty() {
+    if is_empty_label(&value) {
         return None;
     }
     Some(LabelSite {
@@ -230,7 +230,7 @@ fn native_label_site<'a>(
         .find(|label| {
             !label.span.is_detached() && label.span.start <= offset && offset <= label.span.end
         })?;
-    if label.value.is_empty() {
+    if is_empty_label(&label.value) {
         return None;
     }
     Some(LabelSite {
