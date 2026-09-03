@@ -183,12 +183,19 @@ mod tests {
                 port: Located<i64>,
             }
         });
+        let (block_shape, block_options) = field(parse_quote! {
+            struct Cfg {
+                #[confval(nested, non_empty)]
+                limits: Located<LimitsSpec>,
+            }
+        });
 
         // Act
         let results = [
             reject_non_empty_misuse(&label_shape, &label_options),
             reject_non_empty_misuse(&default_shape, &default_options),
             reject_non_empty_misuse(&int_shape, &int_options),
+            reject_non_empty_misuse(&block_shape, &block_options),
         ];
 
         // Assert
@@ -201,9 +208,25 @@ mod tests {
                     .to_string()
             })
             .collect();
-        assert!(messages[0].contains("cannot be combined with #[confval(label)]"));
-        assert!(messages[1].contains("cannot be combined with #[confval(default)]"));
-        assert!(messages[2].contains("requires a String leaf or a string list"));
+        assert_eq!(
+            messages[0],
+            "#[confval(non_empty)] cannot be combined with #[confval(label)]; \
+             check_references reports an empty label, so run that pass beside validate_all"
+        );
+        assert_eq!(
+            messages[1],
+            "#[confval(non_empty)] cannot be combined with #[confval(default)]; \
+             the default for a String is the empty string, which fails the check"
+        );
+        assert_eq!(
+            messages[2],
+            "#[confval(non_empty)] requires a String leaf or a string list"
+        );
+        assert_eq!(
+            messages[3],
+            "#[confval(non_empty)] requires a String leaf or a string list; \
+             it cannot apply to a map or a nested block"
+        );
     }
 
     #[test]
