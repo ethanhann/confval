@@ -227,26 +227,43 @@ A spec you write by hand implements it too, because a derived parent's `schema()
 Build the tree through the same constructors.
 
 ```rust
-use confval::schema::{Constraint, Schema, SchemaField, SchemaType, ScalarType, ToSchema};
+use confval::prelude::*;
+use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
+
+length_constraint!(NAME_LEN, max: 63);
+
+struct TlsSpec;
 
 impl ToSchema for TlsSpec {
     fn schema() -> Schema {
         Schema::new(
             None,
-            vec![SchemaField::new(
-                "mode".to_string(),
-                None,
-                true,
-                false,
-                SchemaType::Scalar {
-                    leaf: ScalarType::String,
-                    constraint: Some(Constraint::Keywords(&["manual", "acme"])),
-                },
-            )],
+            vec![
+                SchemaField::new(
+                    "mode".to_string(),
+                    None,
+                    SchemaType::scalar(
+                        ScalarType::String,
+                        Some(Constraint::keywords(&["manual", "acme"])),
+                    ),
+                )
+                .required(),
+                SchemaField::new(
+                    "name".to_string(),
+                    None,
+                    SchemaType::scalar(ScalarType::String, Some(NAME_LEN.constraint())),
+                ),
+            ],
         )
     }
 }
+
+fn main() {
+    assert_eq!(TlsSpec::schema().fields.len(), 2);
+}
 ```
 
-A reference field is declared the same way, with `Some(Constraint::References { block: "upstreams" })` as the constraint.
+A reference field is declared the same way, with `Some(Constraint::references("upstreams"))` as the constraint.
 The target block marks its label child by calling `as_label()` on that child's `SchemaField`.
+A value constraint's record comes from the constant `validate` checks with.
+[Recording a constraint on a handwritten spec](./validation.md#recording-a-constraint-on-a-handwritten-spec) shows the pattern.

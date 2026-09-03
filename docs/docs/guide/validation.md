@@ -378,6 +378,78 @@ A per-element bound on a string list is not recorded in this release.
 `references` resolves one value against the labels in scope.
 It is recorded on a scalar leaf too.
 
+## Recording a constraint on a handwritten spec
+
+A handwritten spec gets nothing from the derive.
+Its `Validate` body calls each check, and its `ToSchema` builds each record.
+When the two are declared apart, nothing keeps them in agreement.
+Declare each rule once and use that one declaration in both places.
+
+A `RangeConstraint` and a `LengthConstraint` describe themselves through `constraint()`.
+A format's record is `format_constraint::<T>()`.
+A keyword set's record is `Constraint::keywords(&T::KEYWORDS)`, from the same table `keyword_set()` reads.
+A flag records through `with_non_empty_help` or `with_unique_help`, with the help read from the const.
+
+For example, a service block with a name and a worker count:
+
+```rust
+use confval::prelude::*;
+use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
+
+range_constraint!(WORKERS, i64, min: 1, max: 512);
+length_constraint!(NAME_LEN, max: 63);
+const NAME_NON_EMPTY: NonEmptyConstraint =
+    NonEmptyConstraint::with_help("Provide the service name.");
+
+struct ServiceSpec {
+    name: Located<String>,
+    workers: Located<i64>,
+}
+
+impl Validate for ServiceSpec {
+    fn validate(&self, report: &mut Report) {
+        NAME_NON_EMPTY.check_located(&self.name, "name", report);
+        NAME_LEN.check_located(&self.name, "name", report);
+        WORKERS.check_located(&self.workers, "workers", report);
+    }
+}
+
+impl ToSchema for ServiceSpec {
+    fn schema() -> Schema {
+        Schema::new(
+            None,
+            vec![
+                SchemaField::new(
+                    "name".to_string(),
+                    None,
+                    SchemaType::scalar(ScalarType::String, Some(NAME_LEN.constraint())),
+                )
+                .required()
+                .with_non_empty_help(NAME_NON_EMPTY.help),
+                SchemaField::new(
+                    "workers".to_string(),
+                    None,
+                    SchemaType::scalar(ScalarType::Int, Some(WORKERS.constraint())),
+                )
+                .required(),
+            ],
+        )
+    }
+}
+
+fn main() {
+    let schema = ServiceSpec::schema();
+    let workers = &schema.fields[1];
+    assert_eq!(
+        workers.ty.constraint(),
+        Some(&Constraint::range("1".to_string(), "512".to_string(), None, None))
+    );
+}
+```
+
+A rule that depends on which variant a tagged block holds, such as the `domains` list an `acme` mode needs, stays hand-written and records nothing.
+The schema describes one flat level, so a flag on `domains` would describe the `manual` variant too.
+
 ## Writing a Validate impl
 
 `Validate` holds the semantic checks a spec type performs on itself:

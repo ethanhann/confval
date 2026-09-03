@@ -55,6 +55,7 @@ Like `range_constraint!`, the macro takes attributes and a visibility before the
 A private const must be in the module that declares the spec struct.
 A const declared `pub` or `pub(crate)` is usable from any module that imports from the module holding it.
 The derive rejects `length` on a list, a map, a block, and a non-string leaf.
+A handwritten `schema()` records the bound with `HOSTNAME_LEN.constraint()`, the same constant `validate` checks with.
 
 ## A string that must parse as a format
 

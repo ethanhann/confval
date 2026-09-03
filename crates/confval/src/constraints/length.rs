@@ -6,6 +6,7 @@
 //! own check in the `Validate` body.
 
 use crate::diagnostic::Report;
+use crate::schema::Constraint;
 use crate::source::Located;
 
 /// An inclusive bound on the character count of a string, reporting at the
@@ -26,6 +27,13 @@ impl LengthConstraint {
     /// they agree on the unit.
     pub fn measure(text: &str) -> usize {
         text.chars().count()
+    }
+
+    /// The schema record for this bound. The derive emits this call for a
+    /// `#[confval(length = ...)]` field, and a handwritten `schema()` calls it
+    /// on the same value `validate` checks with, so the two cannot disagree.
+    pub fn constraint(&self) -> Constraint {
+        Constraint::length(self.min, self.max, self.help)
     }
 
     /// Whether `text` is within the inclusive bound.
@@ -131,6 +139,19 @@ macro_rules! length_constraint {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema::Constraint;
+
+    #[test]
+    fn the_record_equals_the_constructor_call_with_the_same_values() {
+        // Act
+        let record = LABEL_LEN.constraint();
+
+        // Assert
+        assert_eq!(
+            record,
+            Constraint::length(1, 63, Some("Each DNS label is at most 63 characters."))
+        );
+    }
 
     length_constraint!(HOSTNAME_LEN, min: 1, max: 253);
     length_constraint!(LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 63 characters.");

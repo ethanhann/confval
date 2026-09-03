@@ -1,4 +1,5 @@
 use crate::diagnostic::Report;
+use crate::schema::Constraint;
 use crate::source::Located;
 use std::fmt;
 
@@ -38,6 +39,23 @@ where
             units: Some(units),
             help: None,
         }
+    }
+
+    /// The schema record for this range. Both bounds render through `{:?}`,
+    /// so an integer prints as its digits and a whole float keeps its `.0`,
+    /// the form the emitters write. The derive emits this call for a
+    /// `#[confval(range = ...)]` field, and a handwritten `schema()` calls it
+    /// on the same value `validate` checks with, so the two cannot disagree.
+    pub fn constraint(&self) -> Constraint
+    where
+        T: fmt::Debug,
+    {
+        Constraint::range(
+            format!("{:?}", self.min),
+            format!("{:?}", self.max),
+            self.units,
+            self.help,
+        )
     }
 
     /// Checks a located value, pushing an issue with a span to the report
@@ -147,7 +165,40 @@ macro_rules! range_constraint {
 mod tests {
     use super::*;
     use crate::diagnostic::Report;
+    use crate::schema::Constraint;
     use crate::source::Located;
+
+    #[test]
+    fn the_record_equals_the_constructor_call_with_the_same_values() {
+        // Act
+        let record = TIMEOUT.constraint();
+
+        // Assert
+        assert_eq!(
+            record,
+            Constraint::range(
+                "1".to_string(),
+                "300".to_string(),
+                Some("seconds"),
+                Some("Keep this under 5 minutes for responsive shutdowns."),
+            )
+        );
+    }
+
+    #[test]
+    fn a_float_record_keeps_the_point_zero() {
+        // Arrange
+        range_constraint!(RATIO, f64, min: 0.0, max: 1.0);
+
+        // Act
+        let record = RATIO.constraint();
+
+        // Assert
+        assert_eq!(
+            record,
+            Constraint::range("0.0".to_string(), "1.0".to_string(), None, None)
+        );
+    }
 
     range_constraint!(PORT, i64, min: 1, max: 65535);
     range_constraint!(THREADS, i64, min: 1, max: 1024);

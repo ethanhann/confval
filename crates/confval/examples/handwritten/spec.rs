@@ -232,23 +232,9 @@ impl ToSchema for ServiceSpec {
             }
             field
         };
-        let workers = SchemaType::scalar(
-            ScalarType::Int,
-            Some(Constraint::range(
-                WORKERS.min.to_string(),
-                WORKERS.max.to_string(),
-                WORKERS.units,
-                WORKERS.help,
-            )),
-        );
-        let name = SchemaType::scalar(
-            ScalarType::String,
-            Some(Constraint::length(
-                NAME_LEN.min,
-                NAME_LEN.max,
-                NAME_LEN.help,
-            )),
-        );
+        // Each record comes from the constant `validate` checks with.
+        let workers = SchemaType::scalar(ScalarType::Int, Some(WORKERS.constraint()));
+        let name = SchemaType::scalar(ScalarType::String, Some(NAME_LEN.constraint()));
         Schema::new(
             None,
             vec![

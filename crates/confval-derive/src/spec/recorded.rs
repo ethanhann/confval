@@ -127,49 +127,19 @@ fn leaf_constraint(leaf: &Leaf, recorded: Recorded<'_>) -> syn::Result<TokenStre
             }
             Ok(keywords_tokens(path))
         }
+        // A range and a length describe themselves, so the record comes from
+        // the same value the validation walk checks with.
         Recorded::Range(path) => {
             if !matches!(leaf, Leaf::Int | Leaf::Float) {
                 return Err(syn::Error::new_spanned(path, RANGE_REQUIRES));
             }
-            // A float bound renders through `{:?}`, the form the default text
-            // uses, so a whole-number bound keeps its `.0` and hover on a
-            // float field reads float text.
-            let (min, max) = match leaf {
-                Leaf::Float => (
-                    quote! { ::std::format!("{:?}", #path.min) },
-                    quote! { ::std::format!("{:?}", #path.max) },
-                ),
-                _ => (
-                    quote! { ::std::string::ToString::to_string(&#path.min) },
-                    quote! { ::std::string::ToString::to_string(&#path.max) },
-                ),
-            };
-            Ok(quote! {
-                ::core::option::Option::Some(
-                    ::confval::schema::Constraint::range(
-                        #min,
-                        #max,
-                        #path.units,
-                        #path.help,
-                    ),
-                )
-            })
+            Ok(quote! { ::core::option::Option::Some(#path.constraint()) })
         }
         Recorded::Length(path) => {
             if !matches!(leaf, Leaf::String) {
                 return Err(syn::Error::new_spanned(path, LENGTH_REQUIRES));
             }
-            // A character count has one type, so the bounds pass through as
-            // they are and the hover needs no text to parse.
-            Ok(quote! {
-                ::core::option::Option::Some(
-                    ::confval::schema::Constraint::length(
-                        #path.min,
-                        #path.max,
-                        #path.help,
-                    ),
-                )
-            })
+            Ok(quote! { ::core::option::Option::Some(#path.constraint()) })
         }
         Recorded::Format(path) => {
             if !matches!(leaf, Leaf::String | Leaf::PathBuf) {
