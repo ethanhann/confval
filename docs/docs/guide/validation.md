@@ -129,6 +129,7 @@ impl Format for Cidr {
 ```
 
 `check_format` emits an error at the value's span when the value does not parse.
+`check_format_path` checks a `Located<PathBuf>` by its text, the form the emitters write.
 `check_each_format` does the same for each element of a list:
 
 ```rust
@@ -275,7 +276,8 @@ The derive then runs the check for you.
 
 `#[confval(range = PATH)]` on an `Int` or `Float` leaf, and `#[confval(keywords = PATH)]` on a `String` leaf, name the constraint the field must satisfy.
 `#[confval(length = PATH)]` on a `String` leaf names a `length_constraint!` bound.
-`#[confval(format = PATH)]` on a `String` leaf or a string list names a type that implements `Format`.
+`#[confval(format = PATH)]` on a `String` leaf, a `Path` leaf, or a string list names a type that implements `Format`.
+On a `Path` leaf the check reads the path's text, so `AbsolutePath` records on a `Located<PathBuf>`.
 On a list, every element must parse.
 `#[confval(unique)]` on a string list rejects an entry that repeats an earlier one.
 The comparison is the exact string.

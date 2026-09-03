@@ -846,3 +846,29 @@ fn a_bare_flag_holds_the_flag_and_no_help() {
     assert_eq!(tags.non_empty_help, None);
     assert_eq!(tags.unique_help, None);
 }
+
+/// A spec with `format` on a path leaf.
+#[derive(confval::Spec)]
+struct FormatPath {
+    #[confval(format = AbsolutePath)]
+    root: Located<PathBuf>,
+}
+
+impl Validate for FormatPath {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn a_path_leaf_holds_its_format() {
+    // Act
+    let schema = FormatPath::schema();
+
+    // Assert
+    assert_eq!(leaf(&schema, "root"), ScalarType::Path);
+    let Some(Constraint::Format { name, check, .. }) = constraint(&schema, "root") else {
+        panic!("root should hold a format");
+    };
+    assert_eq!(*name, "absolute path");
+    assert!(check.call("/srv"));
+    assert!(!check.call("srv"));
+}

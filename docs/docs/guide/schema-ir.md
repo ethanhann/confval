@@ -124,7 +124,7 @@ The bounds are character counts.
 ### `#[confval(format = PATH)]`
 
 Names a type that implements `Format`.
-Takes a `String` leaf or a string list.
+Takes a `String` leaf, a `Path` leaf, or a string list.
 The schema records the format's name and its check as `Constraint::Format`.
 An editor reads the name for the hover.
 It calls the check before it offers a default as a fix.

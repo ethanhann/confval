@@ -6,9 +6,11 @@
 //! `#[confval(format = ...)]`, or `#[confval(keywords = ...)]` constraint for
 //! the IR, this walk runs the same constraint during validation, so the
 //! attribute is the single source and the author's `Validate` body has
-//! no line for it. A scalar leaf emits a `check_located` call. A string list
-//! emits a `check_each_in` call for a keyword set or a `check_each_format`
-//! call for a format, and both report each bad element at its own span.
+//! no line for it. A scalar leaf emits a `check_located` call, or a
+//! `check_format` call for a format, which becomes `check_format_path` on a
+//! `PathBuf` leaf. A string list emits a `check_each_in` call for a keyword
+//! set or a `check_each_format` call for a format, and both report each bad
+//! element at its own span.
 //!
 //! `#[confval(non_empty)]` and `#[confval(unique)]` are flags rather than
 //! value constraints, so each has its own fragment emitted after the
@@ -86,16 +88,27 @@ fn constraint_fragment(
     // `RangeConstraint` value, a `length` names a `LengthConstraint` value,
     // a `format` names a type the free function takes as a parameter, and a
     // `keywords` names a `keyword_enum!` type whose `keyword_set()` yields
-    // the check. The reference pass resolves a `references`, because it
-    // holds the labels in scope, so this walk emits nothing for one. The
-    // match is exhaustive. A constraint added to the schema walk and
-    // forgotten here is then a compile error rather than a recorded but
-    // unchecked field.
+    // the check. A `format` on a `PathBuf` leaf calls `check_format_path`,
+    // which checks the path's text. The reference pass resolves a
+    // `references`, because it holds the labels in scope, so this walk emits
+    // nothing for one. The match is exhaustive. A constraint added to the
+    // schema walk and forgotten here is then a compile error rather than a
+    // recorded but unchecked field.
+    let is_path = matches!(
+        shape,
+        FieldShape::Leaf {
+            leaf: Leaf::PathBuf,
+            ..
+        }
+    );
     let call = |value: &TokenStream2, report: &TokenStream2| -> Option<TokenStream2> {
         match recorded {
             Recorded::Range(path) | Recorded::Length(path) => {
                 Some(quote! { #path.check_located(#value, #name, #report); })
             }
+            Recorded::Format(path) if is_path => Some(quote! {
+                ::confval::constraints::check_format_path::<#path>(#value, #name, #report);
+            }),
             Recorded::Format(path) => Some(quote! {
                 ::confval::constraints::check_format::<#path>(#value, #name, #report);
             }),

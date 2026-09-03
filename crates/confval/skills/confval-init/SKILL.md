@@ -138,7 +138,7 @@ The `Validate` impl may also live in another module, because a trait impl can be
 The shape of the field decides whether a recorded constraint applies.
 A `Located<T>` takes one, and so does an `Option<Located<T>>`, which the derive checks only when the value is present.
 `keywords` also takes a string list, in both the bare and the optional form, where it records the set each element must come from and reports each bad element at its own span.
-`format` takes a string list the same way, where each element must parse.
+`format` takes a string list the same way, where each element must parse, and a `Located<PathBuf>` leaf, where it checks the path's text.
 `unique` takes a string list alone, and reports each repeated entry at its own span.
 `non_empty` and `unique` each take an optional `help = "..."`, as in `#[confval(non_empty(help = "Provide the service name."))]`, which replaces the generated suggestion.
 `range` takes a scalar leaf alone, because there is no numeric list shape for it to apply to.

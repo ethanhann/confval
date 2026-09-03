@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use confval::prelude::*;
+use std::path::PathBuf;
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(LEVEL, i64, min: 0, max: 10);
@@ -1632,5 +1633,105 @@ fn the_bare_flags_keep_the_generated_help() {
     assert_eq!(
         helps(&report),
         vec![Some("Provide a non-empty value for tags")]
+    );
+}
+
+/// A spec with `format` on a required and on an optional path leaf.
+#[derive(confval::Spec)]
+struct FormatPaths {
+    #[confval(format = AbsolutePath)]
+    root: Located<PathBuf>,
+    #[confval(format = AbsolutePath)]
+    cache: Option<Located<PathBuf>>,
+}
+
+impl Validate for FormatPaths {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+/// A spec whose defaulted path leaf has a default that fails its own format.
+#[derive(confval::Spec)]
+struct FormatPathBadDefault {
+    #[confval(default = PathBuf::from("run/app.pid"), format = AbsolutePath)]
+    pid_file: Located<PathBuf>,
+}
+
+impl Validate for FormatPathBadDefault {
+    fn validate(&self, _report: &mut Report) {}
+}
+
+#[test]
+fn format_on_a_path_leaf_reports_a_relative_path() {
+    // Arrange
+    let spec = FormatPaths {
+        root: Located::detached(PathBuf::from("srv/www")),
+        cache: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec!["root is not a valid absolute path: \"srv/www\""]
+    );
+}
+
+#[test]
+fn format_on_a_path_leaf_passes_an_absolute_path() {
+    // Arrange
+    let spec = FormatPaths {
+        root: Located::detached(PathBuf::from("/srv/www")),
+        cache: None,
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert!(!report.has_issues());
+}
+
+#[test]
+fn format_on_an_optional_path_leaf_checks_only_a_present_value() {
+    // Arrange
+    let absent = FormatPaths {
+        root: Located::detached(PathBuf::from("/srv/www")),
+        cache: None,
+    };
+    let present = FormatPaths {
+        root: Located::detached(PathBuf::from("/srv/www")),
+        cache: Some(Located::detached(PathBuf::from("tmp/cache"))),
+    };
+
+    // Act
+    let absent_report = validate(&absent);
+    let present_report = validate(&present);
+
+    // Assert
+    assert!(!absent_report.has_issues());
+    assert_eq!(
+        messages(&present_report),
+        vec!["cache is not a valid absolute path: \"tmp/cache\""]
+    );
+}
+
+#[test]
+fn format_names_the_default_when_a_path_default_fails_its_format() {
+    // Arrange
+    let spec = FormatPathBadDefault {
+        pid_file: Located::detached(PathBuf::from("run/app.pid")),
+    };
+
+    // Act
+    let report = validate(&spec);
+
+    // Assert
+    assert_eq!(
+        messages(&report),
+        vec![
+            "the default for `pid_file` fails its recorded constraint: pid_file is not a valid absolute path: \"run/app.pid\""
+        ]
     );
 }

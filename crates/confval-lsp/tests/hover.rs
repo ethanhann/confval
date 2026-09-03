@@ -708,3 +708,30 @@ fn hover_on_a_flag_with_help_reads_the_help_after_the_rule() {
         "body: {body}"
     );
 }
+
+#[test]
+fn hover_on_a_path_field_with_a_format_names_the_format() {
+    // Arrange
+    let text = "limits {\n  pid_file = \"/run/app.pid\"\n}\n";
+    let offset = text.find("pid_file").expect("the field is present") + 1;
+    let (tree, context) = at(text, offset);
+    let index = LineIndex::new(text);
+    let schema = ServerSpec::schema();
+
+    // Act
+    let hover = hover(
+        &Cx {
+            schema: &schema,
+            fields: tree.as_ref(),
+            ctx: &context,
+            text,
+        },
+        &index,
+        ENCODING,
+    );
+
+    // Assert
+    let body = markdown(hover.expect("a hover is produced"));
+    assert!(body.contains("**pid_file**: path"), "body: {body}");
+    assert!(body.contains("Format: absolute path."), "body: {body}");
+}

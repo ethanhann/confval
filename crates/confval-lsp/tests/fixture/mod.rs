@@ -8,6 +8,7 @@
 
 use confval::prelude::*;
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
@@ -77,6 +78,9 @@ pub struct LimitsSpec {
     /// How a limit breach is handled.
     #[confval(default = "enforce".to_string(), keywords = LimitMode)]
     pub mode: Located<String>,
+    /// Where the limiter writes its pid. A path leaf with a format.
+    #[confval(format = AbsolutePath)]
+    pub pid_file: Option<Located<PathBuf>>,
 }
 
 impl Validate for LimitsSpec {

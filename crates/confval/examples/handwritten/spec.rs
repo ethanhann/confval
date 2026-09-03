@@ -16,6 +16,7 @@
 //! push by hand.
 
 use crate::children::{LimitsSpec, RouteSpec, TelemetrySpec};
+use confval::constraints::format_constraint;
 use confval::format::{
     Field, Fields, FieldsBuilder, FromFields, Scalar, ToFields, Value, ValueKind, Walk,
     first_occurrence, parse_bool_field, parse_float_field, parse_int_field, parse_path_field,
@@ -257,7 +258,12 @@ impl ToSchema for ServiceSpec {
                     .with_default_text("1.0".to_string()),
                 sf("verbose", true, true, leaf(ScalarType::Bool))
                     .with_default_text("false".to_string()),
-                sf("pid_file", false, false, leaf(ScalarType::Path)),
+                sf(
+                    "pid_file",
+                    false,
+                    false,
+                    SchemaType::scalar(ScalarType::Path, Some(format_constraint::<AbsolutePath>())),
+                ),
                 sf(
                     "events",
                     true,
@@ -290,6 +296,9 @@ impl Validate for ServiceSpec {
         NAME_NON_EMPTY.check_located(&self.name, "name", report);
         NAME_LEN.check_located(&self.name, "name", report);
         WORKERS.check_located(&self.workers, "workers", report);
+        if let Some(pid_file) = &self.pid_file {
+            check_format_path::<AbsolutePath>(pid_file, "pid_file", report);
+        }
         // A keyword list is checked per element, so a typo is reported under
         // the entry the operator typed.
         LogEvent::keyword_set().check_each(&self.events, "event", report);

@@ -1,5 +1,0 @@
-error: #[confval(format = ...)] requires a String leaf or a string list
- --> tests/ui/fail/schema_format_on_path.rs:6:24
-  |
-6 |     #[confval(format = AbsolutePath)]
-  |                        ^^^^^^^^^^^^

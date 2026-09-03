@@ -69,9 +69,12 @@ struct ServerSpec {
     bind: Located<String>,
     #[confval(default, format = Ip)]
     peers: Vec<Located<String>>,
+    #[confval(format = AbsolutePath)]
+    pid_file: Option<Located<PathBuf>>,
 }
 ```
 
+On a `Located<PathBuf>` the format checks the path's text.
 A domain format is a unit struct that implements `Format` with a `NAME` and a `check` function.
 Declare it in a module the spec module can import from, because `format = ...` names a type.
 Do not pair a built-in `format` with `non_empty`, because each built-in format rejects the empty string on its own.

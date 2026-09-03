@@ -22,7 +22,8 @@ use syn::{Ident, Path};
 /// The mutual-exclusion check runs first for every shape, so a field with two
 /// recording attributes reports that mistake rather than a pairing message
 /// about one of them. What each shape can then record differs. A scalar leaf
-/// records any of the five against its leaf type. A string list records
+/// records any of the five against its leaf type, and `format` is the one
+/// that a `Path` leaf takes beside a `String` leaf. A string list records
 /// `keywords` or `format`, each applied to every element. A map and a nested
 /// block record nothing.
 pub(crate) fn constraint_tokens(
@@ -58,7 +59,8 @@ const KEYWORDS_REQUIRES: &str =
     "#[confval(keywords = ...)] requires a String leaf or a string list";
 const RANGE_REQUIRES: &str = "#[confval(range = ...)] requires an Int or Float leaf";
 const LENGTH_REQUIRES: &str = "#[confval(length = ...)] requires a String leaf";
-const FORMAT_REQUIRES: &str = "#[confval(format = ...)] requires a String leaf or a string list";
+const FORMAT_REQUIRES: &str =
+    "#[confval(format = ...)] requires a String leaf, a Path leaf, or a string list";
 const REFERENCES_REQUIRES: &str = "#[confval(references = ...)] requires a String leaf";
 
 /// The one recording attribute a field declares.
@@ -170,7 +172,7 @@ fn leaf_constraint(leaf: &Leaf, recorded: Recorded<'_>) -> syn::Result<TokenStre
             })
         }
         Recorded::Format(path) => {
-            if !matches!(leaf, Leaf::String) {
+            if !matches!(leaf, Leaf::String | Leaf::PathBuf) {
                 return Err(syn::Error::new_spanned(path, FORMAT_REQUIRES));
             }
             Ok(format_tokens(path))
