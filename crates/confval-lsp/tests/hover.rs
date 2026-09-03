@@ -459,7 +459,10 @@ fn hover_on_a_non_empty_field_states_the_rule() {
 
     // Assert
     let body = markdown(hover.expect("a hover is produced"));
-    assert!(body.contains("Must not be empty."), "body: {body}");
+    assert!(
+        body.contains("Must not be empty. Provide the hostname the server binds."),
+        "body: {body}"
+    );
     assert!(
         body.contains("The address the server binds"),
         "body: {body}"
@@ -518,7 +521,10 @@ fn hover_on_a_unique_list_states_the_rule() {
 
     // Assert
     let body = markdown(hover.expect("a hover is produced"));
-    assert!(body.contains("Entries must be unique."), "body: {body}");
+    assert!(
+        body.contains("Entries must be unique. Each network may appear once."),
+        "body: {body}"
+    );
 }
 
 #[test]
@@ -677,35 +683,6 @@ fn a_reference_to_a_whitespace_only_label_hovers_as_unresolved() {
     assert!(
         markdown.contains("Does not resolve to any defined label."),
         "reports a miss: {markdown:?}"
-    );
-}
-
-#[test]
-fn hover_on_a_flag_with_help_reads_the_help_after_the_rule() {
-    // Arrange
-    let text = "hostname = \"127.0.0.1\"\n";
-    let offset = text.find("hostname").expect("the field is present") + 1;
-    let (tree, context) = at(text, offset);
-    let index = LineIndex::new(text);
-    let schema = ServerSpec::schema();
-
-    // Act
-    let hover = hover(
-        &Cx {
-            schema: &schema,
-            fields: tree.as_ref(),
-            ctx: &context,
-            text,
-        },
-        &index,
-        ENCODING,
-    );
-
-    // Assert
-    let body = markdown(hover.expect("a hover is produced"));
-    assert!(
-        body.contains("Must not be empty. Provide the hostname the server binds."),
-        "body: {body}"
     );
 }
 
