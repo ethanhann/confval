@@ -17,6 +17,7 @@
 //! fields hold nested specs. See the `traversal` module. The per-field parsing
 //! fragments themselves are emitted by the `parser` module.
 
+mod attrs;
 mod default;
 mod flags;
 mod options;

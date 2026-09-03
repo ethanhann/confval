@@ -1,6 +1,5 @@
 //! The legality rules for `#[derive(Spec)]`'s flag attributes, `label`,
-//! `non_empty`, and `unique`, and the parser for the `help = "..."` list the
-//! last two take. Each flag has its own set of shapes it applies
+//! `non_empty`, and `unique`. Each flag has its own set of shapes it applies
 //! to and its own rule about `default`, so each has its own function.
 //! The value constraints have their rules in [`recorded`](super::recorded).
 //!
@@ -17,7 +16,8 @@ use super::shape::{FieldShape, Leaf};
 /// `String` leaf and cannot have a default. A list, a map, a block, or a
 /// non-string scalar cannot be a label. An optional leaf names nothing when the
 /// block has no label. A default would build a value the reference pass then
-/// reports as undefined.
+/// reports as undefined. A `non_empty` flag beside `label` is rejected in
+/// [`reject_non_empty_misuse`].
 pub(crate) fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Result<()> {
     let Some(label) = &options.label else {
         return Ok(());
@@ -67,8 +67,8 @@ pub(crate) fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) ->
 /// value constraints valid on a string, which are `keywords`, `length`,
 /// `format`, and `references`. It does not combine with `range`, because
 /// `range` requires an `Int` or `Float` leaf. A field with both `label` and
-/// `non_empty` is rejected, because the reference pass owns the empty-label
-/// report. A field with both `default` and `non_empty` is rejected.
+/// `non_empty` is rejected, because `check_references` reports an empty
+/// label. A field with both `default` and `non_empty` is rejected.
 /// The default for a `String` is the empty string and for a list is the
 /// empty list. Either one would fail the check.
 pub(crate) fn reject_non_empty_misuse(
@@ -141,36 +141,4 @@ pub(crate) fn reject_unique_misuse(shape: &FieldShape, options: &FieldOptions) -
              it cannot apply to a map or a nested block",
         )),
     }
-}
-
-/// Stores a flag's own path and, when a parenthesized list follows, its
-/// `help = "..."` line. Rejects a second flag, an unknown key, a non-string
-/// help, and a second help. `label` takes no list and uses `set_flag` in
-/// `options.rs` instead.
-pub(crate) fn set_flag_with_help(
-    slot: &mut Option<syn::Path>,
-    help: &mut Option<syn::LitStr>,
-    meta: &syn::meta::ParseNestedMeta<'_>,
-    key: &str,
-) -> syn::Result<()> {
-    if slot.is_some() {
-        return Err(meta.error(format!("duplicate confval attribute `{key}`")));
-    }
-    *slot = Some(meta.path.clone());
-    if !meta.input.peek(syn::token::Paren) {
-        return Ok(());
-    }
-    meta.parse_nested_meta(|inner| {
-        if !inner.path.is_ident("help") {
-            return Err(inner.error(format!(
-                "unknown key in `{key}(...)`; expected `help = \"...\"`"
-            )));
-        }
-        if help.is_some() {
-            return Err(inner.error(format!("duplicate `help` in `{key}(...)`")));
-        }
-        let text: syn::LitStr = inner.value()?.parse()?;
-        *help = Some(text);
-        Ok(())
-    })
 }

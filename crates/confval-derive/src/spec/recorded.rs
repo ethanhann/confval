@@ -22,10 +22,9 @@ use syn::{Ident, Path};
 /// The mutual-exclusion check runs first for every shape, so a field with two
 /// recording attributes reports that mistake rather than a pairing message
 /// about one of them. What each shape can then record differs. A scalar leaf
-/// records any of the five against its leaf type, and `format` is the one
-/// that a `Path` leaf takes beside a `String` leaf. A string list records
-/// `keywords` or `format`, each applied to every element. A map and a nested
-/// block record nothing.
+/// records any of the five against its leaf type. Only `format` also takes a
+/// `Path` leaf. A string list records `keywords` or `format`, each applied to
+/// every element. A map and a nested block record nothing.
 pub(crate) fn constraint_tokens(
     shape: &FieldShape,
     options: &FieldOptions,
@@ -128,18 +127,26 @@ fn leaf_constraint(leaf: &Leaf, recorded: Recorded<'_>) -> syn::Result<TokenStre
             Ok(keywords_tokens(path))
         }
         // A range and a length describe themselves, so the record comes from
-        // the same value the validation walk checks with.
+        // the same value the validation walk checks with. The typed binding
+        // pins the value to the crate's own type, so `range = PATH` names a
+        // `RangeConstraint` and nothing else that happens to have the methods.
         Recorded::Range(path) => {
             if !matches!(leaf, Leaf::Int | Leaf::Float) {
                 return Err(syn::Error::new_spanned(path, RANGE_REQUIRES));
             }
-            Ok(quote! { ::core::option::Option::Some(#path.constraint()) })
+            Ok(quote! {{
+                let __range: &::confval::RangeConstraint<_> = &#path;
+                ::core::option::Option::Some(__range.constraint())
+            }})
         }
         Recorded::Length(path) => {
             if !matches!(leaf, Leaf::String) {
                 return Err(syn::Error::new_spanned(path, LENGTH_REQUIRES));
             }
-            Ok(quote! { ::core::option::Option::Some(#path.constraint()) })
+            Ok(quote! {{
+                let __length: &::confval::LengthConstraint = &#path;
+                ::core::option::Option::Some(__length.constraint())
+            }})
         }
         Recorded::Format(path) => {
             if !matches!(leaf, Leaf::String | Leaf::PathBuf) {

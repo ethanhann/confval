@@ -7,10 +7,10 @@
 //! the IR, this walk runs the same constraint during validation, so the
 //! attribute is the single source and the author's `Validate` body has
 //! no line for it. A scalar leaf emits a `check_located` call, or a
-//! `check_format` call for a format, which becomes `check_format_path` on a
-//! `PathBuf` leaf. A string list emits a `check_each_in` call for a keyword
-//! set or a `check_each_format` call for a format, and both report each bad
-//! element at its own span.
+//! `check_format` call for a format. On a `PathBuf` leaf the format call is
+//! `check_format_path`. A string list emits a `check_each_in` call for a
+//! keyword set or a `check_each_format` call for a format, and both report
+//! each bad element at its own span.
 //!
 //! `#[confval(non_empty)]` and `#[confval(unique)]` are flags rather than
 //! value constraints, so each has its own fragment emitted after the
@@ -19,9 +19,11 @@
 //! for the list and `NON_EMPTY.check_each` for its elements. For `unique`, a
 //! string list calls `UNIQUE.check_list`, which reports each repeat at its
 //! own span. A flag with `help = "..."` calls the same methods on
-//! `NonEmptyConstraint::with_help(...)` or `UniqueConstraint::with_help(...)`. The fragments run in that order, constraint, then `non_empty`,
-//! then `unique`, and the renderer keeps that order within one source, so an
-//! operator reads a value error before a flag error on the same field.
+//! `NonEmptyConstraint::with_help(...)` or
+//! `UniqueConstraint::with_help(...)`. The fragments run in that order,
+//! constraint, then `non_empty`, then `unique`, and the renderer keeps that
+//! order within one source, so an operator reads a value error before a flag
+//! error on the same field.
 //!
 //! The walk decides what to emit from the one recorded attribute a field
 //! has, read through the same `Recorded` classification the schema walk
@@ -82,6 +84,13 @@ fn constraint_fragment(
     // The schema walk has already rejected a doubled attribute, so the error
     // arm is unreachable here and the walk reads the one it found.
     let recorded = one_recording_attribute(options).ok().flatten()?;
+    let is_path = matches!(
+        shape,
+        FieldShape::Leaf {
+            leaf: Leaf::PathBuf,
+            ..
+        }
+    );
 
     // The `check_located` call, given the `&Located<T>` value expression and
     // the report expression it writes into. A `range` names a
@@ -94,13 +103,6 @@ fn constraint_fragment(
     // nothing for one. The match is exhaustive. A constraint added to the
     // schema walk and forgotten here is then a compile error rather than a
     // recorded but unchecked field.
-    let is_path = matches!(
-        shape,
-        FieldShape::Leaf {
-            leaf: Leaf::PathBuf,
-            ..
-        }
-    );
     let call = |value: &TokenStream2, report: &TokenStream2| -> Option<TokenStream2> {
         match recorded {
             Recorded::Range(path) | Recorded::Length(path) => {
