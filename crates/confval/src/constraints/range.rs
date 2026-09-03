@@ -43,9 +43,9 @@ where
 
     /// The schema record for this range. Both bounds render through `{:?}`.
     /// An integer prints as its digits. A whole float keeps its `.0`, the
-    /// form the emitters write. A custom `T` renders as its `Debug` text,
-    /// and that text reaches an editor's hover, so give `Debug` the form an
-    /// operator reads or build the record with `Constraint::range`. The
+    /// form the emitters write. A custom `T` renders as its `Debug` text.
+    /// An editor's hover shows that text. Give `Debug` the form an operator
+    /// reads, or build the record with `Constraint::range`. The
     /// derive emits this call for a `#[confval(range = ...)]` field. A
     /// handwritten `schema()` calls it on the value `validate` checks with.
     /// The two records then come from one value.

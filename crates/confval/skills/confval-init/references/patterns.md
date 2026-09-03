@@ -21,7 +21,7 @@ The macro generates the enum, a `KEYWORDS` array, `as_str`, a `TryFrom<&str>`, a
 Declare the check on the field with `#[confval(keywords = LimitMode)]`.
 The derive runs it during validation and records it in the schema.
 An editor's hover and completion read that same rule.
-Your `Validate` body carries no line for the field.
+Your `Validate` body has no line for the field.
 Lowering names `narrow::keyword::<LimitMode>` to read the `TryFrom`.
 Once the check is in place, a value that fails it never reaches the `TryFrom`, so the set and the enum cannot drift.
 
@@ -94,7 +94,7 @@ struct ServerSpec {
 ```
 
 `unique` combines with `keywords`, `format`, `non_empty`, and `default`, because the default list is empty and so unique.
-When the field needs its own remediation line, write `#[confval(unique(help = "Each peer may appear once."))]`.
+When the field needs its own help line, write `#[confval(unique(help = "Each peer may appear once."))]`.
 The help replaces the generated suggestion in the diagnostic and renders after the rule in an editor's hover.
 A duplicate check that spans blocks, such as a service name unique across files, compares labels and stays in the `Validate` body.
 
@@ -104,7 +104,7 @@ When a field must not be empty, such as a service name or a list of allowed netw
 The derive rejects an empty or whitespace-only string.
 On a list it rejects each empty element and a list with no elements.
 The list-level message points at the brackets for an `Option<Located<Vec<Located<String>>>>` field.
-A bare `Vec<Located<String>>` holds no span of its own, so its list-level message carries no location.
+A bare `Vec<Located<String>>` holds no span of its own, so its list-level message has no location.
 
 ```rust
 #[derive(confval::Spec)]
@@ -117,9 +117,10 @@ struct ServiceSpec {
 A field can have `#[confval(non_empty)]` and one value constraint, such as `#[confval(keywords = ...)]`.
 A field cannot have `#[confval(non_empty)]` and `#[confval(default)]` together, because the default is empty and would fail the check.
 A field cannot have `#[confval(non_empty)]` and `#[confval(label)]` together, because `check_references` reports an empty label.
-When the field needs its own remediation line, write `#[confval(non_empty(help = "Provide the service name."))]`.
+When the field needs its own help line, write `#[confval(non_empty(help = "Provide the service name."))]`.
 The help replaces the generated suggestion in the diagnostic and renders after the rule in an editor's hover.
-On a list, one help line covers the empty list and each empty element, so word it for both.
+On a list, one help line covers the empty list and each empty element.
+Word it so it reads correctly for both.
 
 For a handwritten spec, declare the rule once as a const and call its checker:
 
@@ -211,7 +212,7 @@ mode: LimitMode,
 
 ## Template mode
 
-A spec already names every field, holds every default, and carries the doc comment you wrote on each field, so you can run parsing backward and write a starter file.
+A spec already names every field, holds every default, and keeps the doc comment you wrote on each field, so you can run parsing backward and write a starter file.
 `to_fields` produces the configuration with every default filled in.
 `to_template` produces the same file with each field's doc comment rendered as a comment above it.
 

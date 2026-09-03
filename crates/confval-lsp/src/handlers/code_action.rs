@@ -249,7 +249,7 @@ mod tests {
         // Assert
         assert!(
             satisfied,
-            "a four-character default sits inside the 3 to 10 length range"
+            "a four-character default is inside the 3 to 10 length range"
         );
     }
 

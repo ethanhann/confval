@@ -2,7 +2,7 @@
 
 You are building the four layers confval runs a configuration file through.
 This file describes the four phases in order, the type each one produces, and where a source span comes from and where it is used.
-It carries no format detail.
+It holds no format detail.
 Which frontend parses the file is the subject of `references/frontends.md`.
 
 The published contract for this sequence is in the complete confval documentation at https://ethanhann.com/confval/llms-full.txt.
@@ -41,7 +41,7 @@ Only a syntax error, which produces no tree, stops the load.
 
 ### Validate
 
-Validation reads the spec and reports what the values mean against the spans the `Located` fields carry.
+Validation reads the spec and reports what the values mean against the spans the `Located` fields keep.
 The rules for one spec type's own fields live in its `Validate` impl.
 One call runs the whole tree.
 
@@ -107,7 +107,7 @@ pub struct Located<T> {
 ```
 
 The frontend sets the span on every leaf as it parses.
-A value filled from a `#[confval(default)]` carries a detached span, because no source text stands behind it.
+A value filled from a `#[confval(default)]` has a detached span, because no source text stands behind it.
 Validation consumes the span by passing it to `report.at(...)`, so a diagnostic points at the line and column.
 A `narrow` helper does the same on the lowering side, so an out-of-range value that slipped past validation still reports at its source location.
 Equality on `Located` ignores the span, so two configs with the same values compare equal whatever their formatting.
@@ -116,7 +116,7 @@ Equality on `Located` ignores the span, so two configs with the same values comp
 
 A configuration may span several files, and the four phases do not change.
 One `SourceMap` holds every file, and one `Report` collects every issue.
-A `Span` carries the id of the source it came from, so issues from different files merge into one report and render together, each at its own file and line.
+A `Span` holds the id of the source it came from, so issues from different files merge into one report and render together, each at its own file and line.
 
 Parse every file before you stop.
 Record that a file failed to parse, and stop after the loop rather than at the first failure, so one run reports every syntax error rather than the first.

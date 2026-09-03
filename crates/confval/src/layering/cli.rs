@@ -138,7 +138,7 @@ mod tests {
         assert!(!report.has_errors());
         let issue = &report.issues()[0];
         assert_eq!(issue.message, "flag has no value: --port");
-        let span = issue.span.expect("the warning should carry a span");
+        let span = issue.span.expect("the warning should keep a span");
         assert_eq!(sources.get(span.source).unwrap().name, "cli:--port");
     }
 
@@ -169,7 +169,7 @@ mod tests {
         assert!(report.has_errors());
         let issue = &report.issues()[0];
         assert!(issue.message.contains("malformed"));
-        let span = issue.span.expect("the error should carry a span");
+        let span = issue.span.expect("the error should keep a span");
         assert_eq!(
             sources.get(span.source).unwrap().name,
             "cli:--limits..mode=log"

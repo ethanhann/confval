@@ -234,7 +234,7 @@ fn a_type_mismatch_reports_at_the_value_span() {
         .iter()
         .find(|issue| issue.message == "expected bool, found string")
         .expect("the mismatch must be reported");
-    let span = issue.span.expect("a mismatch carries the value span");
+    let span = issue.span.expect("a mismatch keeps the value span");
     assert_eq!(&input[span.start as usize..span.end as usize], "\"yes\"");
 }
 
@@ -330,7 +330,7 @@ cert = "cert.pem"
         .expect("the missing key in tls must be reported");
     let span = issue
         .span
-        .expect("missing-field errors carry the enclosing span");
+        .expect("missing-field errors keep the enclosing span");
     // toml_edit's table span covers the header, so the error points at
     // `[tls]` rather than at the whole document.
     let text = &input[span.start as usize..span.end as usize];
@@ -353,7 +353,7 @@ fn a_syntax_error_reports_one_issue_at_its_location() {
     assert_eq!(report.issues().len(), 1);
     let issue = &report.issues()[0];
     assert!(issue.message.starts_with("syntax error:"), "got: {issue:?}");
-    assert!(issue.span.is_some(), "a syntax error carries its span");
+    assert!(issue.span.is_some(), "a syntax error keeps its span");
 }
 
 #[test]
@@ -593,7 +593,7 @@ fn a_parsed_list_reports_a_bad_element_at_that_element() {
     // Assert
     let issue = &report.issues()[0];
     assert_eq!(issue.message, "unknown value in modes: shout");
-    let span = issue.span.expect("the issue carries a span");
+    let span = issue.span.expect("the issue keeps a span");
     assert_eq!(
         &input[span.start as usize..span.end as usize],
         "\"shout\"",

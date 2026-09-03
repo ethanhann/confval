@@ -22,8 +22,8 @@ pub struct UniqueConstraint {
     pub help: Option<&'static str>,
 }
 
-/// The rule with the generated help line, which a bare `#[confval(unique)]`
-/// and a handwritten check name.
+/// The rule with the generated help line. A bare `#[confval(unique)]` and a
+/// handwritten check both use it.
 pub const UNIQUE: UniqueConstraint = UniqueConstraint { help: None };
 
 impl UniqueConstraint {

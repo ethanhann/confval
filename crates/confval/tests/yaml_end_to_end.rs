@@ -281,7 +281,7 @@ tls:
         .expect("the missing key in tls must be reported");
     let span = issue
         .span
-        .expect("missing-field errors carry the enclosing span");
+        .expect("missing-field errors keep the enclosing span");
     // The enclosing span is the nested mapping's own extent, so the error
     // points inside `tls` rather than at the whole document.
     let text = &input[span.start as usize..span.end as usize];

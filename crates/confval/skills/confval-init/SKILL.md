@@ -95,7 +95,7 @@ See the complete documentation for the handwritten path.
 
 ### 4. Write validation
 
-Declare a mechanical constraint on the field that carries it.
+Declare a mechanical constraint on the field it applies to.
 Each recording attribute names its declaration.
 
 - `#[confval(range = PORT)]` records a `range_constraint!`.
@@ -107,7 +107,7 @@ Each recording attribute names its declaration.
 
 The derive runs a recorded constraint during validation and records it in the schema.
 An editor's hover and completion read that same rule.
-The `Validate` body carries no line for the field.
+The `Validate` body has no line for the field.
 
 ```rust
 length_constraint!(HOSTNAME_LEN, max: 253);
@@ -145,12 +145,12 @@ A `Located<T>` takes one, and so does an `Option<Located<T>>`, which the derive 
 The help replaces the generated suggestion.
 `range` takes a scalar leaf alone, because there is no numeric list shape for it to apply to.
 A map and a nested block take none of these.
-The derive rejects an attribute on a shape that cannot carry it, so a misplaced attribute fails the build rather than being skipped in silence.
+The derive rejects an attribute on a shape that cannot take it, so a misplaced attribute fails the build rather than being skipped in silence.
 
 Write the check in `Validate` in three cases.
 
 - A set of words held as a slice rather than as a `keyword_enum!` type, which `KeywordSet::new` checks.
-- A spec with a handwritten `FromFields`, which has no derive to carry an attribute.
+- A spec with a handwritten `FromFields`, which has no derive to read an attribute.
 - A check that must not run under a gate, because `validate_all` runs every recorded check before `validate` and `descend` does not prune it.
 
 The first two shapes have no attribute available, so the check has to go in `Validate`.
@@ -192,7 +192,7 @@ Call it yourself.
 Give those functions one entry point that the loader calls.
 It runs `validate_all` on the root, then each rule that spans more than one entity or more than one file.
 Split them by scope as they grow, into the rules that hold within one document and the rules that hold across documents.
-Keep the reusable leaf checks apart from both, because a check such as an address format or a path shape carries no domain rule of its own and several entities call it.
+Keep the reusable leaf checks apart from both, because a check such as an address format or a path shape has no domain rule of its own and several entities call it.
 
 A rule may read local state when the answer helps the operator before startup.
 Reading a file's contents, checking that a directory exists, and parsing a certificate are all fair.
@@ -213,7 +213,7 @@ A warning does not trip the gate, so the program starts and the operator reads t
 ### 5. Write the runtime type
 
 The config is the resolved form.
-It carries no `Located` wrapper and no `Option` on a field the runtime always needs.
+It has no `Located` wrapper and no `Option` on a field the runtime always needs.
 Use `Arc<str>` for an identifier cloned on a hot path.
 Derive the mapping with `#[derive(confval::Config)]` where it is mechanical, and write a `Lower` impl where lowering can fail in a way the derive cannot express.
 A lowering function reports through the `Report` and returns `None` on failure rather than panicking, which is what the `narrow` helpers already do.
@@ -265,7 +265,7 @@ if let Some(config) = ServerConfig::lower(&spec, &mut report) {
 ```
 
 A configuration that spans several files uses one `SourceMap` and one `Report` for the whole load.
-A span carries the source it came from, so issues from different files merge into one report and render together.
+A span names the source it came from, so issues from different files merge into one report and render together.
 Read and parse every file before you stop.
 Record that a file failed to parse, and stop after the loop rather than at the first failure, so one run reports every syntax error.
 
@@ -281,7 +281,7 @@ A changed signature moves the cost onto every existing caller, including the pro
 Pass a consumer the narrowest part of the config it reads.
 A function that needs one block takes that block, not the root.
 The root belongs to the entry point that loaded it.
-A wide parameter couples a module to settings it never touches, and it hides which settings that module depends on.
+A wide parameter couples a module to settings it never reads, and it hides which settings that module depends on.
 The new entry point is where this is easiest to get right, because nothing constrains its parameter list yet.
 
 Return the diagnostics rather than print them.
@@ -329,7 +329,7 @@ fn a_bad_fixture_reports_every_problem_at_once() {
 
     // Assert
     // The empty hostname and the out-of-range port are both reported, so the
-    // report carries more than one issue rather than stopping at the first.
+    // report holds more than one issue rather than stopping at the first.
     assert!(report.has_errors());
     assert!(report.issues().len() > 1);
 }

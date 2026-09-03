@@ -126,10 +126,11 @@ fn leaf_constraint(leaf: &Leaf, recorded: Recorded<'_>) -> syn::Result<TokenStre
             }
             Ok(keywords_tokens(path))
         }
-        // A range and a length describe themselves, so the record comes from
-        // the same value the validation walk checks with. The typed binding
-        // pins the value to the crate's own type, so `range = PATH` names a
-        // `RangeConstraint` and nothing else that happens to have the methods.
+        // A range and a length return their own schema record, so the record
+        // comes from the same value the validation walk checks with. The typed
+        // binding pins the value to the crate's own type. `range = PATH` then
+        // names a `RangeConstraint` and no other type with a method of that
+        // name.
         Recorded::Range(path) => {
             if !matches!(leaf, Leaf::Int | Leaf::Float) {
                 return Err(syn::Error::new_spanned(path, RANGE_REQUIRES));

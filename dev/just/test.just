@@ -15,7 +15,7 @@ mutants_fast_args := "--profile mutants --cargo-test-arg -E --cargo-test-arg 'no
 mutants jobs="6":
     cargo mutants {{ mutants_fast_args }} -j {{ jobs }}
 
-# Mutate only the source a diff touches (much faster than a full mutants recipe run)
+# Mutate only the source a diff changes (much faster than a full mutants recipe run)
 mutants-diff base="main" jobs="6":
     #!/usr/bin/env bash
     set -euo pipefail

@@ -4,7 +4,7 @@
 //! a declaration form has a macro: `keyword_enum!`, `range_constraint!`, and
 //! `length_constraint!`.
 //!
-//! A range and a length describe themselves for the schema through
+//! A range and a length return their own schema record through
 //! `constraint()`. A keyword set's record is
 //! `Constraint::keywords(&T::KEYWORDS)`, read from the same table
 //! `keyword_set()` reads. A format's record is `format_constraint::<T>()`.

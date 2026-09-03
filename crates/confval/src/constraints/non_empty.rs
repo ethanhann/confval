@@ -19,8 +19,8 @@ pub struct NonEmptyConstraint {
     pub help: Option<&'static str>,
 }
 
-/// The rule with the generated help line, which a bare `#[confval(non_empty)]`
-/// and a handwritten check name.
+/// The rule with the generated help line. A bare `#[confval(non_empty)]` and
+/// a handwritten check both use it.
 pub const NON_EMPTY: NonEmptyConstraint = NonEmptyConstraint { help: None };
 
 impl NonEmptyConstraint {

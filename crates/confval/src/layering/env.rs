@@ -207,7 +207,7 @@ mod tests {
         assert!(report.has_errors());
         let issue = &report.issues()[0];
         assert!(issue.message.contains("malformed"));
-        let span = issue.span.expect("the error should carry a span");
+        let span = issue.span.expect("the error should keep a span");
         assert_eq!(sources.get(span.source).unwrap().name, "env:APP_SERVER__");
     }
 
@@ -275,7 +275,7 @@ mod tests {
                 "unexpected message: {}",
                 issue.message
             );
-            let span = issue.span.expect("the error should carry a span");
+            let span = issue.span.expect("the error should keep a span");
             let name = &sources.get(span.source).unwrap().name;
             assert!(name.starts_with("env:"), "unexpected source: {name}");
         }

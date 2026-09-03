@@ -41,10 +41,10 @@ Declare a recorded constraint on the field.
 - A character length bound with `#[confval(length = ...)]`.
 - A parse as a named format with `#[confval(format = ...)]`.
 - A closed set with `#[confval(keywords = ...)]`.
-- A non-empty check with `#[confval(non_empty)]`, or `#[confval(non_empty(help = "..."))]` with its own remediation line.
-- A list with no repeated entry, `#[confval(unique)]`, or `#[confval(unique(help = "..."))]` with its own remediation line.
+- A non-empty check with `#[confval(non_empty)]`, or `#[confval(non_empty(help = "..."))]` with its own help line.
+- A list with no repeated entry, `#[confval(unique)]`, or `#[confval(unique(help = "..."))]` with its own help line.
 
-The derive runs a recorded constraint during validation, so the `Validate` impl carries no line for it.
+The derive runs a recorded constraint during validation, so the `Validate` impl has no line for it.
 A recorded constraint expands where the spec struct is declared.
 A `range_constraint!` const or a `length_constraint!` const must be in scope there.
 The macro takes attributes and a visibility before the name, as in `range_constraint!(#[doc = "The port."] pub PORT, i64, min: 1, max: 65535)`.
@@ -70,7 +70,7 @@ Narrow an integer with a `narrow` helper, and convert a keyword string with `nar
 
 ### 5. The Default impl
 
-When the spec type carries `#[confval(derive_default)]`, give the new field a `#[confval(default = ...)]` so the derived `Default` still builds.
+When the spec type has `#[confval(derive_default)]`, give the new field a `#[confval(default = ...)]` so the derived `Default` still builds.
 When the type has a handwritten `impl Default`, add the field there too.
 A field with no default on a `derive_default` type is a compile error.
 

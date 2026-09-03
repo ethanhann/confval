@@ -268,7 +268,7 @@ fn missing_field_in_a_nested_object_reports_inside_its_braces() {
         .expect("the missing key in tls must be reported");
     let span = issue
         .span
-        .expect("missing-field errors carry the enclosing span");
+        .expect("missing-field errors keep the enclosing span");
     // The enclosing span is the nested object's brace range, so the error
     // points inside `tls` rather than at the whole document.
     let text = &input[span.start as usize..span.end as usize];
@@ -297,7 +297,7 @@ fn a_syntax_error_reports_one_issue_at_its_location() {
         issue.message,
         "syntax error: trailing commas are not allowed"
     );
-    let span = issue.span.expect("a syntax error carries its span");
+    let span = issue.span.expect("a syntax error keeps its span");
     assert_eq!(&input[span.start as usize..span.end as usize], ",");
 }
 

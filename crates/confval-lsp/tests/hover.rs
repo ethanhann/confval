@@ -460,7 +460,7 @@ fn hover_on_a_non_empty_field_states_the_rule() {
     // Assert
     let body = markdown(hover.expect("a hover is produced"));
     assert!(
-        body.contains("Must not be empty. Provide the hostname the server binds."),
+        body.contains("Must not be empty. Provide the address the server binds to."),
         "body: {body}"
     );
     assert!(
@@ -666,7 +666,7 @@ fn yaml_hover_on_a_list_element_reports_the_list_as_set() {
     // Assert
     assert!(
         body.contains("Set by the configuration."),
-        "the cursor sits on the list's own value, body: {body}"
+        "the cursor is on the list's own value, body: {body}"
     );
 }
 

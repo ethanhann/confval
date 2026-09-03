@@ -450,7 +450,7 @@ fn a_range_violation_gets_the_reset_quick_fix() {
     assert_eq!(action.is_preferred, Some(true));
     assert!(
         action.diagnostics.as_ref().is_some_and(|d| !d.is_empty()),
-        "the action carries the diagnostic it fixes"
+        "the action names the diagnostic it fixes"
     );
     let edits: Vec<lsp_types::TextEdit> = action
         .edit

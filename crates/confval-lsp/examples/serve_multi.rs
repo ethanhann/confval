@@ -38,9 +38,8 @@ struct GatewaySpec {
     /// The TCP port the gateway listens on.
     #[confval(range = PORT)]
     port: Located<i64>,
-    /// Path to the TLS certificate file. A path leaf with a format. The
-    /// existence check stays in the `Validate` body, because a filesystem
-    /// probe has no attribute.
+    /// Path to the TLS certificate file. It must be an absolute path. The
+    /// example checks that the file exists in the `Validate` body.
     #[confval(format = AbsolutePath)]
     tls_cert: Option<Located<PathBuf>>,
     /// The peer addresses allowed to connect. A bare list with a default,

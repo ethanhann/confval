@@ -532,7 +532,7 @@ mod tests {
             + 1;
         assert!(
             first_header < commented && commented < second_header,
-            "the first element's commented entry sits between the two headers, got:\n{text}"
+            "the first element's commented entry is between the two headers, got:\n{text}"
         );
         reparse(&text);
     }

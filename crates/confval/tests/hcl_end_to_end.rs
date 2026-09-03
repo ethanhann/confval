@@ -484,7 +484,7 @@ tls {
         .expect("missing key in tls block must be reported");
     assert!(
         issue.span.is_some(),
-        "missing-field errors carry the enclosing span"
+        "missing-field errors keep the enclosing span"
     );
 }
 

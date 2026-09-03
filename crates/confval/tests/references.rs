@@ -207,7 +207,7 @@ fn an_undefined_reference_reports_at_the_value_span() {
         .find(|i| i.message.contains("upstream"))
         .expect("an undefined-reference error");
     assert_eq!(issue.message, "no upstream named \"nope\"");
-    let span = issue.span.expect("the error carries a span");
+    let span = issue.span.expect("the error keeps a span");
     assert_eq!(&text[span.start as usize..span.end as usize], "\"nope\"");
     assert!(
         report
@@ -313,7 +313,7 @@ fn a_reference_to_an_absent_block_reports_a_target_error() {
         .iter()
         .find(|issue| issue.message == "reference target nowhere is not a labeled block")
         .unwrap_or_else(|| panic!("expected a target error, got: {:?}", errors(&report)));
-    let span = issue.span.expect("the error carries a span");
+    let span = issue.span.expect("the error keeps a span");
     assert_eq!(&text[span.start as usize..span.end as usize], "\"x\"");
 }
 
@@ -573,7 +573,7 @@ fn scope_labels_collects_labels_with_spans_and_no_report() {
     assert_eq!(upstreams[0].value.as_str(), "api");
     assert!(
         text[upstreams[0].span.start as usize..upstreams[0].span.end as usize].contains("api"),
-        "the label carries its span: {:?}",
+        "the label keeps its span: {:?}",
         &text[upstreams[0].span.start as usize..upstreams[0].span.end as usize]
     );
     assert!(errors(&report).is_empty(), "the accessor emits nothing");
@@ -914,7 +914,7 @@ fn a_reference_out_of_scope_names_scoping_rather_than_the_target() {
             "pool is declared in a nested scope, and a reference resolves outward through its enclosing blocks"
         )
     );
-    let span = issue.span.expect("the error carries a span");
+    let span = issue.span.expect("the error keeps a span");
     assert_eq!(&text[span.start as usize..span.end as usize], "\"a\"");
 }
 
@@ -972,8 +972,8 @@ fn scope_labels_reads_the_named_blocks_own_label_field() {
     assert_eq!(labels[0].value.as_str(), "b1");
 }
 
-/// A root whose labeled block has a plural field name, so the empty-label help
-/// is exercised on a name the singular wording would misread.
+/// A root whose labeled block field is plural. The empty-label help then reads
+/// "name the upstreams block", which this test pins.
 #[derive(confval::Spec)]
 struct PluralGatewaySpec {
     #[confval(nested)]
