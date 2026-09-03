@@ -188,6 +188,17 @@ NON_EMPTY.check_each(&spec.tags, "tag", report);
 `check_each` checks each element of a list at its own span.
 `check_list` takes a list span and reports when the list has no elements.
 The message is `name must not be empty`.
+The help line is "Provide a non-empty value for name".
+When a field needs its own remediation line, declare the rule once with `NonEmptyConstraint::with_help`.
+
+```rust
+const SOCK: NonEmptyConstraint =
+    NonEmptyConstraint::with_help("Provide a path to the Unix domain socket used for zero-drop upgrades.");
+
+SOCK.check_located(&spec.sock, "sock", report);
+```
+
+When you provide **help**, it replaces the generated suggestion.
 
 ### UNIQUE
 
@@ -199,6 +210,8 @@ UNIQUE.check_list(&spec.tags, "tags", report);
 ```
 
 The message is `duplicate value in tags: "web"`, with a related label at the first occurrence.
+The help line is "Remove the repeated entry from tags".
+`UniqueConstraint::with_help` declares a rule whose help line replaces it, the way `NonEmptyConstraint::with_help` does.
 
 ### keyword_enum!
 
@@ -270,6 +283,9 @@ Each repeat is reported at its own span, with a related label at the first occur
 `#[confval(keywords = PATH)]` also applies to a string list, where it records the set each element must come from.
 `#[confval(non_empty)]` on a `String` leaf or a string list rejects an empty or whitespace-only value.
 On an `Option<Located<String>>` leaf, the derive checks the value only when the source sets it.
+Both flags take an optional help line, as in `#[confval(non_empty(help = "Provide a path to the socket."))]` and `#[confval(unique(help = "Each listener may appear once."))]`.
+When you provide **help**, it replaces the generated suggestion.
+The help reaches the schema and an editor's hover as well.
 On a list, it also rejects a list with zero elements.
 The wrapped `Option<Located<Vec<Located<String>>>>` keeps the list's own span, so that message points at the brackets.
 The bare `Vec<Located<String>>` holds no span of its own, so that message has no location.

@@ -1,5 +1,6 @@
 //! The legality rules for `#[derive(Spec)]`'s flag attributes, `label`,
-//! `non_empty`, and `unique`. Each flag has its own set of shapes it applies
+//! `non_empty`, and `unique`, and the parser for the `help = "..."` list the
+//! last two take. Each flag has its own set of shapes it applies
 //! to and its own rule about `default`, so each has its own function.
 //! The value constraints have their rules in [`recorded`](super::recorded).
 //!
@@ -140,4 +141,36 @@ pub(crate) fn reject_unique_misuse(shape: &FieldShape, options: &FieldOptions) -
              it cannot apply to a map or a nested block",
         )),
     }
+}
+
+/// Stores a flag's own path and, when a parenthesized list follows, its
+/// `help = "..."` line. Rejects a second flag, an unknown key, a non-string
+/// help, and a second help. `label` takes no list and uses `set_flag` in
+/// `options.rs` instead.
+pub(crate) fn set_flag_with_help(
+    slot: &mut Option<syn::Path>,
+    help: &mut Option<syn::LitStr>,
+    meta: &syn::meta::ParseNestedMeta<'_>,
+    key: &str,
+) -> syn::Result<()> {
+    if slot.is_some() {
+        return Err(meta.error(format!("duplicate confval attribute `{key}`")));
+    }
+    *slot = Some(meta.path.clone());
+    if !meta.input.peek(syn::token::Paren) {
+        return Ok(());
+    }
+    meta.parse_nested_meta(|inner| {
+        if !inner.path.is_ident("help") {
+            return Err(inner.error(format!(
+                "unknown key in `{key}(...)`; expected `help = \"...\"`"
+            )));
+        }
+        if help.is_some() {
+            return Err(inner.error(format!("duplicate `help` in `{key}(...)`")));
+        }
+        let text: syn::LitStr = inner.value()?.parse()?;
+        *help = Some(text);
+        Ok(())
+    })
 }

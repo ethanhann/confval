@@ -1,0 +1,5 @@
+error: duplicate confval attribute `non_empty`
+ --> tests/ui/fail/schema_non_empty_twice_with_help.rs:5:26
+  |
+5 |     #[confval(non_empty, non_empty(help = "x"))]
+  |                          ^^^^^^^^^

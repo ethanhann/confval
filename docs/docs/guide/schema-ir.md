@@ -87,7 +87,8 @@ Two more attributes, `#[confval(non_empty)]` and `#[confval(unique)]`, each reco
 The field is a `String` leaf or a string list.
 It rejects an empty or whitespace-only value.
 On a list it also rejects a list with zero elements.
-The schema records it as `SchemaField::non_empty`, a `bool` flag separate from the `Constraint` slot.
+The schema records it as `SchemaField::non_empty`, a `bool` flag, and keeps the help line of `non_empty(help = "...")` in `SchemaField::non_empty_help`.
+The `Constraint` slot stays free for a value constraint.
 A field can have both `non_empty` and a value constraint.
 It cannot have `non_empty` beside `label`, because the reference pass reports an empty label.
 
@@ -95,7 +96,8 @@ It cannot have `non_empty` beside `label`, because the reference pass reports an
 
 The field is a string list.
 It rejects an entry that repeats an earlier one.
-The schema records it as `SchemaField::unique`, a `bool` flag separate from the `Constraint` slot.
+The schema records it as `SchemaField::unique`, a `bool` flag, and keeps the help line of `unique(help = "...")` in `SchemaField::unique_help`.
+The `Constraint` slot stays free for a value constraint.
 `unique` combines with `keywords`, `format`, `non_empty`, and `default`, because the default list is empty and so unique.
 
 ### `#[confval(keywords = PATH)]`

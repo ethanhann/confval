@@ -74,10 +74,20 @@ pub(crate) fn field_schema(
         field = quote! { #field.with_default_text(#rendered) };
     }
     if options.non_empty.is_some() {
-        field = quote! { #field.with_non_empty() };
+        field = match &options.non_empty_help {
+            Some(help) => quote! {
+                #field.with_non_empty_help(::core::option::Option::Some(#help))
+            },
+            None => quote! { #field.with_non_empty() },
+        };
     }
     if options.unique.is_some() {
-        field = quote! { #field.with_unique() };
+        field = match &options.unique_help {
+            Some(help) => quote! {
+                #field.with_unique_help(::core::option::Option::Some(#help))
+            },
+            None => quote! { #field.with_unique() },
+        };
     }
     if options.label.is_some() {
         Ok(quote! { #field.as_label() })

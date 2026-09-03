@@ -41,8 +41,8 @@ Declare a recorded constraint on the field.
 - A character length bound with `#[confval(length = ...)]`.
 - A parse as a named format with `#[confval(format = ...)]`.
 - A closed set with `#[confval(keywords = ...)]`.
-- A non-empty check with `#[confval(non_empty)]`.
-- A list with no repeated entry, `#[confval(unique)]`.
+- A non-empty check with `#[confval(non_empty)]`, or `#[confval(non_empty(help = "..."))]` with its own remediation line.
+- A list with no repeated entry, `#[confval(unique)]`, or `#[confval(unique(help = "..."))]` with its own remediation line.
 
 The derive runs a recorded constraint during validation, so the `Validate` impl carries no line for it.
 A recorded constraint expands where the spec struct is declared.

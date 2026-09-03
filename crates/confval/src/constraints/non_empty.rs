@@ -7,22 +7,40 @@
 use crate::diagnostic::Report;
 use crate::source::{Located, Span};
 
-/// The non-empty check. Use the [`NON_EMPTY`] constant. Do not construct one.
+/// The non-empty check. [`NON_EMPTY`] is the rule with the generated help
+/// line. [`with_help`](NonEmptyConstraint::with_help) builds a rule whose help
+/// line replaces it, which the derive emits for
+/// `#[confval(non_empty(help = "..."))]` and a handwritten spec declares as a
+/// const.
 #[derive(Debug, Clone, Copy)]
-pub struct NonEmptyConstraint;
+#[non_exhaustive]
+pub struct NonEmptyConstraint {
+    /// A help line that replaces the generated suggestion.
+    pub help: Option<&'static str>,
+}
 
-/// The single instance a caller or the derive names in a check call.
-pub const NON_EMPTY: NonEmptyConstraint = NonEmptyConstraint;
+/// The rule with the generated help line, which a bare `#[confval(non_empty)]`
+/// and a handwritten check name.
+pub const NON_EMPTY: NonEmptyConstraint = NonEmptyConstraint { help: None };
 
 impl NonEmptyConstraint {
+    /// A rule whose help line replaces the generated suggestion.
+    pub const fn with_help(help: &'static str) -> Self {
+        Self { help: Some(help) }
+    }
+
     /// Reports `{field} must not be empty` when the string is empty or
     /// whitespace-only.
     pub fn check_located(&self, value: &Located<String>, field: &str, report: &mut Report) {
         if value.value.trim().is_empty() {
+            let help = self
+                .help
+                .map(String::from)
+                .unwrap_or_else(|| format!("Provide a non-empty value for {field}"));
             report
                 .error(format!("{field} must not be empty"))
                 .at(value.span)
-                .help(format!("Provide a non-empty value for {field}"))
+                .help(help)
                 .emit();
         }
     }
@@ -45,10 +63,14 @@ impl NonEmptyConstraint {
         report: &mut Report,
     ) {
         if values.is_empty() {
+            let help = self
+                .help
+                .map(String::from)
+                .unwrap_or_else(|| format!("Provide at least one item in {field}"));
             report
                 .error(format!("{field} must not be empty"))
                 .at(span)
-                .help(format!("Provide at least one item in {field}"))
+                .help(help)
                 .emit();
         }
     }

@@ -90,6 +90,8 @@ struct ServerSpec {
 ```
 
 `unique` combines with `keywords`, `format`, `non_empty`, and `default`, because the default list is empty and so unique.
+When the field needs its own remediation line, write `#[confval(unique(help = "Each peer may appear once."))]`.
+The help replaces the generated suggestion in the diagnostic and renders after the rule in an editor's hover.
 A duplicate check that spans blocks, such as a service name unique across files, compares labels and stays in the `Validate` body.
 
 ## A non-empty string or list
@@ -111,14 +113,20 @@ struct ServiceSpec {
 A field can carry `#[confval(non_empty)]` and one value constraint, such as `#[confval(keywords = ...)]`.
 A field cannot carry `#[confval(non_empty)]` and `#[confval(default)]` together, because the default is empty and would fail the check.
 A field cannot carry `#[confval(non_empty)]` and `#[confval(label)]` together, because `check_references` reports an empty label.
+When the field needs its own remediation line, write `#[confval(non_empty(help = "Provide the service name."))]`.
+The help replaces the generated suggestion in the diagnostic and renders after the rule in an editor's hover.
 
-For a handwritten spec, call the checker directly:
+For a handwritten spec, declare the rule once as a const and call its checker:
 
 ```rust
-use confval::prelude::{NON_EMPTY, Located, Report};
+use confval::prelude::{Located, NonEmptyConstraint, Report};
 
-NON_EMPTY.check_located(&name, "name", &mut report);
+const NAME: NonEmptyConstraint = NonEmptyConstraint::with_help("Provide the service name.");
+
+NAME.check_located(&name, "name", &mut report);
 ```
+
+`NON_EMPTY` is the same rule with the generated help line.
 
 ## A default declared once
 

@@ -839,7 +839,10 @@ fn a_bare_flag_holds_the_flag_and_no_help() {
     let tags = field(&schema, "tags");
 
     // Assert
-    assert!(tags.non_empty && tags.unique, "tags is marked with both flags");
+    assert!(
+        tags.non_empty && tags.unique,
+        "tags is marked with both flags"
+    );
     assert_eq!(tags.non_empty_help, None);
     assert_eq!(tags.unique_help, None);
 }

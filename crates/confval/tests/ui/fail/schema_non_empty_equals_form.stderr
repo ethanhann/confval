@@ -1,0 +1,5 @@
+error: expected `,`
+ --> tests/ui/fail/schema_non_empty_equals_form.rs:5:25
+  |
+5 |     #[confval(non_empty = "x")]
+  |                         ^

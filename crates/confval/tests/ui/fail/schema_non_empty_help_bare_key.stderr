@@ -1,0 +1,5 @@
+error: expected `=`
+ --> tests/ui/fail/schema_non_empty_help_bare_key.rs:5:29
+  |
+5 |     #[confval(non_empty(help))]
+  |                             ^

@@ -30,6 +30,11 @@ use std::path::PathBuf;
 range_constraint!(WORKERS, i64, min: 1, max: 512);
 length_constraint!(NAME_LEN, max: 63);
 
+/// The emptiness rule on `name`, declared once so `validate` checks with the
+/// same help line `schema()` records.
+const NAME_NON_EMPTY: NonEmptyConstraint =
+    NonEmptyConstraint::with_help("Provide the service name the file configures.");
+
 confval::keyword_enum!(pub LogEvent, {
     Started  => "started",
     Reloaded => "reloaded",
@@ -246,7 +251,7 @@ impl ToSchema for ServiceSpec {
         Schema::new(
             None,
             vec![
-                sf("name", true, false, name).with_non_empty(),
+                sf("name", true, false, name).with_non_empty_help(NAME_NON_EMPTY.help),
                 sf("workers", true, true, workers).with_default_text("4".to_string()),
                 sf("sample_rate", true, true, leaf(ScalarType::Float))
                     .with_default_text("1.0".to_string()),
@@ -282,7 +287,7 @@ impl ToSchema for ServiceSpec {
 
 impl Validate for ServiceSpec {
     fn validate(&self, report: &mut Report) {
-        NON_EMPTY.check_located(&self.name, "name", report);
+        NAME_NON_EMPTY.check_located(&self.name, "name", report);
         NAME_LEN.check_located(&self.name, "name", report);
         WORKERS.check_located(&self.workers, "workers", report);
         // A keyword list is checked per element, so a typo is reported under

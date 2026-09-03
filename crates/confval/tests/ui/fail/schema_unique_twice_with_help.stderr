@@ -1,0 +1,5 @@
+error: duplicate confval attribute `unique`
+ --> tests/ui/fail/schema_unique_twice_with_help.rs:5:23
+  |
+5 |     #[confval(unique, unique(help = "x"))]
+  |                       ^^^^^^

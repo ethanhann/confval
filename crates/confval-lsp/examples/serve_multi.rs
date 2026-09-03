@@ -44,9 +44,9 @@ struct GatewaySpec {
     /// a `unique` flag, and a format on each entry.
     #[confval(default, unique, format = Ip)]
     allow: Vec<Located<String>>,
-    /// Free-form tags. A wrapped optional list with both flags and no
-    /// value constraint.
-    #[confval(non_empty, unique)]
+    /// Free-form tags. A wrapped optional list with both flags, one with a
+    /// help line, and no value constraint.
+    #[confval(non_empty, unique(help = "Each tag may appear once."))]
     tags: Option<Located<Vec<Located<String>>>>,
 }
 

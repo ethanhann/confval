@@ -16,7 +16,8 @@
 //! `NON_EMPTY.check_located`, and a string list calls `NON_EMPTY.check_list`
 //! for the list and `NON_EMPTY.check_each` for its elements. For `unique`, a
 //! string list calls `UNIQUE.check_list`, which reports each repeat at its
-//! own span. The fragments run in that order, constraint, then `non_empty`,
+//! own span. A flag with `help = "..."` calls the same methods on
+//! `NonEmptyConstraint::with_help(...)` or `UniqueConstraint::with_help(...)`. The fragments run in that order, constraint, then `non_empty`,
 //! then `unique`, and the renderer keeps that order within one source, so an
 //! operator reads a value error before a flag error on the same field.
 //!
@@ -185,13 +186,17 @@ fn non_empty_fragment(
     name: &str,
 ) -> Option<TokenStream2> {
     options.non_empty.as_ref()?;
+    let rule = match &options.non_empty_help {
+        Some(help) => quote! { ::confval::constraints::NonEmptyConstraint::with_help(#help) },
+        None => quote! { ::confval::constraints::NON_EMPTY },
+    };
     let fragment = match shape {
         FieldShape::Leaf {
             leaf: Leaf::String,
             optional: false,
             ..
         } => quote! {
-            ::confval::constraints::NON_EMPTY.check_located(&self.#ident, #name, report);
+            #rule.check_located(&self.#ident, #name, report);
         },
         FieldShape::Leaf {
             leaf: Leaf::String,
@@ -199,21 +204,19 @@ fn non_empty_fragment(
             ..
         } => quote! {
             if let ::core::option::Option::Some(__value) = &self.#ident {
-                ::confval::constraints::NON_EMPTY.check_located(__value, #name, report);
+                #rule.check_located(__value, #name, report);
             }
         },
         FieldShape::BareStringList => quote! {
-            ::confval::constraints::NON_EMPTY.check_list(
+            #rule.check_list(
                 &self.#ident, #name, ::confval::source::Span::detached(), report,
             );
-            ::confval::constraints::NON_EMPTY.check_each(&self.#ident, #name, report);
+            #rule.check_each(&self.#ident, #name, report);
         },
         FieldShape::OptionalWrappedStringList => quote! {
             if let ::core::option::Option::Some(__list) = &self.#ident {
-                ::confval::constraints::NON_EMPTY.check_list(
-                    &__list.value, #name, __list.span, report,
-                );
-                ::confval::constraints::NON_EMPTY.check_each(&__list.value, #name, report);
+                #rule.check_list(&__list.value, #name, __list.span, report);
+                #rule.check_each(&__list.value, #name, report);
             }
         },
         // `field_schema` runs before this walk and rejects every other shape,
@@ -235,13 +238,17 @@ fn unique_fragment(
     name: &str,
 ) -> Option<TokenStream2> {
     options.unique.as_ref()?;
+    let rule = match &options.unique_help {
+        Some(help) => quote! { ::confval::constraints::UniqueConstraint::with_help(#help) },
+        None => quote! { ::confval::constraints::UNIQUE },
+    };
     let fragment = match shape {
         FieldShape::BareStringList => quote! {
-            ::confval::constraints::UNIQUE.check_list(&self.#ident, #name, report);
+            #rule.check_list(&self.#ident, #name, report);
         },
         FieldShape::OptionalWrappedStringList => quote! {
             if let ::core::option::Option::Some(__list) = &self.#ident {
-                ::confval::constraints::UNIQUE.check_list(&__list.value, #name, report);
+                #rule.check_list(&__list.value, #name, report);
             }
         },
         // `field_schema` runs before this walk and rejects every other shape,

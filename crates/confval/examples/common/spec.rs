@@ -35,7 +35,9 @@ impl Format for Cidr {
 
 #[derive(confval::Spec)]
 pub struct ServerSpec {
-    #[confval(non_empty, length = HOSTNAME_LEN)]
+    // The flag's help line replaces the generated one in the diagnostic and
+    // renders after the rule in an editor's hover.
+    #[confval(non_empty(help = "Provide the hostname the server binds."), length = HOSTNAME_LEN)]
     pub hostname: Located<String>,
     #[confval(range = PORT)]
     pub port: Located<i64>,
