@@ -189,7 +189,8 @@ NON_EMPTY.check_each(&spec.tags, "tag", report);
 `check_each` checks each element of a list at its own span.
 `check_list` takes a list span and reports when the list has no elements.
 The message is `name must not be empty`.
-The help line is "Provide a non-empty value for name".
+`check_located` and `check_each` generate the help line "Provide a non-empty value for name".
+`check_list` generates "Provide at least one item in name".
 When a field needs its own remediation line, declare the rule once with `NonEmptyConstraint::with_help`.
 
 ```rust
@@ -212,7 +213,15 @@ UNIQUE.check_list(&spec.tags, "tags", report);
 
 The message is `duplicate value in tags: "web"`, with a related label at the first occurrence.
 The help line is "Remove the repeated entry from tags".
-`UniqueConstraint::with_help` declares a rule whose help line replaces it, the way `NonEmptyConstraint::with_help` does.
+When a list needs its own remediation line, declare the rule once with `UniqueConstraint::with_help`.
+
+```rust
+const LISTENERS: UniqueConstraint = UniqueConstraint::with_help("Each listener may appear once.");
+
+LISTENERS.check_list(&spec.listeners, "listeners", report);
+```
+
+When you provide **help**, it replaces the generated suggestion.
 
 ### keyword_enum!
 
@@ -277,7 +286,8 @@ The derive then runs the check for you.
 `#[confval(range = PATH)]` on an `Int` or `Float` leaf, and `#[confval(keywords = PATH)]` on a `String` leaf, name the constraint the field must satisfy.
 `#[confval(length = PATH)]` on a `String` leaf names a `length_constraint!` bound.
 `#[confval(format = PATH)]` on a `String` leaf, a `Path` leaf, or a string list names a type that implements `Format`.
-On a `Path` leaf the check reads the path's text, so `AbsolutePath` records on a `Located<PathBuf>`.
+On a `Path` leaf the check reads the path's text.
+`AbsolutePath` therefore records on a `Located<PathBuf>`.
 On a list, every element must parse.
 `#[confval(unique)]` on a string list rejects an entry that repeats an earlier one.
 The comparison is the exact string.
@@ -287,6 +297,7 @@ Each repeat is reported at its own span, with a related label at the first occur
 On an `Option<Located<String>>` leaf, the derive checks the value only when the source sets it.
 Both flags take an optional help line, as in `#[confval(non_empty(help = "Provide a path to the socket."))]` and `#[confval(unique(help = "Each listener may appear once."))]`.
 When you provide **help**, it replaces the generated suggestion.
+On a list, one help line covers the empty list and each empty element, so word it for both.
 The help reaches the schema and an editor's hover as well.
 On a list, it also rejects a list with zero elements.
 The wrapped `Option<Located<Vec<Located<String>>>>` keeps the list's own span, so that message points at the brackets.
@@ -345,7 +356,7 @@ A field cannot have `#[confval(non_empty)]` and `#[confval(default)]` together.
 The default for a string is the empty string.
 The default for a list is the empty list.
 Either default would fail the check.
-A field cannot have `#[confval(non_empty)]` and `#[confval(label)]` together, because the reference pass reports an empty label.
+A field cannot have `#[confval(non_empty)]` and `#[confval(label)]` together, because `check_references` reports an empty label.
 
 ### What recording covers
 
@@ -363,7 +374,7 @@ It stays in the `Validate` body.
 A duplicate check that spans blocks, such as a service name unique across files, compares labels and stays there too.
 `unique` covers one list.
 An emptiness rule on a defaulted list also stays in the `Validate` body, because `non_empty` cannot be combined with `default`.
-An empty label, or a label of spaces alone, is reported by `check_references`.
+An empty or whitespace-only label is reported by `check_references`.
 A `label` field needs neither `non_empty` nor a manual check when the pipeline runs that pass.
 
 A keyword list checked by hand with `check_each` also stays there.
@@ -386,7 +397,7 @@ When the two are declared apart, nothing keeps them in agreement.
 Declare each rule once and use that one declaration in both places.
 
 A `RangeConstraint` and a `LengthConstraint` describe themselves through `constraint()`.
-A format's record is `format_constraint::<T>()`.
+A format's record is `confval::constraints::format_constraint::<T>()`, which is not in the prelude.
 A keyword set's record is `Constraint::keywords(&T::KEYWORDS)`, from the same table `keyword_set()` reads.
 A flag records through `with_non_empty_help` or `with_unique_help`, with the help read from the const.
 
@@ -447,7 +458,8 @@ fn main() {
 }
 ```
 
-A rule that depends on which variant a tagged block holds, such as the `domains` list an `acme` mode needs, stays hand-written and records nothing.
+A rule that depends on which variant a tagged block holds stays handwritten and records nothing.
+The `domains` list an `acme` mode needs is one example.
 The schema describes one flat level, so a flag on `domains` would describe the `manual` variant too.
 
 ## Writing a Validate impl

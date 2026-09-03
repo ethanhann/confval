@@ -87,16 +87,18 @@ Two more attributes, `#[confval(non_empty)]` and `#[confval(unique)]`, each reco
 The field is a `String` leaf or a string list.
 It rejects an empty or whitespace-only value.
 On a list it also rejects a list with zero elements.
-The schema records it as `SchemaField::non_empty`, a `bool` flag, and keeps the help line of `non_empty(help = "...")` in `SchemaField::non_empty_help`.
+The schema records it as `SchemaField::non_empty`, a `bool` flag.
+The help line of `non_empty(help = "...")` is in `SchemaField::non_empty_help`.
 The `Constraint` slot stays free for a value constraint.
 A field can have both `non_empty` and a value constraint.
-It cannot have `non_empty` beside `label`, because the reference pass reports an empty label.
+It cannot have `non_empty` beside `label`, because `check_references` reports an empty label.
 
 ### `#[confval(unique)]`
 
 The field is a string list.
 It rejects an entry that repeats an earlier one.
-The schema records it as `SchemaField::unique`, a `bool` flag, and keeps the help line of `unique(help = "...")` in `SchemaField::unique_help`.
+The schema records it as `SchemaField::unique`, a `bool` flag.
+The help line of `unique(help = "...")` is in `SchemaField::unique_help`.
 The `Constraint` slot stays free for a value constraint.
 `unique` combines with `keywords`, `format`, `non_empty`, and `default`, because the default list is empty and so unique.
 
@@ -209,7 +211,7 @@ if let Some(fields) = &fields {
 ```
 
 The pass reports an undefined reference, a duplicate label, and an empty label, each at its value's span.
-A label of spaces alone is empty.
+A whitespace-only label is empty.
 The language server runs the same pass in its diagnostics.
 The editor and your pipeline report the same reference errors.
 
@@ -232,7 +234,10 @@ use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
 
 length_constraint!(NAME_LEN, max: 63);
 
-struct TlsSpec;
+struct TlsSpec {
+    mode: Located<String>,
+    name: Option<Located<String>>,
+}
 
 impl ToSchema for TlsSpec {
     fn schema() -> Schema {
@@ -259,6 +264,11 @@ impl ToSchema for TlsSpec {
 }
 
 fn main() {
+    let spec = TlsSpec {
+        mode: Located::detached("acme".to_string()),
+        name: None,
+    };
+    assert_eq!(spec.mode.value, "acme");
     assert_eq!(TlsSpec::schema().fields.len(), 2);
 }
 ```

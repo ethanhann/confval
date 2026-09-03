@@ -58,7 +58,7 @@ check_references(&fields, &ServerSpec::schema(), &mut report);
 
 The pass resolves every reference against the labels its scope can see.
 It reports a duplicate label, an empty label, and a reference no label matches.
-A label of spaces alone is empty.
+A whitespace-only label is empty.
 [Running the reference check](./guide/schema-ir.md#running-the-reference-check) shows the wiring.
 [How a reference resolves](./guide/schema-ir.md#how-a-reference-resolves) covers the scoping rule.
 
