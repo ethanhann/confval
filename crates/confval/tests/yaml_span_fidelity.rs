@@ -130,7 +130,7 @@ fn a_valueless_key_yields_a_zero_width_null() {
     let (value, _, span) = scalar(text, 1);
 
     // Assert
-    assert_eq!(value, "~");
+    assert_eq!(value, "");
     assert_eq!(span.start.index(), span.end.index());
 }
 
