@@ -49,7 +49,7 @@ annotate-snippets = { version = "0.12" }
 hcl-edit = { version = "0.9.7" }
 toml_edit = { version = "0.25" }
 kdl = { version = "6.7", default-features = false, features = ["span"] }
-jsonc-parser = { version = "0.33", default-features = false }
+jsonc-parser = { version = "0.34", default-features = false }
 saphyr-parser = { version = "0.3", default-features = false }
 lsp-types = { version = "0.97" }
 lsp-server = { version = "0.10" }
