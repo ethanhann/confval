@@ -1,15 +1,12 @@
-//! The format constraint, `#[confval(format = ...)]`, the
-//! [`Format`](crate::Format) trait, and the built-in formats that need no
-//! dependency beyond `std`.
+//! The format constraint, `#[confval(format = ...)]`, the [`Format`] trait,
+//! and the built-in formats that need no dependency beyond `std`.
 //!
-//! A format type is a unit struct that implements [`Format`](crate::Format).
-//! The derive and a handwritten spec both call
-//! [`check_format`](crate::constraints::check_format),
-//! [`check_format_path`](crate::constraints::check_format_path), or
-//! [`check_each_format`](crate::constraints::check_each_format) with the type as
-//! a parameter, so a format has no data. No instance is built. A domain
-//! format such as a CIDR block or a URL is a consumer type that
-//! implements the trait the same way.
+//! A format type is a unit struct that implements [`Format`].
+//! The derive and a handwritten spec both call [`check_format`],
+//! [`check_format_path`], or [`check_each_format`] with the type as a
+//! parameter, so a format has no data. No instance is built. A domain format
+//! such as a CIDR block or a URL is a consumer type that implements the trait
+//! the same way.
 
 use crate::diagnostic::Report;
 use crate::schema::Constraint;
