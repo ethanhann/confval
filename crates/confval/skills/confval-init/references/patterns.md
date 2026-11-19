@@ -154,15 +154,47 @@ struct LimitsSpec {
 }
 ```
 
-A spec whose every field is optional and declares no default may use `#[derive(Default)]`, because all `None` is what the parser fills.
-Nothing is declared twice, so nothing can drift.
-A spec where any field declares `#[confval(default = ...)]` uses `#[confval(derive_default)]`.
+A spec whose every field is optional and declares no default may use `#[derive(Default)]`.
+All `None` is what the parser fills, so nothing is declared twice.
+Nothing is declared twice.
+Nothing can drift.
+A spec where any field declares `#[confval(default = ...)]` or `#[confval(derive_default = ...)]` uses `#[confval(derive_default)]`.
 
-The standard derive fills an undeclared field with `T::default()` without reporting it, so the value for an absent block and the value for an omitted field can drift apart.
-`#[confval(derive_default)]` refuses a field that declares no default rather than inventing a value, which keeps the two the same.
+The standard derive fills an undeclared field with `T::default()` without reporting it.
+The value for an absent block and the value for an omitted field can then drift apart.
+`#[confval(derive_default)]` refuses a field that declares neither `#[confval(default)]` nor `#[confval(derive_default = expr)]` rather than inventing a value.
+A required field states its generated value with `#[confval(derive_default = expr)]`.
 A handwritten `impl Default` that repeats the attribute values reintroduces the same drift by hand.
 A migration from an earlier version usually leaves one behind.
 Delete it and add the attribute.
+
+A required field stays required in the document.
+`#[confval(derive_default = expr)]` only supplies the value for the generated `Default` impl.
+
+```rust
+#[derive(confval::Spec)]
+#[confval(derive_default)]
+struct HealthCheckSpec {
+    #[confval(derive_default = false)]
+    enable: Located<bool>,
+    #[confval(default = 3)]
+    failure_threshold: Located<i64>,
+}
+```
+
+`enable` is still reported when a document omits it.
+
+The field form has these limits:
+
+- It requires a value.
+- It cannot be combined with `#[confval(default)]`, which already supplies the value for an absent field and for the generated `Default` impl.
+- It cannot be combined with `#[confval(non_empty)]` or `#[confval(unique)]`, because a generated value can fail either check.
+- It has no meaning on an optional field, whose generated value is already `None`.
+
+A label field can use the form.
+The document must still set the label.
+The generated value is used only when Rust builds the spec directly.
+Choose a non-empty value.
 
 ## The configuration with no file
 

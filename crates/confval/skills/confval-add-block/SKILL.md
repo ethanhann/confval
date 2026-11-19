@@ -71,8 +71,9 @@ Narrow an integer with a `narrow` helper, and convert a keyword string with `nar
 ### 5. The Default impl
 
 When the spec type has `#[confval(derive_default)]`, give the new field a `#[confval(default = ...)]` so the derived `Default` still builds.
+If the field must stay required in the document, use `#[confval(derive_default = ...)]` instead.
 When the type has a handwritten `impl Default`, add the field there too.
-A field with no default on a `derive_default` type is a compile error.
+A field with neither `#[confval(default)]` nor `#[confval(derive_default = ...)]` on a `derive_default` type is a compile error.
 
 When the runtime default comes from lowering the spec's `Default`, the spec attribute is the only place to update.
 There is no second declaration to keep in agreement.
