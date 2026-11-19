@@ -1,0 +1,5 @@
+error: #[confval(derive_default)] cannot be combined with #[confval(default)]. `default` already supplies the value for an absent field and the generated `Default` impl.
+ --> tests/ui/fail/derive_default_with_default.rs:8:49
+  |
+8 |     #[confval(default = false, derive_default = true)]
+  |                                                 ^^^^

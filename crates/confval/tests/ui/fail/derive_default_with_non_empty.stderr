@@ -1,0 +1,5 @@
+error: #[confval(derive_default)] cannot be combined with #[confval(non_empty)]. A generated string or list can be empty.
+ --> tests/ui/fail/derive_default_with_non_empty.rs:8:43
+  |
+8 |     #[confval(non_empty, derive_default = "x".to_string())]
+  |                                           ^^^^^^^^^^^^^^^

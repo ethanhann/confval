@@ -1,0 +1,5 @@
+error: #[confval(derive_default)] cannot be combined with #[confval(unique)]. A generated list can repeat a value.
+ --> tests/ui/fail/derive_default_with_unique.rs:9:40
+  |
+9 |     #[confval(unique, derive_default = vec![Located::detached("x".to_string())])]
+  |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
