@@ -46,6 +46,9 @@ pub(crate) fn parse_struct_options(input: &DeriveInput) -> syn::Result<StructOpt
                 if options.derive_default {
                     return Err(meta.error("duplicate confval attribute `derive_default`"));
                 }
+                if meta.input.peek(syn::Token![=]) {
+                    return Err(meta.error("#[confval(derive_default)] on a struct takes no value"));
+                }
                 options.derive_default = true;
                 Ok(())
             } else if meta.path.is_ident("doc") {
@@ -72,7 +75,9 @@ impl FieldOptions {
     /// `#[confval(default)]`, and `None` when no default was requested.
     ///
     /// The parser's absent-field fill and the `derive_default` impl both read
-    /// this one mapping, so the two cannot disagree on what a default means.
+    /// this one mapping, so the two cannot disagree on what a default means. A
+    /// field with only `#[confval(derive_default = expr)]` has no parser default
+    /// and reads `derive_default_value` in the generated impl instead.
     pub(crate) fn default_value(&self) -> Option<TokenStream2> {
         self.default.as_ref().map(|default| match default {
             Some(expr) => quote! { #expr },
@@ -96,6 +101,12 @@ pub(crate) struct FieldOptions {
     /// - `Some(None)`        `#[confval(default)]`, use the type's `Default`.
     /// - `Some(Some(expr))`  `#[confval(default = expr)]`, use `expr`.
     pub(crate) default: Option<Option<Expr>>,
+    /// The value a generated `Default` impl uses for this field, from
+    /// `#[confval(derive_default = expr)]`. Unlike `default`, it does not make
+    /// the field optional: the parser still reports a missing field, so a field
+    /// that a document must set can still have a value when Rust builds the
+    /// spec directly. `default.rs` and the option checks in `rules.rs` read it.
+    pub(crate) derive_default_value: Option<Expr>,
     /// The path a `#[confval(keywords = PATH)]` names, or `None`. It records the
     /// association from a `String` leaf or a string list to a `keyword_enum!`
     /// type, whose `KEYWORDS` const the schema walk reads. Which shapes may
@@ -159,6 +170,7 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
         nested: false,
         map: false,
         default: None,
+        derive_default_value: None,
         keywords: None,
         range: None,
         length: None,
@@ -200,6 +212,18 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
                     options.default = Some(None);
                 }
                 Ok(())
+            } else if meta.path.is_ident("derive_default") {
+                if options.derive_default_value.is_some() {
+                    return Err(meta.error("duplicate confval attribute `derive_default`"));
+                }
+                if !meta.input.peek(syn::Token![=]) {
+                    return Err(meta.error(
+                        "a field-level `derive_default` requires a value: \
+                         `#[confval(derive_default = expr)]`",
+                    ));
+                }
+                options.derive_default_value = Some(meta.value()?.parse()?);
+                Ok(())
             } else if meta.path.is_ident("keywords") {
                 set_path(&mut options.keywords, &meta, "keywords")
             } else if meta.path.is_ident("range") {
@@ -228,8 +252,8 @@ pub(crate) fn parse_options(field: &Field) -> syn::Result<FieldOptions> {
             } else {
                 Err(meta.error(
                     "unknown confval attribute; expected `nested`, `map`, `default`, \
-                     `keywords`, `range`, `length`, `format`, `label`, `references`, \
-                     `non_empty`, `unique`, or `doc`",
+                     `derive_default`, `keywords`, `range`, `length`, `format`, `label`, \
+                     `references`, `non_empty`, `unique`, or `doc`",
                 ))
             }
         })?;

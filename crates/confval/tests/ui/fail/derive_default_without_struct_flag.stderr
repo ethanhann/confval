@@ -1,0 +1,5 @@
+error: #[confval(derive_default = expr)] needs #[confval(derive_default)] on the struct
+ --> tests/ui/fail/derive_default_without_struct_flag.rs:7:32
+  |
+7 |     #[confval(derive_default = false)]
+  |                                ^^^^^

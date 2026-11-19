@@ -2,7 +2,7 @@ use confval::source::Located;
 
 // `#[confval(derive_default)]` cannot derive a value for a non-optional leaf
 // with no attribute default, so it names the field and refuses rather than
-// inventing `String::default()`.
+// using `String::default()`.
 #[derive(confval::Spec)]
 #[confval(derive_default)]
 struct ServerSpec {

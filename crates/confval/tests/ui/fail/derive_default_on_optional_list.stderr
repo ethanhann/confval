@@ -1,0 +1,5 @@
+error: #[confval(derive_default)] has no meaning on an optional field. An absent field is already `None` in the generated `Default` impl.
+ --> tests/ui/fail/derive_default_on_optional_list.rs:8:32
+  |
+8 |     #[confval(derive_default = vec![Located::detached("a".to_string())])]
+  |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

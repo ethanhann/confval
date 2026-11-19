@@ -13,10 +13,12 @@ use super::shape::{FieldShape, Leaf};
 /// Rejects the misuses of `#[confval(label)]`.
 ///
 /// A block's label is one required string, so the field must be a non-optional
-/// `String` leaf and cannot have a default. A list, a map, a block, or a
-/// non-string scalar cannot be a label. An optional leaf names nothing when the
-/// block has no label. A default would build a value the reference pass then
-/// reports as undefined. A `non_empty` flag beside `label` is rejected in
+/// `String` leaf. A list, a map, a block, or a non-string scalar cannot be a
+/// label. An optional leaf names nothing when the block has no label. A parser
+/// default is rejected because it builds a value the reference pass reports as
+/// undefined. `#[confval(derive_default = expr)]` is allowed because the
+/// document must still set the label. The generated value is used only when Rust
+/// builds the spec directly. A `non_empty` flag beside `label` is rejected in
 /// [`reject_non_empty_misuse`].
 pub(crate) fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Result<()> {
     let Some(label) = &options.label else {
@@ -70,7 +72,9 @@ pub(crate) fn reject_label_misuse(shape: &FieldShape, options: &FieldOptions) ->
 /// `non_empty` is rejected, because `check_references` reports an empty
 /// label. A field with both `default` and `non_empty` is rejected.
 /// The default for a `String` is the empty string and for a list is the
-/// empty list. Either one would fail the check.
+/// empty list. Either one would fail the check. A field with both
+/// `derive_default` and `non_empty` is rejected because a generated value can
+/// be empty.
 pub(crate) fn reject_non_empty_misuse(
     shape: &FieldShape,
     options: &FieldOptions,
@@ -122,7 +126,8 @@ pub(crate) fn reject_non_empty_misuse(
 /// `unique` is valid on the two string list shapes alone. A scalar leaf has
 /// one value, so nothing can repeat, and a map's keys are unique already. It
 /// combines with `keywords`, `format`, `non_empty`, and `default`, because
-/// the default list is empty and so unique.
+/// the default list is empty, which is unique. It does not combine with
+/// `derive_default`, because a generated list can repeat a value.
 pub(crate) fn reject_unique_misuse(shape: &FieldShape, options: &FieldOptions) -> syn::Result<()> {
     let Some(unique) = &options.unique else {
         return Ok(());

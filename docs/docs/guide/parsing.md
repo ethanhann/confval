@@ -145,10 +145,10 @@ See [Lowering](./lowering.md#defining-a-config).
 
 ### Deriving `Default` from the attribute defaults
 
-The attribute default fills a field the file omits.
-When the whole block is omitted, the config side supplies it through `#[confval(nested, default)]`, which lowers `S::default()`.
-The spec type therefore needs a `Default` impl.
-Writing that impl by hand repeats the attribute defaults, and nothing keeps the two in agreement.
+When a whole block is omitted from a config file, the parser fills it with `S::default()` through `#[confval(nested, default)]`.
+Your spec type therefore needs a `Default` impl.
+Writing that impl by hand repeats the attribute defaults.
+Nothing keeps the two in agreement.
 
 `#[confval(derive_default)]` on the struct generates the `Default` impl from the attribute defaults.
 Each default is declared once.
@@ -164,22 +164,66 @@ struct LimitsSpec {
 }
 ```
 
-The standard `#[derive(Default)]` fills each field with `T::default()`.
-A `Located<String>` becomes empty and a `Located<i64>` becomes zero.
-`#[confval(derive_default)]` fills each field from its declared `#[confval(default)]` instead.
-It refuses a field that declares no default rather than inventing a value.
+The standard `#[derive(Default)]` is not enough here.
+It fills each field with `T::default()`, so a `Located<String>` becomes empty and a `Located<i64>` becomes zero, without reporting anything.
+`#[confval(derive_default)]` instead fills each field from its declared `#[confval(default)]` or `#[confval(derive_default = expr)]`.
+It refuses a field that declares neither attribute rather than inventing a value.
 
 Use `#[confval(derive_default)]` rather than `#[derive(Default)]` on a spec.
-The standard derive fills an undeclared field with `T::default()` without reporting it.
-The value for an absent block and the value for a field the source omits can then drift apart.
-`#[confval(derive_default)]` keeps those two values the same.
+The value for an absent block and the value for a field the source omits then stay the same.
 
-The value it generates for a field is the value the parser fills when that field is absent.
-A field the parser would report as missing has no value to derive, so it is a compile error.
-A non-optional `Located<T>` or `Located<S>` with no default, and a `Vec<Located<String>>` with no default, each need a `#[confval(default)]` or a handwritten `impl Default`.
-An `Option` field and a nested list default on their own, because the parser already fills them when they are absent.
+For a field with `#[confval(default)]`, the generated value is the value the parser fills when the field is absent.
+A field without a parser default has nothing to derive unless it declares `#[confval(derive_default = expr)]`.
+A non-optional `Located<T>` or `Located<S>` with neither attribute needs one of the two attributes or a handwritten `impl Default`.
+A `Vec<Located<String>>` with neither attribute needs the same.
+An `Option` field and a nested list default on their own.
+The parser already fills them when they are absent.
 
-The attribute is opt-in and additive.
+#### Keeping a required field
+
+Sometimes a field must be present in a document, but you still want a value for it when you build the spec in Rust.
+The usual answer is a handwritten `impl Default`.
+That repeats the values the attributes already declare.
+Nothing keeps the two in agreement.
+
+`#[confval(derive_default = expr)]` gives you a way out.
+It supplies a value for the generated `Default` impl only.
+The parser still reports the field as missing when a document omits it.
+The field stays required.
+
+Here is a spec with a required `enable` field that defaults to `false`:
+
+```rust
+#[derive(confval::Spec)]
+#[confval(derive_default)]
+struct HealthCheckSpec {
+    #[confval(derive_default = false)]
+    enable: Located<bool>,
+    #[confval(default = 3)]
+    failure_threshold: Located<i64>,
+}
+```
+
+`HealthCheckSpec::default()` sets `enable` to `false` and `failure_threshold` to `3`.
+A document that omits `enable` is still rejected.
+
+The expression is the value for the whole field, in the field's Rust type.
+A string list holds `Located<String>`, a nested list holds `Located<S>`, and a map holds `Located<String>` values.
+A required nested block wraps the value in `Located`, the same as the parser does.
+
+The field form has a few limits.
+It requires a value.
+It cannot stand beside `#[confval(default)]`, which already supplies the value for an absent field and for the generated `Default` impl.
+It cannot stand beside `#[confval(non_empty)]` or `#[confval(unique)]`, because a generated value can fail either check.
+It has no meaning on an optional field, whose generated value is already `None`.
+A list, map, or nested list takes a value for the whole collection.
+
+A label field can use the form.
+The document must still set the label.
+The generated value is used only when Rust builds the spec directly.
+Choose a non-empty value.
+
+The struct attribute is opt-in.
 A type that keeps its handwritten `impl Default` is unaffected.
 
 ### Nested structs

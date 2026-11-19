@@ -2,8 +2,8 @@ use confval::source::Located;
 
 // A non-optional nested block with no default has no value to derive, so
 // `derive_default` refuses it the same way it refuses a leaf or a list. A bare
-// `#[confval(nested, default)]` fills it with `Inner::default()` and resolves
-// the error.
+// `#[confval(nested, default)]` fills it with `Inner::default()` and the error
+// goes away.
 #[derive(confval::Spec)]
 struct Inner {
     #[confval(default = 7)]

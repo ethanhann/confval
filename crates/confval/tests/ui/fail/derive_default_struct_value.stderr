@@ -1,0 +1,5 @@
+error: #[confval(derive_default)] on a struct takes no value
+ --> tests/ui/fail/derive_default_struct_value.rs:5:11
+  |
+5 | #[confval(derive_default = true)]
+  |           ^^^^^^^^^^^^^^

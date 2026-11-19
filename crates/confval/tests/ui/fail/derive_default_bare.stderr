@@ -1,0 +1,5 @@
+error: a field-level `derive_default` requires a value: `#[confval(derive_default = expr)]`
+ --> tests/ui/fail/derive_default_bare.rs:7:15
+  |
+7 |     #[confval(derive_default)]
+  |               ^^^^^^^^^^^^^^

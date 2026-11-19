@@ -24,6 +24,7 @@ mod options;
 mod parser;
 mod populate;
 mod recorded;
+mod rules;
 mod schema;
 mod shape;
 mod source_view;
@@ -32,8 +33,9 @@ mod traversal;
 mod validate_recorded;
 
 use options::{parse_options, parse_struct_options};
-use parser::{field_parser, reject_unsupported_default};
+use parser::field_parser;
 use populate::field_emit;
+use rules::{reject_derive_default, reject_unsupported_default};
 use schema::{field_schema, reject_self_nesting, to_schema_impl};
 use shape::classify;
 use source_view::field_source_emit;
@@ -131,6 +133,7 @@ pub(crate) fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let shape = classify(field, options.nested, options.map)?;
         reject_self_nesting(name, &shape)?;
         reject_unsupported_default(field, &shape, &options)?;
+        reject_derive_default(&shape, &options, struct_options.derive_default)?;
         if struct_options.derive_default {
             default_ctors.push(default::field_ctor(ident, &shape, &options)?);
         }

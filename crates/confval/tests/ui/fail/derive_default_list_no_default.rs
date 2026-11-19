@@ -2,7 +2,7 @@ use confval::source::Located;
 
 // A required string list has no attribute default, so `derive_default` refuses
 // it the same way it refuses a leaf. Adding a bare `#[confval(default)]` makes
-// the list default to empty and resolves the error.
+// the list default to empty and the error goes away.
 #[derive(confval::Spec)]
 #[confval(derive_default)]
 struct ServerSpec {
