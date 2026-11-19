@@ -45,7 +45,7 @@ checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "confval"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "annotate-snippets",
  "confval-derive",
@@ -61,7 +61,7 @@ dependencies = [
 
 [[package]]
 name = "confval-derive"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -70,7 +70,7 @@ dependencies = [
 
 [[package]]
 name = "confval-lsp"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "confval",
  "line-index",
