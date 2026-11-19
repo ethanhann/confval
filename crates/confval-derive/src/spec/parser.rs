@@ -14,9 +14,8 @@ use super::options::FieldOptions;
 use super::shape::{FieldShape, Leaf};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
+use syn::Ident;
 use syn::ext::IdentExt;
-use syn::spanned::Spanned;
-use syn::{Field, Ident};
 
 /// The four generated fragments for one field, each spliced into the matching
 /// bucket in the parent's `from_fields`.
@@ -273,52 +272,4 @@ fn seen_missing_check(field_name: &str, seen: &Ident) -> TokenStream2 {
             ::confval::format::report_missing_field(#field_name, fields.enclosing(), report);
         }
     }
-}
-
-/// Rejects `#[confval(default ...)]` on field shapes that would silently ignore
-/// it. Only leaf fields honor a default value. A string list accepts a bare
-/// `#[confval(default)]` (meaning "empty") but not `default = <expr>`. Every
-/// other shape would ignore the default, so flag it at compile time rather than
-/// surprise the author at runtime.
-pub(crate) fn reject_unsupported_default(
-    field: &Field,
-    shape: &FieldShape,
-    options: &FieldOptions,
-) -> syn::Result<()> {
-    let Some(default) = &options.default else {
-        return Ok(());
-    };
-    let supported = match shape {
-        FieldShape::Leaf { .. } => true,
-        // A string list's only meaningful default is the empty list, written as
-        // a bare `#[confval(default)]`. An explicit value cannot be honored.
-        FieldShape::BareStringList => default.is_none(),
-        // A nested block, optional or not, accepts a bare `#[confval(default)]`.
-        // On a non-optional block the parser fills an absent block with the
-        // type's `Default`. On an optional block the bare default is the
-        // populate marker `ToFields` reads to fill an absent block, and parsing
-        // still leaves it `None`. Neither has a sensible `default = expr` for a
-        // whole sub-struct.
-        FieldShape::Nested {
-            optional: false, ..
-        }
-        | FieldShape::Nested { optional: true, .. } => default.is_none(),
-        // A map's only meaningful default is the empty map, a bare
-        // `#[confval(default)]`. A `default = expr` for a whole map is refused.
-        FieldShape::Map => default.is_none(),
-        FieldShape::NestedList { .. } | FieldShape::OptionalWrappedStringList => false,
-    };
-    if supported {
-        return Ok(());
-    }
-    let span = default
-        .as_ref()
-        .map(Spanned::span)
-        .unwrap_or_else(|| field.span());
-    Err(syn::Error::new(
-        span,
-        "#[confval(default)] is not supported here; a leaf field takes \
-         #[confval(default)] or #[confval(default = expr)], while a string list, \
-         a map, or a nested block accepts only a bare #[confval(default)]",
-    ))
 }
