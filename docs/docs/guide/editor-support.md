@@ -115,12 +115,17 @@ They answer nothing until the file parses.
 YAML reads structure from indentation, so it handles the common shapes, including a block sequence, a value on the next line, and an inline flow collection.
 An unusual YAML layout, such as a flow collection spread across several lines, can resolve less precisely than a block mapping.
 
-## One open file at a time
+## Checks run by the editor
 
-The editor checks the file you have open on its own.
-When you assemble a configuration from several [layers](./layering.md), a later layer can supply a value the open file leaves out.
-The editor does not see the other layers.
-It can report a required field as missing even though a layer supplies it.
-In a layered setup, treat a missing-field error as a prompt to check the other layers rather than a fault in the open file.
+The editor checks the files you have open.
+A rule that reads one file, such as an out-of-range port or an undefined reference, reports as soon as you open or edit that file.
+A rule that reads several files, such as a duplicate service name across two include files, needs the contents of every file it reads.
 
-A multi document server holds every file of the configuration in one process, but each open file is still checked on its own.
+When the server is configured with a workspace validator, those cross-file rules run in the editor as well.
+Each cross-file finding is reported in every file it concerns.
+Fixing one file clears it in the others.
+Files that are not open are not covered, so the CLI remains the check for them.
+
+In a layered setup, a later layer can supply a value the open file leaves out.
+The editor does not see the other layers, so it can report a required field as missing even though a layer supplies it.
+Treat a missing-field error as a prompt to check the other layers rather than a fault in the open file.

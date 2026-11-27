@@ -124,6 +124,13 @@ Pick a format, then launch an LSP client at the built binary.
 cargo run -p confval-lsp --example serve hcl
 ```
 
+Pass `--workspace` to also register a demo workspace validator.
+Two open files that bind the same `hostname` then each report the duplicate.
+
+```shell
+cargo run -p confval-lsp --example serve hcl --workspace
+```
+
 ### serve_multi
 
 The `serve_multi` example runs one server over two bindings, an entrypoint spec for `gateway.cvm` and a middleware spec for any `middleware.*` file.
@@ -132,6 +139,13 @@ The documents under `dev/sample_configs/multi/` exercise it, including one file 
 
 ```shell
 cargo run -p confval-lsp --example serve_multi
+```
+
+Pass `--workspace` to also register a demo workspace validator.
+Two middleware files that declare the same `name` each report the duplicate, and a middleware on the port the gateway binds reports it beside a related span in `gateway.cvm`.
+
+```shell
+cargo run -p confval-lsp --example serve_multi --workspace
 ```
 
 ## More examples
