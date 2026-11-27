@@ -18,8 +18,9 @@ use crate::binding::Binding;
 use crate::encoding::LineIndex;
 use crate::frontend::CursorContext;
 use crate::handlers;
+use crate::workspace::IndexedDocument;
 
-use super::{Document, Router};
+use super::Router;
 
 impl Router {
     /// Computes the completion response for a request.
@@ -46,26 +47,26 @@ impl Router {
         &self,
         uri: &Uri,
         position: lsp_types::Position,
-    ) -> Option<(&Document, &Binding, LineIndex, CursorContext)> {
-        let document = self.documents.get(uri.as_str())?;
-        let binding = self.bindings.get(document.binding?)?;
-        let index = LineIndex::new(&document.text);
-        let offset = index.offset_of(&document.text, position, self.encoding);
+    ) -> Option<(&IndexedDocument, &Binding, LineIndex, CursorContext)> {
+        let document = self.index.get(uri.as_str())?;
+        let binding = self.bindings.get(document.binding()?)?;
+        let index = LineIndex::new(document.text());
+        let offset = index.offset_of(document.text(), position, self.encoding);
         let context = binding
             .frontend
-            .resolve(document.tree.as_ref(), &document.text, offset);
+            .resolve(document.fields(), document.text(), offset);
         Some((document, binding, index, context))
     }
 
     /// Resolves a whole-document request against a stored document and its
-    /// binding. Three cases resolve to `None`: a document the server has not
-    /// opened, a buffer that does not parse, and a document that matched no
-    /// binding. The callers answer empty on each.
-    fn resolve_tree(&self, uri: &Uri) -> Option<(&Document, &Binding, &Fields, LineIndex)> {
-        let document = self.documents.get(uri.as_str())?;
-        let tree = document.tree.as_ref()?;
-        let binding = self.bindings.get(document.binding?)?;
-        let index = LineIndex::new(&document.text);
+    /// binding. Two cases resolve to `None`: a document the index does not
+    /// hold, and a buffer that does not parse. The callers answer empty on
+    /// each.
+    fn resolve_tree(&self, uri: &Uri) -> Option<(&IndexedDocument, &Binding, &Fields, LineIndex)> {
+        let document = self.index.get(uri.as_str())?;
+        let tree = document.fields()?;
+        let binding = self.bindings.get(document.binding()?)?;
+        let index = LineIndex::new(document.text());
         Some((document, binding, tree, index))
     }
 
@@ -95,7 +96,7 @@ impl Router {
 
     /// Computes the document-symbol response for a request. A buffer that
     /// does not parse answers nothing, because the outline reads parsed
-    /// spans. An unmatched document never holds a tree, so that same guard
+    /// spans. An unindexed document resolves to nothing, so that same guard
     /// answers before the binding lookup.
     pub(super) fn document_symbols(
         &self,
@@ -111,7 +112,7 @@ impl Router {
                 hierarchical: self.hierarchical,
             },
             uri,
-            &document.text,
+            document.text(),
             &index,
             self.encoding,
         ))
@@ -167,7 +168,7 @@ impl Router {
         handlers::folding_ranges(
             &binding.schema,
             tree,
-            &document.text,
+            document.text(),
             binding.frontend.block_span_covers_body(),
             binding.frontend.recovery(),
             &index,
@@ -185,7 +186,7 @@ impl Router {
             &binding.schema,
             tree,
             uri,
-            &document.text,
+            document.text(),
             &index,
             self.encoding,
         )
@@ -221,14 +222,14 @@ impl Router {
 
 /// The handler context for a resolved document and its binding.
 fn cx<'a>(
-    document: &'a Document,
+    document: &'a IndexedDocument,
     binding: &'a Binding,
     context: &'a CursorContext,
 ) -> handlers::Cx<'a> {
     handlers::Cx {
         schema: &binding.schema,
-        fields: document.tree.as_ref(),
+        fields: document.fields(),
         ctx: context,
-        text: &document.text,
+        text: document.text(),
     }
 }

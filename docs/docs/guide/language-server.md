@@ -75,6 +75,73 @@ The server routes a document once, when the editor opens it.
 If you change the inputs your matchers read, such as an include pattern in the entrypoint, a document that is already open keeps its old schema.
 Reopen the file to route it again.
 
+## Validating the workspace
+
+The per-document checks cover one file at a time, so a rule that reads several files cannot run.
+An example is a duplicate service name across two include files, or a TLS block that only makes sense beside the entrypoint's settings.
+Your loader runs those rules over the whole configuration.
+Without a workspace validator, the editor does not check them, so the editor and the CLI disagree on those rules.
+
+A workspace validator lets the server run those rules in the editor.
+You implement the trait once, beside the code that owns your specs.
+
+For example, this validator reports a duplicate service name in every file that declares one:
+
+```rust
+use confval_lsp::{DocumentIndex, WorkspaceReport, WorkspaceValidator};
+
+struct DuplicateNames;
+
+impl WorkspaceValidator for DuplicateNames {
+    fn validate(&self, documents: &DocumentIndex, report: &mut WorkspaceReport) {
+        let mut named: Vec<(&str, String)> = Vec::new();
+        for (uri, document) in documents.iter() {
+            if let Some(spec) = document.spec().and_then(|spec| spec.downcast_ref::<ServiceSpec>()) {
+                named.push((uri, spec.name.value.clone()));
+            }
+        }
+        for (i, (uri, name)) in named.iter().enumerate() {
+            for (other_uri, other) in named.iter().skip(i + 1) {
+                if name == other {
+                    report.report(uri).error("duplicate service name").emit();
+                    report.report(other_uri).error("duplicate service name").emit();
+                }
+            }
+        }
+    }
+}
+```
+
+`validate` receives every open document the server serves.
+Each document exposes its text, its parsed fields, its schema, and, through `spec`, the spec value the server lowered for its own per-document checks.
+You downcast that value to your own spec types and run the same checks your loader runs.
+Replace `ServiceSpec` with one of your own spec types.
+The trait method takes `&self`.
+The pass re-runs in full on every open, change, and close.
+If your checks are expensive, cache their inputs behind your own interior mutability.
+Rebuild from the index on each run.
+
+The validator reports only the checks the per-document pass cannot run.
+Do not call `validate_all` or `check_references` inside it.
+The per-document pass already runs them.
+Attribute every issue to a document when you report it.
+The key you pass to `report.report(uri)` determines which file the finding appears in.
+Report a cross-file finding in both files it concerns, and attach a related span pointing at the other document.
+
+Pass the validator when you start the server:
+
+```rust
+use confval_lsp::{Matcher, bind, serve_multi_with, Hcl};
+
+serve_multi_with(vec![bind::<AppSpec, _>(Matcher::Any, Hcl)], Box::new(DuplicateNames))
+```
+
+You can also build a `Router` yourself and call `with_workspace_validator` before `run`.
+With no validator registered, a server behaves exactly as before. Only the document you changed publishes.
+
+The workspace pass covers open files only.
+For a file that is not open, the CLI remains the check.
+
 ## Embedding the router
 
 When your host already owns an `lsp-server` connection, such as a test harness over an in-memory pair or a process that speaks LSP over a socket, you can run the router directly.
@@ -118,6 +185,10 @@ cargo run -p confval-lsp --example serve_multi
 ```
 
 The documents under `dev/sample_configs/multi/` exercise it: a valid entrypoint, a valid middleware, a middleware with a bad keyword and an out-of-range port, and one file no binding matches.
+
+Both examples accept `--workspace`, which registers a demo workspace validator beside the per-document checks.
+With `serve hcl --workspace`, two open files that bind the same `hostname` each report the duplicate.
+With `serve_multi --workspace`, two middleware files that declare the same `name` each report the duplicate, and a middleware that listens on the port the gateway binds reports it beside a related span in `gateway.cvm`.
 
 ## Choosing a format
 

@@ -10,6 +10,14 @@
 //! The server routes a document when the editor opens it, so a renamed file
 //! re-routes on reopen.
 //!
+//! Pass `--workspace` to register a demo workspace validator beside the
+//! per-document checks. It runs two cross-file rules: middleware names are
+//! unique across middleware documents, and a middleware does not listen on the
+//! port the gateway binds. For example, open the two middleware samples, change
+//! one `name` to match the other, and both files report the duplicate. Or set a
+//! middleware `port` to `8080`, and the middleware reports it beside a related
+//! span in `gateway.cvm`.
+//!
 //! The sample documents are plain HCL under the made-up `.cvm` extension, so
 //! an IDE registers this server on its own file pattern beside an existing
 //! `.hcl` registration for the `serve` example.
@@ -18,7 +26,10 @@ use std::path::PathBuf;
 
 use confval::prelude::*;
 
-use confval_lsp::{Hcl, LspError, Matcher, bind, serve_multi};
+use confval_lsp::{
+    DocumentIndex, Hcl, LspError, Matcher, WorkspaceReport, WorkspaceValidator, bind, serve_multi,
+    serve_multi_with,
+};
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 length_constraint!(NAME_LEN, max: 63);
@@ -95,8 +106,65 @@ impl Validate for MiddlewareSpec {
     fn validate(&self, _report: &mut Report) {}
 }
 
+/// The demo workspace validator. It runs two cross-file rules: middleware
+/// names are unique across middleware documents, and a middleware does not
+/// listen on the port the gateway binds. Each report lands in the file it
+/// concerns, with a related span pointing at the other document.
+struct CrossFileChecks;
+
+impl WorkspaceValidator for CrossFileChecks {
+    fn validate(&self, documents: &DocumentIndex, report: &mut WorkspaceReport) {
+        let middleware: Vec<(&str, &MiddlewareSpec)> = documents
+            .iter()
+            .filter_map(|(uri, document)| {
+                document
+                    .spec()
+                    .and_then(|spec| spec.downcast_ref::<MiddlewareSpec>())
+                    .map(|spec| (uri, spec))
+            })
+            .collect();
+        let gateway = documents.iter().find_map(|(_, document)| {
+            document
+                .spec()
+                .and_then(|spec| spec.downcast_ref::<GatewaySpec>())
+        });
+        for (i, (uri, spec)) in middleware.iter().enumerate() {
+            for (other_uri, other) in middleware.iter().skip(i + 1) {
+                if spec.name.value != other.name.value {
+                    continue;
+                }
+                report
+                    .report(uri)
+                    .error("duplicate middleware name across documents")
+                    .at(spec.name.span)
+                    .related(other.name.span, "also declared here")
+                    .emit();
+                report
+                    .report(other_uri)
+                    .error("duplicate middleware name across documents")
+                    .at(other.name.span)
+                    .related(spec.name.span, "also declared here")
+                    .emit();
+            }
+        }
+        if let Some(gateway) = gateway {
+            for (uri, middleware) in &middleware {
+                if middleware.port.value == gateway.port.value {
+                    report
+                        .report(uri)
+                        .error("the middleware listens on the port the gateway binds")
+                        .at(middleware.port.span)
+                        .related(gateway.port.span, "the gateway binds this port")
+                        .emit();
+                }
+            }
+        }
+    }
+}
+
 fn main() -> Result<(), LspError> {
-    serve_multi(vec![
+    let workspace = std::env::args().any(|arg| arg == "--workspace");
+    let bindings = vec![
         bind::<GatewaySpec, _>(Matcher::FileName("gateway.cvm".to_string()), Hcl),
         bind::<MiddlewareSpec, _>(
             Matcher::Fn(Box::new(|path| {
@@ -106,5 +174,10 @@ fn main() -> Result<(), LspError> {
             })),
             Hcl,
         ),
-    ])
+    ];
+    if workspace {
+        serve_multi_with(bindings, Box::new(CrossFileChecks))
+    } else {
+        serve_multi(bindings)
+    }
 }

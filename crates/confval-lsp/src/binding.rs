@@ -6,6 +6,7 @@
 //! The [`Matcher`] decides which binding a document gets from the document's
 //! file path when the client opens it.
 
+use std::any::Any;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -63,22 +64,26 @@ impl fmt::Debug for Matcher {
 
 /// The validate pass for one root spec, erased behind a plain function
 /// pointer, so the value stays `Copy` and allocation free.
+///
+/// The pass returns the spec it built, boxed. The server retains one lowered
+/// instance per document for the workspace pass. A failed lowering yields
+/// `None`.
 #[derive(Clone, Copy)]
-pub struct Validator(fn(&Fields, &mut Report));
+pub struct Validator(fn(&Fields, &mut Report) -> Option<Box<dyn Any>>);
 
 impl Validator {
     /// The validate pass for `S`: build the spec from the fields, then run
     /// `validate_all`, appending every issue to the report.
     pub fn of<S>() -> Self
     where
-        S: FromFields + Validate + ValidateNested,
+        S: FromFields + Validate + ValidateNested + 'static,
     {
         Self(run::<S>)
     }
 
-    /// Runs the pass over a parsed document.
-    pub(crate) fn run(&self, fields: &Fields, report: &mut Report) {
-        (self.0)(fields, report);
+    /// Runs the pass over a parsed document, answering the spec it built.
+    pub(crate) fn run(&self, fields: &Fields, report: &mut Report) -> Option<Box<dyn Any>> {
+        (self.0)(fields, report)
     }
 }
 
@@ -89,13 +94,14 @@ impl fmt::Debug for Validator {
 }
 
 /// The monomorphized pass [`Validator::of`] erases.
-fn run<S>(fields: &Fields, report: &mut Report)
+fn run<S>(fields: &Fields, report: &mut Report) -> Option<Box<dyn Any>>
 where
-    S: FromFields + Validate + ValidateNested,
+    S: FromFields + Validate + ValidateNested + 'static,
 {
-    if let Some(spec) = S::from_fields(fields, report) {
+    S::from_fields(fields, report).map(|spec| {
         spec.validate_all(report);
-    }
+        Box::new(spec) as Box<dyn Any>
+    })
 }
 
 /// One document shape of a multi document configuration: a matcher, the
@@ -192,6 +198,16 @@ mod tests {
     }
 
     impl Validate for BindSpec {
+        fn validate(&self, _report: &mut Report) {}
+    }
+
+    /// A root spec whose empty fields lower, for the retained-spec test.
+    #[derive(confval::Spec)]
+    struct LoweredSpec {
+        name: Option<Located<String>>,
+    }
+
+    impl Validate for LoweredSpec {
         fn validate(&self, _report: &mut Report) {}
     }
 
@@ -335,6 +351,46 @@ mod tests {
         let rendered = format!("{binding:?}");
         assert!(rendered.contains("Any"), "got: {rendered}");
         assert!(rendered.contains("Validator(..)"), "got: {rendered}");
+    }
+
+    #[test]
+    fn the_erased_pass_returns_the_lowered_spec() {
+        // Arrange
+        let validator = Validator::of::<LoweredSpec>();
+        let mut sources = SourceMap::new();
+        let id = sources.add("<test>", "");
+        let fields = Fields::new(id, confval::source::Span::new(id, 0, 0), Vec::new());
+        let mut report = Report::new();
+
+        // Act
+        let spec = validator.run(&fields, &mut report);
+
+        // Assert
+        let spec = spec.expect("empty optional fields lower to Some");
+        assert!(
+            spec.downcast_ref::<LoweredSpec>().is_some(),
+            "the boxed value is the concrete spec type"
+        );
+    }
+
+    #[test]
+    fn the_erased_pass_returns_none_when_lowering_fails() {
+        // Arrange
+        let validator = Validator::of::<BindSpec>();
+        let mut sources = SourceMap::new();
+        let id = sources.add("<test>", "");
+        let fields = Fields::new(id, confval::source::Span::new(id, 0, 0), Vec::new());
+        let mut report = Report::new();
+
+        // Act
+        let spec = validator.run(&fields, &mut report);
+
+        // Assert
+        assert!(spec.is_none(), "a failed lowering yields None");
+        assert!(
+            report.has_issues(),
+            "the failed lowering still reports its error"
+        );
     }
 
     #[test]

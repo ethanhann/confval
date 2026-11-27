@@ -1,25 +1,25 @@
 //! The transport shell.
 //!
-//! It wires the pure handlers and a document store into a runnable server.
+//! It wires the pure handlers and a document index into a runnable server.
 //! [`Router`] owns a set of [`Binding`]s and routes each document to the first
 //! binding whose matcher accepts it when the client opens it, so one process
 //! serves every document of a multi document configuration. It runs over an
 //! `lsp-server` connection the caller provides and negotiates the position
-//! encoding at initialization. It updates the document store on open and
+//! encoding at initialization. It updates the document index on open and
 //! change notifications. It answers the completion, hover, code action,
 //! navigation, rename, document highlight, document symbol, document link,
 //! and folding requests
 //! by calling the handlers. It publishes diagnostics on every open and change.
-//! [`serve`] binds one root spec and one frontend over the same router, for a
-//! configuration of one document shape.
+//! With a [`WorkspaceValidator`] registered, it runs the workspace pass after
+//! every open, change, and close, and merges the pass's diagnostics into every
+//! open document's set. [`serve`] binds one root spec and one frontend over
+//! the same router, for a configuration of one document shape.
 
-use std::collections::HashMap;
 use std::fmt;
 
 use lsp_server::{Connection, Message, Notification, Request, Response};
 use lsp_types::notification::{
-    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, LogMessage,
-    Notification as _, PublishDiagnostics,
+    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, LogMessage, Notification as _,
 };
 use lsp_types::request::{
     CodeActionRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
@@ -28,13 +28,14 @@ use lsp_types::request::{
 };
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    InitializeParams, InitializeResult, LogMessageParams, MessageType, PublishDiagnosticsParams,
-    Uri,
+    InitializeParams, InitializeResult, LogMessageParams, MessageType, Uri,
 };
 
+use confval::diagnostic::Report;
 use confval::format::{Fields, FromFields};
 use confval::pipeline::{Validate, ValidateNested};
 use confval::schema::ToSchema;
+use confval::source::SourceMap;
 
 use crate::binding::{Binding, Matcher, bind, file_path};
 use crate::capabilities::{
@@ -43,7 +44,9 @@ use crate::capabilities::{
 use crate::encoding::PositionEncoding;
 use crate::frontend::Frontend;
 use crate::handlers;
+use crate::workspace::{DocumentIndex, IndexedDocument, WorkspaceValidator};
 
+mod publish;
 mod requests;
 
 /// The error the entry points and [`Router`] return.
@@ -83,30 +86,24 @@ const INTERNAL_ERROR: i32 = -32603;
 /// JSON-RPC error code for a well-formed request the server cannot fulfill.
 const REQUEST_FAILED: i32 = -32803;
 
-/// One open document: its current text, its current parse, the report that
-/// parse produced, and the index of the binding that matched it. The parse is
-/// `None` when the text does not parse, and the binding index is `None` when
-/// no binding matched. A publish maps the stored report rather than parsing
-/// again.
-struct Document {
-    text: String,
-    tree: Option<Fields>,
-    report: confval::diagnostic::Report,
-    binding: Option<usize>,
-}
-
-/// The erased language server: a set of bindings and the document store.
+/// The erased language server: a set of bindings, the document index, and the
+/// optional workspace validator.
 ///
 /// Routing runs at every open, so reopening a document routes it again, which
 /// is the operator's remedy when the routing inputs on disk changed. An
-/// unmatched document is held as text but gets no parse, no diagnostics, and
-/// empty answers, with one warning log naming it at open.
+/// unmatched document is not indexed: it gets no parse, no diagnostics, and
+/// empty answers, with one warning log naming it at open. With a workspace
+/// validator attached, the pass runs after every open, change, and close.
+/// Every open matched document is published with its own diagnostics and the
+/// workspace issues attributed to it.
 pub struct Router {
     bindings: Vec<Binding>,
     encoding: PositionEncoding,
     completion_client: handlers::ClientSupport,
     hierarchical: bool,
-    documents: HashMap<String, Document>,
+    index: DocumentIndex,
+    sources: SourceMap,
+    workspace: Option<Box<dyn WorkspaceValidator>>,
 }
 
 impl Router {
@@ -120,6 +117,14 @@ impl Router {
         Ok(Self::over(bindings))
     }
 
+    /// Attaches a workspace validator. The trait is object safe. The server
+    /// stores it boxed, so the registration compiles against any implementor
+    /// the consumer builds.
+    pub fn with_workspace_validator(mut self, validator: Box<dyn WorkspaceValidator>) -> Self {
+        self.workspace = Some(validator);
+        self
+    }
+
     /// A router over a non-empty binding list. The encoding defaults to
     /// UTF-16, the LSP default, until initialization negotiates it.
     fn over(bindings: Vec<Binding>) -> Self {
@@ -128,7 +133,9 @@ impl Router {
             encoding: PositionEncoding::Utf16,
             completion_client: handlers::ClientSupport::default(),
             hierarchical: false,
-            documents: HashMap::new(),
+            index: DocumentIndex::new(),
+            sources: SourceMap::new(),
+            workspace: None,
         }
     }
 
@@ -224,7 +231,7 @@ impl Router {
                     let uri = params.text_document.uri;
                     let matched = self.open_document(&uri, params.text_document.text);
                     log_routing(connection, &uri, self.matched(matched))?;
-                    self.publish(connection, &uri)?;
+                    self.publish_after_update(connection, &uri)?;
                 }
             }
             DidChangeTextDocument::METHOD => {
@@ -233,18 +240,18 @@ impl Router {
                 {
                     let uri = params.text_document.uri;
                     if let Some(change) = params.content_changes.into_iter().next_back() {
-                        // A change for a document the store does not hold
+                        // A change for a document the index does not hold
                         // routes it the way an open would, so a client that
                         // sends a change without an open still gets a routed,
                         // parsed document.
-                        if self.documents.contains_key(uri.as_str()) {
+                        if self.index.get(uri.as_str()).is_some() {
                             self.update_document(&uri, change.text);
                         } else {
                             let matched = self.open_document(&uri, change.text);
                             log_routing(connection, &uri, self.matched(matched))?;
                         }
                     }
-                    self.publish(connection, &uri)?;
+                    self.publish_after_update(connection, &uri)?;
                 }
             }
             DidCloseTextDocument::METHOD => {
@@ -252,8 +259,11 @@ impl Router {
                     notification.extract::<DidCloseTextDocumentParams>(DidCloseTextDocument::METHOD)
                 {
                     let uri = params.text_document.uri;
-                    self.documents.remove(uri.as_str());
+                    // The entry leaves the index before the workspace pass, so
+                    // a closed document's cross-file issues clear everywhere.
+                    self.index.remove(uri.as_str());
                     self.clear_diagnostics(connection, &uri)?;
+                    self.publish_workspace(connection)?;
                 }
             }
             _ => {}
@@ -261,26 +271,31 @@ impl Router {
         Ok(())
     }
 
-    /// Routes a document and stores its text and parse, answering the matched
-    /// binding index. `Matcher::Any` needs no path, so a URI that yields none
-    /// still routes to an `Any` binding. The caller logs the outcome, so the
-    /// store stays free of the connection.
+    /// Routes a document and stores its text, parse, and schema, answering the
+    /// matched binding index. `Matcher::Any` needs no path, so a URI that
+    /// yields none still routes to an `Any` binding. The caller logs the
+    /// outcome, so the index stays free of the connection. An unmatched
+    /// document is not indexed.
     fn open_document(&mut self, uri: &Uri, text: String) -> Option<usize> {
         let path = file_path(uri);
         let matched = self
             .bindings
             .iter()
             .position(|binding| binding.matcher.matches(path.as_deref()));
-        let (tree, report) = parse_with(&self.bindings, matched, &text);
-        self.documents.insert(
-            uri.as_str().to_string(),
-            Document {
-                text,
-                tree,
-                report,
-                binding: matched,
-            },
-        );
+        if let Some(binding) = matched {
+            let schema = self.bindings[binding].schema.clone();
+            let (tree, report) = parse_with(
+                &self.bindings,
+                Some(binding),
+                &mut self.sources,
+                uri.as_str(),
+                &text,
+            );
+            self.index.insert(
+                uri.as_str(),
+                IndexedDocument::new(uri.clone(), text, tree, report, schema, Some(binding)),
+            );
+        }
         matched
     }
 
@@ -289,78 +304,58 @@ impl Router {
         index.and_then(|index| self.bindings.get(index).map(|binding| (index, binding)))
     }
 
-    /// Stores new text for a document the store already holds, keeping the
-    /// binding index its open assigned. An absent document stores nothing.
+    /// Stores new text for a document the index already holds, keeping the
+    /// binding its open assigned. An absent document stores nothing.
     fn update_document(&mut self, uri: &Uri, text: String) {
-        let Some(entry) = self.documents.get_mut(uri.as_str()) else {
+        let Some(binding) = self
+            .index
+            .get(uri.as_str())
+            .and_then(|entry| entry.binding())
+        else {
             return;
         };
-        let (tree, report) = parse_with(&self.bindings, entry.binding, &text);
-        entry.text = text;
-        entry.tree = tree;
-        entry.report = report;
-    }
-
-    /// Publishes the diagnostics for a document. An unmatched document
-    /// publishes nothing.
-    fn publish(&self, connection: &Connection, uri: &Uri) -> Result<(), LspError> {
-        let Some(document) = self.documents.get(uri.as_str()) else {
-            return Ok(());
-        };
-        let Some(binding) = document.binding.and_then(|index| self.bindings.get(index)) else {
-            return Ok(());
-        };
-        let diagnostics = handlers::diagnostics(
-            binding.validator,
-            &binding.schema,
-            document.tree.as_ref(),
-            &document.report,
-            uri,
-            &document.text,
-            self.encoding,
+        let schema = self.bindings[binding].schema.clone();
+        let (tree, report) = parse_with(
+            &self.bindings,
+            Some(binding),
+            &mut self.sources,
+            uri.as_str(),
+            &text,
         );
-        let params = PublishDiagnosticsParams {
-            uri: uri.clone(),
-            diagnostics,
-            version: None,
-        };
-        connection
-            .sender
-            .send(Message::Notification(Notification::new(
-                PublishDiagnostics::METHOD.to_string(),
-                params,
-            )))?;
-        Ok(())
+        self.index.insert(
+            uri.as_str(),
+            IndexedDocument::new(uri.clone(), text, tree, report, schema, Some(binding)),
+        );
     }
 
     /// Clears a document's diagnostics by publishing an empty list, for a
     /// close, matched or not.
     fn clear_diagnostics(&self, connection: &Connection, uri: &Uri) -> Result<(), LspError> {
-        connection
-            .sender
-            .send(Message::Notification(Notification::new(
-                PublishDiagnostics::METHOD.to_string(),
-                PublishDiagnosticsParams {
-                    uri: uri.clone(),
-                    diagnostics: Vec::new(),
-                    version: None,
-                },
-            )))?;
-        Ok(())
+        self.send_diagnostics(connection, uri, Vec::new())
     }
 }
 
-/// Parses with the matched binding's frontend. An unmatched document is held
-/// as text with no tree and an empty report, so resolution recovers nothing
-/// and every answer stays empty.
+/// Parses with the matched binding's frontend, registering the text in the
+/// server's source map under the document's URI string. Every open document
+/// therefore keeps a distinct `SourceId`. The workspace pass attributes a span
+/// to its document through that id. An unmatched document gets no tree, no
+/// report, and no index entry, so resolution recovers nothing and every
+/// answer stays empty.
 fn parse_with(
     bindings: &[Binding],
     matched: Option<usize>,
+    sources: &mut SourceMap,
+    name: &str,
     text: &str,
-) -> (Option<Fields>, confval::diagnostic::Report) {
+) -> (Option<Fields>, Report) {
     match matched.and_then(|index| bindings.get(index)) {
-        Some(binding) => binding.frontend.parse_buffer(text),
-        None => (None, confval::diagnostic::Report::new()),
+        Some(binding) => {
+            let id = sources.add(name, text);
+            let mut report = Report::new();
+            let tree = binding.frontend.parse(sources, id, &mut report);
+            (tree, report)
+        }
+        None => (None, Report::new()),
     }
 }
 
@@ -459,6 +454,20 @@ pub fn serve_multi(bindings: Vec<Binding>) -> Result<(), LspError> {
     Ok(())
 }
 
+/// The same server as [`serve_multi`], with a workspace validator registered,
+/// so the cross-file and relational checks the consumer owns run after every
+/// open, change, and close.
+pub fn serve_multi_with(
+    bindings: Vec<Binding>,
+    validator: Box<dyn WorkspaceValidator>,
+) -> Result<(), LspError> {
+    let router = Router::new(bindings)?.with_workspace_validator(validator);
+    let (connection, io_threads) = Connection::stdio();
+    router.run(&connection)?;
+    io_threads.join()?;
+    Ok(())
+}
+
 #[cfg(all(test, feature = "hcl"))]
 mod tests {
     #![allow(dead_code)]
@@ -471,10 +480,11 @@ mod tests {
 
     use confval::prelude::*;
     use lsp_server::RequestId;
+    use lsp_types::notification::PublishDiagnostics;
     use lsp_types::{
         CompletionParams, CompletionResponse, DocumentLinkParams, Hover, HoverParams, Position,
-        TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
-        TextDocumentPositionParams, VersionedTextDocumentIdentifier,
+        PublishDiagnosticsParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+        TextDocumentItem, TextDocumentPositionParams, VersionedTextDocumentIdentifier,
     };
 
     use crate::frontends::Hcl;
@@ -673,11 +683,11 @@ mod tests {
             !published.diagnostics.is_empty(),
             "the out-of-range port publishes a diagnostic"
         );
-        assert!(router.documents.contains_key(uri.as_str()));
+        assert!(router.index.get(uri.as_str()).is_some());
     }
 
     #[test]
-    fn changing_a_document_updates_the_store_and_republishes() {
+    fn changing_a_document_updates_the_index_and_republishes() {
         // Arrange
         let (mut router, server_conn, client_conn) = setup();
         let uri = Uri::from_str("file:///change.hcl").unwrap();
@@ -714,7 +724,7 @@ mod tests {
             published.diagnostics
         );
         assert_eq!(
-            router.documents.get(uri.as_str()).unwrap().text,
+            router.index.get(uri.as_str()).unwrap().text(),
             "hostname = \"api\"\nport = 8080\n"
         );
     }
@@ -748,8 +758,8 @@ mod tests {
             !published.diagnostics.is_empty(),
             "the never-opened document routes, parses, and diagnoses"
         );
-        let stored = router.documents.get(uri.as_str()).unwrap();
-        assert_eq!(stored.binding, Some(0));
+        let stored = router.index.get(uri.as_str()).unwrap();
+        assert_eq!(stored.binding(), Some(0));
     }
 
     #[test]
@@ -780,11 +790,11 @@ mod tests {
             published.diagnostics.is_empty(),
             "closing clears the document's diagnostics"
         );
-        assert!(!router.documents.contains_key(uri.as_str()));
+        assert!(router.index.get(uri.as_str()).is_none());
     }
 
     #[test]
-    fn an_unmatched_document_is_held_as_text_without_a_parse() {
+    fn an_unmatched_document_is_not_indexed_and_publishes_nothing() {
         // Arrange
         let (server_conn, client_conn) = Connection::memory();
         let mut router = Router::new(vec![bind::<TestSpec, Hcl>(
@@ -799,10 +809,10 @@ mod tests {
         router.on_notification(&server_conn, notification).unwrap();
 
         // Assert
-        let stored = router.documents.get(uri.as_str()).unwrap();
-        assert_eq!(stored.text, "hostname = \"api\"\n");
-        assert!(stored.tree.is_none(), "an unmatched document is not parsed");
-        assert_eq!(stored.binding, None);
+        assert!(
+            router.index.get(uri.as_str()).is_none(),
+            "an unmatched document is not indexed"
+        );
         match client_conn.receiver.recv().unwrap() {
             Message::Notification(notification) => {
                 assert_eq!(notification.method, LogMessage::METHOD);
@@ -825,7 +835,7 @@ mod tests {
         router.update_document(&uri, "hostname = \"api\"\n".to_string());
 
         // Assert
-        assert!(!router.documents.contains_key(uri.as_str()));
+        assert!(router.index.get(uri.as_str()).is_none());
     }
 
     #[test]
@@ -848,11 +858,11 @@ mod tests {
     #[test]
     fn publishing_for_an_unknown_document_sends_nothing() {
         // Arrange
-        let (router, server_conn, client_conn) = setup();
+        let (mut router, server_conn, client_conn) = setup();
         let uri = Uri::from_str("file:///absent.hcl").unwrap();
 
         // Act
-        router.publish(&server_conn, &uri).unwrap();
+        router.publish_after_update(&server_conn, &uri).unwrap();
 
         // Assert
         assert!(

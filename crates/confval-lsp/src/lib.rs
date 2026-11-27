@@ -10,13 +10,16 @@
 //! function of the document, the schema, and a resolved cursor context. The
 //! [`Frontend`] trait is the one format-dependent boundary, with an implementation
 //! for each format confval parses ([`Hcl`], [`Toml`], [`Kdl`], [`Json`], [`Yaml`]). The transport
-//! shell wires the handlers and a document store into a runnable server.
+//! shell wires the handlers and a document index into a runnable server.
 //!
 //! The core is spec erased. [`bind`] captures the traits the derive emits,
 //! `FromFields`, `Validate`, `ValidateNested`, and `ToSchema`, into a
 //! [`Binding`]. A [`Router`] serves one binding per document shape, so one
 //! process serves every document of a multi document configuration.
 //! [`serve`] binds one root spec and one frontend for the single shape case.
+//! With an optional [`WorkspaceValidator`] registered, the server also runs
+//! the cross-file checks the consumer owns over every open document. The
+//! findings merge into the diagnostics it publishes per document.
 
 mod binding;
 mod capabilities;
@@ -28,6 +31,7 @@ mod scan;
 mod server;
 mod snippet;
 mod walk;
+mod workspace;
 
 pub mod handlers;
 
@@ -46,4 +50,5 @@ pub use frontends::Kdl;
 pub use frontends::Toml;
 #[cfg(feature = "yaml")]
 pub use frontends::Yaml;
-pub use server::{LspError, Router, serve, serve_multi};
+pub use server::{LspError, Router, serve, serve_multi, serve_multi_with};
+pub use workspace::{DocumentIndex, IndexedDocument, WorkspaceReport, WorkspaceValidator};

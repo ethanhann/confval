@@ -17,7 +17,7 @@ mod symbols;
 
 pub use code_action::code_action;
 pub use completion::{ClientSupport, completion};
-pub use diagnostics::diagnostics;
+pub use diagnostics::{diagnostics, workspace_diagnostics};
 pub use document_link::document_links;
 pub use folding::folding_ranges;
 pub use hover::hover;

@@ -31,11 +31,12 @@ where
     S: confval::format::FromFields
         + confval::pipeline::Validate
         + confval::pipeline::ValidateNested
-        + confval::schema::ToSchema,
+        + confval::schema::ToSchema
+        + 'static,
     F: Frontend,
 {
     let (tree, report) = frontend.parse_buffer(text);
-    diagnostics(
+    let (diagnostics, _) = diagnostics(
         confval_lsp::Validator::of::<S>(),
         schema,
         tree.as_ref(),
@@ -43,7 +44,8 @@ where
         uri,
         text,
         encoding,
-    )
+    );
+    diagnostics
 }
 
 #[test]
