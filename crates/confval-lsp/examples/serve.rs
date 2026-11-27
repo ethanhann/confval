@@ -7,12 +7,22 @@
 //!
 //! The demo spec mirrors the shape of the crate's test fixture, so the sample documents in
 //! `dev/sample_configs/` parse against it.
+//!
+//! Pass `--workspace` to register a demo workspace validator beside the
+//! per-document checks. It reports a duplicate `hostname` into every pair of
+//! open documents that bind the same one. For example, open
+//! `dev/sample_configs/hcl/valid.confval.hcl` and `invalid.confval.hcl`, change
+//! one `hostname` to match the other, and both files report the duplicate.
+//! Fixing one clears both.
 
 use std::collections::BTreeMap;
 
 use confval::prelude::*;
 
-use confval_lsp::{Hcl, Json, Kdl, Toml, Yaml, serve};
+use confval_lsp::{
+    DocumentIndex, Hcl, Json, Kdl, Matcher, Toml, WorkspaceReport, WorkspaceValidator, Yaml, bind,
+    serve_multi, serve_multi_with,
+};
 
 range_constraint!(PORT, i64, min: 1, max: 65535);
 range_constraint!(WORKERS, i64, min: 1, max: 512);
@@ -181,12 +191,61 @@ impl Validate for ServerSpec {
     }
 }
 
+/// The demo workspace validator. Two open documents must not bind the same
+/// `hostname`. Each side of a pair reports into its own file, with a related
+/// span pointing at the other document.
+struct DuplicateHostname;
+
+impl WorkspaceValidator for DuplicateHostname {
+    fn validate(&self, documents: &DocumentIndex, report: &mut WorkspaceReport) {
+        let bound: Vec<(&str, &ServerSpec)> = documents
+            .iter()
+            .filter_map(|(uri, document)| {
+                document
+                    .spec()
+                    .and_then(|spec| spec.downcast_ref::<ServerSpec>())
+                    .map(|spec| (uri, spec))
+            })
+            .collect();
+        for (i, (uri, spec)) in bound.iter().enumerate() {
+            for (other_uri, other) in bound.iter().skip(i + 1) {
+                if spec.hostname.value != other.hostname.value {
+                    continue;
+                }
+                report
+                    .report(uri)
+                    .error("duplicate hostname across documents")
+                    .at(spec.hostname.span)
+                    .related(other.hostname.span, "also bound here")
+                    .emit();
+                report
+                    .report(other_uri)
+                    .error("duplicate hostname across documents")
+                    .at(other.hostname.span)
+                    .related(spec.hostname.span, "also bound here")
+                    .emit();
+            }
+        }
+    }
+}
+
 fn main() -> Result<(), confval_lsp::LspError> {
-    match std::env::args().nth(1).as_deref() {
-        Some("toml") => serve::<ServerSpec, Toml>(Toml),
-        Some("kdl") => serve::<ServerSpec, Kdl>(Kdl),
-        Some("json") => serve::<ServerSpec, Json>(Json),
-        Some("yaml") => serve::<ServerSpec, Yaml>(Yaml),
-        _ => serve::<ServerSpec, Hcl>(Hcl),
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let workspace = args.iter().any(|arg| arg == "--workspace");
+    let format = args
+        .iter()
+        .map(String::as_str)
+        .find(|arg| *arg != "--workspace");
+    let binding = match format {
+        Some("toml") => bind::<ServerSpec, Toml>(Matcher::Any, Toml),
+        Some("kdl") => bind::<ServerSpec, Kdl>(Matcher::Any, Kdl),
+        Some("json") => bind::<ServerSpec, Json>(Matcher::Any, Json),
+        Some("yaml") => bind::<ServerSpec, Yaml>(Matcher::Any, Yaml),
+        _ => bind::<ServerSpec, Hcl>(Matcher::Any, Hcl),
+    };
+    if workspace {
+        serve_multi_with(vec![binding], Box::new(DuplicateHostname))
+    } else {
+        serve_multi(vec![binding])
     }
 }
