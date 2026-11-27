@@ -1,0 +1,610 @@
+---
+sidebar_position: 2
+---
+
+# Validation
+
+[Parsing](./parsing.md) ensures the spec is structurally correct.
+Validation checks what the values mean: ranges, allowed keywords, and rules that span more than one field.
+
+Two mechanisms cover the checks:
+
+- A **recorded constraint** on a field, such as `#[confval(range = PORT)]` or `#[confval(keywords = LimitMode)]`, declares a mechanical check the derive automatically runs for you.
+- A **`Validate` impl** is block-scoped. It holds the rules an attribute cannot express, such as a cross-field rule or an emptiness check.
+
+You call `validate_all` once on the root spec.
+It runs the recorded constraints, then each type's `Validate` rules, then descends into every nested block.
+
+```rust
+spec.validate_all(&mut report);
+```
+
+## Declaring constraints
+
+confval ships six domain-agnostic checks:
+
+- `RangeConstraint` bounds a number.
+- `LengthConstraint` bounds the character count of a string.
+- `check_format` parses a string as a named format.
+- `KeywordSet` checks a closed string set.
+- `NON_EMPTY` rejects an empty value.
+- `UNIQUE` rejects a repeated list entry.
+
+Each one reports at the value's span with a help line.
+
+### RangeConstraint
+
+`range_constraint!` declares an inclusive numeric bound.
+A `min:` above `max:` is a compile error.
+
+```rust
+range_constraint!(PORT, i64, min: 1, max: 65535);
+range_constraint!(DRAIN, i64, min: 0, max: 300, units: "seconds");
+range_constraint!(WORKERS, i64, min: 1, max: 512, help: "Match this to your CPU core count.");
+```
+
+The macro takes attributes and a visibility before the name, the way a `const` item does.
+Write them inside the call.
+A const declared `pub` or `pub(crate)` is usable from any module that imports from the module holding it.
+For example, a `bounds` module holds the constraints.
+The spec module names them:
+
+```rust
+mod bounds {
+    confval::range_constraint!(
+        /// The listening port.
+        pub PORT, i64, min: 1, max: 65535
+    );
+}
+
+#[derive(confval::Spec)]
+pub struct ServerSpec {
+    #[confval(range = bounds::PORT)]
+    pub port: Located<i64>,
+}
+```
+
+`check_located` emits an error at the value's span when the value is out of range:
+
+```rust
+PORT.check_located(&spec.port, "port", report);
+```
+
+When you provide **help**, it overrides the auto-generated suggestion.
+Otherwise, confval generates one like "Set port to at least 1".
+
+### LengthConstraint
+
+`length_constraint!` declares an inclusive bound on the character count of a string:
+
+```rust
+length_constraint!(HOSTNAME_LEN, max: 253);
+length_constraint!(LABEL_LEN, min: 1, max: 63, help: "Each DNS label is at most 63 characters.");
+```
+
+`length_constraint!` takes attributes and a visibility before the name, the same as `range_constraint!`.
+
+A bound with `max:` alone starts at zero.
+A `min:` above `max:` is a compile error.
+The bound takes `help:` only and has no `units:` arm, because the unit is always characters.
+The count is `value.chars().count()`, the number of Unicode scalar values.
+So an emoji built from several scalar values, or an accented letter written as a base plus a combining mark, counts as more than one.
+When you need a byte count, such as a DNS wire limit, write the check in the `Validate` body.
+
+`check_located` emits an error at the value's span when the count falls outside the bound:
+
+```rust
+HOSTNAME_LEN.check_located(&spec.hostname, "hostname", report);
+```
+
+The message is "hostname must be at most 253 characters" or "hostname must be at least 1 character".
+When you provide **help**, it replaces the generated suggestion.
+
+### check_format
+
+A format is a type that implements the `Format` trait.
+The trait has a `NAME` the message uses and a `check` function that says whether a string parses.
+confval ships `Ipv4`, `Ipv6`, `Ip`, and `AbsolutePath`, the formats that need nothing beyond `std`.
+`AbsolutePath` checks only that the string starts with `/`, not that the path exists or is canonical.
+
+A domain format, such as a CIDR block or a URL, is a type you write.
+For example, a CIDR block:
+
+```rust
+pub struct Cidr;
+
+impl Format for Cidr {
+    const NAME: &'static str = "CIDR block";
+
+    fn check(value: &str) -> bool {
+        let Some((address, prefix)) = value.split_once('/') else {
+            return false;
+        };
+        let digits = !prefix.is_empty() && prefix.bytes().all(|b| b.is_ascii_digit());
+        address.parse::<std::net::Ipv4Addr>().is_ok()
+            && digits
+            && prefix.parse::<u8>().is_ok_and(|bits| bits <= 32)
+    }
+}
+```
+
+`check_format` emits an error at the value's span when the value does not parse.
+`check_format_path` checks a `Located<PathBuf>` by its text, the form the emitters write.
+`check_each_format` does the same for each element of a list:
+
+```rust
+check_format::<Ip>(&spec.hostname, "hostname", report);
+check_each_format::<Cidr>(&spec.allow, "allow", report);
+```
+
+The message is `hostname is not a valid IP address: "localhost"`.
+The help line is "Set hostname to a valid IP address".
+On a list the message is `invalid CIDR block in allow: "10.0.0.0/33"`, which names the list rather than one element.
+The value is quoted, so an empty entry reads as `""`.
+`check` takes no `self`, so a format holds no configuration.
+A format that needs a parameter, such as a maximum URL length, is a later extension.
+
+### KeywordSet
+
+`KeywordSet` checks a string value against a closed set of allowed keywords.
+Use it for fields like strategies, log levels, and fail policies.
+
+```rust
+const LOAD_BALANCING_STRATEGIES: [&str; 5] =
+    ["failover", "round_robin", "request_pressure", "sticky_hash", "random"];
+
+KeywordSet::new(&LOAD_BALANCING_STRATEGIES)
+    .check_located(&spec.load_balancing_strategy, "load_balancing_strategy", report);
+```
+
+`check_located` reports `unknown {field}: {value}` at the value's span, with a help line of `expected one of: <comma-joined options>`.
+Every keyword field reports the same way.
+
+#### Checking a list of keywords
+
+`check_each` reports each bad element at its own span:
+
+```rust
+LogEvent::keyword_set().check_each(&spec.events, "event", report);
+```
+
+Name the field in the singular, because the message describes one element.
+An operator who typos one entry reads `unknown event: reloded` under that entry rather than a message about the whole list.
+
+Both list shapes pass a slice.
+A bare `Vec<Located<String>>` passes itself.
+A wrapped `Option<Located<Vec<Located<String>>>>` passes `&list.value`.
+
+### NON_EMPTY
+
+`NON_EMPTY` rejects an empty value.
+On a `String` leaf it rejects an empty or whitespace-only value.
+
+```rust
+NON_EMPTY.check_located(&spec.name, "name", report);
+NON_EMPTY.check_each(&spec.tags, "tag", report);
+```
+
+`check_located` checks a string leaf.
+`check_each` checks each element of a list at its own span.
+`check_list` takes a list span and reports when the list has no elements.
+The message is `name must not be empty`.
+`check_located` and `check_each` generate the help line "Provide a non-empty value for" followed by the field name you pass.
+`check_list` generates "Provide at least one item in name".
+When a field needs its own help line, declare the rule once with `NonEmptyConstraint::with_help`.
+
+```rust
+const SOCK: NonEmptyConstraint =
+    NonEmptyConstraint::with_help("Provide a path to the Unix domain socket used for zero-drop upgrades.");
+
+SOCK.check_located(&spec.sock, "sock", report);
+```
+
+When you provide **help**, it replaces the generated suggestion.
+
+### UNIQUE
+
+`UNIQUE` rejects a string list entry that repeats an earlier one.
+The comparison is the exact string, and each repeat reports at its own span.
+
+```rust
+UNIQUE.check_list(&spec.tags, "tags", report);
+```
+
+The message is `duplicate value in tags: "web"`, with a related label at the first occurrence.
+The help line is "Remove the repeated entry from tags".
+When a list needs its own help line, declare the rule once with `UniqueConstraint::with_help`.
+
+```rust
+const LISTENERS: UniqueConstraint = UniqueConstraint::with_help("Each listener may appear once.");
+
+LISTENERS.check_list(&spec.listeners, "listeners", report);
+```
+
+When you provide **help**, it replaces the generated suggestion.
+
+### keyword_enum!
+
+A closed-set field normally requires three declarations: a `const` slice of allowed strings for the `KeywordSet` check, a runtime enum, and a `TryFrom<&str>` impl that bridges them at lowering.
+Nothing keeps the three in agreement.
+`keyword_enum!` declares all three from one table:
+
+```rust
+keyword_enum!(pub LimitMode, {
+    Enforce => "enforce",
+    Log     => "log",
+    Off     => "off",
+});
+```
+
+The keyword on the right of each arrow is the single source of truth.
+The macro generates the following items for the visibility you give it:
+
+| Generated item | Description |
+|---|---|
+| `enum LimitMode` | Derives `Debug, Clone, Copy, PartialEq, Eq` |
+| `LimitMode::KEYWORDS` | The allowed set as a `&[&str]` |
+| `LimitMode::keyword_set()` | Returns a `KeywordSet` for the allowed strings |
+| `as_str` | Returns the keyword string for a variant |
+| `TryFrom<&str>` | Accepts exactly the declared keywords |
+| `Display` | Writes the keyword string |
+| `Serialize` (with `serde` feature) | Writes the keyword string, e.g. `"log"` rather than the Rust variant name `Log` |
+
+:::caution
+If you already wrote a `Serialize` impl for the enum, remove it.
+The two impls conflict.
+:::
+
+You check a keyword field in one of two ways.
+On a derived spec, record the set on the field and let the derive run the check:
+
+```rust
+#[derive(confval::Spec)]
+struct LimitsSpec {
+    #[confval(keywords = LimitMode)]
+    mode: Located<String>,
+}
+```
+
+On a handwritten spec, or from a validator function, call the accessor yourself:
+
+```rust
+LimitMode::keyword_set().check_located(&self.mode, "mode", report);
+```
+
+Either way, a value that fails the check never reaches the `TryFrom`.
+The enum and its allowed set cannot drift.
+To lower the validated string into the enum, name `narrow::keyword::<LimitMode>` as the `with` function.
+The [lowering](./lowering.md#narrowing-helpers) guide covers that helper.
+
+## Recording a constraint on the field
+
+The manual `check_located` and `check_each` calls shown above are written in a `Validate` body.
+A field on a derived spec can instead record its constraint with an attribute.
+The derive then runs the check for you.
+
+`#[confval(range = PATH)]` on an `Int` or `Float` leaf, and `#[confval(keywords = PATH)]` on a `String` leaf, name the constraint the field must satisfy.
+`#[confval(length = PATH)]` on a `String` leaf names a `length_constraint!` bound.
+`#[confval(format = PATH)]` on a `String` leaf, a `Path` leaf, or a string list names a type that implements `Format`.
+On a `Path` leaf the check reads the path's text.
+For example, `#[confval(format = AbsolutePath)]` compiles on a `Located<PathBuf>` field.
+On a list, every element must parse.
+`#[confval(unique)]` on a string list rejects an entry that repeats an earlier one.
+The comparison is the exact string.
+Each repeat is reported at its own span, with a related label at the first occurrence.
+`#[confval(keywords = PATH)]` also applies to a string list, where it records the set each element must come from.
+`#[confval(non_empty)]` on a `String` leaf or a string list rejects an empty or whitespace-only value.
+On an `Option<Located<String>>` leaf, the derive checks the value only when the source sets it.
+On a list, it also rejects a list with zero elements.
+The wrapped `Option<Located<Vec<Located<String>>>>` keeps the list's own span, so that message points at the brackets.
+The bare `Vec<Located<String>>` holds no span of its own, so that message has no location.
+
+Both flags take an optional help line, as in `#[confval(non_empty(help = "Provide a path to the socket."))]` and `#[confval(unique(help = "Each listener may appear once."))]`.
+When you provide **help**, it replaces the generated suggestion.
+On a list, one help line covers the empty list and each empty element.
+Word it so it reads correctly for both.
+The schema keeps the help line.
+An editor's hover reads it after the rule sentence.
+
+`validate_all` runs each recorded check.
+The field needs no line in `validate`.
+
+```rust
+#[derive(confval::Spec)]
+struct ServerSpec {
+    #[confval(non_empty, length = HOSTNAME_LEN)]
+    hostname: Located<String>,
+    #[confval(range = PORT)]
+    port: Located<i64>,
+}
+
+#[derive(confval::Spec)]
+struct LimitsSpec {
+    #[confval(range = MAX_BODY_MB)]
+    max_body_mb: Located<i64>,
+    #[confval(keywords = LimitMode)]
+    mode: Located<String>,
+    #[confval(keywords = LogEvent)]
+    events: Vec<Located<String>>,
+}
+
+impl Validate for LimitsSpec {
+    fn validate(&self, _report: &mut Report) {}
+}
+```
+
+Each attribute is the single source for its field.
+It records the constraint for the [schema IR](./schema-ir.md) and runs the check.
+The two cannot disagree.
+
+A field has at most one value constraint.
+`keywords`, `range`, `length`, `format`, and `references` are the value constraints.
+Two of them on one field is a compile error.
+`non_empty` and `unique` are flags rather than value constraints.
+`unique` combines with `keywords`, `format`, `non_empty`, and `default`, because the default list is empty and so unique.
+A field can have `#[confval(non_empty)]` and one value constraint, such as `#[confval(length = ...)]`.
+Pair `non_empty` with a length bound that uses `max:` alone.
+`non_empty` rejects a whitespace-only value, which no length bound can express.
+The two constraints then report different conditions.
+
+On a list, `non_empty` rejects an empty element at that element's span, and it rejects an empty list too.
+A bare `Vec<Located<String>>` has no span of its own, so the empty-list error has no location and sorts to the end of the report.
+When `non_empty` matters on a list, prefer the optional-wrapped shape `Option<Located<Vec<Located<String>>>>`, which reports the empty list at its brackets.
+
+`length` and `format` combine with `default`.
+When the default itself fails the check, the message names the spec's default rather than the configuration.
+Each built-in format rejects the empty string, so a field that has a built-in `format` and `non_empty` reports an empty value twice.
+Record `format` alone on such a field.
+The pair still compiles, because a consumer format may accept the empty string.
+A field cannot have `#[confval(non_empty)]` and `#[confval(default)]` together.
+The default for a string is the empty string.
+The default for a list is the empty list.
+Either default would fail the check.
+A field cannot have `#[confval(non_empty)]` and `#[confval(label)]` together, because `check_references` reports an empty label.
+
+### What recording covers
+
+A recorded list runs `check_each_in` for a keyword set, `check_each_format` for a format, or `UNIQUE.check_list` for a `unique` flag.
+Each bad element is reported at its own span.
+The bare `Vec<Located<String>>` and the wrapped `Option<Located<Vec<Located<String>>>>` both work.
+The message is `unknown value in <field>: <value>`, `invalid <format> in <field>: "<value>"`, or `duplicate value in <field>: "<value>"`.
+Each one reads correctly whatever the list is called.
+Call `check_each` by hand when you have a singular noun for one element, because `unknown mode: shout` is the shorter sentence.
+
+### What stays in the Validate body
+
+A cross-field rule has no attribute.
+It stays in the `Validate` body.
+A duplicate check that spans blocks, such as a service name unique across files, compares labels and stays there too.
+`unique` covers one list.
+An emptiness rule on a defaulted list also stays in the `Validate` body, because `non_empty` cannot be combined with `default`.
+`check_references` reports an empty or whitespace-only label.
+A `label` field needs neither `non_empty` nor a manual check when the pipeline runs that pass.
+
+A keyword list checked by hand with `check_each` also stays there.
+If you record other fields and delete that line, the check disappears with no compile error.
+Record the set on the field instead, and the schema IR and the check come from one attribute.
+
+A list of numbers has no field shape in confval.
+`range` has nothing to bound on a list.
+Record it on an `Int` or `Float` leaf.
+`length` bounds one string, so it takes a `String` leaf alone.
+A per-element bound on a string list is not recorded in this release.
+`references` resolves one value against the labels in scope.
+It is recorded on a scalar leaf too.
+
+## Recording a constraint on a handwritten spec
+
+A handwritten spec gets nothing from the derive.
+Its `Validate` body calls each check, and its `ToSchema` builds each record.
+When the two are declared apart, nothing keeps them in agreement.
+Declare each rule once and use that one declaration in both places.
+
+`RangeConstraint::constraint` and `LengthConstraint::constraint` return the schema record for the bound.
+A format's record is `confval::constraints::format_constraint::<T>()`.
+That function is not in the prelude, so name it by its full path.
+A keyword set's record is `Constraint::keywords(&T::KEYWORDS)`, built from the table `keyword_set()` reads.
+A flag records through `with_non_empty_help` or `with_unique_help`.
+Pass the `help` field of the const the `Validate` body checks with.
+
+For example, a service block with a name and a worker count:
+
+```rust
+use confval::prelude::*;
+use confval::schema::{Constraint, ScalarType, Schema, SchemaField, SchemaType};
+
+range_constraint!(WORKERS, i64, min: 1, max: 512);
+length_constraint!(NAME_LEN, max: 63);
+const NAME_NON_EMPTY: NonEmptyConstraint =
+    NonEmptyConstraint::with_help("Provide the service name.");
+
+struct ServiceSpec {
+    name: Located<String>,
+    workers: Located<i64>,
+}
+
+impl Validate for ServiceSpec {
+    fn validate(&self, report: &mut Report) {
+        NAME_NON_EMPTY.check_located(&self.name, "name", report);
+        NAME_LEN.check_located(&self.name, "name", report);
+        WORKERS.check_located(&self.workers, "workers", report);
+    }
+}
+
+impl ToSchema for ServiceSpec {
+    fn schema() -> Schema {
+        Schema::new(
+            None,
+            vec![
+                SchemaField::new(
+                    "name".to_string(),
+                    None,
+                    SchemaType::scalar(ScalarType::String, Some(NAME_LEN.constraint())),
+                )
+                .required()
+                .with_non_empty_help(NAME_NON_EMPTY.help),
+                SchemaField::new(
+                    "workers".to_string(),
+                    None,
+                    SchemaType::scalar(ScalarType::Int, Some(WORKERS.constraint())),
+                )
+                .required(),
+            ],
+        )
+    }
+}
+
+fn main() {
+    let schema = ServiceSpec::schema();
+    let workers = &schema.fields[1];
+    assert_eq!(
+        workers.ty.constraint(),
+        Some(&Constraint::range("1".to_string(), "512".to_string(), None, None))
+    );
+}
+```
+
+A rule that depends on which variant a tagged block holds stays handwritten and records nothing.
+The `domains` list an `acme` mode needs is one example.
+The schema describes one flat level.
+A flag on `domains` would describe the `manual` variant too.
+
+## Writing a Validate impl
+
+`Validate` holds the semantic checks a spec type performs on itself:
+
+```rust
+pub trait Validate {
+    fn validate(&self, report: &mut Report);
+
+    fn descend(&self) -> ControlFlow<()> { /* ... */ }
+
+    fn validate_all(&self, report: &mut Report) where
+        Self: ValidateNested
+    { /* ... */ }
+}
+```
+
+`validate` is the only method with no default.
+It is the one you implement.
+
+A `Validate` impl checks what a spec value can prove from its own fields, reporting at the span each field keeps.
+Because it receives `&self`, it can read every field of that struct.
+A rule spanning two fields of the same spec type belongs here.
+
+Two kinds of rule do not fit:
+
+- A rule that must report at the span of the block itself rather than at one of its fields, such as a required child that is absent.
+- A rule that needs something outside the struct, such as a sibling spec type or a value assembled from the whole configuration.
+
+Those belong in a [validator function](#validator-functions).
+Such a function holds the surrounding `Located` wrappers and can report at any span it needs.
+
+### Empty impls
+
+An empty impl satisfies the bound.
+A spec type with nothing worth checking writes one.
+This states that validation was considered rather than forgotten.
+
+### The lowering bound
+
+The `Config` derive requires every spec to have a `Validate` impl.
+It puts the bound on every generated `Lower` impl:
+
+```rust
+#[derive(confval::Config)]
+#[confval(lower_from = ServerSpec)]
+struct ServerConfig {
+    /* ... */
+}
+// generates: impl Lower<ServerSpec> for ServerConfig
+//   where ServerSpec: Validate + ValidateNested { ... }
+```
+
+A config whose spec has no `Validate` impl does not compile.
+Handwritten `Lower` impls add the same `where S: Validate + ValidateNested` clause directly.
+
+The bound guarantees that the validator exists, but it does not make lowering call it.
+Validation stays an explicit step before the gate.
+
+## Validator functions
+
+When a rule spans more than one spec type, or needs context from outside the struct, write a validator function.
+
+For example, imagine a server with a central configuration file that enables TLS, and subconfiguration files that depend on TLS state.
+A validator function checks the agreement between them:
+
+```rust
+fn validate_tls_agreement(server: &ServerSpec, upstreams: &[UpstreamSpec], report: &mut Report) {
+    /* ... */
+}
+```
+
+Nothing generates these and nothing calls them for you.
+They run alongside `validate_all`, before the `has_errors` check that stops the run.
+
+## The traversal: validate vs validate_all
+
+A `Validate` impl covers one spec type's own fields.
+It does not reach the nested blocks underneath it, because those are separate types with rules of their own.
+
+`validate_all` runs this type's `validate`, then descends into every `#[confval(nested)]` field, recursively.
+One call at the root covers the whole spec tree:
+
+```rust
+spec.validate_all(&mut report);
+```
+
+An absent `Option<Located<S>>` and an empty `Vec<Located<S>>` contribute nothing to the walk.
+Fields without `#[confval(nested)]` are skipped, because a scalar is checked by its own type's rules.
+
+The traversal is a generated `ValidateNested` impl, the second half of the lowering bound.
+A spec type with a handwritten `FromFields` has no derive to generate it and writes the impl itself.
+
+:::warning
+Calling `spec.validate(&mut report)` at the top of a pipeline checks the root block and leaves every nested block unchecked.
+Both methods compile and both take the same arguments.
+Nothing in the type system catches the mistake.
+
+Keep `validate` out of your call sites.
+The examples call `validate_all` inside the gate helper.
+`validate_all` then runs in the one place that decides whether a spec is safe to lower.
+:::
+
+### Pruning a subtree with descend
+
+Sometimes a block turns off the feature it configures while its child blocks remain in the file.
+If the traversal validates those children, the operator receives errors about settings that are not in use.
+Those errors have to be separated from the ones that apply to the running configuration.
+
+The `descend` method lets a spec type skip its own children.
+It runs after `validate` and returns a `ControlFlow` value:
+
+- `ControlFlow::Continue(())`, the default, validates every nested child.
+- `ControlFlow::Break(())` stops the descent and leaves the children unvisited.
+
+For example, an `UpstreamSpec` that has been disabled may skip the retry and timeout blocks beneath it:
+
+```rust
+impl Validate for UpstreamSpec {
+    fn validate(&self, report: &mut Report) {
+        /* ... */
+    }
+
+    fn descend(&self) -> ControlFlow<()> {
+        if self.enable.value {
+            ControlFlow::Continue(())
+        } else {
+            ControlFlow::Break(())
+        }
+    }
+}
+```
+
+`descend` is also useful when a spec has reported that the file was written for a different schema version.
+The operator needs to correct the version before the individual field errors are worth reading.
+
+Because `descend` runs after `validate`, anything the type reported about itself stays in the report.
+Only the children are skipped.
+
+The `validate_traversal` example runs the same invalid configuration twice, changing only the `enable` field, and prints both reports.
