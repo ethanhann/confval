@@ -6,6 +6,7 @@ A configuration written against a confval spec has a known legal surface.
 This crate serves that surface to an editor: diagnostics, completion, hover, navigation, rename, document highlight, document symbols, path links, folding, and quick fixes.
 `serve` binds one root spec and one format frontend.
 `serve_multi` serves a multi document configuration from one process, with one binding per document shape.
+An optional workspace validator adds the checks that read several files at once, such as a name declared twice across include files.
 One core therefore serves an HCL, TOML, KDL, JSON, or YAML document.
 
 Add it to the program that owns your spec:
